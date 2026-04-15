@@ -1,0 +1,8 @@
+[app]
+environment = "test"
+
+[server]
+port = 3001
+
+[log]
+level = "info"

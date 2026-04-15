@@ -1,0 +1,5 @@
+[app]
+environment = "dev"
+
+[log]
+level = "debug"

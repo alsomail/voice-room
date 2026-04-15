@@ -1,0 +1,8 @@
+[app]
+environment = "prod"
+
+[server]
+port = 8080
+
+[log]
+level = "info"

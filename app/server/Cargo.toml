@@ -1,0 +1,21 @@
+[package]
+name = "voice-room-server"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+
+[features]
+default = []
+database = ["dep:sqlx"]
+
+[dependencies]
+anyhow = "1.0"
+axum = "0.6.20"
+dotenvy = "0.15"
+serde = { version = "1.0", features = ["derive"] }
+sqlx = { version = "=0.5.13", default-features = false, features = ["postgres", "runtime-tokio-rustls"], optional = true }
+tokio = { version = "=1.28.2", features = ["macros", "net", "rt-multi-thread", "signal"] }
+toml = "=0.5.11"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json"] }
+uuid = { version = "=1.6.1", features = ["serde", "v4"] }

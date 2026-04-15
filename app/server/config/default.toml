@@ -1,0 +1,16 @@
+[app]
+name = "voice-room-server"
+environment = "dev"
+
+[server]
+host = "0.0.0.0"
+port = 3000
+
+[log]
+level = "info"
+format = "json"
+service_name = "voice-room-server"
+
+[database]
+max_connections = 10
+connect_timeout_secs = 5
