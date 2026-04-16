@@ -32,7 +32,9 @@ impl ServerSettings {
 
         let mut settings = Self::default_for(&environment);
         settings.apply(load_config_file(config_dir.join("default.toml"))?);
-        settings.apply(load_config_file(config_dir.join(format!("{environment}.toml")))?);
+        settings.apply(load_config_file(
+            config_dir.join(format!("{environment}.toml")),
+        )?);
         settings.apply_env_overrides();
         settings.database.url = env::var("DATABASE_URL").ok();
 

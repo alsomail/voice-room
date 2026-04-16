@@ -1,8 +1,7 @@
-use axum::{middleware, Router};
 use tokio::signal;
-use voice_room_server::infrastructure::{
-    config::ServerSettings,
-    logging::{init_tracing, request_context_middleware},
+use voice_room_server::{
+    bootstrap::build_app,
+    infrastructure::{config::ServerSettings, logging::init_tracing},
 };
 
 #[tokio::main]
@@ -20,7 +19,7 @@ async fn main() -> anyhow::Result<()> {
     );
     let _startup_guard = startup_span.enter();
 
-    let app = Router::new().layer(middleware::from_fn(request_context_middleware));
+    let app = build_app();
     let bind_addr = settings.server.bind_addr()?;
 
     tracing::info!(%bind_addr, "server skeleton initialized");
