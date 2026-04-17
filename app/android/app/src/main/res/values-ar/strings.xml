@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">غرفة صوتية</string>
+    <string name="auth_button">الدخول</string>
+    <string name="room_button">الغرفة</string>
+    <string name="profile_button">الملف</string>
+    <string name="api_label">واجهة API</string>
+    <string name="ws_label">رابط WebSocket</string>
+    <string name="status_label">حالة الهيكل</string>
+    <string name="warning_label">تحذيرات الجهاز الحقيقي</string>
+    <string name="no_warning">لا توجد تحذيرات</string>
+</resources>

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Voice Room Android</string>
+    <string name="auth_button">Auth</string>
+    <string name="room_button">Room</string>
+    <string name="profile_button">Profile</string>
+    <string name="api_label">API Base URL</string>
+    <string name="ws_label">WebSocket URL</string>
+    <string name="status_label">Bootstrap Status</string>
+    <string name="warning_label">Physical Device Warnings</string>
+    <string name="no_warning">No warnings</string>
+</resources>
