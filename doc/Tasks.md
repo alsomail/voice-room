@@ -85,10 +85,10 @@
 | Task ID | 归属端 | 模块 | 任务名称 | 前置依赖 | 核心描述 | TDD 验收标准 | 状态 | 预估工时 | 负责人 |
 |---------|--------|------|----------|----------|----------|-------------|------|----------|--------|
 | **T-00001** | App Server | Auth | 数据库表设计 [TDS](./tds/server/T-00001.md) | **T-0000B, T-0000C** | 设计 `users` 表（id, phone, nickname, avatar, coin_balance, created_at 等） | 1. SQLx migration 文件可执行<br>2. users 表 phone 字段唯一索引<br>3. 包含 coin_balance, vip_level 等字段<br>4. 支持软删除 | ✅ Done | 3 | DoD |
-| **T-00002** | App Server | Auth | 短信验证码发送接口 [TDS](./tds/server/T-00002.md) | T-00001 | POST `/api/v1/auth/send-code`，接入 Twilio，Redis 限流 | 1. 同一手机号 60 秒内只能发送 1 次<br>2. 验证码 6 位数字，Redis 存储，有效期 5 分钟<br>3. 失败重试机制<br>4. 返回 429 当频率超限 | In Progress | 4 | Review |
-| **T-00003** | App Server | Auth | 手机号一键登录接口 [TDS](./tds/server/T-00003.md) | T-00002 | POST `/api/v1/auth/login`，校验验证码，新用户自动注册 | 1. 验证码错误/过期返回 401<br>2. 新用户自动创建记录（默认昵称"用户XXX"）<br>3. 成功返回 JWT (有效期 30 天) + 用户信息<br>4. 基于 msg_id 幂等 | In Progress | 4 | Review |
+| **T-00002** | App Server | Auth | 短信验证码发送接口 [TDS](./tds/server/T-00002.md) | T-00001 | POST `/api/v1/auth/send-code`，接入 Twilio，Redis 限流 | 1. 同一手机号 60 秒内只能发送 1 次<br>2. 验证码 6 位数字，Redis 存储，有效期 5 分钟<br>3. 失败重试机制<br>4. 返回 429 当频率超限 | In Progress | 4 | TDD |
+| **T-00003** | App Server | Auth | 手机号一键登录接口 [TDS](./tds/server/T-00003.md) | T-00002 | POST `/api/v1/auth/login`，校验验证码，新用户自动注册 | 1. 验证码错误/过期返回 401<br>2. 新用户自动创建记录（默认昵称"用户XXX"）<br>3. 成功返回 JWT (有效期 30 天) + 用户信息<br>4. 基于 msg_id 幂等 | In Progress | 4 | TDD |
 | **T-00004** | App Server | Auth | JWT 中间件 [TDS](./tds/server/T-00004.md) | T-00003 | Axum 中间件，校验 JWT 并注入 user_id | 1. 无/非法/过期 token 返回 401<br>2. 合法 token 注入 user_id 到上下文 | ✅ Done | 3 | DoD |
-| **T-00005** | App Server | Auth | 获取用户信息接口 [TDS](./tds/server/T-00005.md) | T-00004 | GET `/api/v1/users/me` | 1. 需要 JWT 认证<br>2. 返回完整用户信息（不含敏感字段） | In Progress | 2 | Review |
+| **T-00005** | App Server | Auth | 获取用户信息接口 [TDS](./tds/server/T-00005.md) | T-00004 | GET `/api/v1/users/me` | 1. 需要 JWT 认证<br>2. 返回完整用户信息（不含敏感字段） | In Progress | 2 | TDD |
 
 #### Admin Server 端 (B 端管理后端)
 
