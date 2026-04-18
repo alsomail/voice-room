@@ -95,14 +95,14 @@
 | Task ID | 归属端 | 模块 | 任务名称 | 前置依赖 | 核心描述 | TDD 验收标准 | 状态 | 预估工时 | 负责人 |
 |---------|--------|------|----------|----------|----------|-------------|------|----------|--------|
 | **T-10001** | Admin Server | Auth | 管理员表设计 [TDS](./tds/adminServer/T-10001.md) | T-00001 | 设计 `admins` 表（id, username, password_hash, role, created_at） | 1. username 唯一索引<br>2. password_hash 使用 bcrypt<br>3. role 字段（super_admin, operator, cs, finance） | ✅ Done | 2 | DoD |
-| **T-10002** | Admin Server | Auth | 管理员登录接口 [TDS](./tds/adminServer/T-10002.md) | T-10001 | POST `/api/v1/admin/login`，账号密码登录 | 1. 账号不存在/密码错误返回 401<br>2. 成功返回 JWT (有效期 7 天，含 admin_id, role)<br>3. 记录登录日志（IP、时间） | 🔄 In Progress | 3 | Dod |
-| **T-10003** | Admin Server | Auth | 管理员 JWT 中间件 [TDS](./tds/adminServer/T-10003.md) | T-10002 | Axum 中间件 + RBAC 权限校验 | 1. 校验 JWT 有效性<br>2. 注入 admin_id 和 role<br>3. 根据 role 校验接口权限 | Todo | 4 | TDD |
+| **T-10002** | Admin Server | Auth | 管理员登录接口 [TDS](./tds/adminServer/T-10002.md) | T-10001 | POST `/api/v1/admin/login`，账号密码登录 | 1. 账号不存在/密码错误返回 401<br>2. 成功返回 JWT (有效期 7 天，含 admin_id, role)<br>3. 记录登录日志（IP、时间） | ✅ Done | 3 | DoD |
+| **T-10003** | Admin Server | Auth | 管理员 JWT 中间件 [TDS](./tds/adminServer/T-10003.md) | T-10002 | Axum 中间件 + RBAC 权限校验 | 1. 校验 JWT 有效性<br>2. 注入 admin_id 和 role<br>3. 根据 role 校验接口权限 | ✅ Done | 4 | DoD |
 
 #### Web 端 (后台管理前端)
 
 | Task ID | 归属端 | 模块 | 任务名称 | 前置依赖 | 核心描述 | TDD 验收标准 | 状态 | 预估工时 | 负责人 |
 |---------|--------|------|----------|----------|----------|-------------|------|----------|--------|
-| **T-20001** | Web | Auth | 管理员登录页 UI [TDS](./tds/web/T-20001.md) | T-10002 | Ant Design 实现账号密码登录页 | 1. 账号/密码输入框<br>2. 记住密码（localStorage）<br>3. 登录失败提示<br>4. 中英文支持 | Todo | 4 | TDD |
+| **T-20001** | Web | Auth | 管理员登录页 UI [TDS](./tds/web/T-20001.md) | T-10002 | Ant Design 实现账号密码登录页 | 1. 账号/密码输入框<br>2. 记住密码（localStorage）<br>3. 登录失败提示<br>4. 中英文支持 | In Progress | 4 | TDD |
 | **T-20002** | Web | Auth | 登录逻辑与路由守卫 [TDS](./tds/web/T-20002.md) | T-10002, T-20001 | 调用登录接口，保存 JWT，实现路由鉴权 | 1. 成功跳转数据看板<br>2. 未登录自动跳转登录页<br>3. token 过期自动退出 | Todo | 3 | TDD |
 
 #### Android 端 (C 端用户应用)
