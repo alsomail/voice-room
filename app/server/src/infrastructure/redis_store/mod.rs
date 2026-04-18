@@ -21,6 +21,7 @@ const MAX_DAILY: u64 = 10;
 /// Lua 原子脚本：检查冷却/日限并写入验证码（H-03）
 /// KEYS[1]=cooldown_key KEYS[2]=daily_key KEYS[3]=code_key
 /// ARGV[1]=code ARGV[2]=max_daily ARGV[3]=ttl_code ARGV[4]=ttl_cool ARGV[5]=ttl_daily
+/// 错误前缀 VR: 确保不与 Redis 内部错误混淆（M-01）
 const SAVE_CODE_LUA: &str = r#"
 local cooldown_key = KEYS[1]
 local daily_key    = KEYS[2]
@@ -32,12 +33,12 @@ local ttl_cool     = tonumber(ARGV[4])
 local ttl_daily    = tonumber(ARGV[5])
 
 if redis.call('EXISTS', cooldown_key) == 1 then
-    return redis.error_reply('COOLDOWN')
+    return redis.error_reply('VR:COOLDOWN')
 end
 
 local cnt = tonumber(redis.call('GET', daily_key) or '0') or 0
 if cnt >= max_daily then
-    return redis.error_reply('DAILY_LIMIT')
+    return redis.error_reply('VR:DAILY_LIMIT')
 end
 
 redis.call('HSET', code_key, 'code', code, 'attempts', '0')
@@ -45,6 +46,39 @@ redis.call('EXPIRE', code_key, ttl_code)
 redis.call('SET', cooldown_key, '1', 'EX', ttl_cool)
 redis.call('INCR', daily_key)
 redis.call('EXPIRE', daily_key, ttl_daily)
+return redis.status_reply('OK')
+"#;
+
+/// Lua 原子脚本：校验并消费验证码（H-01）
+/// KEYS[1]=code_key ARGV[1]=input_code ARGV[2]=max_attempts
+/// 原子化三步：HGETALL → 判断 → HSET/DEL，消除并发双重消费风险
+const VERIFY_CODE_LUA: &str = r#"
+local code_key    = KEYS[1]
+local input       = ARGV[1]
+local max_attempts = tonumber(ARGV[2])
+
+local map = redis.call('HGETALL', code_key)
+if #map == 0 then
+    return redis.error_reply('VR:EXPIRED')
+end
+
+local data = {}
+for i = 1, #map, 2 do
+    data[map[i]] = map[i + 1]
+end
+
+local attempts = tonumber(data['attempts'] or '0') or 0
+if attempts >= max_attempts then
+    redis.call('DEL', code_key)
+    return redis.error_reply('VR:MAX_ATTEMPTS')
+end
+
+if data['code'] ~= input then
+    redis.call('HSET', code_key, 'attempts', attempts + 1)
+    return redis.error_reply('VR:INVALID')
+end
+
+redis.call('DEL', code_key)
 return redis.status_reply('OK')
 "#;
 
@@ -104,9 +138,9 @@ impl SmsCodeStore for RedisCodeStore {
             Ok(_) => Ok(()),
             Err(e) => {
                 let msg = e.to_string();
-                if msg.contains("COOLDOWN") {
+                if msg.contains("VR:COOLDOWN") {
                     Err(AppError::VerificationCodeCooldown)
-                } else if msg.contains("DAILY_LIMIT") {
+                } else if msg.contains("VR:DAILY_LIMIT") {
                     Err(AppError::VerificationCodeDailyLimit)
                 } else {
                     Err(AppError::RedisError(msg))
@@ -119,31 +153,28 @@ impl SmsCodeStore for RedisCodeStore {
         let mut conn = self.conn.clone();
         let code_key = format!("{SMS_CODE_KEY}{phone}");
 
-        let map: HashMap<String, String> = conn.hgetall(&code_key).await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
+        let result: redis::RedisResult<redis::Value> = Script::new(VERIFY_CODE_LUA)
+            .key(&code_key)
+            .arg(input)
+            .arg(MAX_ATTEMPTS.to_string())
+            .invoke_async(&mut conn)
+            .await;
 
-        if map.is_empty() {
-            return Err(AppError::VerificationCodeExpired);
+        match result {
+            Ok(_) => Ok(()),
+            Err(e) => {
+                let msg = e.to_string();
+                if msg.contains("VR:EXPIRED") {
+                    Err(AppError::VerificationCodeExpired)
+                } else if msg.contains("VR:MAX_ATTEMPTS") {
+                    Err(AppError::VerificationCodeMaxAttempts)
+                } else if msg.contains("VR:INVALID") {
+                    Err(AppError::InvalidVerificationCode)
+                } else {
+                    Err(AppError::RedisError(msg))
+                }
+            }
         }
-
-        let stored = map.get("code").ok_or(AppError::VerificationCodeExpired)?;
-        let attempts: u32 = map.get("attempts").and_then(|v| v.parse().ok()).unwrap_or(0);
-
-        if attempts >= MAX_ATTEMPTS {
-            let _: () = conn.del(&code_key).await
-                .map_err(|e| AppError::Internal(e.to_string()))?;
-            return Err(AppError::VerificationCodeMaxAttempts);
-        }
-
-        if stored != input {
-            let _: () = conn.hset(&code_key, "attempts", attempts + 1).await
-                .map_err(|e| AppError::Internal(e.to_string()))?;
-            return Err(AppError::InvalidVerificationCode);
-        }
-
-        let _: () = conn.del(&code_key).await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-        Ok(())
     }
 
     async fn is_in_cooldown(&self, phone: &str) -> Result<bool, AppError> {
@@ -156,7 +187,11 @@ impl SmsCodeStore for RedisCodeStore {
     async fn daily_count(&self, phone: &str, today: &str) -> Result<u64, AppError> {
         let mut conn = self.conn.clone();
         let key = format!("{SMS_DAILY_KEY_PREFIX}{phone}:{today}");
-        Ok(conn.get(&key).await.unwrap_or(0))
+        let val: Option<u64> = conn
+            .get(&key)
+            .await
+            .map_err(|e| AppError::RedisError(e.to_string()))?;
+        Ok(val.unwrap_or(0))
     }
 }
 
@@ -239,5 +274,65 @@ impl FakeCodeStore {
     pub fn set_daily_count(&self, phone: &str, today: &str, count: u64) {
         let key = format!("{phone}:{today}");
         self.inner.lock().unwrap().daily.insert(key, count);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_store() -> FakeCodeStore {
+        FakeCodeStore::default()
+    }
+
+    /// H-01 行为契约：verify_and_consume 消费后 key 不存在，第二次调用返回 Expired
+    #[tokio::test]
+    async fn verify_and_consume_reuse_code_returns_expired() {
+        let store = make_store();
+        store.seed_code("+8613800138000", "123456");
+
+        // 第一次：成功消费
+        store.verify_and_consume("+8613800138000", "123456").await.unwrap();
+
+        // 第二次：同一 OTP 必须拒绝（验证原子性契约）
+        let err = store.verify_and_consume("+8613800138000", "123456").await.unwrap_err();
+        assert!(
+            matches!(err, AppError::VerificationCodeExpired),
+            "second call with same code must return Expired, got: {err:?}"
+        );
+    }
+
+    /// H-01 行为契约：错误码不消耗 key，正确码才消耗
+    #[tokio::test]
+    async fn verify_and_consume_wrong_then_right_works() {
+        let store = make_store();
+        store.seed_code("+8613800138001", "999999");
+
+        // 先错后对：错误的不消耗
+        let err = store.verify_and_consume("+8613800138001", "000000").await.unwrap_err();
+        assert!(matches!(err, AppError::InvalidVerificationCode));
+
+        // 正确的可以消耗
+        store.verify_and_consume("+8613800138001", "999999").await.unwrap();
+
+        // 此后不可再用
+        let err2 = store.verify_and_consume("+8613800138001", "999999").await.unwrap_err();
+        assert!(matches!(err2, AppError::VerificationCodeExpired));
+    }
+
+    /// H-02 契约：daily_count 应该对有效 key 返回正确计数
+    #[tokio::test]
+    async fn daily_count_returns_correct_value() {
+        let store = make_store();
+        let today = "2026-01-01";
+        let phone = "+8613800138002";
+
+        // 初始为 0
+        assert_eq!(store.daily_count(phone, today).await.unwrap(), 0);
+
+        // save_code 后增加到 1
+        store.seed_code(phone, "111111");
+        store.set_daily_count(phone, today, 3);
+        assert_eq!(store.daily_count(phone, today).await.unwrap(), 3);
     }
 }

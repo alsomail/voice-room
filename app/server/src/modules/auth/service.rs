@@ -170,7 +170,7 @@ fn today_str() -> String {
 fn now_secs() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .unwrap()
+        .unwrap_or_default()
         .as_secs()
 }
 
@@ -413,5 +413,22 @@ mod tests {
         let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
         let count = code_store.daily_count("+8613800138000", &today).await.unwrap();
         assert_eq!(count, 0, "daily count must NOT increment after SMS failure");
+    }
+
+    // ── H-01: 同一 OTP 只能被消费一次（行为契约 / 防双重登录）────────────────
+    #[tokio::test]
+    async fn login_reuse_code_returns_expired() {
+        let (svc, code_store, _) = test_service();
+        code_store.seed_code("+8613800138000", "123456");
+
+        // 第一次登录成功
+        svc.login("+8613800138000", "123456").await.unwrap();
+
+        // 第二次使用相同 OTP 必须失败
+        let err = svc.login("+8613800138000", "123456").await.unwrap_err();
+        assert!(
+            matches!(err, AppError::VerificationCodeExpired),
+            "same OTP must not be reused; got: {err:?}"
+        );
     }
 }
