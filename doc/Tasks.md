@@ -111,7 +111,7 @@
 |---------|--------|------|----------|----------|----------|-------------|------|----------|--------|
 | **T-30001** | Android | Auth | 登录页 UI (Compose) [TDS](./tds/android/T-30001.md) | T-00002 | Material3 实现手机号+验证码登录 | 1. 手机号输入框（+966 沙特格式）<br>2. 发送验证码倒计时<br>3. RTL 布局支持 | ✅ Done | 5 | Dod |
 | **T-30002** | Android | Auth | 登录 ViewModel [TDS](./tds/android/T-30002.md) | T-00003, T-30001 | Retrofit 调用登录接口 | 1. Loading/Success/Error 状态<br>2. token 保存到 DataStore<br>3. 登录成功导航到大厅 | ✅ Done | 4 | Dod |
-| **T-30003** | Android | Auth | JWT 拦截器 [TDS](./tds/android/T-30003.md) | T-00004, T-30002 | OkHttp 拦截器自动添加 token | 1. 每个请求自动带 Authorization Header<br>2. 401 响应自动跳转登录页 | Todo | 3 | TDD |
+| **T-30003** | Android | Auth | JWT 拦截器 [TDS](./tds/android/T-30003.md) | T-00004, T-30002 | OkHttp 拦截器自动添加 token | 1. 每个请求自动带 Authorization Header<br>2. 401 响应自动跳转登录页 | In Progress | 3 | TDD |
 | **T-30004** | Android | Auth | 用户信息 Repository [TDS](./tds/android/T-30004.md) | T-00005, T-30003 | 封装用户信息获取与缓存 | 1. 首次登录拉取用户信息<br>2. Room Database 本地缓存<br>3. Flow 订阅用户信息变更 | Todo | 4 | TDD |
 
 ---
