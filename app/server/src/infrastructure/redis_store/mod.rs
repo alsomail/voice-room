@@ -33,29 +33,27 @@ pub trait SmsCodeStore: Send + Sync {
 
 // ─── Redis 实现 ───────────────────────────────────────────────────────────────
 
+/// `MultiplexedConnection` 是 Clone 的，内部共享同一 TCP 连接，每次操作 clone 避免 &mut 竞争。
 pub struct RedisCodeStore {
-    client: RedisClient,
+    conn: MultiplexedConnection,
 }
 
 impl RedisCodeStore {
-    pub fn new(redis_url: &str) -> Result<Self, AppError> {
+    pub async fn new(redis_url: &str) -> Result<Self, AppError> {
         let client = RedisClient::open(redis_url)
             .map_err(|e| AppError::Internal(format!("redis open: {e}")))?;
-        Ok(Self { client })
-    }
-
-    async fn conn(&self) -> Result<MultiplexedConnection, AppError> {
-        self.client
+        let conn = client
             .get_multiplexed_async_connection()
             .await
-            .map_err(|e| AppError::Internal(format!("redis conn: {e}")))
+            .map_err(|e| AppError::Internal(format!("redis conn: {e}")))?;
+        Ok(Self { conn })
     }
 }
 
 #[async_trait]
 impl SmsCodeStore for RedisCodeStore {
     async fn save_code(&self, phone: &str, code: &str, today: &str) -> Result<(), AppError> {
-        let mut conn = self.conn().await?;
+        let mut conn = self.conn.clone();
 
         // 冷却期检查
         let cooldown_key = format!("{SMS_COOLDOWN_KEY}{phone}");
@@ -90,7 +88,7 @@ impl SmsCodeStore for RedisCodeStore {
     }
 
     async fn verify_and_consume(&self, phone: &str, input: &str) -> Result<(), AppError> {
-        let mut conn = self.conn().await?;
+        let mut conn = self.conn.clone();
         let code_key = format!("{SMS_CODE_KEY}{phone}");
 
         let map: HashMap<String, String> = conn.hgetall(&code_key).await
@@ -121,14 +119,14 @@ impl SmsCodeStore for RedisCodeStore {
     }
 
     async fn is_in_cooldown(&self, phone: &str) -> Result<bool, AppError> {
-        let mut conn = self.conn().await?;
+        let mut conn = self.conn.clone();
         let key = format!("{SMS_COOLDOWN_KEY}{phone}");
         conn.exists(&key).await
             .map_err(|e| AppError::Internal(e.to_string()))
     }
 
     async fn daily_count(&self, phone: &str, today: &str) -> Result<u64, AppError> {
-        let mut conn = self.conn().await?;
+        let mut conn = self.conn.clone();
         let key = format!("{SMS_DAILY_KEY_PREFIX}{phone}:{today}");
         Ok(conn.get(&key).await.unwrap_or(0))
     }

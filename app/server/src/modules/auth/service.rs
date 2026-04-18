@@ -16,7 +16,7 @@ use crate::{
 };
 
 use super::{
-    dto::{LoginResponse, UserResponse},
+    dto::{LoginResponse, LoginUserInfo, SendCodeResponse, UserResponse},
     repository::UserRepository,
 };
 
@@ -46,13 +46,16 @@ impl AuthService {
     }
 
     /// T-00002: 发送短信验证码（E.164 → 冷却检查 → 生成 → 存储 → 发送）
-    pub async fn send_code(&self, phone: &str) -> Result<(), AppError> {
+    pub async fn send_code(&self, phone: &str) -> Result<SendCodeResponse, AppError> {
         validate_phone(phone)?;
         let today = today_str();
         let code = generate_code();
         self.code_store.save_code(phone, &code, &today).await?;
         self.sms.send_verification_code(phone, &code).await?;
-        Ok(())
+        Ok(SendCodeResponse {
+            expires_in: 300,
+            cooldown: 60,
+        })
     }
 
     /// T-00003: 验证码登录（验证 → 找 / 建用户 → 签发 JWT）
@@ -60,12 +63,12 @@ impl AuthService {
         validate_phone(phone)?;
         self.code_store.verify_and_consume(phone, code).await?;
 
-        let user = match self.user_repo.find_by_phone(phone).await? {
-            Some(u) => u,
+        let (user, is_new) = match self.user_repo.find_by_phone(phone).await? {
+            Some(u) => (u, false),
             None => {
                 let suffix = &phone[phone.len().saturating_sub(4)..];
                 let nickname = format!("User{suffix}");
-                self.user_repo.create(phone, &nickname).await?
+                (self.user_repo.create(phone, &nickname).await?, true)
             }
         };
 
@@ -75,10 +78,9 @@ impl AuthService {
 
         let token = issue_token(&user, &self.jwt_secret)?;
         Ok(LoginResponse {
-            access_token: token,
-            token_type: "Bearer".to_string(),
+            token,
             expires_in: TOKEN_EXPIRES_SECS,
-            user: UserResponse::from(user),
+            user: LoginUserInfo::from((user, is_new)),
         })
     }
 
@@ -107,7 +109,22 @@ impl From<UserModel> for UserResponse {
             avatar: u.avatar,
             coin_balance: u.coin_balance,
             vip_level: u.vip_level,
-            is_banned: u.is_banned,
+            created_at: u.created_at.to_rfc3339(),
+        }
+    }
+}
+
+impl From<(UserModel, bool)> for LoginUserInfo {
+    fn from((u, is_new): (UserModel, bool)) -> Self {
+        LoginUserInfo {
+            id: u.id.to_string(),
+            phone: u.phone,
+            nickname: u.nickname,
+            avatar: u.avatar,
+            coin_balance: u.coin_balance,
+            vip_level: u.vip_level,
+            is_new,
+            created_at: u.created_at.to_rfc3339(),
         }
     }
 }
@@ -145,11 +162,12 @@ fn now_secs() -> u64 {
 }
 
 fn issue_token(user: &UserModel, secret: &str) -> Result<String, AppError> {
+    let now = now_secs();
     let claims = AppClaims {
         sub: user.id.to_string(),
         iss: "voiceroom".to_string(),
-        exp: now_secs() + TOKEN_EXPIRES_SECS,
-        iat: now_secs(),
+        exp: now + TOKEN_EXPIRES_SECS,
+        iat: now,
     };
     encode_token(&claims, secret.as_bytes())
         .map_err(|e| AppError::Internal(format!("jwt encode: {e}")))
@@ -267,7 +285,9 @@ mod tests {
     #[tokio::test]
     async fn send_code_success_stores_and_sends() {
         let (svc, _, _) = test_service();
-        assert!(svc.send_code("+8613800138000").await.is_ok());
+        let resp = svc.send_code("+8613800138000").await.unwrap();
+        assert_eq!(resp.expires_in, 300);
+        assert_eq!(resp.cooldown, 60);
     }
 
     // ── T-00003: login ────────────────────────────────────────────────────────
@@ -276,8 +296,9 @@ mod tests {
         let (svc, code_store, user_repo) = test_service();
         code_store.seed_code("+8613800138000", "123456");
         let resp = svc.login("+8613800138000", "123456").await.unwrap();
-        assert_eq!(resp.token_type, "Bearer");
-        assert!(!resp.access_token.is_empty());
+        assert!(!resp.token.is_empty());
+        assert!(resp.user.is_new, "should be new user");
+        assert!(!resp.user.created_at.is_empty());
         assert!(user_repo
             .find_by_phone("+8613800138000")
             .await
@@ -309,6 +330,7 @@ mod tests {
         code_store.seed_code("+8613800138000", "123456");
         let resp = svc.login("+8613800138000", "123456").await.unwrap();
         assert_eq!(resp.user.id, uid.to_string());
+        assert!(!resp.user.is_new, "should be existing user");
     }
 
     #[tokio::test]
@@ -332,6 +354,7 @@ mod tests {
         let resp = svc.get_me(uid).await.unwrap();
         assert_eq!(resp.id, uid.to_string());
         assert_eq!(resp.nickname, nickname);
+        assert!(!resp.created_at.is_empty());
     }
 
     #[tokio::test]

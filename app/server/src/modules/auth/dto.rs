@@ -1,28 +1,47 @@
 use serde::{Deserialize, Serialize};
 
-/// POST /auth/send-code
+/// POST /api/v1/auth/verification-codes
 #[derive(Debug, Deserialize)]
 pub struct SendCodeRequest {
     pub phone: String,
 }
 
-/// POST /auth/login
+/// POST /api/v1/auth/verification-codes 成功响应 data
+#[derive(Debug, Serialize)]
+pub struct SendCodeResponse {
+    pub expires_in: u64,
+    pub cooldown: u64,
+}
+
+/// POST /api/v1/auth/login
 #[derive(Debug, Deserialize)]
 pub struct LoginRequest {
     pub phone: String,
     pub code: String,
 }
 
-/// POST /auth/login 响应体
+/// POST /api/v1/auth/login 响应 data（参见 protocol.md §2.2）
 #[derive(Debug, Serialize)]
 pub struct LoginResponse {
-    pub access_token: String,
-    pub token_type: String,
+    pub token: String,
     pub expires_in: u64,
-    pub user: UserResponse,
+    pub user: LoginUserInfo,
 }
 
-/// GET /users/me 响应体（也作为 login 内嵌 user 使用）
+/// POST /api/v1/auth/login 中的用户信息（含 is_new，参见 protocol.md §2.2）
+#[derive(Debug, Serialize, Clone)]
+pub struct LoginUserInfo {
+    pub id: String,
+    pub phone: String,
+    pub nickname: String,
+    pub avatar: Option<String>,
+    pub coin_balance: i64,
+    pub vip_level: i16,
+    pub is_new: bool,
+    pub created_at: String,
+}
+
+/// GET /api/v1/users/me 响应 data（不含 is_banned / is_new，参见 protocol.md §2.3）
 #[derive(Debug, Serialize, Clone)]
 pub struct UserResponse {
     pub id: String,
@@ -31,5 +50,5 @@ pub struct UserResponse {
     pub avatar: Option<String>,
     pub coin_balance: i64,
     pub vip_level: i16,
-    pub is_banned: bool,
+    pub created_at: String,
 }

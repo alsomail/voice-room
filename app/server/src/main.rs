@@ -33,14 +33,19 @@ async fn main() -> anyhow::Result<()> {
         .url
         .as_deref()
         .expect("DATABASE_URL must be set");
-    let pool = create_pool(db_url).await?;
+    let pool = create_pool(
+        db_url,
+        settings.database.max_connections,
+        settings.database.connect_timeout_secs,
+    )
+    .await?;
     sqlx::migrate!("./migrations").run(&pool).await?;
 
     let redis_url = settings
         .redis_url
         .as_deref()
         .unwrap_or("redis://127.0.0.1:6379");
-    let code_store = Arc::new(RedisCodeStore::new(redis_url)?);
+    let code_store = Arc::new(RedisCodeStore::new(redis_url).await?);
 
     // 按环境选择 SMS provider（prod 用 Twilio，dev 用 Mock）
     let sms: Arc<dyn voice_room_server::infrastructure::third_party::sms::SmsProvider> =

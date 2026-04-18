@@ -5,19 +5,19 @@ use crate::{
     common::{auth::AuthContext, error::AppError, response::ApiResponse, RequestContext},
 };
 
-use super::dto::{LoginRequest, LoginResponse, SendCodeRequest, UserResponse};
+use super::dto::{LoginRequest, LoginResponse, SendCodeRequest, SendCodeResponse, UserResponse};
 
-/// POST /auth/send-code
+/// POST /api/v1/auth/verification-codes
 pub async fn send_code(
     State(state): State<AppState>,
     Extension(rc): Extension<RequestContext>,
     Json(req): Json<SendCodeRequest>,
-) -> Result<Json<ApiResponse<()>>, AppError> {
-    state.auth_service.send_code(&req.phone).await?;
-    Ok(Json(ApiResponse::ok((), rc.request_id())))
+) -> Result<Json<ApiResponse<SendCodeResponse>>, AppError> {
+    let resp = state.auth_service.send_code(&req.phone).await?;
+    Ok(Json(ApiResponse::ok(resp, rc.request_id())))
 }
 
-/// POST /auth/login
+/// POST /api/v1/auth/login
 pub async fn login(
     State(state): State<AppState>,
     Extension(rc): Extension<RequestContext>,
@@ -27,7 +27,7 @@ pub async fn login(
     Ok(Json(ApiResponse::ok(resp, rc.request_id())))
 }
 
-/// GET /users/me（需要 JWT 鉴权）
+/// GET /api/v1/users/me（需要 JWT 鉴权）
 pub async fn get_me(
     State(state): State<AppState>,
     Extension(rc): Extension<RequestContext>,
