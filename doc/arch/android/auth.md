@@ -1,7 +1,7 @@
 # Android Auth 模块架构
 
-**Last Updated:** 2026-04  
-**关联 Task:** [T-30001](../../tds/android/T-30001.md) — 登录页 UI (Compose) · [T-30002](../../tds/android/T-30002.md) — 登录 ViewModel  
+**Last Updated:** 2026-05  
+**关联 Task:** [T-30001](../../tds/android/T-30001.md) — 登录页 UI (Compose) · [T-30002](../../tds/android/T-30002.md) — 登录 ViewModel · [T-30003](../../tds/android/T-30003.md) — JWT 拦截器 · [T-30004](../../tds/android/T-30004.md) — 用户信息 Repository  
 **Entry Points:** `feature/auth/LoginScreen.kt`, `feature/auth/LoginViewModel.kt`
 
 ---
@@ -463,6 +463,7 @@ LoginViewModel.onLogin()
 - [TDS T-30001 登录页 UI](../../tds/android/T-30001.md)
 - [TDS T-30002 登录 ViewModel](../../tds/android/T-30002.md)
 - [TDS T-30003 JWT 拦截器](../../tds/android/T-30003.md)
+- [TDS T-30004 用户信息 Repository](../../tds/android/T-30004.md)
 
 ## 九、T-30002 新增文件速查
 
@@ -479,3 +480,77 @@ LoginViewModel.onLogin()
 | `data/auth/RetrofitAuthRepository.kt` | Impl | `IAuthRepository` Retrofit 实现 |
 | `data/local/TokenManager.kt` | Impl | `ITokenManager` DataStore 实现 |
 | `feature/auth/NavEvent.kt` | Sealed | `NavigateToHall` 导航事件 |
+
+---
+
+## 十、T-30004 用户信息 Repository
+
+> **关联 Task:** [T-30004](../../tds/android/T-30004.md) — 用户信息 Repository  
+> **完成时间:** 2026-05  
+> **测试:** 21 个测试（`RetrofitUserRepositoryTest` × 11 + `UserProfileTest` × 10），全量 110 个测试全通过
+
+### 10.1 新增文件列表与职责
+
+| 文件路径（`com.voice.room.android.` 下） | 类型 | 职责 |
+|----------------------------------------|------|------|
+| `domain/user/UserProfile.kt` | Domain Model | 用户领域模型，字段：`id`, `phone`, `nickname`, `avatar?`, `coinBalance`, `vipLevel`, `createdAt` |
+| `domain/user/IUserRepository.kt` | Interface | 用户仓库 Domain 契约：`suspend fun getMe(): Result<UserProfile>` |
+| `data/remote/model/UserMeResponseData.kt` | DTO | Gson `@SerializedName` 映射，含 `toDomain()` 转换方法 |
+| `data/remote/api/UserApiService.kt` | Retrofit | `@GET("users/me")` 接口声明 |
+| `data/user/RetrofitUserRepository.kt` | Impl | `IUserRepository` 的 Retrofit 实现，复用 `parseBody` 统一错误处理 |
+
+### 10.2 架构分层图
+
+```
+┌─────────────────── Domain (domain/user) ───────────────────────────┐
+│  IUserRepository              ← suspend fun getMe(): Result<UserProfile>│
+│  UserProfile                  ← 领域模型（与 DTO / 网络层完全解耦）  │
+└─────────────────────────────────────────────────────────────────────┘
+                          │ 实现
+┌─────────────────── Data (data/user, data/remote) ──────────────────┐
+│  RetrofitUserRepository       ← IUserRepository Retrofit 实现       │
+│    └─ UserApiService          ← Retrofit 接口 (@GET "users/me")     │
+│    └─ UserMeResponseData      ← DTO，toDomain() 转 UserProfile      │
+│    └─ parseBody { }           ← 统一错误处理（与 Auth 模块共用逻辑）  │
+└─────────────────────────────────────────────────────────────────────┘
+                          │ 依赖（构造注入，经 AppContainer）
+┌─────────────────── 上层调用方（后续） ─────────────────────────────┐
+│  ProfileViewModel / 其他 ViewModel  ← 注入 IUserRepository         │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### 10.3 核心数据流
+
+```
+IUserRepository.getMe()
+  → UserApiService.getMe()          ← Retrofit @GET "users/me"
+  → HTTP Response (JSON)
+  → parseBody { ApiResponse<UserMeResponseData> }
+      ├─ 成功 → UserMeResponseData.toDomain() → Result.success(UserProfile)
+      └─ 失败 → ApiException(code, message) → Result.failure(ApiException)
+```
+
+### 10.4 重要实现说明
+
+#### 字段映射（DTO → Domain）
+
+| JSON 字段（服务端） | DTO 字段（`@SerializedName`） | Domain 字段（`UserProfile`） |
+|-------------------|------------------------------|------------------------------|
+| `id` | `id` | `id: String` |
+| `phone` | `phone` | `phone: String` |
+| `nickname` | `nickname` | `nickname: String` |
+| `avatar` | `avatar` | `avatar: String?`（可空） |
+| `coin_balance` | `coinBalance` | `coinBalance: Long` |
+| `vip_level` | `vipLevel` | `vipLevel: Int` |
+| `created_at` | `createdAt` | `createdAt: String` |
+
+- **`coin_balance` → `coinBalance`**：下划线到驼峰由 `@SerializedName("coin_balance")` 完成，Domain 层保持 Kotlin 规范命名。
+- **`vipLevel` 默认 0**：`UserMeResponseData` 中 `vipLevel` 声明为 `Int = 0`，服务端缺省字段时自动降级为普通用户。
+- **401 处理**：由 T-30003 的 `AuthInterceptor` 在 OkHttp 层统一拦截并触发跳转登录，`RetrofitUserRepository` 层不感知 401，仅透传 `ApiException`。
+
+### 10.5 遗留技术债（MEDIUM，后续统一处理）
+
+| 编号 | 描述 | 计划处理时机 |
+|------|------|------------|
+| M01 | `UserProfile` / `UserMeResponseData` 均为 `data class`，默认 `toString()` 会暴露 `phone`、`coinBalance` 等敏感字段，存在崩溃日志泄露风险 | 接入崩溃上报 SDK（如 Firebase Crashlytics）前统一处理，覆写 `toString()` 或使用 `@Redacted` 注解 |
+| M02 | `RetrofitUserRepository.parseBody` 与 `RetrofitAuthRepository.parseBody` 逻辑重复（复制粘贴） | 下一个新增 Repository 时统一提取到 `data/remote/NetworkExtensions.kt` |

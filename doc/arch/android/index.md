@@ -31,6 +31,7 @@
 - 🟢 Retrofit 2.11.0 HTTP 客户端接入，`RetrofitAuthRepository` 实现登录 / 发码接口调用与错误映射
 - 🟢 DataStore 1.1.1 JWT Token 持久化，`TokenManager` 线程安全读写
 - 🟢 OkHttp JWT 拦截器（T-30003）：`AuthInterceptor` 自动注入 `Authorization: Bearer` header；`DefaultUnauthorizedHandler` 用 `AtomicBoolean.compareAndSet` 保证并发 401 只处理一次；登录成功后 `resetUnauthorized()` 重置，详见 [auth.md § T-30003](./auth.md#七t-30003-jwt-拦截器)
+- 🟢 用户信息 Repository（T-30004）：`IUserRepository.getMe()` 领域接口 + `RetrofitUserRepository` 实现；`UserProfile` 领域模型与 DTO（`UserMeResponseData`）解耦；`coin_balance` 下划线映射、`vipLevel` 默认 0、401 由 `AuthInterceptor` 透传，详见 [auth.md § T-30004](./auth.md#十t-30004-用户信息-repository)
 - 🟡 `room` / `profile` Feature 已有占位描述，Repository / Service 仍为 Debug 实现
 - 🟡 Telemetry / Media / IM 已通过接口与 `NoOp*` 适配器隔离第三方依赖
 - 🔴 WebSocket 长连接状态机、真实鉴权、房间同步、RTC/IM 接入
@@ -38,5 +39,5 @@
 
 
 ### 遗留技术债 (Tech Debt)
-- `auth` 模块已完成 UI + ViewModel + Repository + DataStore + OkHttp JWT 拦截器完整链路（T-30001 / T-30002 / T-30003）；`room` / `profile` 等业务模块仍以 `.gitkeep` 预留，未接入真实 API、WS 协议与服务端广播。
+- `auth` 模块已完成 UI + ViewModel + Repository + DataStore + OkHttp JWT 拦截器 + 用户信息 Repository 完整链路（T-30001 / T-30002 / T-30003 / T-30004）；`room` / `profile` 等业务模块仍以 `.gitkeep` 预留，未接入真实 API、WS 协议与服务端广播。
 - `core` 层已完成接口隔离，但远程配置、本地存储、安全、日志等能力还只有骨架或占位。
