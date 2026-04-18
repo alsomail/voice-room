@@ -6,10 +6,9 @@ pub mod modules;
 #[cfg(test)]
 mod tests {
     use axum::{
-        body::Body,
+        body::{to_bytes, Body},
         http::{Request, StatusCode},
     };
-    use hyper::body::to_bytes;
     use tower::ServiceExt;
 
     #[tokio::test]
@@ -35,7 +34,7 @@ mod tests {
             .expect("x-request-id header should be present")
             .to_owned();
 
-        let body = to_bytes(response.into_body())
+        let body = to_bytes(response.into_body(), usize::MAX)
             .await
             .expect("body should read");
 

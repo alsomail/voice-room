@@ -1,4 +1,4 @@
-use tokio::signal;
+use tokio::{net::TcpListener, signal};
 use voice_room_server::{
     bootstrap::build_app,
     infrastructure::{config::ServerSettings, logging::init_tracing},
@@ -21,11 +21,11 @@ async fn main() -> anyhow::Result<()> {
 
     let app = build_app();
     let bind_addr = settings.server.bind_addr()?;
+    let listener = TcpListener::bind(bind_addr).await?;
 
     tracing::info!(%bind_addr, "server skeleton initialized");
 
-    axum::Server::bind(&bind_addr)
-        .serve(app.into_make_service())
+    axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())
         .await?;
 

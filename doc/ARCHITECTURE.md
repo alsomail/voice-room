@@ -1,10 +1,11 @@
 # 1. 文档目标
 
-本文档定义实时语聊房项目的目标生产级架构，用于统一指导以下三端后续代码生成与业务开发：
+本文档定义实时语聊房项目的目标生产级架构，用于统一指导以下四端后续代码生成与业务开发：
 
-- **Server**：Rust + Axum + SQLx + PostgreSQL + Tungstenite
+- **App Server**：Rust + Axum + SQLx + PostgreSQL + Tungstenite（C 端业务后端，公网部署）
+- **Admin Server**：Rust + Axum + SQLx + PostgreSQL（B 端管理后端，内网 VPN 部署）
 - **Android**：Kotlin + Gradle 8.7 + XML UI + OkHttp
-- **Web 管理/H5**：Vite + React + Tailwind + shadcn/ui
+- **Web (Admin)**：Vite + React + Ant Design + Zustand（后台管理系统）
 
 本架构以以下原则为准：
 1. **服务端权威**：房间、麦位、礼物、钱包等核心状态以 Server 为唯一事实源。
@@ -24,25 +25,35 @@
 flowchart TB
     subgraph Client
         A[Android App]
-        W[Web H5 / Admin]
+        W[Web Admin]
     end
 
-    subgraph Server["Rust Server (Axum + WS)"]
+    subgraph AppServer["App Server (Axum + WS)"]
         G[HTTP API Gateway]
         WS[WebSocket Gateway]
         APP[Application Services]
         DOM[Domain Modules]
         STATE[RoomStateRepository]
         ACL[Third-party ACL]
-        OBS[Logging / Tracing / Telemetry]
+        OBS_A[Logging / Tracing / Telemetry]
+    end
+
+    subgraph AdminServer["Admin Server (Axum HTTP)"]
+        AG[Admin HTTP API]
+        AAPP[Admin Application Services]
+        ADOM[Admin Domain Modules]
+        RBAC[RBAC Middleware]
+        AUDIT[Audit Logger]
+        OBS_B[Logging / Tracing]
     end
 
     subgraph Infra
         PG[(PostgreSQL)]
+        REDIS[(Redis)]
         MEM[(In-Memory State / DashMap)]
-        REDIS[(Future Redis Cluster)]
         RTC[RTC Provider]
         IM[IM / Push / Mini Game]
+        SMS[SMS Provider]
         LOG[ELK / Cloud Logging]
         ANA[Analytics / Crash Platform]
         CDN[CDN / Edge / Gateway]
@@ -50,8 +61,7 @@ flowchart TB
 
     A -->|HTTP/WS| G
     A -->|HTTP/WS| WS
-    W -->|HTTP/WS| G
-    W -->|HTTP/WS| WS
+    W -->|HTTP| AG
 
     G --> APP
     WS --> APP
@@ -63,12 +73,24 @@ flowchart TB
     APP --> ACL
     ACL --> RTC
     ACL --> IM
-    APP --> OBS
-    OBS --> LOG
+    ACL --> SMS
+    APP --> OBS_A
+    OBS_A --> LOG
+
+    AG --> RBAC
+    RBAC --> AAPP
+    AAPP --> ADOM
+    ADOM --> PG
+    AAPP --> AUDIT
+    AUDIT --> PG
+    AAPP --> OBS_B
+    OBS_B --> LOG
+
+    AdminServer -->|Pub admin:events| REDIS
+    AppServer -->|Sub admin:events| REDIS
+
     A --> ANA
-    W --> ANA
     A --> CDN
-    W --> CDN
 ```
 
 ## 2.1 分层原则
@@ -86,25 +108,27 @@ flowchart TB
 # 3. Monorepo 目录结构与 DDD 设计
 
 下述为目标目录结构，即使当前仓库尚未完全创建，也必须按该结构落地。  
-**Server 端严格采用 Package by Feature 的模块化设计，避免全局服务和领域层混乱；三端都必须为基建目录预留明确位置。**
+**Server 端严格采用 Package by Feature 的模块化设计，避免全局服务和领域层混乱；四端都必须为基建目录预留明确位置。**
 
 ```text
 /
-├── doc/                                  # 架构、协议、排障、接口与运维文档
+├── doc/                                  # 架构、协议、排障与运维文档
 │   ├── ARCHITECTURE.md                   # 本文档：系统总架构与开发约束
-│   ├── API.md                            # HTTP API 契约文档
-│   ├── WS_PROTOCOL.md                    # WebSocket 信令协议文档
-│   ├── ERROR_CODE.md                     # 全局错误码定义
-│   ├── DB_SCHEMA.md                      # 数据库表结构与索引设计
-│   ├── RUNBOOK.md                        # 联调、编译、排障、发布 SOP
-│   └── DEBUG_SOP.md                      # AI/开发者通用调试与故障定位方法论
+│   ├── protocol.md                       # HTTP/WS API 契约、错误码、数据模型（唯一 API 契约源）
+│   ├── DEBUG_SOP.md                      # AI/开发者通用调试与故障定位方法论
+│   ├── arch/                             # 各端详细架构文档
+│   │   ├── server/index.md               # App Server 架构入口
+│   │   ├── adminServer/index.md          # Admin Server 架构入口
+│   │   ├── web/index.md                  # Web Admin 架构入口
+│   │   └── android/index.md              # Android 架构入口
+│   └── tds/                              # 技术设计方案（按端分目录）
+│       ├── _template.md                  # TDS 模板
+│       ├── server/                       # App Server TDS
+│       ├── adminServer/                  # Admin Server TDS
+│       ├── web/                          # Web Admin TDS
+│       └── android/                      # Android TDS
 │
-├── shared/                               # 跨端共享定义；只放“稳定契约”，不放端内实现
-│   ├── contracts/                        # 三端共享协议定义
-│   │   ├── http/                         # HTTP 请求/响应契约示例
-│   │   ├── ws/                           # WebSocket 事件与载荷契约
-│   │   ├── enums/                        # 通用枚举定义（状态、角色、错误类型）
-│   │   └── examples/                     # 示例报文，供 AI 与人工联调参考
+├── shared/                               # 跨端共享资源（非代码）
 │   ├── localization/                     # 多语言 key 与文案规范
 │   │   ├── ar/                           # 阿拉伯语文案
 │   │   ├── en/                           # 英语文案
@@ -172,7 +196,48 @@ flowchart TB
 │   │           ├── vip/                  # 贵族/VIP 特权（未来扩展）
 │   │           ├── backpack/             # 背包、道具、资产（未来扩展）
 │   │           ├── game/                 # 小游戏接入（未来扩展）
-│   │           └── admin/                # 后台运营与管理端
+│   │           └── _reserved/            # 预留扩展模块目录
+│   │
+│   ├── adminServer/
+│   │   ├── .env.example                  # Admin Server 环境变量模板
+│   │   ├── Cargo.toml                    # Rust 依赖声明（引用 shared crate）
+│   │   ├── rustfmt.toml                  # Rust 格式化规则
+│   │   ├── migrations/                   # Admin 专属 migration（如 admins 表、admin_logs 表）
+│   │   ├── config/                       # 分环境配置
+│   │   │   ├── default.toml
+│   │   │   ├── local.toml
+│   │   │   ├── test.toml
+│   │   │   └── prod.toml
+│   │   └── src/
+│   │       ├── main.rs                   # 应用入口
+│   │       ├── bootstrap/                # 启动装配、路由注册
+│   │       ├── config/                   # 配置读取
+│   │       ├── common/                   # 通用代码
+│   │       │   ├── error/                # 错误定义与错误码
+│   │       │   ├── result/               # 统一返回体
+│   │       │   ├── auth/                 # Admin AuthContext、Claims
+│   │       │   └── middleware/           # RBAC 中间件、审计日志中间件
+│   │       ├── infrastructure/           # 基建层
+│   │       │   ├── db/                   # PostgreSQL 连接池（admin_server_user 全权）
+│   │       │   ├── cache/                # Redis 客户端（Pub/Sub 发布端）
+│   │       │   └── logging/              # 日志
+│   │       └── modules/                  # 业务模块
+│   │           ├── auth/                 # 管理员登录、JWT 签发
+│   │           ├── user/                 # 用户查询、封禁/解封
+│   │           ├── room/                 # 房间查询、强制关闭
+│   │           ├── stats/                # 数据统计
+│   │           ├── event/                # Redis Pub/Sub 事件发布
+│   │           └── audit/                # 操作审计日志
+│   │
+│   ├── shared/                           # Rust workspace 共享 crate
+│   │   ├── Cargo.toml                    # 共享依赖声明
+│   │   └── src/
+│   │       ├── lib.rs                    # crate 根
+│   │       ├── models/                   # 共享数据模型（UserModel, RoomModel 等）
+│   │       ├── jwt/                      # JWT encode/decode 工具
+│   │       ├── error/                    # 公共错误码定义
+│   │       ├── crypto/                   # bcrypt 密码工具
+│   │       └── types/                    # 公共类型（UserId, RoomId 等）
 │   │
 │   ├── android/
 │   │   ├── build.gradle.kts              # Android 顶层构建配置
@@ -217,7 +282,7 @@ flowchart TB
 │   │               ├── drawable/         # 图片与形状资源
 │   │               └── xml/              # networkSecurityConfig 等 XML 配置
 │   │
-│   └── web/
+│   └── web/                              # Admin Web 后台管理系统
 │       ├── package.json                  # 前端依赖与脚本
 │       ├── vite.config.ts                # Vite 配置与本地代理
 │       ├── tsconfig.json                 # TypeScript 配置
@@ -230,22 +295,15 @@ flowchart TB
 │           ├── app/                      # App 根组件、Provider、Router、Store
 │           ├── core/                     # 全局基建层
 │           │   ├── network/              # Axios/fetch 封装、拦截器、环境切换
-│           │   ├── ws/                   # WS 客户端、重连、心跳、事件总线
-│           │   ├── telemetry/            # 埋点、错误上报、日志缓冲、ErrorBoundary
-│           │   ├── i18n/                 # 多语言与 RTL 引擎
-│           │   ├── config/               # 环境变量读取、远程配置
-│           │   ├── security/             # Token、设备信息、安全工具
+│           │   ├── i18n/                 # 多语言（中/英）
+│           │   ├── config/               # 环境变量读取
+│           │   ├── security/             # Token 管理、Admin JWT 存取
 │           │   └── constants/            # 常量定义
-│           ├── api/                      # HTTP API 定义层
+│           ├── api/                      # HTTP API 定义层（仅对接 Admin Server）
 │           ├── hooks/                    # 复用 Hook
-│           ├── services/                 # 第三方服务适配层
-│           │   ├── media/                # RTC Provider 适配
-│           │   ├── im/                   # IM Provider 适配
-│           │   ├── analytics/            # 埋点 Provider 适配
-│           │   └── crash/                # 前端错误上报 Provider 适配
-│           ├── components/               # 通用 UI 组件
+│           ├── components/               # 通用 UI 组件（基于 Ant Design）
 │           ├── features/                 # 业务功能组件
-│           ├── pages/                    # 路由页面
+│           ├── pages/                    # 路由页面（登录、仪表盘、用户管理等）
 │           ├── styles/                   # 全局样式与主题
 │           ├── types/                    # 类型声明
 │           ├── lib/                      # 辅助库与纯函数
@@ -374,16 +432,22 @@ interface IRemoteConfigService
 
 ---
 
-# 6. Web 架构：API / Hooks / Components / Features
+# 6. Web 架构：Admin 管理后台 (Ant Design + React)
 
-## 6.1 约束
+## 6.1 定位说明
+
+Web 端定位为 **B 端后台管理系统（Admin Web）**，面向运营人员和客服，通过 VPN 访问。  
+**不是 C 端用户页面**，不涉及 WebSocket、RTC、IM 等实时通信能力。
+
+## 6.2 约束
 
 - 页面（pages）只负责组合 `features` 和 `components`，不直接写请求细节。
-- 所有 HTTP 必须走 `api/client.ts` 或 `core/network` 统一拦截器。
-- 所有 WS 必须走 `core/ws` 与 `useRoomSocket`。
-- UI 严禁直接依赖第三方 RTC/IM/埋点 SDK，必须通过 `services/*` 或 `core/telemetry`。
-- 房间核心状态集中在 `useRoomState` 或同等全局 Store，不允许组件私自篡改权威状态。
-- 错误边界、异常上报、曝光采集必须统一走基建层。
+- 所有 HTTP 必须走 `api/client.ts` 或 `core/network` 统一拦截器，目标为 **Admin Server**（非 App Server）。
+- UI 组件库统一使用 **Ant Design**，禁止引入 shadcn/ui 或其他竞争组件库。
+- 全局状态管理使用 **Zustand**，管理员登录态、权限信息集中在 `useAuthStore`。
+- 路由守卫基于 Admin JWT 的 `role` 字段做 **RBAC 前端权限控制**，不同角色看到不同菜单。
+- 错误边界、异常上报必须统一走 `core/telemetry` 基建层。
+- **不需要** WS 客户端、RTC 防腐层、IM 适配层。
 
 ---
 
@@ -813,6 +877,15 @@ Rust 服务端统一使用 `tracing` 库输出结构化 JSON 日志。
   - `AGORA_APP_CERT`
 - 只能来自环境变量或密钥管理系统
 
+### Admin Server
+- 加载顺序：`.env` -> `config/default.toml` -> `config/{env}.toml`
+- 与 App Server 共享 `JWT_SECRET`（通过 shared crate 统一签发/校验逻辑）
+- 独有敏感信息：
+  - `ADMIN_DATABASE_URL`（使用 admin_server_user 全权账号）
+  - `ADMIN_JWT_EXPIRY`（默认 7 天）
+  - `REDIS_URL`（用于 Pub/Sub 事件发布）
+- 只能来自环境变量或密钥管理系统
+
 ### Web
 - 使用 `.env.development` / `.env.production`
 - 所有变量必须以 `VITE_` 开头
@@ -895,11 +968,14 @@ Rust 服务端统一使用 `tracing` 库输出结构化 JSON 日志。
 - Analytics / Crash 基础设施
 - I18n / RTL 基础设施
 - Dev/Test/Prod 环境切换基础设施
+- Admin Server 基础（Auth + RBAC + 审计日志）
+- Admin Web 登录与路由守卫
+- shared crate（JWT、Error Codes、DB Models）
+- Redis（验证码存储 + Pub/Sub 跨服务通信）
 
 ### P1
 - Moderation
 - Notification
-- Admin
 - Transaction Outbox
 - Redis RoomStateRepository
 - Remote Config

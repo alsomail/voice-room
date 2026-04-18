@@ -1,0 +1,558 @@
+# Voice Room API 协议文档
+
+> **版本**: v0.2
+> **更新日期**: 2026-04-17
+> **维护约束**: 新增/修改接口时必须同步更新本文件；前后端联调前必须以本文件为唯一契约源。
+
+---
+
+## 一、通用约定
+
+### 1.1 基础地址
+
+#### App Server (C 端业务后端)
+
+| 环境 | HTTP Base URL | WebSocket URL |
+|------|--------------|---------------|
+| 本地开发 | `http://localhost:3000/api/v1` | `ws://localhost:3000/ws` |
+| 测试环境 | `https://test-api.voiceroom.example/api/v1` | `wss://test-api.voiceroom.example/ws` |
+| 生产环境 | `https://api.voiceroom.example/api/v1` | `wss://api.voiceroom.example/ws` |
+
+#### Admin Server (B 端管理后端)
+
+| 环境 | HTTP Base URL |
+|------|--------------|
+| 本地开发 | `http://localhost:3001/api/v1/admin` |
+| 测试环境 | `https://test-admin-api.voiceroom.example/api/v1/admin` |
+| 生产环境 | `https://admin-api.voiceroom.example/api/v1/admin` |
+
+> Admin Server 仅 HTTP，不提供 WebSocket。通过 VPN 访问，不对公网暴露。
+
+### 1.2 请求通用头
+
+| Header | 必需 | 说明 |
+|--------|------|------|
+| `Content-Type` | 是 | `application/json` |
+| `Authorization` | 条件 | `Bearer <JWT>`，需要鉴权的接口必传 |
+| `X-Request-Id` | 否 | 请求追踪 ID，若不传则 Server 自动生成并在响应头回传 |
+| `X-Device-Id` | 否 | 客户端设备标识，用于风控与埋点 |
+| `Accept-Language` | 否 | `ar` / `en`，默认 `ar` |
+
+### 1.3 统一响应结构
+
+**成功响应**:
+```json
+{
+  "code": 0,
+  "message": "ok",
+  "data": { "..." : "..." },
+  "request_id": "uuid"
+}
+```
+
+**错误响应**:
+```json
+{
+  "code": 40001,
+  "message": "Invalid phone number format",
+  "request_id": "uuid"
+}
+```
+
+### 1.4 错误码规范
+
+| 范围 | 分类 | 说明 |
+|------|------|------|
+| `0` | 成功 | 请求成功 |
+| `40000-40099` | 参数错误 | 请求参数校验失败 |
+| `40100-40199` | 认证错误 | 未登录 / token 无效 / 验证码错误 |
+| `40300-40399` | 权限错误 | 无权限操作 |
+| `40400-40499` | 资源不存在 | 目标资源不存在 |
+| `40900-40999` | 冲突错误 | 重复操作 / 状态冲突 |
+| `42900-42999` | 频率限制 | 请求过于频繁 |
+| `50000-50099` | 服务端错误 | 内部错误 |
+
+#### 模块1 错误码表
+
+| 错误码 | HTTP Status | 含义 | 触发场景 |
+|--------|-------------|------|----------|
+| `40001` | 400 | 手机号格式无效 | 发送验证码时手机号不合法 |
+| `40002` | 400 | 参数缺失 | 必传字段为空 |
+| `40101` | 401 | 未授权 | 无 token 或 token 签名无效 |
+| `40102` | 401 | Token 已过期 | JWT 过期 |
+| `40103` | 401 | 验证码错误 | 验证码不匹配 |
+| `40104` | 401 | 验证码已过期 | 验证码超过 5 分钟有效期 |
+| `40105` | 401 | 验证码尝试次数超限 | 同一验证码校验超过 5 次 |
+| `40106` | 401 | 管理员账号或密码错误 | Admin 登录凭证无效 |
+| `40301` | 403 | 权限不足 | RBAC 角色无权执行该操作 |
+| `40302` | 403 | 账号已被禁用 | 管理员账号被 super_admin 停用 |
+| `42901` | 429 | 验证码发送过于频繁 | 60 秒内重复发送 |
+| `42902` | 429 | 每日发送次数超限 | 同一手机号当日超过 10 次 |
+
+### 1.5 分页约定
+
+请求参数：`?page=1&size=20`
+
+响应结构：
+```json
+{
+  "total": 100,
+  "page": 1,
+  "size": 20,
+  "items": []
+}
+```
+
+### 1.6 幂等策略
+
+| 接口 | 幂等性 | 策略 |
+|------|--------|------|
+| 发送验证码 | 冷却期幂等 | 60 秒冷却期内重复请求返回 `42901`；冷却期后重新发送新验证码 |
+| 登录 | 可重试+自动注册 | 手机号不存在时自动创建用户；同一验证码有效期内可多次尝试（不超过 5 次） |
+| 获取用户信息 | 只读幂等 | GET 请求，天然幂等 |
+
+---
+
+## 二、认证模块 (Auth)
+
+### 2.1 POST /api/v1/auth/verification-codes
+
+发送短信验证码。无需鉴权。
+
+**Request Body**:
+```json
+{
+  "phone": "+966512345678"
+}
+```
+
+**Success Response (200)**:
+```json
+{
+  "code": 0,
+  "message": "ok",
+  "data": {
+    "expires_in": 300,
+    "cooldown": 60
+  },
+  "request_id": "uuid"
+}
+```
+
+**Error Scenarios**:
+
+| 场景 | HTTP | 错误码 | message |
+|------|------|--------|---------|
+| 手机号格式无效 | 400 | `40001` | Invalid phone number format |
+| 60 秒内重复发送 | 429 | `42901` | Verification code sent too frequently |
+| 当日发送次数超限 | 429 | `42902` | Daily verification code limit exceeded |
+
+**业务规则**:
+- 验证码为 6 位数字
+- 有效期 5 分钟 (300 秒)
+- 同一手机号 60 秒冷却期
+- 同一手机号每日最多发送 10 次
+- 验证码由 Server 生成后通过 `SmsProvider` 防腐层发送
+- 冷却期内重复请求不会生成新验证码
+
+---
+
+### 2.2 POST /api/v1/auth/login
+
+使用手机号 + 验证码登录。无需鉴权。**一步登录**：手机号不存在时自动创建用户并登录。
+
+**Request Body**:
+```json
+{
+  "phone": "+966512345678",
+  "code": "123456"
+}
+```
+
+**Success Response (200)**:
+```json
+{
+  "code": 0,
+  "message": "ok",
+  "data": {
+    "token": "eyJhbGciOiJIUzI1NiIs...",
+    "expires_in": 2592000,
+    "user": {
+      "id": "550e8400-e29b-41d4-a716-446655440000",
+      "phone": "+966512345678",
+      "nickname": "User_a1b2",
+      "avatar": null,
+      "coin_balance": 0,
+      "vip_level": 0,
+      "is_new": true,
+      "created_at": "2026-04-17T00:00:00Z"
+    }
+  },
+  "request_id": "uuid"
+}
+```
+
+> `is_new`: `true` 表示本次登录为首次注册（前端可据此展示新手引导）
+
+**Error Scenarios**:
+
+| 场景 | HTTP | 错误码 | message |
+|------|------|--------|---------|
+| 验证码错误 | 401 | `40103` | Invalid verification code |
+| 验证码已过期 | 401 | `40104` | Verification code expired |
+| 验证码尝试次数超限 | 401 | `40105` | Verification code max attempts exceeded |
+
+**JWT Claims 结构**:
+```json
+{
+  "sub": "550e8400-e29b-41d4-a716-446655440000",
+  "iat": 1713312000,
+  "exp": 1715904000,
+  "iss": "voiceroom"
+}
+```
+
+| 字段 | 说明 |
+|------|------|
+| `sub` | user_id (UUID) |
+| `iat` | 签发时间 (Unix timestamp) |
+| `exp` | 过期时间，签发后 30 天 |
+| `iss` | 固定值 `voiceroom` |
+
+- 签名算法：HS256（MVP），后续可升级为 RS256
+- Secret 从环境变量 `JWT_SECRET` 读取，禁止硬编码
+
+---
+
+### 2.3 GET /api/v1/users/me
+
+获取当前登录用户信息。**需要 JWT 认证**。
+
+**Request Headers**: `Authorization: Bearer <token>`
+
+**Success Response (200)**:
+```json
+{
+  "code": 0,
+  "message": "ok",
+  "data": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "phone": "+966512345678",
+    "nickname": "User_a1b2",
+    "avatar": "https://cdn.example.com/avatars/xxx.jpg",
+    "coin_balance": 1000,
+    "vip_level": 2,
+    "created_at": "2026-04-17T00:00:00Z"
+  },
+  "request_id": "uuid"
+}
+```
+
+**Error Scenarios**:
+
+| 场景 | HTTP | 错误码 | message |
+|------|------|--------|---------|
+| 无 token / 签名无效 | 401 | `40101` | Unauthorized |
+| Token 已过期 | 401 | `40102` | Token expired |
+
+---
+
+## 三、Admin 认证模块 (Admin Auth)
+
+> Admin Server 独立部署，使用独立的管理员账号体系。
+
+### 3.1 POST /api/v1/admin/login
+
+管理员使用账号密码登录。无需鉴权。
+
+**Request Body**:
+```json
+{
+  "username": "admin_operator",
+  "password": "hashed_not_plain"
+}
+```
+
+**Success Response (200)**:
+```json
+{
+  "code": 0,
+  "message": "ok",
+  "data": {
+    "token": "eyJhbGciOiJIUzI1NiIs...",
+    "expires_in": 604800,
+    "admin": {
+      "id": "uuid",
+      "username": "admin_operator",
+      "role": "operator",
+      "display_name": "运营小王",
+      "last_login_at": "2026-04-17T00:00:00Z"
+    }
+  },
+  "request_id": "uuid"
+}
+```
+
+**Error Scenarios**:
+
+| 场景 | HTTP | 错误码 | message |
+|------|------|--------|---------|
+| 账号或密码错误 | 401 | `40106` | Invalid admin credentials |
+| 账号已被禁用 | 403 | `40302` | Admin account disabled |
+
+**Admin JWT Claims 结构**:
+```json
+{
+  "sub": "admin_uuid",
+  "role": "operator",
+  "iat": 1713312000,
+  "exp": 1713916800,
+  "iss": "voiceroom-admin"
+}
+```
+
+| 字段 | 说明 |
+|------|------|
+| `sub` | admin_id (UUID) |
+| `role` | 管理员角色: `super_admin` / `operator` / `cs` / `finance` |
+| `iat` | 签发时间 |
+| `exp` | 过期时间，签发后 7 天 |
+| `iss` | 固定值 `voiceroom-admin`（区分 C 端 JWT） |
+
+- 签名算法：HS256
+- Secret 从环境变量 `JWT_SECRET` 读取（与 App Server 共享，通过 shared crate）
+
+### 3.2 GET /api/v1/admin/me
+
+获取当前管理员信息。**需要 Admin JWT 认证**。
+
+**Request Headers**: `Authorization: Bearer <admin_token>`
+
+**Success Response (200)**:
+```json
+{
+  "code": 0,
+  "message": "ok",
+  "data": {
+    "id": "uuid",
+    "username": "admin_operator",
+    "role": "operator",
+    "display_name": "运营小王",
+    "permissions": ["user:read", "user:ban", "room:read", "room:close"],
+    "last_login_at": "2026-04-17T00:00:00Z"
+  },
+  "request_id": "uuid"
+}
+```
+
+### 3.3 RBAC 权限矩阵
+
+| 角色 | 用户管理 | 房间管理 | 数据统计 | 财务操作 | 系统管理 |
+|------|---------|---------|---------|---------|---------|
+| `super_admin` | ✅ 读写 | ✅ 读写 | ✅ | ✅ | ✅ |
+| `operator` | ✅ 读写 | ✅ 读写 | ✅ | ❌ | ❌ |
+| `cs` | 只读 | ✅ 读写 | ❌ | ❌ | ❌ |
+| `finance` | ❌ | ❌ | ✅ | ✅ | ❌ |
+
+---
+
+## 四、RTC Token（预留）
+
+> ⚠️ 本节为预留设计，将在模块3（T-00012 及后续任务）实现时正式落地。
+
+### 4.1 POST /api/v1/rtc/token
+
+获取 RTC 频道 token。**需要 JWT 认证**。
+
+**Request Body**:
+```json
+{
+  "channel_id": "room_uuid",
+  "role": "publisher"
+}
+```
+
+**Success Response (200)**:
+```json
+{
+  "code": 0,
+  "message": "ok",
+  "data": {
+    "rtc_token": "006xxx...",
+    "channel_id": "room_uuid",
+    "uid": 12345,
+    "expires_in": 3600
+  },
+  "request_id": "uuid"
+}
+```
+
+**设计要点**:
+- `role`: `publisher`（上麦用户）/ `subscriber`（听众）
+- `uid`: RTC 频道内的数字 ID，由 Server 从 user_id 映射
+- `expires_in`: token 有效期（秒），客户端应在过期前主动续签
+- Server 通过 `RtcTokenProvider` 防腐层签发，不暴露具体 SDK（Agora/ZEGO 等）术语
+- 客户端收到 RTC SDK 的 `onTokenPrivilegeWillExpire` 回调时，重新调用此接口
+
+### 4.2 RTC Provider 三端抽象边界
+
+| 端 | 抽象层 | 职责 | 不做的事 |
+|----|--------|------|----------|
+| **Server** | `RtcTokenProvider` trait | 签发 token、映射 uid、配置频道 | 不管客户端推拉流 |
+| **Web** | `RtcClientAdapter` interface | `join/leave/publish/unpublish/renewToken` | 不直接引用 Agora/ZEGO JS SDK |
+| **Android** | `IMediaService` interface | `joinChannel/leaveChannel/publishAudio/muteAudio/renewToken` | 不在 feature 层直接依赖 SDK |
+
+---
+
+## 五、WebSocket 信令（预留）
+
+> 将在模块3 WebSocket 连接管理（T-00012）实现时正式定义。以下为设计预留。
+
+### 5.1 连接建立
+
+```
+ws://host/ws?token=<JWT>
+```
+
+### 5.2 心跳
+
+- 客户端每 15 秒发送 `{"type":"ping"}`
+- 服务端回复 `{"type":"pong"}`
+- 30 秒无心跳自动断开
+
+### 5.3 消息通用格式
+
+```json
+{
+  "type": "EventType",
+  "msg_id": "uuid",
+  "payload": {},
+  "timestamp": 1713312000
+}
+```
+
+---
+
+## 六、数据模型（模块1相关）
+
+### 6.1 users 表
+
+```sql
+CREATE TABLE users (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    phone       VARCHAR(20) NOT NULL UNIQUE,
+    nickname    VARCHAR(50) NOT NULL,
+    avatar      TEXT,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    coin_balance BIGINT NOT NULL DEFAULT 0,
+    vip_level    SMALLINT NOT NULL DEFAULT 0,
+    deleted_at  TIMESTAMPTZ
+);
+
+CREATE UNIQUE INDEX idx_users_phone ON users(phone) WHERE deleted_at IS NULL;
+```
+
+### 6.2 验证码存储 (Redis)
+
+> 验证码使用 Redis 存储，不使用 PostgreSQL 表。
+
+**Redis Key 设计**:
+
+| Key 模式 | 类型 | TTL | 说明 |
+|----------|------|-----|------|
+| `sms:code:{phone}` | Hash | 300s | 验证码内容 + 尝试次数 |
+| `sms:cooldown:{phone}` | String | 60s | 发送冷却标记 |
+| `sms:daily:{phone}:{date}` | String (INCR) | 86400s | 每日发送计数 |
+
+**`sms:code:{phone}` Hash 结构**:
+```
+HSET sms:code:+966512345678 code "123456" attempts 0 max_attempts 5
+EXPIRE sms:code:+966512345678 300
+```
+
+**验证流程**:
+1. 发送验证码前：检查 `sms:cooldown:{phone}` 是否存在（冷却中）；检查 `sms:daily:{phone}:{date}` 是否超限
+2. 发送成功后：写入 `sms:code:{phone}` (TTL 300s) + `sms:cooldown:{phone}` (TTL 60s) + INCR `sms:daily:{phone}:{date}`
+3. 登录校验时：HGET `sms:code:{phone}` 取 code 比对，HINCRBY attempts 1，超过 max_attempts 返回 40105
+4. 校验成功后：DEL `sms:code:{phone}` 使验证码一次性作废
+
+### 6.3 admins 表
+
+```sql
+CREATE TABLE admins (
+    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    username     VARCHAR(50) NOT NULL UNIQUE,
+    password_hash VARCHAR(200) NOT NULL,
+    role         VARCHAR(20) NOT NULL DEFAULT 'operator',
+    display_name VARCHAR(100),
+    is_active    BOOLEAN NOT NULL DEFAULT true,
+    last_login_at TIMESTAMPTZ,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- 角色枚举约束
+ALTER TABLE admins ADD CONSTRAINT chk_admin_role
+    CHECK (role IN ('super_admin', 'operator', 'cs', 'finance'));
+```
+
+**初始数据**: 部署时通过 migration seed 插入默认 super_admin 账号。
+
+### 6.4 admin_logs 表
+
+```sql
+CREATE TABLE admin_logs (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    admin_id    UUID NOT NULL REFERENCES admins(id),
+    action      VARCHAR(50) NOT NULL,
+    target_type VARCHAR(20),
+    target_id   UUID,
+    detail      JSONB,
+    ip_address  INET,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_admin_logs_admin_id ON admin_logs(admin_id, created_at DESC);
+CREATE INDEX idx_admin_logs_action ON admin_logs(action, created_at DESC);
+```
+
+**action 枚举**: `admin_login`, `ban_user`, `unban_user`, `close_room`, `broadcast_notice`, `create_admin`, `update_admin`
+
+---
+
+## 七、Provider 配置模型
+
+### 7.1 SMS Provider
+
+通过环境变量 / `config/*.toml` 注入：
+
+```toml
+[sms]
+provider = "twilio"           # twilio | aws_sns | mock
+# Twilio 专属
+twilio_account_sid = "${TWILIO_ACCOUNT_SID}"
+twilio_auth_token = "${TWILIO_AUTH_TOKEN}"
+twilio_from_number = "${TWILIO_FROM_NUMBER}"
+```
+
+- `mock` 模式在本地开发/测试环境使用，不实际发送短信，验证码固定为 `000000`
+- Provider 实现在 `infrastructure/third_party/sms/` 目录下
+
+### 7.2 RTC Provider（预留）
+
+```toml
+[rtc]
+provider = "agora"            # agora | zego | mock
+app_id = "${RTC_APP_ID}"
+app_certificate = "${RTC_APP_CERTIFICATE}"
+```
+
+- Provider 实现在 `infrastructure/third_party/rtc/` 目录下
+- `mock` 模式返回固定 token 字符串，供开发调试
+
+---
+
+**文档变更历史**:
+- 2026-04-17: 初始版本，定义模块1认证契约 + RTC/WS 预留
+- 2026-04-17: v0.2 — 删除 register 端点改为一步登录；验证码存储从 PG 改 Redis；新增 Admin Server 认证契约（§三）；新增 admins/admin_logs 表；users 表增加 coin_balance/vip_level

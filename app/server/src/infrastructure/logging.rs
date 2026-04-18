@@ -1,4 +1,5 @@
 use axum::{
+    body::Body,
     http::Request,
     http::{header::HeaderName, HeaderValue},
     middleware::Next,
@@ -37,7 +38,7 @@ pub fn init_tracing(settings: &LogSettings) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub async fn request_context_middleware<B>(mut request: Request<B>, next: Next<B>) -> Response {
+pub async fn request_context_middleware(mut request: Request<Body>, next: Next) -> Response {
     let request_id = extract_request_id(&request).unwrap_or_else(generate_request_id);
 
     request
@@ -64,7 +65,7 @@ pub async fn request_context_middleware<B>(mut request: Request<B>, next: Next<B
     response
 }
 
-fn extract_request_id<B>(request: &Request<B>) -> Option<String> {
+fn extract_request_id(request: &Request<Body>) -> Option<String> {
     request
         .headers()
         .get(&REQUEST_ID_HEADER)
