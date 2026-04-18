@@ -12,6 +12,8 @@ pub struct ServerSettings {
     pub server: HttpServerSettings,
     pub log: LogSettings,
     pub database: DatabaseSettings,
+    pub jwt_secret: String,
+    pub redis_url: Option<String>,
 }
 
 impl ServerSettings {
@@ -37,6 +39,9 @@ impl ServerSettings {
         )?);
         settings.apply_env_overrides();
         settings.database.url = env::var("DATABASE_URL").ok();
+        settings.jwt_secret = env::var("JWT_SECRET")
+            .unwrap_or_else(|_| "change-me-in-production".to_owned());
+        settings.redis_url = env::var("REDIS_URL").ok();
 
         Ok(settings)
     }
@@ -61,6 +66,8 @@ impl ServerSettings {
                 max_connections: 10,
                 connect_timeout_secs: 5,
             },
+            jwt_secret: "change-me-in-production".to_owned(),
+            redis_url: None,
         }
     }
 

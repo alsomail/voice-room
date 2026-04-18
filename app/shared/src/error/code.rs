@@ -1,19 +1,49 @@
 use thiserror::Error;
 
+/// 全局错误码，数值与 doc/protocol.md §1.4 保持一致。
 #[derive(Debug, Error, Clone, Copy, PartialEq, Eq)]
 pub enum ErrorCode {
-    #[error("INVALID_PARAM")]
-    InvalidParam = 40000,
+    // 400 - 参数错误
+    #[error("INVALID_PHONE_NUMBER")]
+    InvalidPhoneNumber = 40001,
+    #[error("PARAMETER_MISSING")]
+    ParameterMissing = 40002,
+
+    // 401 - 认证错误
     #[error("UNAUTHORIZED")]
-    Unauthorized = 40100,
+    Unauthorized = 40101,
     #[error("TOKEN_EXPIRED")]
-    TokenExpired = 40101,
+    TokenExpired = 40102,
+    #[error("INVALID_VERIFICATION_CODE")]
+    InvalidVerificationCode = 40103,
+    #[error("VERIFICATION_CODE_EXPIRED")]
+    VerificationCodeExpired = 40104,
+    #[error("VERIFICATION_CODE_MAX_ATTEMPTS")]
+    VerificationCodeMaxAttempts = 40105,
+    #[error("INVALID_ADMIN_CREDENTIALS")]
+    InvalidAdminCredentials = 40106,
+
+    // 403 - 权限错误
     #[error("FORBIDDEN")]
-    Forbidden = 40300,
+    Forbidden = 40301,
+    #[error("ACCOUNT_DISABLED")]
+    AccountDisabled = 40302,
+
+    // 404 - 资源不存在
     #[error("NOT_FOUND")]
     NotFound = 40400,
-    #[error("RATE_LIMITED")]
-    RateLimited = 42900,
+
+    // 409 - 冲突
+    #[error("CONFLICT")]
+    Conflict = 40900,
+
+    // 429 - 频率限制
+    #[error("VERIFICATION_CODE_COOLDOWN")]
+    VerificationCodeCooldown = 42901,
+    #[error("VERIFICATION_CODE_DAILY_LIMIT")]
+    VerificationCodeDailyLimit = 42902,
+
+    // 500 - 服务端错误
     #[error("INTERNAL_ERROR")]
     InternalError = 50000,
 }
@@ -27,11 +57,22 @@ mod tests {
         assert_eq!(ErrorCode::Unauthorized.to_string(), "UNAUTHORIZED");
         assert_eq!(ErrorCode::TokenExpired.to_string(), "TOKEN_EXPIRED");
         assert_eq!(ErrorCode::NotFound.to_string(), "NOT_FOUND");
+        assert_eq!(
+            ErrorCode::InvalidVerificationCode.to_string(),
+            "INVALID_VERIFICATION_CODE"
+        );
     }
 
     #[test]
-    fn error_code_numeric_values() {
-        assert_eq!(ErrorCode::Unauthorized as i32, 40100);
+    fn error_code_numeric_values_match_protocol() {
+        assert_eq!(ErrorCode::InvalidPhoneNumber as i32, 40001);
+        assert_eq!(ErrorCode::Unauthorized as i32, 40101);
+        assert_eq!(ErrorCode::TokenExpired as i32, 40102);
+        assert_eq!(ErrorCode::InvalidVerificationCode as i32, 40103);
+        assert_eq!(ErrorCode::VerificationCodeExpired as i32, 40104);
+        assert_eq!(ErrorCode::VerificationCodeMaxAttempts as i32, 40105);
+        assert_eq!(ErrorCode::VerificationCodeCooldown as i32, 42901);
+        assert_eq!(ErrorCode::VerificationCodeDailyLimit as i32, 42902);
         assert_eq!(ErrorCode::InternalError as i32, 50000);
     }
 }

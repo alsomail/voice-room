@@ -13,7 +13,7 @@ mod tests {
 
     #[tokio::test]
     async fn ping_returns_json_payload_and_request_id() {
-        let app = crate::bootstrap::build_app();
+        let app = crate::bootstrap::build_app(crate::bootstrap::AppState::for_test());
 
         let response = app
             .oneshot(
