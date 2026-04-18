@@ -45,25 +45,20 @@ impl AuthService {
         }
     }
 
-    /// T-00002: 发送短信验证码（E.164 → 冷却/日限预检 → 生成 → 发送 → 存储）
+    /// T-00002: 发送短信验证码（save-first 消除并发 TOCTOU）
     pub async fn send_code(&self, phone: &str) -> Result<SendCodeResponse, AppError> {
         validate_phone(phone)?;
         let today = today_str();
-
-        // 1. 速率预检（快速 fail-fast，避免不必要的 SMS 调用）
-        if self.code_store.is_in_cooldown(phone).await? {
-            return Err(AppError::VerificationCodeCooldown);
-        }
-        if self.code_store.daily_count(phone, &today).await? >= 10 {
-            return Err(AppError::VerificationCodeDailyLimit);
-        }
-
-        // 2. 先发送 SMS（不可靠的外部调用）
         let code = generate_code();
-        self.sms.send_verification_code(phone, &code).await?;
 
-        // 3. SMS 成功后原子写入 Redis（Lua 保证最终一致性）
+        // 1. 原子写入 Redis（Lua 是真正的并发门控，检查冷却/日限并预留 code）
         self.code_store.save_code(phone, &code, &today).await?;
+
+        // 2. 发送 SMS；失败时撤销预留（清除 code + cooldown，daily count 保留防滥用）
+        if let Err(sms_err) = self.sms.send_verification_code(phone, &code).await {
+            self.code_store.revoke_code(phone).await.ok();
+            return Err(sms_err);
+        }
 
         Ok(SendCodeResponse {
             expires_in: 300,
@@ -387,9 +382,9 @@ mod tests {
         assert!(matches!(err, AppError::Unauthorized));
     }
 
-    // ── H-02: SMS 失败后 Redis 不应有冷却状态 ────────────────────────────────
+    // ── H-02/M-02: SMS 失败后冷却必须撤销，日计数保留（防滥用）─────────────
     #[tokio::test]
-    async fn send_code_sms_failure_does_not_set_cooldown() {
+    async fn send_code_sms_failure_revokes_cooldown_keeps_daily_count() {
         use crate::infrastructure::third_party::sms::FailingSmsProvider;
         let code_store = Arc::new(FakeCodeStore::default());
         let user_repo = Arc::new(FakeUserRepository::default());
@@ -406,13 +401,14 @@ mod tests {
             "should propagate SMS error"
         );
 
-        // 关键：SMS 失败后冷却期不应被设置，用户可以立即重试
+        // 冷却期必须通过 revoke_code 清除，用户可以立即重试
         let in_cooldown = code_store.is_in_cooldown("+8613800138000").await.unwrap();
-        assert!(!in_cooldown, "cooldown must NOT be set after SMS failure");
+        assert!(!in_cooldown, "cooldown must be revoked after SMS failure");
 
+        // daily count 保留 1：save_code 已消耗日额度（防止无限重试滥用 SMS API）
         let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
         let count = code_store.daily_count("+8613800138000", &today).await.unwrap();
-        assert_eq!(count, 0, "daily count must NOT increment after SMS failure");
+        assert_eq!(count, 1, "daily count must increment even on SMS failure to prevent abuse");
     }
 
     // ── H-01: 同一 OTP 只能被消费一次（行为契约 / 防双重登录）────────────────

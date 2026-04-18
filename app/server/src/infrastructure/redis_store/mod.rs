@@ -93,6 +93,8 @@ pub trait SmsCodeStore: Send + Sync {
     async fn is_in_cooldown(&self, phone: &str) -> Result<bool, AppError>;
     /// 当日发送次数
     async fn daily_count(&self, phone: &str, today: &str) -> Result<u64, AppError>;
+    /// SMS 发送失败时撤销预留：删除 code_key + cooldown_key；daily count 保留（防滥用）
+    async fn revoke_code(&self, phone: &str) -> Result<(), AppError>;
 }
 
 // ─── Redis 实现 ───────────────────────────────────────────────────────────────
@@ -181,7 +183,7 @@ impl SmsCodeStore for RedisCodeStore {
         let mut conn = self.conn.clone();
         let key = format!("{SMS_COOLDOWN_KEY}{phone}");
         conn.exists(&key).await
-            .map_err(|e| AppError::Internal(e.to_string()))
+            .map_err(|e| AppError::RedisError(e.to_string()))
     }
 
     async fn daily_count(&self, phone: &str, today: &str) -> Result<u64, AppError> {
@@ -192,6 +194,15 @@ impl SmsCodeStore for RedisCodeStore {
             .await
             .map_err(|e| AppError::RedisError(e.to_string()))?;
         Ok(val.unwrap_or(0))
+    }
+
+    async fn revoke_code(&self, phone: &str) -> Result<(), AppError> {
+        let mut conn = self.conn.clone();
+        let code_key = format!("{SMS_CODE_KEY}{phone}");
+        let cooldown_key = format!("{SMS_COOLDOWN_KEY}{phone}");
+        conn.del(&[code_key, cooldown_key])
+            .await
+            .map_err(|e| AppError::RedisError(e.to_string()))
     }
 }
 
@@ -254,6 +265,14 @@ impl SmsCodeStore for FakeCodeStore {
     async fn daily_count(&self, phone: &str, today: &str) -> Result<u64, AppError> {
         let key = format!("{phone}:{today}");
         Ok(self.inner.lock().unwrap().daily.get(&key).copied().unwrap_or(0))
+    }
+
+    async fn revoke_code(&self, phone: &str) -> Result<(), AppError> {
+        let mut inner = self.inner.lock().unwrap();
+        inner.codes.remove(phone);
+        inner.attempts.remove(phone);
+        inner.cooldowns.insert(phone.to_string(), false);
+        Ok(())
     }
 }
 
@@ -330,9 +349,33 @@ mod tests {
         // 初始为 0
         assert_eq!(store.daily_count(phone, today).await.unwrap(), 0);
 
-        // save_code 后增加到 1
+        // 直接设置计数后验证读取正确
         store.seed_code(phone, "111111");
         store.set_daily_count(phone, today, 3);
         assert_eq!(store.daily_count(phone, today).await.unwrap(), 3);
+    }
+
+    /// M-02 契约：revoke_code 清除 code + cooldown，不清除 daily count
+    #[tokio::test]
+    async fn revoke_code_clears_code_and_cooldown_keeps_daily() {
+        let store = make_store();
+        let today = "2026-01-01";
+        let phone = "+8613800138003";
+
+        store.seed_code(phone, "999999");
+        store.set_cooldown(phone, true);
+        store.set_daily_count(phone, today, 1);
+
+        store.revoke_code(phone).await.unwrap();
+
+        // code 已撤销
+        let err = store.verify_and_consume(phone, "999999").await.unwrap_err();
+        assert!(matches!(err, AppError::VerificationCodeExpired), "code must be gone after revoke");
+
+        // cooldown 已清除
+        assert!(!store.is_in_cooldown(phone).await.unwrap(), "cooldown must be cleared after revoke");
+
+        // daily count 保留（防滥用）
+        assert_eq!(store.daily_count(phone, today).await.unwrap(), 1, "daily count must remain after revoke");
     }
 }
