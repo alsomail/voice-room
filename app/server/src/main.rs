@@ -55,7 +55,7 @@ async fn main() -> anyhow::Result<()> {
             let from = std::env::var("TWILIO_FROM_NUMBER").expect("TWILIO_FROM_NUMBER");
             Arc::new(TwilioSmsProvider::new(sid, token, from))
         } else {
-            Arc::new(MockSmsProvider::default())
+            Arc::new(MockSmsProvider)
         };
 
     let state = AppState::new(

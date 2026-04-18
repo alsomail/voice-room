@@ -45,13 +45,26 @@ impl AuthService {
         }
     }
 
-    /// T-00002: 发送短信验证码（E.164 → 冷却检查 → 生成 → 存储 → 发送）
+    /// T-00002: 发送短信验证码（E.164 → 冷却/日限预检 → 生成 → 发送 → 存储）
     pub async fn send_code(&self, phone: &str) -> Result<SendCodeResponse, AppError> {
         validate_phone(phone)?;
         let today = today_str();
+
+        // 1. 速率预检（快速 fail-fast，避免不必要的 SMS 调用）
+        if self.code_store.is_in_cooldown(phone).await? {
+            return Err(AppError::VerificationCodeCooldown);
+        }
+        if self.code_store.daily_count(phone, &today).await? >= 10 {
+            return Err(AppError::VerificationCodeDailyLimit);
+        }
+
+        // 2. 先发送 SMS（不可靠的外部调用）
         let code = generate_code();
-        self.code_store.save_code(phone, &code, &today).await?;
         self.sms.send_verification_code(phone, &code).await?;
+
+        // 3. SMS 成功后原子写入 Redis（Lua 保证最终一致性）
+        self.code_store.save_code(phone, &code, &today).await?;
+
         Ok(SendCodeResponse {
             expires_in: 300,
             cooldown: 60,
@@ -372,5 +385,33 @@ mod tests {
         user_repo.seed(user);
         let err = svc.get_me(uid).await.unwrap_err();
         assert!(matches!(err, AppError::Unauthorized));
+    }
+
+    // ── H-02: SMS 失败后 Redis 不应有冷却状态 ────────────────────────────────
+    #[tokio::test]
+    async fn send_code_sms_failure_does_not_set_cooldown() {
+        use crate::infrastructure::third_party::sms::FailingSmsProvider;
+        let code_store = Arc::new(FakeCodeStore::default());
+        let user_repo = Arc::new(FakeUserRepository::default());
+        let svc = AuthService::new(
+            user_repo,
+            code_store.clone(),
+            Arc::new(FailingSmsProvider::default()),
+            "test-secret".to_string(),
+        );
+
+        let err = svc.send_code("+8613800138000").await.unwrap_err();
+        assert!(
+            matches!(err, AppError::SmsSendFailed(_)),
+            "should propagate SMS error"
+        );
+
+        // 关键：SMS 失败后冷却期不应被设置，用户可以立即重试
+        let in_cooldown = code_store.is_in_cooldown("+8613800138000").await.unwrap();
+        assert!(!in_cooldown, "cooldown must NOT be set after SMS failure");
+
+        let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+        let count = code_store.daily_count("+8613800138000", &today).await.unwrap();
+        assert_eq!(count, 0, "daily count must NOT increment after SMS failure");
     }
 }

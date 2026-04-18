@@ -13,4 +13,5 @@ pub mod mock;
 pub mod twilio;
 
 pub use mock::MockSmsProvider;
+pub use mock::FailingSmsProvider;
 pub use twilio::TwilioSmsProvider;

@@ -6,8 +6,6 @@ use axum::{
 use serde::Serialize;
 use voice_room_shared::error::code::ErrorCode;
 
-use crate::common::response::ApiResponse;
-
 /// 服务端错误类型，可直接作为 Axum handler 的 Err 返回值。
 #[derive(Debug, thiserror::Error)]
 pub enum AppError {
@@ -107,29 +105,49 @@ struct ErrorBody {
 }
 
 impl IntoResponse for AppError {
+    /// 注意：此实现仅作为兜底保留。所有业务 handler 应通过 `err_response()` 传入 request_id。
     fn into_response(self) -> Response {
-        let code = self.error_code() as i32;
-        let message = self.to_string();
-        let body = ErrorBody {
-            code,
-            message,
-            request_id: String::new(), // middleware 会在外层注入
-        };
-        (self.http_status(), Json(body)).into_response()
+        err_response(self, "")
     }
 }
 
-/// 将 AppError 包进统一响应 ApiResponse
+/// 将 AppError 序列化为带 request_id 的 JSON 错误响应。
+/// 所有 controller 的错误路径必须调用此函数以填充 request_id。
 pub fn err_response(err: AppError, request_id: &str) -> Response {
     let code = err.error_code() as i32;
-    let message = err.to_string();
-    let body = ApiResponse::<()> {
+    // M-03: 5xx 错误对外暴露通用文本，内部细节通过 tracing 记录
+    let message = err.safe_message();
+    let body = ErrorBody {
         code,
         message,
-        data: None,
         request_id: request_id.to_string(),
     };
     (err.http_status(), Json(body)).into_response()
+}
+
+impl AppError {
+    /// 对外安全的错误消息：4xx 用原始描述，5xx 用通用文本（避免泄露内部信息）
+    fn safe_message(&self) -> String {
+        match self {
+            AppError::DatabaseError(e) => {
+                tracing::error!(detail = %e, "database error");
+                "internal server error".to_string()
+            }
+            AppError::RedisError(e) => {
+                tracing::error!(detail = %e, "redis error");
+                "internal server error".to_string()
+            }
+            AppError::Internal(e) => {
+                tracing::error!(detail = %e, "internal error");
+                "internal server error".to_string()
+            }
+            AppError::SmsSendFailed(e) => {
+                tracing::error!(detail = %e, "sms send failed");
+                "failed to send verification code".to_string()
+            }
+            _ => self.to_string(),
+        }
+    }
 }
 
 #[cfg(test)]

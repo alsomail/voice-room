@@ -4,7 +4,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use redis::{aio::MultiplexedConnection, AsyncCommands, Client as RedisClient};
+use redis::{aio::MultiplexedConnection, AsyncCommands, Client as RedisClient, Script};
 
 use crate::common::error::AppError;
 
@@ -17,6 +17,36 @@ const COOLDOWN_TTL_SECS: u64 = 60;
 const DAILY_TTL_SECS: u64 = 86400;
 const MAX_ATTEMPTS: u32 = 5;
 const MAX_DAILY: u64 = 10;
+
+/// Lua 原子脚本：检查冷却/日限并写入验证码（H-03）
+/// KEYS[1]=cooldown_key KEYS[2]=daily_key KEYS[3]=code_key
+/// ARGV[1]=code ARGV[2]=max_daily ARGV[3]=ttl_code ARGV[4]=ttl_cool ARGV[5]=ttl_daily
+const SAVE_CODE_LUA: &str = r#"
+local cooldown_key = KEYS[1]
+local daily_key    = KEYS[2]
+local code_key     = KEYS[3]
+local code         = ARGV[1]
+local max_daily    = tonumber(ARGV[2])
+local ttl_code     = tonumber(ARGV[3])
+local ttl_cool     = tonumber(ARGV[4])
+local ttl_daily    = tonumber(ARGV[5])
+
+if redis.call('EXISTS', cooldown_key) == 1 then
+    return redis.error_reply('COOLDOWN')
+end
+
+local cnt = tonumber(redis.call('GET', daily_key) or '0') or 0
+if cnt >= max_daily then
+    return redis.error_reply('DAILY_LIMIT')
+end
+
+redis.call('HSET', code_key, 'code', code, 'attempts', '0')
+redis.call('EXPIRE', code_key, ttl_code)
+redis.call('SET', cooldown_key, '1', 'EX', ttl_cool)
+redis.call('INCR', daily_key)
+redis.call('EXPIRE', daily_key, ttl_daily)
+return redis.status_reply('OK')
+"#;
 
 /// 短信验证码存储 trait
 #[async_trait]
@@ -54,37 +84,35 @@ impl RedisCodeStore {
 impl SmsCodeStore for RedisCodeStore {
     async fn save_code(&self, phone: &str, code: &str, today: &str) -> Result<(), AppError> {
         let mut conn = self.conn.clone();
-
-        // 冷却期检查
         let cooldown_key = format!("{SMS_COOLDOWN_KEY}{phone}");
-        let in_cooldown: bool = conn.exists(&cooldown_key).await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-        if in_cooldown {
-            return Err(AppError::VerificationCodeCooldown);
-        }
-
-        // 日限检查
         let daily_key = format!("{SMS_DAILY_KEY_PREFIX}{phone}:{today}");
-        let count: u64 = conn.get(&daily_key).await.unwrap_or(0);
-        if count >= MAX_DAILY {
-            return Err(AppError::VerificationCodeDailyLimit);
-        }
-
-        // 写 code hash
         let code_key = format!("{SMS_CODE_KEY}{phone}");
-        let _: () = redis::pipe()
-            .hset(&code_key, "code", code)
-            .hset(&code_key, "attempts", 0u32)
-            .expire(&code_key, CODE_TTL_SECS as i64)
-            .ignore()
-            .set_ex(&cooldown_key, 1u8, COOLDOWN_TTL_SECS)
-            .incr(&daily_key, 1u64)
-            .expire(&daily_key, DAILY_TTL_SECS as i64)
-            .query_async(&mut conn)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
 
-        Ok(())
+        let result: redis::RedisResult<redis::Value> = Script::new(SAVE_CODE_LUA)
+            .key(&cooldown_key)
+            .key(&daily_key)
+            .key(&code_key)
+            .arg(code)
+            .arg(MAX_DAILY.to_string())
+            .arg(CODE_TTL_SECS.to_string())
+            .arg(COOLDOWN_TTL_SECS.to_string())
+            .arg(DAILY_TTL_SECS.to_string())
+            .invoke_async(&mut conn)
+            .await;
+
+        match result {
+            Ok(_) => Ok(()),
+            Err(e) => {
+                let msg = e.to_string();
+                if msg.contains("COOLDOWN") {
+                    Err(AppError::VerificationCodeCooldown)
+                } else if msg.contains("DAILY_LIMIT") {
+                    Err(AppError::VerificationCodeDailyLimit)
+                } else {
+                    Err(AppError::RedisError(msg))
+                }
+            }
+        }
     }
 
     async fn verify_and_consume(&self, phone: &str, input: &str) -> Result<(), AppError> {
