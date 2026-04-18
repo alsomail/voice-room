@@ -18,6 +18,7 @@
 - 🧱 [启动装配与壳层页面](./bootstrap.md) - `Application`、`AppContainer`、`MainActivity`、`MainViewModel` 的当前链路。
 - 🌐 [核心基建与防腐层骨架](./foundation.md) - 环境配置、HTTP、WebSocket、遥测、媒体、IM 与调试适配器现状。
 - 🧩 [业务骨架与测试现状](./features.md) - `auth/room/profile` 壳层能力、预留模块以及测试覆盖面。
+- 🔐 [Auth 认证模块](./auth.md) - 登录页组件结构（LoginScreen / LoginViewModel / LoginUiState）、+966 手机号输入、60s 倒计时、RTL 布局支持、StateFlow 数据流。
 
 ## 三、 当前能力全景与状态 (Capability Matrix)
 > 状态枚举：🟢 已完成 | 🟡 开发/调试中 | 🔴 待开发 
@@ -26,13 +27,16 @@
 - 🟢 Application 启动装配、`BuildConfig` 环境注入与 `AppContainer` 依赖装配
 - 🟢 HTTP 客户端工厂、`RoomSocketRequestFactory` 与物理机 Loopback 预警
 - 🟢 `MainActivity`/`MainViewModel` 壳层页面、阿拉伯语资源入口与基础导航切换
-- 🟡 `auth` / `room` / `profile` Feature 已有占位描述，Repository / Service 仍为 Debug 实现
+- 🟢 `auth` Feature 登录完整链路已完成（T-30001 + T-30002）：LoginScreen / LoginViewModel / IAuthRepository / RetrofitAuthRepository / TokenManager / NavEvent，详见 [auth.md](./auth.md)
+- 🟢 Retrofit 2.11.0 HTTP 客户端接入，`RetrofitAuthRepository` 实现登录 / 发码接口调用与错误映射
+- 🟢 DataStore 1.1.1 JWT Token 持久化，`TokenManager` 线程安全读写
+- 🟢 OkHttp JWT 拦截器（T-30003）：`AuthInterceptor` 自动注入 `Authorization: Bearer` header；`DefaultUnauthorizedHandler` 用 `AtomicBoolean.compareAndSet` 保证并发 401 只处理一次；登录成功后 `resetUnauthorized()` 重置，详见 [auth.md § T-30003](./auth.md#七t-30003-jwt-拦截器)
+- 🟡 `room` / `profile` Feature 已有占位描述，Repository / Service 仍为 Debug 实现
 - 🟡 Telemetry / Media / IM 已通过接口与 `NoOp*` 适配器隔离第三方依赖
 - 🔴 WebSocket 长连接状态机、真实鉴权、房间同步、RTC/IM 接入
 - 🔴 钱包、礼物、麦位、家族、CP、VIP、背包、小游戏等业务页面与数据链路
 
 
 ### 遗留技术债 (Tech Debt)
-- 目前仅有 XML 壳层页面，尚未落地真正的业务流与状态管理闭环。
-- `feature/` 下多数模块仍以 `.gitkeep` 预留，未接入真实 API、WS 协议与服务端广播。
+- `auth` 模块已完成 UI + ViewModel + Repository + DataStore + OkHttp JWT 拦截器完整链路（T-30001 / T-30002 / T-30003）；`room` / `profile` 等业务模块仍以 `.gitkeep` 预留，未接入真实 API、WS 协议与服务端广播。
 - `core` 层已完成接口隔离，但远程配置、本地存储、安全、日志等能力还只有骨架或占位。
