@@ -26,7 +26,8 @@
 - 🟢 Server 启动装配、优雅停机与 Axum 路由注册
 - 🟢 `GET /ping` 健康检查、JSON 响应与 `x-request-id`
 - 🟢 tracing 初始化、请求级 span 与访问日志字段注入
-- 🟡 配置分层读取已完成，但数据库连接池与事务边界尚未接入运行链路
+- 🟢 `app/shared` crate 集成（JWT encode/decode + iss 校验、bcrypt 密码工具、公共错误码）
+- 🟡 配置分层读取已完成，SQLx 0.8 已进 workspace 依赖，但数据库连接池与事务边界尚未接入运行链路
 - 🔴 鉴权、业务模块、数据库事务、WebSocket 网关与服务端广播
 
 ### 遗留技术债 (Tech Debt)

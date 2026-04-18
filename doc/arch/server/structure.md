@@ -4,6 +4,7 @@
 
 | 路径 | 职责 | 当前状态 |
 | --- | --- | --- |
+| `app/shared/` | Workspace 共享 crate：JWT 工具、密码哈希、错误码、数据模型、新类型 | 🟢 已落地 |
 | `app/server/src/main.rs` | 读取配置、初始化 tracing、构建应用并启动 Axum Server | 🟢 已落地 |
 | `app/server/src/bootstrap/mod.rs` | 注册 `/ping` 路由并挂载请求上下文中间件 | 🟢 已落地 |
 | `app/server/src/common/request_context.rs` | 定义 `RequestContext`，封装 `request_id` | 🟢 已落地 |

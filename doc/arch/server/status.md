@@ -23,7 +23,7 @@
 | --- | --- | --- |
 | 鉴权与 Claims | 🔴 未开始 | `common/auth` 尚不存在 |
 | 业务域模块 | 🔴 未开始 | `modules/` 仅有 `mod.rs` |
-| 数据库连接池与 SQLx 事务 | 🔴 未接入 | `Cargo.toml` 已声明可选 `sqlx` feature，但运行链路未使用 |
+| 数据库连接池与 SQLx 事务 | 🟡 依赖已就绪 | Workspace `Cargo.toml` 已固定 `sqlx = "0.8"`，`app/server/Cargo.toml` 已引用，但运行链路（连接池初始化、Repository 层）尚未接入 |
 | WebSocket 网关 | 🔴 未开始 | 尚无 WS 路由、状态机、广播或回补 |
 | 第三方防腐层 | 🔴 未开始 | `infrastructure/third_party/*` 尚未落地 |
 
