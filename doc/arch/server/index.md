@@ -10,14 +10,16 @@
 # Server 端架构总索引与状态盘点
 
 ## 一、 架构概述
-当前 Server 端已落地 Rust + Axum 的最小启动骨架，重点覆盖启动装配、配置读取、结构化日志与健康检查；业务域、数据库事务与 WebSocket 信令仍未展开。
+Server 端基于 Rust + Axum 构建。启动骨架（配置、日志、健康检查）已完成；Auth 业务域（短信验证码、手机号登录、JWT 鉴权、用户信息）已全部落地并通过 Review；数据库（SQLx 0.8 + PostgreSQL）与 Redis 已接入运行链路；Room 业务域数据层（`rooms` 表 DDL + `RoomModel` struct，T-00006）已完成；WebSocket 网关与房间 HTTP 接口仍未展开。
 
 ## 二、 子模块索引 (Module Router)
 > ⚠️ AI 寻路提示：请先通过以下子文档确认“当前已实现的骨架”和“尚未落地的业务边界”，再决定是否继续扩展。
 
 ### 实际目录：
-- 🧱 [启动、配置与目录结构](./structure.md) - `main.rs`、`bootstrap`、`config`、`logging` 与测试入口现状。
+- 🧱 [启动、配置与目录结构](./structure.md) - `main.rs`、`bootstrap`、`config`、`logging`、数据库 / Redis 初始化与测试入口现状。
 - 📊 [能力状态与缺口盘点](./status.md) - 现有可用能力、未落地模块与下一步约束。
+- 🔐 [Auth 模块架构](./auth.md) - 短信验证码（T-00002）、手机号登录（T-00003）、JWT 中间件（T-00004）、获取用户信息（T-00005）的路由、服务、Redis Key 设计与错误码映射。
+- 🗄️ [数据库 Schema 设计](./database.md) - 各业务表 DDL 说明、字段约束、索引策略与 Rust 模型映射（含 `rooms` 表，T-00006）。
 
 ## 三、 当前能力全景与状态 (Capability Matrix)
 > 状态枚举：🟢 已完成 | 🟡 开发/调试中 | 🔴 待开发
@@ -27,10 +29,17 @@
 - 🟢 `GET /ping` 健康检查、JSON 响应与 `x-request-id`
 - 🟢 tracing 初始化、请求级 span 与访问日志字段注入
 - 🟢 `app/shared` crate 集成（JWT encode/decode + iss 校验、bcrypt 密码工具、公共错误码）
-- 🟡 配置分层读取已完成，SQLx 0.8 已进 workspace 依赖，但数据库连接池与事务边界尚未接入运行链路
-- 🔴 鉴权、业务模块、数据库事务、WebSocket 网关与服务端广播
+- 🟢 配置分层读取（`.env` + `config/*.toml` + 环境变量覆盖）
+- 🟢 数据库连接池（SQLx 0.8 + PostgreSQL）与自动 migration（`sqlx::migrate!`）
+- 🟢 Redis 连接（`MultiplexedConnection` 缓存复用）
+- 🟢 **Auth 模块**：`POST /api/v1/auth/verification-codes`（T-00002）、`POST /api/v1/auth/login`（T-00003）、JWT 鉴权中间件（T-00004）、`GET /api/v1/users/me`（T-00005）
+- 🟢 SMS 防腐层（`SmsProvider` trait）：生产用 Twilio，开发/CI 用 Mock
+- 🟢 统一错误响应结构（含 `request_id`、`safe_message` 防信息泄露）
+- 🟢 **数据层 — rooms 表**（T-00006）：`002_create_rooms.sql` DDL（6 个 CHECK 约束、3 个索引含软删除偏滤）+ `RoomModel` struct（29 个单元测试全通过）
+- 🔴 WebSocket 网关与服务端广播
+- 🔴 房间 HTTP 接口（T-00007 ～ T-00010）、支付业务域
 
 ### 遗留技术债 (Tech Debt)
-- `src/modules/` 仍为空壳，尚未开始按业务域拆分模块。
-- `.env.example` 已声明数据库和 JWT/RTC 相关变量，但当前代码只真正消费了部分配置。
-- 缺少与 `doc/protocol.md` 对齐的 HTTP/WS 契约落地，当前只有健康检查接口。
+- `is_in_cooldown` / `daily_count` 两个 `SmsCodeStore` 方法当前仅供测试辅助调用，生产代码路径未使用，后续迭代可酌情清理。
+- `service.rs` 中 `revoke_code` 失败时静默丢弃（`.ok()`），建议后续改为 `tracing::warn!` 记录（TDS 第五轮 Review L-01）。
+- `.env.example` 中 `JWT_SECRET`、`REDIS_URL`、Twilio 相关变量需在部署文档中补充说明。

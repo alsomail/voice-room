@@ -112,7 +112,7 @@
 | **T-30001** | Android | Auth | 登录页 UI (Compose) [TDS](./tds/android/T-30001.md) | T-00002 | Material3 实现手机号+验证码登录 | 1. 手机号输入框（+966 沙特格式）<br>2. 发送验证码倒计时<br>3. RTL 布局支持 | ✅ Done | 5 | Dod |
 | **T-30002** | Android | Auth | 登录 ViewModel [TDS](./tds/android/T-30002.md) | T-00003, T-30001 | Retrofit 调用登录接口 | 1. Loading/Success/Error 状态<br>2. token 保存到 DataStore<br>3. 登录成功导航到大厅 | ✅ Done | 4 | Dod |
 | **T-30003** | Android | Auth | JWT 拦截器 [TDS](./tds/android/T-30003.md) | T-00004, T-30002 | OkHttp 拦截器自动添加 token | 1. 每个请求自动带 Authorization Header<br>2. 401 响应自动跳转登录页 | ✅ Done | 3 | Dod |
-| **T-30004** | Android | Auth | 用户信息 Repository [TDS](./tds/android/T-30004.md) | T-00005, T-30003 | 封装用户信息获取与缓存 | 1. 首次登录拉取用户信息<br>2. Room Database 本地缓存<br>3. Flow 订阅用户信息变更 | Todo | 4 | TDD |
+| **T-30004** | Android | Auth | 用户信息 Repository [TDS](./tds/android/T-30004.md) | T-00005, T-30003 | 封装用户信息获取与缓存 | 1. 首次登录拉取用户信息<br>2. Room Database 本地缓存<br>3. Flow 订阅用户信息变更 | ✅ Done | 4 | DoD |
 
 ---
 
@@ -122,7 +122,7 @@
 
 | Task ID | 归属端 | 模块 | 任务名称 | 前置依赖 | 核心描述 | TDD 验收标准 | 状态 | 预估工时 | 负责人 |
 |---------|--------|------|----------|----------|----------|-------------|------|----------|--------|
-| **T-00006** | App Server | Room | 房间表设计 | T-00001 | 设计 `rooms` 表（id, owner_id, title, type, member_count, status） | 1. 外键关联 users 表<br>2. 索引（status, created_at）<br>3. 房间类型枚举（normal/password/paid） | Todo | 2h | Plan |
+| **T-00006** | App Server | Room | 房间表设计 [TDS](./tds/server/T-00006.md) | T-00001 | 设计 `rooms` 表（id, owner_id, title, type, member_count, status） | 1. 外键关联 users 表<br>2. 索引（status, created_at）<br>3. 房间类型枚举（normal/password/paid） | ✅ Done | 2h | DoD |
 | **T-00007** | App Server | Room | 创建房间接口 | T-00006, T-00004 | POST `/api/v1/rooms` | 1. 需要 JWT 认证<br>2. 标题长度 1-30 字符<br>3. 用户同时只能拥有 1 个房间<br>4. 成功返回 201 + room_id | Todo | 4h | Plan |
 | **T-00008** | App Server | Room | 房间列表接口 | T-00006 | GET `/api/v1/rooms?page=1&size=20` | 1. 按热度排序（member_count desc）<br>2. 过滤已关闭房间<br>3. 分页返回 (total, page, items) | Todo | 3h | Plan |
 | **T-00009** | App Server | Room | 房间详情接口 | T-00008 | GET `/api/v1/rooms/:id` | 1. 包含房主信息<br>2. 在线人数<br>3. 麦位列表（初始为空） | Todo | 2h | Plan |
