@@ -12,8 +12,9 @@ env:
 
 jobs:
   rust-check:
-    name: Rust Lint + Test + Build
+    name: Rust Lint + Test
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -30,12 +31,10 @@ jobs:
       - name: Run tests
         run: cargo test --workspace
 
-      - name: Build
-        run: cargo build --workspace --release
-
   web-check:
     name: Web Lint + Build
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: app/web

@@ -4,11 +4,13 @@ services:
     container_name: vr-postgres
     restart: unless-stopped
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: voiceroom
+      APP_SERVER_PASS: ${APP_SERVER_PASS:-app_server_pass}
+      ADMIN_SERVER_PASS: ${ADMIN_SERVER_PASS:-admin_server_pass}
     volumes:
       - vr-pgdata:/var/lib/postgresql/data
       - ./scripts/dev/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh
@@ -23,7 +25,7 @@ services:
     container_name: vr-redis
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - vr-redisdata:/data
     command: redis-server --appendonly yes

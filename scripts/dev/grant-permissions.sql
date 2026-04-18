@@ -9,6 +9,10 @@ GRANT USAGE ON SCHEMA public TO app_server_user;
 GRANT SELECT, INSERT, UPDATE ON TABLE users TO app_server_user;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO app_server_user;
 
+-- app_server_user: 新建表默认权限（对 app_server_user）
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE ON TABLES TO app_server_user;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO app_server_user;
+
 -- app_server_user: 禁止访问管理表
 REVOKE ALL ON TABLE admins FROM app_server_user;
 REVOKE ALL ON TABLE admin_logs FROM app_server_user;

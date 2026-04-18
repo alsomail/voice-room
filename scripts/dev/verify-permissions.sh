@@ -2,15 +2,18 @@
 # T-0000C 验收脚本：验证权限隔离矩阵
 # 使用方法：./scripts/dev/verify-permissions.sh
 # 前置条件：docker-compose up -d 且 PG 已 healthy
+# 密码从环境变量读取，未设置时使用 docker-compose 默认值
 
 set -euo pipefail
 
 CONTAINER=vr-postgres
 DB=voiceroom
+_APP_PASS="${APP_SERVER_PASS:-app_server_pass}"
+_ADMIN_PASS="${ADMIN_SERVER_PASS:-admin_server_pass}"
 
 run_as_postgres() { docker exec "$CONTAINER" psql -U postgres -d $DB -c "$1" -q 2>&1; }
-run_as_app()      { docker exec -e PGPASSWORD=app_server_pass   "$CONTAINER" psql -U app_server_user   -d $DB -c "$1" 2>&1; }
-run_as_admin()    { docker exec -e PGPASSWORD=admin_server_pass "$CONTAINER" psql -U admin_server_user -d $DB -c "$1" 2>&1; }
+run_as_app()      { docker exec -e PGPASSWORD="$_APP_PASS"   "$CONTAINER" psql -U app_server_user   -d $DB -c "$1" 2>&1; }
+run_as_admin()    { docker exec -e PGPASSWORD="$_ADMIN_PASS" "$CONTAINER" psql -U admin_server_user -d $DB -c "$1" 2>&1; }
 
 PASS=0; FAIL=0
 check() {
