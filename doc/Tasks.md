@@ -124,7 +124,7 @@
 |---------|--------|------|----------|----------|----------|-------------|------|----------|--------|
 | **T-00006** | App Server | Room | 房间表设计 [TDS](./tds/server/T-00006.md) | T-00001 | 设计 `rooms` 表（id, owner_id, title, type, member_count, status） | 1. 外键关联 users 表<br>2. 索引（status, created_at）<br>3. 房间类型枚举（normal/password/paid） | ✅ Done | 2h | DoD |
 | **T-00007** | App Server | Room | 创建房间接口 [TDS](./tds/server/T-00007.md) | T-00006, T-00004 | POST `/api/v1/rooms` | 1. 需要 JWT 认证<br>2. 标题长度 1-30 字符<br>3. 用户同时只能拥有 1 个房间<br>4. 成功返回 201 + room_id | ✅ Done | 4h | DoD |
-| **T-00008** | App Server | Room | 房间列表接口 | T-00006 | GET `/api/v1/rooms?page=1&size=20` | 1. 按热度排序（member_count desc）<br>2. 过滤已关闭房间<br>3. 分页返回 (total, page, items) | Todo | 3h | Plan |
+| **T-00008** | App Server | Room | 房间列表接口 [TDS](./tds/server/T-00008.md) | T-00006 | GET `/api/v1/rooms?page=1&size=20` | 1. 按热度排序（member_count desc）<br>2. 过滤已关闭房间<br>3. 分页返回 (total, page, items) | ✅ Done | 3h | DoD |
 | **T-00009** | App Server | Room | 房间详情接口 | T-00008 | GET `/api/v1/rooms/:id` | 1. 包含房主信息<br>2. 在线人数<br>3. 麦位列表（初始为空） | Todo | 2h | Plan |
 | **T-00010** | App Server | Room | 关闭房间接口 | T-00007 | DELETE `/api/v1/rooms/:id` | 1. 只有房主可关闭<br>2. 广播 RoomClosed 事件<br>3. 踢出所有成员 | Todo | 3h | Plan |
 

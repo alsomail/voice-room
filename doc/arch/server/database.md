@@ -1,6 +1,6 @@
 # Server 数据库 Schema 设计
 
-**Last Updated:** 2026-04-18
+**Last Updated:** 2026-04-19
 **Migration 目录:** `app/server/migrations/`
 **Rust 模型目录:** `app/shared/src/models/`
 
@@ -147,8 +147,22 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_rooms_owner_active
 
 ---
 
-## 四、 文档维护约束
+## 四、 技术债记录 (Tech Debt)
+
+### T-00008 Review 遗留 MEDIUM 问题
+
+以下两项在 T-00008 Review 阶段标记为 **MEDIUM**，不阻塞上线，需在后续迭代中处理：
+
+| 编号 | 级别 | 描述 | 当前行为 | 建议处理方式 | 关联任务 |
+| --- | --- | --- | --- | --- | --- |
+| **M-01** | MEDIUM | `page` 参数无上界溢出风险 | `page` 仅限制 `>= 1`，无最大值校验；超大 `page` 值（如 `page=10^9`）会导致 `OFFSET` 溢出或极慢全表扫描 | 后续在 service 层增加 `MAX_PAGE`（建议 10000）常量校验，超出返回 `40003`；或改用 keyset pagination | — |
+| **M-02** | MEDIUM | `JOIN users` 未过滤封禁用户 | 列表中可能出现已被封禁用户的房间，封禁信息暂时未建立 | 待 T-10009（封禁用户接口）完成后，在 `find_active_rooms` 查询中增加 `JOIN users u ON r.owner_id = u.id AND u.banned_at IS NULL` 过滤条件 | T-10009 |
+
+---
+
+## 五、 文档维护约束
 
 - 每新增一个 Migration 文件，必须在本文档的"总览"表格补充对应行，并在下方添加专节说明。
 - 涉及事务边界或幂等策略时，在对应表节末尾补充"事务说明"小节。
 - 索引变更需同步更新"索引"表格与偏滤条件描述。
+- Review 阶段遗留的 MEDIUM 及以上问题，必须在"技术债记录"节中登记并注明关联任务。

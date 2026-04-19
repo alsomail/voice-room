@@ -1,7 +1,7 @@
 # Voice Room API 协议文档
 
-> **版本**: v0.3
-> **更新日期**: 2026-04-18
+> **版本**: v0.4
+> **更新日期**: 2026-04-19
 > **维护约束**: 新增/修改接口时必须同步更新本文件；前后端联调前必须以本文件为唯一契约源。
 
 ---
@@ -320,6 +320,73 @@
 
 ---
 
+### 3.2 GET /api/v1/rooms
+
+获取活跃房间列表。**无需鉴权（公开接口）**。按热度（在线人数降序）排序，过滤已关闭房间。
+
+**Query Parameters**:
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| `page` | `integer` | 否 | `1` | 页码，最小值 `1` |
+| `size` | `integer` | 否 | `20` | 每页条数，范围 `1–100` |
+
+**Success Response (200)**:
+```json
+{
+  "code": 0,
+  "message": "ok",
+  "data": {
+    "total": 42,
+    "page": 1,
+    "size": 20,
+    "items": [
+      {
+        "room_id": "550e8400-e29b-41d4-a716-446655440001",
+        "title": "欢迎来我的语音房",
+        "room_type": "normal",
+        "member_count": 18,
+        "max_members": 50,
+        "owner_id": "550e8400-e29b-41d4-a716-446655440000",
+        "owner_nickname": "User_a1b2",
+        "owner_avatar": "https://cdn.example.com/avatars/xxx.jpg",
+        "created_at": "2026-04-18T00:00:00Z"
+      }
+    ]
+  },
+  "request_id": "uuid"
+}
+```
+
+**items 字段说明**:
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `room_id` | `string (UUID)` | 房间唯一 ID |
+| `title` | `string` | 房间标题，1–30 字符 |
+| `room_type` | `string` | 枚举：`normal` / `password` / `paid` |
+| `member_count` | `integer` | 当前在线人数（排序依据，降序） |
+| `max_members` | `integer` | 房间人数上限（默认 50） |
+| `owner_id` | `string (UUID)` | 房主用户 ID |
+| `owner_nickname` | `string` | 房主昵称（JOIN users 表） |
+| `owner_avatar` | `string \| null` | 房主头像 URL，无头像时为 `null` |
+| `created_at` | `string (ISO 8601)` | 房间创建时间 |
+
+**Error Scenarios**:
+
+| 场景 | HTTP | 错误码 | message |
+|------|------|--------|---------|
+| `page < 1` | 400 | `40003` | Validation error: page must be >= 1 |
+| `size < 1` | 400 | `40003` | Validation error: size must be >= 1 |
+| `size > 100` | 400 | `40003` | Validation error: size must be <= 100, got {size} |
+
+**排序与过滤规则**:
+- 固定按 `member_count DESC, created_at DESC` 双字段排序（热度优先，同热度下按创建时间降序）
+- 仅返回 `status = 'active' AND deleted_at IS NULL` 的房间
+- `page` 超出总页数时 `items` 返回空数组，`total` 仍为真实总数
+
+---
+
 ## 四、Admin 认证模块 (Admin Auth)
 
 > Admin Server 独立部署，使用独立的管理员账号体系。
@@ -619,4 +686,4 @@ app_certificate = "${RTC_APP_CERTIFICATE}"
 **文档变更历史**:
 - 2026-04-17: 初始版本，定义模块1认证契约 + RTC/WS 预留
 - 2026-04-17: v0.2 — 删除 register 端点改为一步登录；验证码存储从 PG 改 Redis；新增 Admin Server 认证契约（§四）；新增 admins/admin_logs 表；users 表增加 coin_balance/vip_level
-- 2026-04-18: v0.3 — 新增 §三 房间模块：`POST /api/v1/rooms` 接口定义；补充错误码 40003（参数校验失败）和 40900（用户已有活跃房间）；原 §三～§七 整体后移为 §四～§八
+- 2026-04-19: v0.4 — 新增 §三 3.2 `GET /api/v1/rooms` 接口定义：查询参数（page/size）、items 字段说明、排序过滤规则（T-00008）
