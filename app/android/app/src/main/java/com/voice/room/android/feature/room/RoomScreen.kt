@@ -1,0 +1,94 @@
+package com.voice.room.android.feature.room
+
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Scaffold
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+
+/**
+ * 房间页顶层 Composable (T-30009)
+ *
+ * 布局（从上到下）：
+ *  - [RoomTopBar]        ← topBar（房间名、在线人数、返回按钮）
+ *  - [MicSlotsGrid]      ← 9 宫格麦位区
+ *  - [ChatMessageList]   ← 聊天消息列表（weight(1f)，自动填充剩余高度）
+ *  - [BottomInputBar]    ← bottomBar（输入框 + 发送按钮）
+ *
+ * 纯 UI，不含 ViewModel 逻辑（T-30010 接入）。
+ *
+ * @param uiState        房间页 UI 状态
+ * @param onBack         点击返回按钮的回调
+ * @param onSendMessage  点击发送按钮的回调，参数为消息文本
+ * @param modifier       可选 Modifier
+ */
+@Composable
+fun RoomScreen(
+    uiState: RoomUiState,
+    onBack: () -> Unit = {},
+    onSendMessage: (String) -> Unit = {},
+    modifier: Modifier = Modifier,
+) {
+    Scaffold(
+        modifier = modifier,
+        topBar = {
+            RoomTopBar(
+                roomName = uiState.roomName,
+                onlineCount = uiState.onlineCount,
+                onBack = onBack,
+            )
+        },
+        bottomBar = {
+            BottomInputBar(onSend = onSendMessage)
+        },
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding),
+        ) {
+            MicSlotsGrid(
+                slots = uiState.micSlots,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(240.dp),
+            )
+            ChatMessageList(
+                messages = uiState.messages,
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+// ─────────────────────────────────────────────
+// Preview
+// ─────────────────────────────────────────────
+
+@Preview(showBackground = true, name = "RoomScreen — 预览")
+@Composable
+private fun RoomScreenPreview() {
+    RoomScreen(
+        uiState = RoomUiState(
+            roomId = "preview-room",
+            roomName = "欢迎来到语聊房",
+            onlineCount = 12,
+            micSlots = List(9) { index ->
+                when (index) {
+                    0 -> MicSlotUi(index = 0, userId = "u1", nickname = "Alice")
+                    1 -> MicSlotUi(index = 1, userId = "u2", nickname = "Bob", isMuted = true)
+                    else -> MicSlotUi(index = index)
+                }
+            },
+            messages = listOf(
+                ChatMessageUi(messageId = "m1", senderNickname = "Alice", content = "大家好！", timestamp = 0L),
+                ChatMessageUi(messageId = "m2", senderNickname = "Bob", content = "欢迎~", timestamp = 1L),
+            ),
+        ),
+    )
+}
