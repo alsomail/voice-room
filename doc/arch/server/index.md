@@ -10,7 +10,7 @@
 # Server 端架构总索引与状态盘点
 
 ## 一、 架构概述
-Server 端基于 Rust + Axum 构建。启动骨架（配置、日志、健康检查）已完成；Auth 业务域（短信验证码、手机号登录、JWT 鉴权、用户信息）已全部落地并通过 Review；数据库（SQLx 0.8 + PostgreSQL）与 Redis 已接入运行链路；Room 业务域数据层（`rooms` 表 DDL + `RoomModel` struct，T-00006）已完成；WebSocket 网关与房间 HTTP 接口仍未展开。
+Server 端基于 Rust + Axum 构建。启动骨架（配置、日志、健康检查）已完成；Auth 业务域（短信验证码、手机号登录、JWT 鉴权、用户信息）已全部落地并通过 Review；数据库（SQLx 0.8 + PostgreSQL）与 Redis 已接入运行链路；Room 业务域数据层（`rooms` 表 DDL + `RoomModel` struct，T-00006）已完成；**创建房间接口**（`POST /api/v1/rooms`，T-00007）已落地（含 JWT 鉴权、参数校验、bcrypt 密码哈希、唯一 active 房间约束，60 个单元测试全通过）；WebSocket 网关与房间列表/详情/关闭接口仍未展开。
 
 ## 二、 子模块索引 (Module Router)
 > ⚠️ AI 寻路提示：请先通过以下子文档确认“当前已实现的骨架”和“尚未落地的业务边界”，再决定是否继续扩展。
@@ -36,8 +36,9 @@ Server 端基于 Rust + Axum 构建。启动骨架（配置、日志、健康检
 - 🟢 SMS 防腐层（`SmsProvider` trait）：生产用 Twilio，开发/CI 用 Mock
 - 🟢 统一错误响应结构（含 `request_id`、`safe_message` 防信息泄露）
 - 🟢 **数据层 — rooms 表**（T-00006）：`002_create_rooms.sql` DDL（6 个 CHECK 约束、3 个索引含软删除偏滤）+ `RoomModel` struct（29 个单元测试全通过）
+- 🟢 **房间创建接口**（T-00007）：`POST /api/v1/rooms`（JWT 鉴权、标题校验、唯一 active 房间约束、bcrypt 密码哈希、HTTP 201 响应）；`003_add_unique_active_room_per_owner.sql` 唯一偏滤索引 + 60 个单元测试全通过
 - 🔴 WebSocket 网关与服务端广播
-- 🔴 房间 HTTP 接口（T-00007 ～ T-00010）、支付业务域
+- 🔴 房间列表/详情/关闭接口（T-00008 ～ T-00010）、支付业务域
 
 ### 遗留技术债 (Tech Debt)
 - `is_in_cooldown` / `daily_count` 两个 `SmsCodeStore` 方法当前仅供测试辅助调用，生产代码路径未使用，后续迭代可酌情清理。

@@ -1,7 +1,7 @@
 # Voice Room API 协议文档
 
-> **版本**: v0.2
-> **更新日期**: 2026-04-17
+> **版本**: v0.3
+> **更新日期**: 2026-04-18
 > **维护约束**: 新增/修改接口时必须同步更新本文件；前后端联调前必须以本文件为唯一契约源。
 
 ---
@@ -88,6 +88,13 @@
 | `40302` | 403 | 账号已被禁用 | 管理员账号被 super_admin 停用 |
 | `42901` | 429 | 验证码发送过于频繁 | 60 秒内重复发送 |
 | `42902` | 429 | 每日发送次数超限 | 同一手机号当日超过 10 次 |
+
+#### 模块2 错误码表（房间模块）
+
+| 错误码 | HTTP Status | 含义 | 触发场景 |
+|--------|-------------|------|----------|
+| `40003` | 400 | 参数校验失败 | 标题为空 / 超 30 字符、`room_type` 非法枚举、密码房未提供密码 |
+| `40900` | 409 | 用户已有活跃房间 | 同一用户尝试创建第二个 `active` 状态房间（DB 唯一偏滤索引兜底） |
 
 ### 1.5 分页约定
 
@@ -257,11 +264,67 @@
 
 ---
 
-## 三、Admin 认证模块 (Admin Auth)
+## 三、房间模块 (Room)
+
+### 3.1 POST /api/v1/rooms
+
+创建房间。**需要 JWT 认证**。
+
+**Request Headers**: `Authorization: Bearer <token>`
+
+**Request Body**:
+```json
+{
+  "title": "我的语音房",
+  "room_type": "normal",
+  "password": null
+}
+```
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `title` | `string` | ✅ | 房间标题，1–30 个 Unicode 字符 |
+| `room_type` | `string` | ✅ | 枚举：`normal` / `password` / `paid` |
+| `password` | `string` | 条件 | `room_type=password` 时必填；`normal` / `paid` 类型忽略此字段 |
+
+**Success Response (201)**:
+```json
+{
+  "code": 0,
+  "message": "ok",
+  "data": {
+    "room_id": "550e8400-e29b-41d4-a716-446655440001",
+    "title": "我的语音房",
+    "room_type": "normal",
+    "created_at": "2026-04-18T00:00:00Z"
+  },
+  "request_id": "uuid"
+}
+```
+
+**Error Scenarios**:
+
+| 场景 | HTTP | 错误码 | message |
+|------|------|--------|---------|
+| title 为空 / 超过 30 字符 / room_type 非法 / 密码房未提供密码 | 400 | `40003` | Validation error: \<detail\> |
+| 无 token / 签名无效 | 401 | `40101` | Unauthorized |
+| Token 已过期 | 401 | `40102` | Token expired |
+| 用户已有活跃房间 | 409 | `40900` | User already has an active room |
+
+**业务规则**:
+- `title` 长度按 Unicode 字符数（`chars().count()`）计算，1 个中文字符 = 1 个字符
+- `room_type=password` 时服务端对 `password` 做 bcrypt 哈希存储，绝不明文保存
+- `room_type=normal` 或 `paid` 时即使请求体携带 `password` 字段也会被忽略（`password_hash` 存 `NULL`）
+- 同一用户同时只能拥有 1 个 `active` 房间；若已有则返回 409（DB 层由唯一偏滤索引 `idx_rooms_owner_active` 兜底，并发安全）
+- 成功返回 **HTTP 201**（Created），而非 200
+
+---
+
+## 四、Admin 认证模块 (Admin Auth)
 
 > Admin Server 独立部署，使用独立的管理员账号体系。
 
-### 3.1 POST /api/v1/admin/login
+### 4.1 POST /api/v1/admin/login
 
 管理员使用账号密码登录。无需鉴权。
 
@@ -322,7 +385,7 @@
 - 签名算法：HS256
 - Secret 从环境变量 `JWT_SECRET` 读取（与 App Server 共享，通过 shared crate）
 
-### 3.2 GET /api/v1/admin/me
+### 4.2 GET /api/v1/admin/me
 
 获取当前管理员信息。**需要 Admin JWT 认证**。
 
@@ -345,7 +408,7 @@
 }
 ```
 
-### 3.3 RBAC 权限矩阵
+### 4.3 RBAC 权限矩阵
 
 | 角色 | 用户管理 | 房间管理 | 数据统计 | 财务操作 | 系统管理 |
 |------|---------|---------|---------|---------|---------|
@@ -356,11 +419,11 @@
 
 ---
 
-## 四、RTC Token（预留）
+## 五、RTC Token（预留）
 
 > ⚠️ 本节为预留设计，将在模块3（T-00012 及后续任务）实现时正式落地。
 
-### 4.1 POST /api/v1/rtc/token
+### 5.1 POST /api/v1/rtc/token
 
 获取 RTC 频道 token。**需要 JWT 认证**。
 
@@ -394,7 +457,7 @@
 - Server 通过 `RtcTokenProvider` 防腐层签发，不暴露具体 SDK（Agora/ZEGO 等）术语
 - 客户端收到 RTC SDK 的 `onTokenPrivilegeWillExpire` 回调时，重新调用此接口
 
-### 4.2 RTC Provider 三端抽象边界
+### 5.2 RTC Provider 三端抽象边界
 
 | 端 | 抽象层 | 职责 | 不做的事 |
 |----|--------|------|----------|
@@ -404,23 +467,23 @@
 
 ---
 
-## 五、WebSocket 信令（预留）
+## 六、WebSocket 信令（预留）
 
 > 将在模块3 WebSocket 连接管理（T-00012）实现时正式定义。以下为设计预留。
 
-### 5.1 连接建立
+### 6.1 连接建立
 
 ```
 ws://host/ws?token=<JWT>
 ```
 
-### 5.2 心跳
+### 6.2 心跳
 
 - 客户端每 15 秒发送 `{"type":"ping"}`
 - 服务端回复 `{"type":"pong"}`
 - 30 秒无心跳自动断开
 
-### 5.3 消息通用格式
+### 6.3 消息通用格式
 
 ```json
 {
@@ -433,9 +496,9 @@ ws://host/ws?token=<JWT>
 
 ---
 
-## 六、数据模型（模块1相关）
+## 七、数据模型（模块1相关）
 
-### 6.1 users 表
+### 7.1 users 表
 
 ```sql
 CREATE TABLE users (
@@ -453,7 +516,7 @@ CREATE TABLE users (
 CREATE UNIQUE INDEX idx_users_phone ON users(phone) WHERE deleted_at IS NULL;
 ```
 
-### 6.2 验证码存储 (Redis)
+### 7.2 验证码存储 (Redis)
 
 > 验证码使用 Redis 存储，不使用 PostgreSQL 表。
 
@@ -477,7 +540,7 @@ EXPIRE sms:code:+966512345678 300
 3. 登录校验时：HGET `sms:code:{phone}` 取 code 比对，HINCRBY attempts 1，超过 max_attempts 返回 40105
 4. 校验成功后：DEL `sms:code:{phone}` 使验证码一次性作废
 
-### 6.3 admins 表
+### 7.3 admins 表
 
 ```sql
 CREATE TABLE admins (
@@ -499,7 +562,7 @@ ALTER TABLE admins ADD CONSTRAINT chk_admin_role
 
 **初始数据**: 部署时通过 migration seed 插入默认 super_admin 账号。
 
-### 6.4 admin_logs 表
+### 7.4 admin_logs 表
 
 ```sql
 CREATE TABLE admin_logs (
@@ -521,9 +584,9 @@ CREATE INDEX idx_admin_logs_action ON admin_logs(action, created_at DESC);
 
 ---
 
-## 七、Provider 配置模型
+## 八、Provider 配置模型
 
-### 7.1 SMS Provider
+### 8.1 SMS Provider
 
 通过环境变量 / `config/*.toml` 注入：
 
@@ -539,7 +602,7 @@ twilio_from_number = "${TWILIO_FROM_NUMBER}"
 - `mock` 模式在本地开发/测试环境使用，不实际发送短信，验证码固定为 `000000`
 - Provider 实现在 `infrastructure/third_party/sms/` 目录下
 
-### 7.2 RTC Provider（预留）
+### 8.2 RTC Provider（预留）
 
 ```toml
 [rtc]
@@ -555,4 +618,5 @@ app_certificate = "${RTC_APP_CERTIFICATE}"
 
 **文档变更历史**:
 - 2026-04-17: 初始版本，定义模块1认证契约 + RTC/WS 预留
-- 2026-04-17: v0.2 — 删除 register 端点改为一步登录；验证码存储从 PG 改 Redis；新增 Admin Server 认证契约（§三）；新增 admins/admin_logs 表；users 表增加 coin_balance/vip_level
+- 2026-04-17: v0.2 — 删除 register 端点改为一步登录；验证码存储从 PG 改 Redis；新增 Admin Server 认证契约（§四）；新增 admins/admin_logs 表；users 表增加 coin_balance/vip_level
+- 2026-04-18: v0.3 — 新增 §三 房间模块：`POST /api/v1/rooms` 接口定义；补充错误码 40003（参数校验失败）和 40900（用户已有活跃房间）；原 §三～§七 整体后移为 §四～§八

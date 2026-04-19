@@ -1,6 +1,6 @@
 # Server 数据库 Schema 设计
 
-**Last Updated:** 2025-01-31
+**Last Updated:** 2026-04-18
 **Migration 目录:** `app/server/migrations/`
 **Rust 模型目录:** `app/shared/src/models/`
 
@@ -12,6 +12,7 @@
 | --- | --- | --- | --- | --- | --- |
 | 001 | `users` | `001_create_users.sql` | `UserModel` | T-00001 | 🟢 已完成 |
 | 002 | `rooms` | `002_create_rooms.sql` | `RoomModel` | T-00006 | 🟢 已完成 |
+| 003 | `rooms`（索引） | `003_add_unique_active_room_per_owner.sql` | — | T-00007 | 🟢 已完成 |
 
 ---
 
@@ -112,7 +113,41 @@ pub struct RoomModel {
 
 ---
 
-## 三、 文档维护约束
+## 三、 唯一偏滤索引 — 每用户最多 1 个 active 房间（T-00007）
+
+### 3.1 Migration 文件
+
+**文件：** `app/server/migrations/003_add_unique_active_room_per_owner.sql`
+
+```sql
+-- T-00007: 每个用户同时只能拥有一个 active 房间
+-- 通过部分唯一索引强制约束（仅对未删除的 active 行）
+CREATE UNIQUE INDEX IF NOT EXISTS idx_rooms_owner_active
+    ON rooms (owner_id)
+    WHERE status = 'active' AND deleted_at IS NULL;
+```
+
+### 3.2 约束语义
+
+| 维度 | 说明 |
+| --- | --- |
+| **唯一性范围** | 仅针对 `status = 'active' AND deleted_at IS NULL` 的行，即同一 `owner_id` 只能有一条未软删除的活跃房间 |
+| **覆盖场景** | 业务层 `find_active_by_owner` 预检 + DB 层 `idx_rooms_owner_active` 兜底，双重防并发竞态 |
+| **并发安全** | 并发 INSERT 若业务层预检均通过，DB 仍会以 PG 错误码 `23505` 拒绝第二条写入 |
+| **软删除兼容** | 关闭房间（`status='closed'` 或 `deleted_at IS NOT NULL`）后，该 owner 可再次创建新房间，不受索引约束 |
+| **非 active 行不受限** | 已关闭/软删除的历史房间不计入唯一约束，支持完整审计记录 |
+
+### 3.3 错误码映射
+
+`From<sqlx::Error>` 实现（`app/server/src/common/error.rs`）检测 PG 错误码 `23505` 并映射为：
+
+| DB 错误码 | AppError 变体 | HTTP Status | API 错误码 |
+| --- | --- | --- | --- |
+| `23505` | `ActiveRoomExists` | `409 Conflict` | `40900` |
+
+---
+
+## 四、 文档维护约束
 
 - 每新增一个 Migration 文件，必须在本文档的"总览"表格补充对应行，并在下方添加专节说明。
 - 涉及事务边界或幂等策略时，在对应表节末尾补充"事务说明"小节。
