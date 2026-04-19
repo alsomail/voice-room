@@ -125,32 +125,32 @@
 | **T-00006** | App Server | Room | 房间表设计 [TDS](./tds/server/T-00006.md) | T-00001 | 设计 `rooms` 表（id, owner_id, title, type, member_count, status） | 1. 外键关联 users 表<br>2. 索引（status, created_at）<br>3. 房间类型枚举（normal/password/paid） | ✅ Done | 2h | DoD |
 | **T-00007** | App Server | Room | 创建房间接口 [TDS](./tds/server/T-00007.md) | T-00006, T-00004 | POST `/api/v1/rooms` | 1. 需要 JWT 认证<br>2. 标题长度 1-30 字符<br>3. 用户同时只能拥有 1 个房间<br>4. 成功返回 201 + room_id | ✅ Done | 4h | DoD |
 | **T-00008** | App Server | Room | 房间列表接口 [TDS](./tds/server/T-00008.md) | T-00006 | GET `/api/v1/rooms?page=1&size=20` | 1. 按热度排序（member_count desc）<br>2. 过滤已关闭房间<br>3. 分页返回 (total, page, items) | ✅ Done | 3h | DoD |
-| **T-00009** | App Server | Room | 房间详情接口 | T-00008 | GET `/api/v1/rooms/:id` | 1. 包含房主信息<br>2. 在线人数<br>3. 麦位列表（初始为空） | Todo | 2h | Plan |
-| **T-00010** | App Server | Room | 关闭房间接口 | T-00007 | DELETE `/api/v1/rooms/:id` | 1. 只有房主可关闭<br>2. 广播 RoomClosed 事件<br>3. 踢出所有成员 | Todo | 3h | Plan |
+| **T-00009** | App Server | Room | 房间详情接口 [TDS](./tds/server/T-00009.md) | T-00008 | GET `/api/v1/rooms/:id` | 1. 包含房主信息<br>2. 在线人数<br>3. 麦位列表（初始为空） | ✅ Done | 2h | DoD |
+| **T-00010** | App Server | Room | 关闭房间接口 [TDS](./tds/server/T-00010.md) | T-00007 | DELETE `/api/v1/rooms/:id` | 1. 只有房主可关闭<br>2. 广播 RoomClosed 事件<br>3. 踢出所有成员 | ✅ Done | 3h | DoD |
 
 #### Admin Server 端
 
 | Task ID | 归属端 | 模块 | 任务名称 | 前置依赖 | 核心描述 | TDD 验收标准 | 状态 | 预估工时 | 负责人 |
 |---------|--------|------|----------|----------|----------|-------------|------|----------|--------|
-| **T-10004** | Admin Server | Room | 房间列表接口（后台） | T-00006, T-10003 | GET `/api/v1/admin/rooms` | 1. 支持多条件筛选（房主/状态/时间）<br>2. 返回完整字段（含举报次数）<br>3. 支持导出 CSV | Todo | 3h | Plan |
-| **T-10005** | Admin Server | Room | 房间详情接口（后台） | T-10004 | GET `/api/v1/admin/rooms/:id` | 1. 包含所有成员列表<br>2. 最近聊天记录<br>3. 举报记录 | Todo | 3h | Plan |
-| **T-10006** | Admin Server | Room | 强制关闭房间接口 | T-10005 | POST `/api/v1/admin/rooms/:id/close` | 1. 需要管理员权限<br>2. 记录关闭原因到数据库<br>3. 推送通知给房主<br>4. 记录操作日志 | Todo | 4h | Plan |
+| **T-10004** | Admin Server | Room | 房间列表接口（后台） | T-00006, T-10003 | GET `/api/v1/admin/rooms` | 1. 支持多条件筛选（房主/状态/时间）<br>2. 返回完整字段（含举报次数）<br>3. 支持导出 CSV | Done | 3h | DoD |
+| **T-10005** | Admin Server | Room | 房间详情接口（后台） | T-10004 | GET `/api/v1/admin/rooms/:id` | 1. 包含所有成员列表<br>2. 最近聊天记录<br>3. 举报记录 | Done | 3h | DoD |
+| **T-10006** | Admin Server | Room | 强制关闭房间接口 [TDS](./tds/adminServer/T-10006.md) | T-10005 | DELETE `/api/v1/admin/rooms/:id` | 1. 需要 RoomForceClose 权限（operator/super_admin）<br>2. 不存在/软删除 → 404/40400<br>3. 已 closed → 409/40901<br>4. 无 owner 检查 | ✅ Done | 4h | DoD |
 
 #### Web 端
 
 | Task ID | 归属端 | 模块 | 任务名称 | 前置依赖 | 核心描述 | TDD 验收标准 | 状态 | 预估工时 | 负责人 |
 |---------|--------|------|----------|----------|----------|-------------|------|----------|--------|
-| **T-20003** | Web | Dashboard | 数据看板首页 | T-20002, **T-10010** | 实现首页数据大盘 | 1. 实时在线人数/房间数<br>2. 今日 DAU/新增用户<br>3. ECharts 趋势图<br>4. 自动刷新（每 30 秒） | Todo | 6h | Plan |
-| **T-20004** | Web | Room | 房间管理页面 | T-10004 | Ant Design Table 展示房间列表 | 1. 支持搜索/筛选<br>2. 分页加载<br>3. 点击查看详情 | Todo | 5h | Plan |
-| **T-20005** | Web | Room | 房间详情弹窗 | T-10005, T-20004 | Modal 展示房间详情 | 1. 显示成员列表<br>2. 实时聊天记录<br>3. [强制关闭] 按钮 | Todo | 4h | Plan |
+| **T-20003** | Web | Dashboard | 数据看板首页 [TDS](./tds/web/T-20003.md) | T-20002, **T-10010** | 实现首页数据大盘 | 1. 实时在线人数/房间数<br>2. 今日 DAU/新增用户<br>3. ECharts 趋势图<br>4. 自动刷新（每 30 秒） | ✅ Done | 6h | DoD |
+| **T-20004** | Web | Room | 房间管理页面 [TDS](./tds/web/T-20004.md) | T-10004 | Ant Design Table 展示房间列表 | 1. 支持搜索/筛选<br>2. 分页加载<br>3. 点击查看详情 | ✅ Done | 5h | DoD |
+| **T-20005** | Web | Room | 房间详情弹窗 [TDS](./tds/web/T-20005.md) | T-10005, T-20004 | Modal 展示房间详情 | 1. 显示成员列表<br>2. 实时聊天记录<br>3. [强制关闭] 按钮 | ✅ Done | 4h | DoD |
 
 #### Android 端
 
 | Task ID | 归属端 | 模块 | 任务名称 | 前置依赖 | 核心描述 | TDD 验收标准 | 状态 | 预估工时 | 负责人 |
 |---------|--------|------|----------|----------|----------|-------------|------|----------|--------|
-| **T-30005** | Android | Room | 大厅页 UI (Compose) | T-00008 | LazyVerticalGrid 展示房间列表 | 1. Coil 加载房主头像<br>2. 显示在线人数<br>3. 点击导航到房间页 | Todo | 6h | Plan |
-| **T-30006** | Android | Room | 房间列表 ViewModel | T-00008, T-30005 | Paging3 分页加载 | 1. 下拉刷新<br>2. 上拉自动加载<br>3. 错误重试 | Todo | 5h | Plan |
-| **T-30007** | Android | Room | 创建房间对话框 | T-00007 | BottomSheet 输入房间信息 | 1. 标题输入框<br>2. 房间类型选择<br>3. 创建成功导航到房间 | Todo | 4h | Plan |
+| **T-30005** | Android | Room | 大厅页 UI (Compose) [TDS](./tds/android/T-30005.md) | T-00008 | LazyVerticalGrid 展示房间列表 | 1. Coil 加载房主头像<br>2. 显示在线人数<br>3. 点击导航到房间页 | ✅ Done | 6h | DoD |
+| **T-30006** | Android | Room | 房间列表 ViewModel [TDS](./tds/android/T-30006.md) | T-00008, T-30005 | Paging3 分页加载 | 1. 下拉刷新<br>2. 上拉自动加载<br>3. 错误重试 | ✅ Done | 5h | DoD |
+| **T-30007** | Android | Room | 创建房间对话框 [TDS](./tds/android/T-30007.md) | T-00007 | BottomSheet 输入房间信息 | 1. 标题输入框<br>2. 房间类型选择<br>3. 创建成功导航到房间 | ✅ Done | 4h | DoD |
 
 ---
 
@@ -160,29 +160,29 @@
 
 | Task ID | 归属端 | 模块 | 任务名称 | 前置依赖 | 核心描述 | TDD 验收标准 | 状态 | 预估工时 | 负责人 |
 |---------|--------|------|----------|----------|----------|-------------|------|----------|--------|
-| **T-00011** | App Server | WebSocket | WebSocket 连接管理 | T-00004 | 实现 WS 握手、心跳、断线检测 | 1. JWT 认证后建立连接<br>2. 30 秒无心跳断开<br>3. 支持断线重连（携带 last_msg_id）<br>4. 并发 1000 连接压测通过 | Todo | 6h | Plan |
-| **T-00012** | App Server | Room | 进入房间逻辑 | T-00011 | 处理 `JoinRoom` 消息 | 1. 校验房间是否存在<br>2. 加入房间内存状态<br>3. 广播 `UserJoined` 事件<br>4. 返回房间状态快照 | Todo | 5h | Plan |
-| **T-00013** | App Server | Room | 离开房间逻辑 | T-00012 | 处理 `LeaveRoom` 消息或连接断开 | 1. 从房间移除用户<br>2. 广播 `UserLeft` 事件<br>3. 若在麦上自动下麦 | Todo | 3h | Plan |
-| **T-00014** | App Server | Mic | 麦位上麦接口 | T-00012 | 处理 `TakeMic` 消息，Redis 锁防并发 | 1. 检查麦位空闲<br>2. 检查是否被禁麦<br>3. 广播 `MicTaken` 事件<br>4. 并发抢麦只有一个成功 | Todo | 5h | Plan |
-| **T-00015** | App Server | Mic | 麦位下麦接口 | T-00014 | 处理 `LeaveMic` 消息 | 1. 只能下自己的麦<br>2. 广播 `MicLeft` 事件 | Todo | 2h | Plan |
-| **T-00016** | App Server | Chat | 文本消息广播 | T-00012 | 处理 `SendMessage` 消息 | 1. 消息长度限制 500 字符<br>2. 敏感词过滤<br>3. 基于 msg_id 去重<br>4. 禁言用户拒绝 | Todo | 4h | Plan |
+| **T-00011** | App Server | WebSocket | WebSocket 连接管理 | T-00004 | 实现 WS 握手、心跳、断线检测 | 1. JWT 认证后建立连接<br>2. 30 秒无心跳断开<br>3. 支持断线重连（携带 last_msg_id）<br>4. 并发 1000 连接压测通过 | ✅ Done | 6h | DoD |
+| **T-00012** | App Server | Room | 进入房间逻辑 [TDS](./tds/server/T-00012.md) | T-00011 | 处理 `JoinRoom` 消息 | 1. 校验房间是否存在<br>2. 加入房间内存状态<br>3. 广播 `UserJoined` 事件<br>4. 返回房间状态快照 | ✅ Done | 5h | DoD |
+| **T-00013** | App Server | Room | 离开房间逻辑 [TDS](./tds/server/T-00013.md) | T-00012 | 处理 `LeaveRoom` 消息或连接断开 | 1. 从房间移除用户<br>2. 广播 `UserLeft` 事件<br>3. 若在麦上自动下麦 | ✅ Done | 3h | DoD |
+| **T-00014** | App Server | Mic | 麦位上麦接口 [TDS](./tds/server/T-00014.md) | T-00012 | 处理 `TakeMic` 消息，Redis 锁防并发 | 1. 检查麦位空闲<br>2. 检查是否被禁麦<br>3. 广播 `MicTaken` 事件<br>4. 并发抢麦只有一个成功 | ✅ Done | 5h | DoD |
+| **T-00015** | App Server | Mic | 麦位下麦接口 [TDS](./tds/server/T-00015.md) | T-00014 | 处理 `LeaveMic` 消息 | 1. 只能下自己的麦<br>2. 广播 `MicLeft` 事件 | ✅ Done | 2h | DoD |
+| **T-00016** | App Server | Chat | 文本消息广播 [TDS](./tds/server/T-00016.md) | T-00012 | 处理 `SendMessage` 消息 | 1. 消息长度限制 500 字符<br>2. 敏感词过滤<br>3. 基于 msg_id 去重<br>4. 禁言用户拒绝 | ✅ Done | 4h | DoD |
 
 > **App Server 补充任务: 跨服务事件消费**
 
 | Task ID | 归属端 | 模块 | 任务名称 | 前置依赖 | 核心描述 | TDD 验收标准 | 状态 | 预估工时 | 负责人 |
 |---------|--------|------|----------|----------|----------|-------------|------|----------|--------|
-| **T-00011B** | App Server | Event | Redis 事件订阅 | T-00011 | 订阅 `admin:events` 频道，执行管理事件 | 1. 收到 `ban_user` → 找到该用户 WS 连接 → 发送封禁通知 → 断开连接<br>2. 收到 `close_room` → 广播房间关闭 → 断开所有成员连接<br>3. 收到 `broadcast_notice` → 向所有在线用户推送公告<br>4. 事件处理失败不影响主服务 | Todo | 5h | Plan |
-| **T-00011C** | App Server | Stats | 在线统计上报 | T-00011, T-00012 | 实时维护 Redis 在线统计数据 | 1. 用户上线/下线时更新 `stats:online_users` (HyperLogLog)<br>2. 用户进入/离开房间时更新 `stats:active_rooms` (Set)<br>3. 每分钟快照一次统计数据到 `stats:snapshot:{date}` | Todo | 3h | Plan |
+| **T-00011B** | App Server | Event | Redis 事件订阅 | T-00011 | 订阅 `admin:events` 频道，执行管理事件 | 1. 收到 `ban_user` → 找到该用户 WS 连接 → 发送封禁通知 → 断开连接<br>2. 收到 `close_room` → 广播房间关闭 → 断开所有成员连接<br>3. 收到 `broadcast_notice` → 向所有在线用户推送公告<br>4. 事件处理失败不影响主服务 | ✅ Done | 5h | DoD |
+| **T-00011C** | App Server | Stats | 在線統計上報 | T-00011, T-00012 | 實時維護 Redis 在線統計數據 | 1. 用戶上線/下線時更新 `stats:online_users` (HyperLogLog)<br>2. 用戶進入/離開房間時更新 `stats:active_rooms` (Set)<br>3. 每分鐘快照一次統計數據到 `stats:snapshot:{date}` | ✅ Done | 3h | DoD |
 
 #### Admin Server 端
 
 | Task ID | 归属端 | 模块 | 任务名称 | 前置依赖 | 核心描述 | TDD 验收标准 | 状态 | 预估工时 | 负责人 |
 |---------|--------|------|----------|----------|----------|-------------|------|----------|--------|
-| **T-10007** | Admin Server | User | 用户列表接口 | T-10003 | GET `/api/v1/admin/users` | 1. 支持手机号/ID/昵称搜索<br>2. 分页返回<br>3. 包含资产信息（coin_balance） | Todo | 3h | Plan |
-| **T-10008** | Admin Server | User | 用户详情接口 | T-10007 | GET `/api/v1/admin/users/:id` | 1. 完整用户信息<br>2. 充值/消费记录<br>3. 登录设备信息 | Todo | 4h | Plan |
-| **T-10009** | Admin Server | User | 封禁/解封接口 | T-10008 | POST `/api/v1/admin/users/:id/ban` | 1. 支持永久/临时封禁<br>2. 记录封禁原因<br>3. 推送封禁事件到 Redis (→ App Server)<br>4. 记录操作日志 | Todo | 4h | Plan |
-| **T-10010** | Admin Server | Stats | 数据统计接口 | T-10003 | GET `/api/v1/admin/stats/overview` | 1. 返回 DAU、新增用户、活跃房间数、在线人数<br>2. 支持按日期范围查询<br>3. 在线人数从 Redis 获取（App Server 维护）<br>4. 响应时间 < 500ms | Todo | 5h | Plan |
-| **T-10011** | Admin Server | Event | 跨服务事件发布 | T-10003, T-0000A | Redis Pub/Sub 发布管理事件 | 1. 封禁用户时发布 `ban_user` 事件<br>2. 关闭房间时发布 `close_room` 事件<br>3. 消息格式: `{type, payload, admin_id, ts}`<br>4. 集成到 T-10009 和 T-10006 中 | Todo | 4h | Plan |
+| **T-10007** | Admin Server | User | 用户列表接口 | T-10003 | GET `/api/v1/admin/users` | 1. 支持手机号/ID/昵称搜索<br>2. 分页返回<br>3. 包含资产信息（coin_balance） | ✅ Done | 3h | Done [TDS](./tds/adminServer/T-10007.md) |
+| **T-10008** [TDS](./tds/adminServer/T-10008.md) | Admin Server | User | 用户详情接口 | T-10007 | GET `/api/v1/admin/users/:id` | 1. 完整用户信息<br>2. 充值/消费记录<br>3. 登录设备信息 | ✅ Done | 4h | Done |
+| **T-10009** [TDS](./tds/adminServer/T-10009.md) | Admin Server | User | 封禁/解封接口 | T-10008 | POST `/api/v1/admin/users/:id/ban` | 1. 支持永久/临时封禁<br>2. 记录封禁原因<br>3. 推送封禁事件到 Redis (→ App Server)<br>4. 记录操作日志 | ✅ Done | 4h | Done |
+| **T-10010** | Admin Server | Stats | 数据统计接口 [TDS](./tds/adminServer/T-10010.md) | T-10003 | GET `/api/v1/admin/stats/overview` | 1. 返回 DAU、新增用户、活跃房间数、在线人数<br>2. 支持按日期范围查询<br>3. 在线人数从 Redis 获取（App Server 维护）<br>4. 响应时间 < 500ms | ✅ Done | 5h | DoD |
+| **T-10011** [TDS](./tds/adminServer/T-10011.md) | Admin Server | Event | 跨服务事件发布 | T-10003, T-0000A | Redis Pub/Sub 发布管理事件 | 1. 封禁用户时发布 `ban_user` 事件<br>2. 关闭房间时发布 `close_room` 事件<br>3. 消息格式: `{type, payload, admin_id, ts}`<br>4. 集成到 T-10009 和 T-10006 中 | ✅ Done | 4h | Done |
 | **T-10012** | Admin Server | Log | 操作审计日志 | T-10001 | 设计 `admin_logs` 表 + 写入中间件 | 1. 记录所有敏感操作（封禁/解封/关闭房间/充值）<br>2. 字段: admin_id, action, target_id, ip, detail, created_at<br>3. Axum 中间件自动拦截记录<br>4. GET `/api/v1/admin/logs` 查询接口 | Todo | 5h | Plan |
 
 #### Web 端
