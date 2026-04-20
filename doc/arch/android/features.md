@@ -45,6 +45,18 @@
 | 发送消息逻辑 | `feature/room/ChatSendManager.kt` | T-30016 | 🟢 发送中禁用 + 成功清空 + 失败重试 |
 | 接收消息逻辑 | `feature/room/ChatReceiveManager.kt` | T-30017 | 🟢 实时追加 + msg_id 去重 + 自动滚动 |
 
+### Core UI 通用组件（🟢 已完成，T-30023）
+
+| 模块 | 关键文件 | Task | 当前状态 |
+| --- | --- | --- | --- |
+| 通用占位页 | `core/ui/PlaceholderScreen.kt` | T-30023 | 🟢 接受 icon/title/subtitle 参数的可复用"即将上线"占位组件；`PlaceholderScreenDefaults` 封装设计规范常量（图标 64dp、颜色 OnBackgroundTertiary/Secondary）；testTag `"placeholder_screen"`；供 Messages、Profile 等多 Tab 复用 |
+
+### Messages 消息Tab（🟢 已完成，T-30023）
+
+| 模块 | 关键文件 | Task | 当前状态 |
+| --- | --- | --- | --- |
+| 消息Tab占位页 | `feature/main/MessagesPlaceholder.kt` | T-30023 | 🟢 委托 `PlaceholderScreen`，显示聊天图标 + "消息功能即将上线" + "敬请期待"；外层 `Box(testTag("messages_placeholder"))` 保持 T-30020 兼容性；18 个测试（7 JVM + 11 androidTest）全部通过 |
+
 ### 待开发模块
 
 | 模块 | 当前状态 |
@@ -54,8 +66,8 @@
 
 ## 二、 当前测试覆盖
 
-- **测试文件**：26 个（含 `test/` 和 `androidTest/` 目录）
-- **测试方法**：275 个 `@Test`
+- **测试文件**：28 个（含 `test/` 和 `androidTest/` 目录）
+- **测试方法**：293 个 `@Test`
 
 ### 代表性测试文件
 
@@ -70,6 +82,6 @@
 
 ## 三、 对业务推进的含义
 
-- Android 端 Auth + Room 大厅 + WS 连接 + 房间核心 + 聊天消息全链路（T-30001 ~ T-30017）已全部落地；大厅页已完成黑金视觉升级（T-30022）。
+- Android 端 Auth + Room 大厅 + WS 连接 + 房间核心 + 聊天消息全链路（T-30001 ~ T-30017）已全部落地；大厅页已完成黑金视觉升级（T-30022）；`core/ui/PlaceholderScreen` 通用占位组件与消息Tab占位页（T-30023）已完成，供后续 Profile 等 Tab 复用。
 - Gift / Wallet / VIP 等商业化模块尚未展开，仅目录预留。
 - 后续开发必须继续对齐 `doc/protocol/` 目录下的对应子文件与服务端广播模型，避免客户端自行推断核心状态。
