@@ -6,16 +6,23 @@ rust-version = "1.85"
 
 [dependencies]
 anyhow.workspace = true
+async-trait = "0.1"
 axum.workspace = true
+chrono.workspace = true
 dotenvy.workspace = true
+jsonwebtoken.workspace = true
 serde.workspace = true
+serde_json.workspace = true
 sqlx.workspace = true
+thiserror.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 uuid.workspace = true
 voice-room-shared = { path = "../shared" }
+redis = { version = "0.27", features = ["tokio-comp", "aio"] }
 toml = "0.8"
 
 [dev-dependencies]
+bcrypt.workspace = true
 tower = "0.5"

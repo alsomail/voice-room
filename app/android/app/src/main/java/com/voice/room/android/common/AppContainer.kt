@@ -8,20 +8,35 @@ import com.voice.room.android.core.im.IIMService
 import com.voice.room.android.core.im.NoOpIMService
 import com.voice.room.android.core.media.IMediaService
 import com.voice.room.android.core.media.NoOpMediaService
+import com.voice.room.android.core.network.AppHttpClientFactory
+import com.voice.room.android.core.network.AuthInterceptor
+import com.voice.room.android.core.network.DefaultUnauthorizedHandler
+import com.voice.room.android.core.network.NetworkClientConfig
 import com.voice.room.android.core.telemetry.IAnalyticsService
 import com.voice.room.android.core.telemetry.ICrashReporter
 import com.voice.room.android.core.telemetry.NoOpAnalyticsService
 import com.voice.room.android.core.telemetry.NoOpCrashReporter
+import com.voice.room.android.core.ws.IWebSocketClient
+import com.voice.room.android.core.ws.OkHttpWebSocketClient
 import com.voice.room.android.data.auth.DebugAuthService
 import com.voice.room.android.data.gift.DebugGiftRepository
+import com.voice.room.android.data.remote.api.RoomApiService
 import com.voice.room.android.data.room.DebugRoomGateway
 import com.voice.room.android.data.room.DebugRoomSyncService
+import com.voice.room.android.data.room.RetrofitRoomRepository
 import com.voice.room.android.data.wallet.DebugWalletRepository
 import com.voice.room.android.domain.auth.IAuthService
 import com.voice.room.android.domain.gift.IGiftRepository
+import com.voice.room.android.domain.local.ITokenManager
 import com.voice.room.android.domain.room.IRoomGateway
+import com.voice.room.android.domain.room.IRoomRepository
 import com.voice.room.android.domain.room.IRoomSyncService
 import com.voice.room.android.domain.wallet.IWalletRepository
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import retrofit2.Retrofit
+import retrofit2.converter.gson.GsonConverterFactory
 
 data class AppContainer(
     val environment: AppEnvironment,
@@ -34,7 +49,9 @@ data class AppContainer(
     val roomGateway: IRoomGateway,
     val roomSyncService: IRoomSyncService,
     val walletRepository: IWalletRepository,
-    val giftRepository: IGiftRepository
+    val giftRepository: IGiftRepository,
+    val roomRepository: IRoomRepository,
+    val webSocketClient: IWebSocketClient,
 ) {
     companion object {
         fun fromBuildConfig(): AppContainer {
@@ -43,6 +60,36 @@ data class AppContainer(
                 apiBaseUrl = BuildConfig.API_BASE_URL,
                 wsUrl = BuildConfig.WS_URL,
                 analyticsEndpoint = BuildConfig.ANALYTICS_ENDPOINT
+            )
+
+            // 鉴权组件：TokenManager（内存实现，debug 构建；生产应替换为 DataStore 版本）+ AuthInterceptor
+            // HIGH-01 修复：POST /api/v1/rooms 需要 Authorization: Bearer <token>，必须注入 AuthInterceptor
+            val tokenManager = object : ITokenManager {
+                @Volatile private var token: String? = null
+                override suspend fun saveToken(token: String) { this.token = token }
+                override suspend fun getToken(): String? = token
+                override suspend fun clearToken() { token = null }
+            }
+            val unauthorizedHandler = DefaultUnauthorizedHandler(tokenManager)
+            val authInterceptor = AuthInterceptor(tokenManager, unauthorizedHandler)
+
+            // Rooms API — 注入 AuthInterceptor 以支持 POST /rooms 鉴权
+            val roomRetrofit = Retrofit.Builder()
+                .baseUrl("${environment.apiBaseUrl}/v1/")
+                .addConverterFactory(GsonConverterFactory.create())
+                .client(AppHttpClientFactory.create(authInterceptor = authInterceptor))
+                .build()
+            val roomApiService = roomRetrofit.create(RoomApiService::class.java)
+
+            // WebSocket 客户端 — 独立 IO 作用域，随 App 生命周期存在
+            val wsHttpClient = AppHttpClientFactory.create(
+                config = NetworkClientConfig(),
+                authInterceptor = null
+            )
+            val wsScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+            val webSocketClient = OkHttpWebSocketClient(
+                okHttpClient = wsHttpClient,
+                scope = wsScope
             )
 
             return AppContainer(
@@ -56,7 +103,9 @@ data class AppContainer(
                 roomGateway = DebugRoomGateway(),
                 roomSyncService = DebugRoomSyncService(),
                 walletRepository = DebugWalletRepository(),
-                giftRepository = DebugGiftRepository()
+                giftRepository = DebugGiftRepository(),
+                roomRepository = RetrofitRoomRepository(roomApiService),
+                webSocketClient = webSocketClient,
             )
         }
     }

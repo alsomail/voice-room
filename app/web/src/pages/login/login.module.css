@@ -1,0 +1,52 @@
+/* login.module.css — 登录页样式 */
+
+/* ── 全页容器：全屏垂直水平居中 ───────────────────────────────────────────── */
+.pageContainer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #f0f2f5 0%, #e6f0fb 100%);
+  padding: 24px;
+}
+
+/* ── 登录卡片 ───────────────────────────────────────────────────────────────── */
+.loginCard {
+  width: 100%;
+  max-width: 400px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+}
+
+/* ── 品牌区域 ───────────────────────────────────────────────────────────────── */
+.brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 32px;
+  gap: 8px;
+}
+
+.logoPlaceholder {
+  font-size: 48px;
+  line-height: 1;
+}
+
+.title {
+  margin: 0 !important;
+  font-weight: 700 !important;
+  color: #1a1a2e !important;
+}
+
+.subtitle {
+  font-size: 13px;
+}
+
+/* ── 表单区域 ───────────────────────────────────────────────────────────────── */
+.formWrapper {
+  width: 100%;
+}
+
+.errorAlert {
+  margin-bottom: 16px;
+}

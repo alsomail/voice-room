@@ -6,13 +6,26 @@ use serde::Serialize;
 use crate::{
     common::RequestContext,
     infrastructure::{logging::request_context_middleware, redis_store::SmsCodeStore, third_party::sms::SmsProvider},
-    modules::auth::{auth_routes, repository::UserRepository, service::AuthService},
+    modules::{
+        auth::{auth_routes, repository::UserRepository, service::AuthService},
+        room::{repository::RoomRepository, room_routes, RoomService},
+    },
+    room::RoomManager,
+    stats::StatsPort,
+    ws::{ws_handler, ConnectionRegistry},
 };
 
 #[derive(Clone)]
 pub struct AppState {
     pub auth_service: Arc<AuthService>,
+    pub room_service: Arc<RoomService>,
     pub jwt_secret: String,
+    /// WebSocket 連接注冊表（全局共享）
+    pub ws_registry: Arc<ConnectionRegistry>,
+    /// 在線統計服務（HyperLogLog + Set）
+    pub stats_service: Arc<dyn StatsPort>,
+    /// 房间运行时状态管理器（内存 DashMap）
+    pub room_manager: Arc<RoomManager>,
 }
 
 impl AppState {
@@ -21,6 +34,8 @@ impl AppState {
         code_store: Arc<dyn SmsCodeStore>,
         sms: Arc<dyn SmsProvider>,
         jwt_secret: String,
+        room_repo: Arc<dyn RoomRepository>,
+        stats_service: Arc<dyn StatsPort>,
     ) -> Self {
         let auth_service = Arc::new(AuthService::new(
             user_repo,
@@ -28,9 +43,14 @@ impl AppState {
             sms,
             jwt_secret.clone(),
         ));
+        let room_service = Arc::new(RoomService::new(room_repo));
         Self {
             auth_service,
+            room_service,
             jwt_secret,
+            ws_registry: Arc::new(ConnectionRegistry::new()),
+            stats_service,
+            room_manager: Arc::new(RoomManager::new()),
         }
     }
 
@@ -40,11 +60,33 @@ impl AppState {
             redis_store::FakeCodeStore, third_party::sms::MockSmsProvider,
         };
         use crate::modules::auth::repository::FakeUserRepository;
+        use crate::modules::room::FakeRoomRepository;
+        use crate::stats::FakeStatsService;
         Self::new(
             Arc::new(FakeUserRepository::default()),
             Arc::new(FakeCodeStore::default()),
             Arc::new(MockSmsProvider::default()),
             "test-secret".to_string(),
+            Arc::new(FakeRoomRepository::default()),
+            Arc::new(FakeStatsService::default()),
+        )
+    }
+
+    /// 測試輔助：注入預置數據的 FakeRoomRepository（用于集成測試 T-00009）
+    #[cfg(test)]
+    pub fn for_test_with_room_repo(room_repo: Arc<crate::modules::room::FakeRoomRepository>) -> Self {
+        use crate::infrastructure::{
+            redis_store::FakeCodeStore, third_party::sms::MockSmsProvider,
+        };
+        use crate::modules::auth::repository::FakeUserRepository;
+        use crate::stats::FakeStatsService;
+        Self::new(
+            Arc::new(FakeUserRepository::default()),
+            Arc::new(FakeCodeStore::default()),
+            Arc::new(MockSmsProvider::default()),
+            "test-secret".to_string(),
+            room_repo,
+            Arc::new(FakeStatsService::default()),
         )
     }
 }
@@ -52,7 +94,9 @@ impl AppState {
 pub fn build_app(state: AppState) -> Router {
     Router::new()
         .route("/ping", get(ping))
+        .route("/ws", get(ws_handler))
         .merge(auth_routes())
+        .merge(room_routes())
         .layer(middleware::from_fn(request_context_middleware))
         .with_state(state)
 }
@@ -134,5 +178,787 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
         let json = body_json(response).await;
         assert_eq!(json["request_id"], "req-ok-1");
+    }
+
+    // ── C-02: 无 token 访问 POST /api/v1/rooms → 401 ─────────────────────────
+
+    /// C-02: 未携带 Authorization header → HTTP 401
+    #[tokio::test]
+    async fn c02_create_room_no_token_returns_401() {
+        let app = build_app(AppState::for_test());
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/rooms")
+                    .header("content-type", "application/json")
+                    .header("x-request-id", "req-room-401")
+                    .body(Body::from(r#"{"title":"Test","room_type":"normal"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+
+        let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(json["code"], 40101, "should be Unauthorized error code");
+    }
+
+    // ── C-12: request_id 透传 ────────────────────────────────────────────────
+
+    /// C-12: 无 token 时错误响应中的 request_id 必须与 X-Request-Id header 一致
+    #[tokio::test]
+    async fn c12_create_room_request_id_echoed_in_error_response() {
+        let app = build_app(AppState::for_test());
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/rooms")
+                    .header("content-type", "application/json")
+                    .header("x-request-id", "room-req-id-xyz")
+                    .body(Body::from(r#"{"title":"Test","room_type":"normal"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+
+        let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(
+            json["request_id"], "room-req-id-xyz",
+            "request_id in error body must match X-Request-Id header"
+        );
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // T-00008: GET /api/v1/rooms 集成测试（L-20 ~ L-24）
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /// L-20: GET /api/v1/rooms 无数据时返回 200 + 空 items
+    #[tokio::test]
+    async fn l20_list_rooms_empty_returns_200() {
+        let app = build_app(AppState::for_test());
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/api/v1/rooms")
+                    .header("x-request-id", "list-req-001")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let json = body_json(response).await;
+        assert_eq!(json["code"], 0);
+        assert_eq!(json["data"]["total"], 0);
+        assert_eq!(json["data"]["page"], 1);
+        assert_eq!(json["data"]["size"], 20);
+        assert!(json["data"]["items"].as_array().unwrap().is_empty());
+    }
+
+    /// L-21: GET /api/v1/rooms?size=200 → HTTP 400（超出上限）
+    #[tokio::test]
+    async fn l21_list_rooms_size_200_returns_400() {
+        let app = build_app(AppState::for_test());
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/api/v1/rooms?size=200")
+                    .header("x-request-id", "list-req-002")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let json = body_json(response).await;
+        assert_eq!(json["code"], 40003, "should be ValidationError code");
+    }
+
+    /// L-22: GET /api/v1/rooms?page=0 → HTTP 400
+    #[tokio::test]
+    async fn l22_list_rooms_page_0_returns_400() {
+        let app = build_app(AppState::for_test());
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/api/v1/rooms?page=0")
+                    .header("x-request-id", "list-req-003")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let json = body_json(response).await;
+        assert_eq!(json["code"], 40003, "should be ValidationError code");
+    }
+
+    /// L-23: request_id 透传 — GET /api/v1/rooms 响应中 request_id 与 header 一致
+    #[tokio::test]
+    async fn l23_list_rooms_request_id_echoed() {
+        let app = build_app(AppState::for_test());
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/api/v1/rooms")
+                    .header("x-request-id", "list-trace-abc")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let json = body_json(response).await;
+        assert_eq!(
+            json["request_id"], "list-trace-abc",
+            "request_id must be echoed from X-Request-Id header"
+        );
+    }
+
+    /// L-24: 无 Authorization header 也返回 200（list_rooms 不需要鉴权）
+    #[tokio::test]
+    async fn l24_list_rooms_no_auth_returns_200() {
+        let app = build_app(AppState::for_test());
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/api/v1/rooms")
+                    // 故意不携带 Authorization header
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(
+            response.status(),
+            StatusCode::OK,
+            "list_rooms must be accessible without authentication"
+        );
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // T-00009: GET /api/v1/rooms/:id 集成测试（D-20 ~ D-27）
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /// 测试辅助：构建带有预置 active 房间的 app，返回 (app, room_id_string)
+    fn build_app_with_active_room() -> (axum::Router, String) {
+        use crate::modules::room::FakeRoomRepository;
+        use chrono::Utc;
+        use uuid::Uuid;
+        use voice_room_shared::models::room::RoomModel;
+
+        let repo = std::sync::Arc::new(FakeRoomRepository::default());
+        let owner_id = Uuid::new_v4();
+        let room_id = Uuid::new_v4();
+
+        repo.seed_user(owner_id, "Owner User".to_string(), Some("https://img.example.com/av.png".to_string()));
+        let now = Utc::now();
+        repo.seed(RoomModel {
+            id: room_id,
+            owner_id,
+            title: "Live Room".to_string(),
+            room_type: "normal".to_string(),
+            member_count: 3,
+            status: "active".to_string(),
+            password_hash: None,
+            max_members: 50,
+            created_at: now,
+            updated_at: now,
+            deleted_at: None,
+        });
+
+        let app = build_app(AppState::for_test_with_room_repo(repo));
+        (app, room_id.to_string())
+    }
+
+    /// D-20: GET /api/v1/rooms/:id 房间存在 → 200 + 正确 data
+    #[tokio::test]
+    async fn d20_get_room_exists_returns_200() {
+        let (app, room_id) = build_app_with_active_room();
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri(format!("/api/v1/rooms/{room_id}"))
+                    .header("x-request-id", "detail-req-001")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let json = body_json(response).await;
+        assert_eq!(json["code"], 0);
+        assert_eq!(json["data"]["room_id"], room_id);
+        assert_eq!(json["data"]["title"], "Live Room");
+        assert_eq!(json["data"]["room_type"], "normal");
+        assert_eq!(json["data"]["member_count"], 3);
+        assert_eq!(json["data"]["max_members"], 50);
+        assert_eq!(json["data"]["owner"]["nickname"], "Owner User");
+    }
+
+    /// D-21: 房间不存在 → 404，code=40400
+    #[tokio::test]
+    async fn d21_get_room_not_found_returns_404() {
+        let app = build_app(AppState::for_test());
+        let nonexistent_id = uuid::Uuid::new_v4();
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri(format!("/api/v1/rooms/{nonexistent_id}"))
+                    .header("x-request-id", "detail-req-002")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        let json = body_json(response).await;
+        assert_eq!(json["code"], 40400, "should be NotFound error code");
+    }
+
+    /// D-22: GET /api/v1/rooms/not-a-uuid → 400，code=40003
+    #[tokio::test]
+    async fn d22_get_room_invalid_uuid_returns_400() {
+        let app = build_app(AppState::for_test());
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/api/v1/rooms/not-a-uuid")
+                    .header("x-request-id", "detail-req-003")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let json = body_json(response).await;
+        assert_eq!(json["code"], 40003, "should be ValidationError code");
+    }
+
+    /// D-23: closed 房间 → 404
+    #[tokio::test]
+    async fn d23_get_closed_room_returns_404() {
+        use crate::modules::room::FakeRoomRepository;
+        use chrono::Utc;
+        use uuid::Uuid;
+        use voice_room_shared::models::room::RoomModel;
+
+        let repo = std::sync::Arc::new(FakeRoomRepository::default());
+        let owner_id = Uuid::new_v4();
+        let room_id = Uuid::new_v4();
+        repo.seed_user(owner_id, "Owner".to_string(), None);
+        let now = Utc::now();
+        repo.seed(RoomModel {
+            id: room_id,
+            owner_id,
+            title: "Closed Room".to_string(),
+            room_type: "normal".to_string(),
+            member_count: 0,
+            status: "closed".to_string(), // 已关闭
+            password_hash: None,
+            max_members: 50,
+            created_at: now,
+            updated_at: now,
+            deleted_at: None,
+        });
+
+        let app = build_app(AppState::for_test_with_room_repo(repo));
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri(format!("/api/v1/rooms/{room_id}"))
+                    .header("x-request-id", "detail-req-004")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        let json = body_json(response).await;
+        assert_eq!(json["code"], 40400);
+    }
+
+    /// D-24: soft-deleted 房间 → 404
+    #[tokio::test]
+    async fn d24_get_soft_deleted_room_returns_404() {
+        use crate::modules::room::FakeRoomRepository;
+        use chrono::Utc;
+        use uuid::Uuid;
+        use voice_room_shared::models::room::RoomModel;
+
+        let repo = std::sync::Arc::new(FakeRoomRepository::default());
+        let owner_id = Uuid::new_v4();
+        let room_id = Uuid::new_v4();
+        repo.seed_user(owner_id, "Owner".to_string(), None);
+        let now = Utc::now();
+        repo.seed(RoomModel {
+            id: room_id,
+            owner_id,
+            title: "Deleted Room".to_string(),
+            room_type: "normal".to_string(),
+            member_count: 0,
+            status: "active".to_string(),
+            password_hash: None,
+            max_members: 50,
+            created_at: now,
+            updated_at: now,
+            deleted_at: Some(now), // 已软删除
+        });
+
+        let app = build_app(AppState::for_test_with_room_repo(repo));
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri(format!("/api/v1/rooms/{room_id}"))
+                    .header("x-request-id", "detail-req-005")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        let json = body_json(response).await;
+        assert_eq!(json["code"], 40400);
+    }
+
+    /// D-25: 无 Authorization header → 200（公开接口）
+    #[tokio::test]
+    async fn d25_get_room_no_auth_returns_200() {
+        let (app, room_id) = build_app_with_active_room();
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri(format!("/api/v1/rooms/{room_id}"))
+                    // 故意不携带 Authorization header
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(
+            response.status(),
+            StatusCode::OK,
+            "get_room must be accessible without authentication"
+        );
+    }
+
+    /// D-26: request_id 透传 — 响应中 request_id 与 X-Request-Id header 一致
+    #[tokio::test]
+    async fn d26_get_room_request_id_echoed() {
+        let (app, room_id) = build_app_with_active_room();
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri(format!("/api/v1/rooms/{room_id}"))
+                    .header("x-request-id", "trace-xyz-789")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let json = body_json(response).await;
+        assert_eq!(
+            json["request_id"], "trace-xyz-789",
+            "request_id must be echoed from X-Request-Id header"
+        );
+    }
+
+    /// D-27: mic_slots 为空数组
+    #[tokio::test]
+    async fn d27_get_room_mic_slots_is_empty_array() {
+        let (app, room_id) = build_app_with_active_room();
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri(format!("/api/v1/rooms/{room_id}"))
+                    .header("x-request-id", "detail-req-027")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let json = body_json(response).await;
+        assert!(
+            json["data"]["mic_slots"].as_array().unwrap().is_empty(),
+            "mic_slots should be empty array in MVP"
+        );
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // T-00010: DELETE /api/v1/rooms/:id 集成测试（I-C-01 ~ I-C-08）
+    // ═══════════════════════════════════════════════════════════════════════
+
+    use std::time::{SystemTime, UNIX_EPOCH};
+    use voice_room_shared::jwt::token::{encode_token, AppClaims};
+
+    /// 用于 T-00010 测试的 JWT 生成辅助
+    fn make_token_for(user_id: uuid::Uuid) -> String {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let claims = AppClaims {
+            sub: user_id.to_string(),
+            iss: "voiceroom".into(),
+            exp: now + 3600,
+            iat: now,
+        };
+        encode_token(&claims, b"test-secret").unwrap()
+    }
+
+    /// 过期 token 辅助（exp 设为过去）
+    fn make_expired_token_for(user_id: uuid::Uuid) -> String {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let claims = AppClaims {
+            sub: user_id.to_string(),
+            iss: "voiceroom".into(),
+            exp: now - 3600, // 已过期
+            iat: now - 7200,
+        };
+        encode_token(&claims, b"test-secret").unwrap()
+    }
+
+    /// 测试辅助：构建含有 active 房间的 app，返回 (app, owner_id, room_id_str)
+    fn build_app_with_room_for_close() -> (axum::Router, uuid::Uuid, String) {
+        use crate::modules::room::FakeRoomRepository;
+        use chrono::Utc;
+        use uuid::Uuid;
+        use voice_room_shared::models::room::RoomModel;
+
+        let repo = std::sync::Arc::new(FakeRoomRepository::default());
+        let owner_id = Uuid::new_v4();
+        let room_id = Uuid::new_v4();
+
+        repo.seed_user(owner_id, "Owner".to_string(), None);
+        let now = Utc::now();
+        repo.seed(RoomModel {
+            id: room_id,
+            owner_id,
+            title: "Test Room".to_string(),
+            room_type: "normal".to_string(),
+            member_count: 0,
+            status: "active".to_string(),
+            password_hash: None,
+            max_members: 50,
+            created_at: now,
+            updated_at: now,
+            deleted_at: None,
+        });
+
+        let app = build_app(AppState::for_test_with_room_repo(repo));
+        (app, owner_id, room_id.to_string())
+    }
+
+    /// 测试辅助：构建含有 closed 房间的 app，返回 (app, owner_id, room_id_str)
+    fn build_app_with_closed_room() -> (axum::Router, uuid::Uuid, String) {
+        use crate::modules::room::FakeRoomRepository;
+        use chrono::Utc;
+        use uuid::Uuid;
+        use voice_room_shared::models::room::RoomModel;
+
+        let repo = std::sync::Arc::new(FakeRoomRepository::default());
+        let owner_id = Uuid::new_v4();
+        let room_id = Uuid::new_v4();
+
+        repo.seed_user(owner_id, "Owner".to_string(), None);
+        let now = Utc::now();
+        repo.seed(RoomModel {
+            id: room_id,
+            owner_id,
+            title: "Closed Room".to_string(),
+            room_type: "normal".to_string(),
+            member_count: 0,
+            status: "closed".to_string(),
+            password_hash: None,
+            max_members: 50,
+            created_at: now,
+            updated_at: now,
+            deleted_at: None,
+        });
+
+        let app = build_app(AppState::for_test_with_room_repo(repo));
+        (app, owner_id, room_id.to_string())
+    }
+
+    /// I-C-01: 有效 JWT(房主) + active 房间 → 200 + code=0 + data=null
+    #[tokio::test]
+    async fn ic01_owner_closes_active_room_returns_200() {
+        let (app, owner_id, room_id) = build_app_with_room_for_close();
+        let token = make_token_for(owner_id);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("DELETE")
+                    .uri(format!("/api/v1/rooms/{room_id}"))
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("x-request-id", "close-req-001")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let json = body_json(response).await;
+        assert_eq!(json["code"], 0, "success code must be 0");
+        assert!(json["data"].is_null(), "data must be null on success");
+    }
+
+    /// I-C-02: 有效 JWT(房主) + 不存在房间 → 404 / code=40400
+    #[tokio::test]
+    async fn ic02_owner_closes_nonexistent_room_returns_404() {
+        let app = build_app(AppState::for_test());
+        let owner_id = uuid::Uuid::new_v4();
+        let nonexistent_id = uuid::Uuid::new_v4();
+        let token = make_token_for(owner_id);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("DELETE")
+                    .uri(format!("/api/v1/rooms/{nonexistent_id}"))
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("x-request-id", "close-req-002")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        let json = body_json(response).await;
+        assert_eq!(json["code"], 40400, "not found code must be 40400");
+    }
+
+    /// I-C-03: 有效 JWT(非房主) + active 房间 → 403 / code=40301
+    #[tokio::test]
+    async fn ic03_non_owner_returns_403() {
+        let (app, _owner_id, room_id) = build_app_with_room_for_close();
+        let other_user = uuid::Uuid::new_v4();
+        let token = make_token_for(other_user);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("DELETE")
+                    .uri(format!("/api/v1/rooms/{room_id}"))
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("x-request-id", "close-req-003")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+        let json = body_json(response).await;
+        assert_eq!(json["code"], 40301, "forbidden code must be 40301");
+    }
+
+    /// I-C-04: 有效 JWT(房主) + closed 房间 → 409 / code=40901
+    #[tokio::test]
+    async fn ic04_owner_closes_already_closed_room_returns_409() {
+        let (app, owner_id, room_id) = build_app_with_closed_room();
+        let token = make_token_for(owner_id);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("DELETE")
+                    .uri(format!("/api/v1/rooms/{room_id}"))
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("x-request-id", "close-req-004")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::CONFLICT);
+        let json = body_json(response).await;
+        assert_eq!(json["code"], 40901, "room already closed code must be 40901");
+    }
+
+    /// I-C-05: 有效 JWT + /api/v1/rooms/not-a-uuid → 400 / code=40003
+    #[tokio::test]
+    async fn ic05_invalid_uuid_returns_400() {
+        let app = build_app(AppState::for_test());
+        let owner_id = uuid::Uuid::new_v4();
+        let token = make_token_for(owner_id);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("DELETE")
+                    .uri("/api/v1/rooms/not-a-uuid")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("x-request-id", "close-req-005")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let json = body_json(response).await;
+        assert_eq!(json["code"], 40003, "invalid uuid code must be 40003");
+    }
+
+    /// I-C-06: 无 Authorization header → 401 / code=40101
+    #[tokio::test]
+    async fn ic06_no_auth_returns_401() {
+        let room_id = uuid::Uuid::new_v4();
+        let app = build_app(AppState::for_test());
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("DELETE")
+                    .uri(format!("/api/v1/rooms/{room_id}"))
+                    .header("x-request-id", "close-req-006")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        let json = body_json(response).await;
+        assert_eq!(json["code"], 40101, "unauthorized code must be 40101");
+    }
+
+    /// I-C-07: 过期 JWT → 401 / code=40102
+    #[tokio::test]
+    async fn ic07_expired_token_returns_401() {
+        let room_id = uuid::Uuid::new_v4();
+        let user_id = uuid::Uuid::new_v4();
+        let expired_token = make_expired_token_for(user_id);
+        let app = build_app(AppState::for_test());
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("DELETE")
+                    .uri(format!("/api/v1/rooms/{room_id}"))
+                    .header("authorization", format!("Bearer {expired_token}"))
+                    .header("x-request-id", "close-req-007")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        let json = body_json(response).await;
+        assert_eq!(json["code"], 40102, "expired token code must be 40102");
+    }
+
+    /// I-C-08: 关闭成功后 GET /api/v1/rooms/:id → 404 / code=40400
+    #[tokio::test]
+    async fn ic08_after_close_get_room_returns_404() {
+        use crate::modules::room::FakeRoomRepository;
+        use chrono::Utc;
+        use uuid::Uuid;
+        use voice_room_shared::models::room::RoomModel;
+
+        // 构建一个共享 repo（需要先关闭再查询，共用同一个 repo 实例）
+        let repo = std::sync::Arc::new(FakeRoomRepository::default());
+        let owner_id = Uuid::new_v4();
+        let room_id = Uuid::new_v4();
+
+        repo.seed_user(owner_id, "Owner".to_string(), None);
+        let now = Utc::now();
+        repo.seed(RoomModel {
+            id: room_id,
+            owner_id,
+            title: "Room To Close".to_string(),
+            room_type: "normal".to_string(),
+            member_count: 0,
+            status: "active".to_string(),
+            password_hash: None,
+            max_members: 50,
+            created_at: now,
+            updated_at: now,
+            deleted_at: None,
+        });
+
+        let token = make_token_for(owner_id);
+        let app = build_app(AppState::for_test_with_room_repo(repo));
+
+        // 先关闭房间
+        let close_resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("DELETE")
+                    .uri(format!("/api/v1/rooms/{room_id}"))
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("x-request-id", "close-req-008a")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(close_resp.status(), StatusCode::OK, "close must succeed first");
+
+        // 再 GET 该房间 → 应返回 404
+        let get_resp = app
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri(format!("/api/v1/rooms/{room_id}"))
+                    .header("x-request-id", "close-req-008b")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(get_resp.status(), StatusCode::NOT_FOUND);
+        let json = body_json(get_resp).await;
+        assert_eq!(json["code"], 40400, "room should not be found after close");
     }
 }

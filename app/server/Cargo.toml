@@ -21,7 +21,10 @@ toml = "0.8"
 async-trait = "0.1"
 jsonwebtoken.workspace = true
 rand = "0.9"
+bcrypt.workspace = true
+dashmap = "6.0"
 redis = { version = "0.27", features = ["tokio-comp", "aio"] }
+futures-util = "0.3"
 
 [dev-dependencies]
 tower = "0.5"

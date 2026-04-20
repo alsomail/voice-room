@@ -6,7 +6,7 @@ use jsonwebtoken::errors::ErrorKind;
 use uuid::Uuid;
 use voice_room_shared::jwt::token::{decode_token, AppClaims};
 
-use crate::{bootstrap::AppState, common::error::AppError};
+use crate::{bootstrap::AppState, common::error::AppError, common::RequestContext};
 
 use crate::common::auth::AuthContext;
 
@@ -19,7 +19,15 @@ impl FromRequestParts<AppState> for AuthContext {
         parts: &mut Parts,
         state: &AppState,
     ) -> Result<Self, Self::Rejection> {
-        extract_auth_context(&parts.headers, &state.jwt_secret).map_err(|e| e.into_rejection())
+        // request_context_middleware 已在 extensions 中注入 RequestContext，
+        // 从此处提取真实 request_id，满足 protocol §1.3 要求。
+        let request_id = parts
+            .extensions
+            .get::<RequestContext>()
+            .map(|rc| rc.request_id().to_string())
+            .unwrap_or_default();
+        extract_auth_context(&parts.headers, &state.jwt_secret)
+            .map_err(|e| e.into_rejection_with_id(&request_id))
     }
 }
 
@@ -52,7 +60,10 @@ pub fn extract_auth_context(
 }
 
 impl AppError {
-    fn into_rejection(self) -> (StatusCode, axum::Json<serde_json::Value>) {
+    pub(crate) fn into_rejection_with_id(
+        self,
+        request_id: &str,
+    ) -> (StatusCode, axum::Json<serde_json::Value>) {
         use voice_room_shared::error::code::ErrorCode;
         let (status, code, message) = match &self {
             AppError::TokenExpired => (
@@ -76,7 +87,7 @@ impl AppError {
             axum::Json(serde_json::json!({
                 "code": code,
                 "message": message,
-                "request_id": ""
+                "request_id": request_id
             })),
         )
     }

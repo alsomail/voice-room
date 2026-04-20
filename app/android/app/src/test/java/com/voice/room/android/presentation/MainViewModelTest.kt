@@ -74,7 +74,7 @@ class MainViewModelTest {
 
         val roomState = viewModel.onDestinationSelected(MainDestination.ROOM)
 
-        assertEquals("Room Skeleton", roomState.title)
+        assertEquals("Room Hall", roomState.title)
         assertTrue(roomState.statusLines.contains("Heartbeat and reconnect planned"))
         assertTrue(roomState.statusLines.contains("Gift module reserved"))
     }

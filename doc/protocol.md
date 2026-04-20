@@ -1,7 +1,7 @@
 # Voice Room API 协议文档
 
-> **版本**: v0.4
-> **更新日期**: 2026-04-19
+> **版本**: v0.9
+> **更新日期**: 2026-04-24
 > **维护约束**: 新增/修改接口时必须同步更新本文件；前后端联调前必须以本文件为唯一契约源。
 
 ---
@@ -387,6 +387,78 @@
 
 ---
 
+### 3.3 获取房间详情
+
+**接口**：`GET /api/v1/rooms/:id`  
+**认证**：公开，无需 JWT  
+**描述**：获取单个 active 房间的详细信息，包括房主信息和麦位列表（MVP 为空）
+
+**路径参数**：
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| id | UUID | 房间 ID |
+
+**响应 200 OK**：
+```json
+{
+  "code": 0,
+  "message": "ok",
+  "data": {
+    "room_id": "uuid",
+    "title": "string",
+    "room_type": "public | password | paid",
+    "member_count": 0,
+    "max_members": 50,
+    "owner": {
+      "user_id": "uuid",
+      "nickname": "string",
+      "avatar": "string | null"
+    },
+    "mic_slots": [],
+    "created_at": "RFC3339"
+  }
+}
+```
+
+**错误码**：
+| HTTP | code | 说明 |
+|------|------|------|
+| 404 | 40400 | 房间不存在或已关闭 |
+| 400 | 40003 | room_id 格式非法（非 UUID） |
+
+### 3.4 关闭房间
+
+**接口**：`DELETE /api/v1/rooms/:id`  
+**认证**：需要 JWT（Bearer Token），仅房主可操作  
+**描述**：将 active 状态的房间改为 closed。MVP 阶段不广播 WebSocket 事件（待 T-00011 接入）。
+
+**路径参数**：
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| id | UUID | 要关闭的房间 ID |
+
+**响应 200 OK**：
+```json
+{
+  "code": 0,
+  "message": "ok",
+  "data": null,
+  "request_id": "uuid"
+}
+```
+
+**错误码**：
+| HTTP | code | 说明 |
+|------|------|------|
+| 400 | 40003 | room_id 格式非法（非 UUID） |
+| 401 | 40101 | 未提供 Token 或签名无效 |
+| 401 | 40102 | Token 已过期 |
+| 403 | 40301 | 当前用户不是房主 |
+| 404 | 40400 | 房间不存在或已软删除 |
+| 409 | 40901 | 房间已处于 closed 状态 |
+
+---
+
 ## 四、Admin 认证模块 (Admin Auth)
 
 > Admin Server 独立部署，使用独立的管理员账号体系。
@@ -483,6 +555,144 @@
 | `operator` | ✅ 读写 | ✅ 读写 | ✅ | ❌ | ❌ |
 | `cs` | 只读 | ✅ 读写 | ❌ | ❌ | ❌ |
 | `finance` | ❌ | ❌ | ✅ | ✅ | ❌ |
+
+### 4.4 GET /api/v1/admin/rooms — 查询房间列表（后台）
+
+**认证**：需要 Admin JWT（Bearer Token），`finance` 角色无 `RoomRead` 权限（403）。  
+**描述**：管理员查看全状态房间列表，支持分页、状态过滤、关键词搜索。与 C 端接口的区别：可见 `closed` 房间，不按热度排序。
+
+**查询参数**：
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| `page` | integer | 否 | 1 | ≥1，否则 400 |
+| `page_size` | integer | 否 | 20 | 1–100，否则 400 |
+| `status` | string | 否 | 全部 | `active` / `closed`，其他值 400 |
+| `keyword` | string | 否 | — | 按房间标题模糊搜索 |
+
+**Success Response (200)**:
+```json
+{
+  "code": 0,
+  "message": "ok",
+  "data": {
+    "total": 150,
+    "page": 1,
+    "page_size": 20,
+    "items": [
+      {
+        "room_id": "uuid",
+        "title": "string",
+        "room_type": "normal | password | paid",
+        "member_count": 0,
+        "max_members": 50,
+        "status": "active | closed",
+        "owner_id": "uuid",
+        "owner_nickname": "string",
+        "owner_avatar": "string | null",
+        "created_at": "RFC3339"
+      }
+    ]
+  },
+  "request_id": "uuid"
+}
+```
+
+**错误码**：
+
+| HTTP | code | 说明 |
+|------|------|------|
+| 401 | 40101 | 未提供 Token、签名无效或 C 端 JWT（iss 不匹配） |
+| 401 | 40102 | Token 已过期 |
+| 403 | 40301 | `finance` 角色无 `RoomRead` 权限 |
+| 400 | 40003 | 参数校验失败（`page` / `page_size` / `status` 非法） |
+
+### 4.5 获取房间详情（后台）
+
+**接口**：`GET /api/v1/admin/rooms/:id`  
+**认证**：需要 Admin JWT（Bearer Token），finance 角色无权限  
+**描述**：管理员查看指定房间的完整信息，可见 active 和 closed 状态房间，软删除房间返回 404。
+
+与 C 端 `GET /api/v1/rooms/:id` 的区别：
+- 可见 closed 状态房间（C 端仅 active）
+- 响应多出 `status`、`updated_at` 字段
+- 需要 Admin JWT
+
+**路径参数**：
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| id | UUID | 房间 ID |
+
+**响应 200 OK**：
+```json
+{
+  "code": 0,
+  "message": "ok",
+  "data": {
+    "room_id": "uuid",
+    "title": "string",
+    "status": "active | closed",
+    "room_type": "normal | password | paid",
+    "member_count": 0,
+    "max_members": 50,
+    "owner": {
+      "user_id": "uuid",
+      "nickname": "string",
+      "avatar": "string | null"
+    },
+    "mic_slots": [],
+    "created_at": "RFC3339",
+    "updated_at": "RFC3339"
+  },
+  "request_id": "uuid"
+}
+```
+
+**错误码**：
+
+| HTTP | code | 说明 |
+|------|------|------|
+| 400 | 40003 | room_id 格式非法（非 UUID） |
+| 401 | 40101 | 未提供 Token、签名无效或 C 端 JWT |
+| 401 | 40102 | Token 已过期 |
+| 403 | 40301 | finance 角色无 RoomRead 权限 |
+| 404 | 40400 | 房间不存在或已软删除 |
+
+---
+
+### 4.6 强制关闭房间
+
+**接口**：`DELETE /api/v1/admin/rooms/:id`  
+**认证**：需要 Admin JWT（Bearer Token），仅 super_admin 和 operator 角色有 RoomForceClose 权限  
+**描述**：管理员强制关闭任意 active 房间，无需是房主。与 C 端 `DELETE /api/v1/rooms/:id` 的核心区别：无 owner 检查，管控范围为全部房间。MVP 阶段不广播 WebSocket 事件。
+
+**路径参数**：
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| id | UUID | 要强制关闭的房间 ID |
+
+**响应 200 OK**：
+```json
+{
+  "code": 0,
+  "message": "ok",
+  "data": null,
+  "request_id": "uuid"
+}
+```
+
+**错误码**：
+
+| HTTP | code | 说明 |
+|------|------|------|
+| 400 | 40003 | room_id 格式非法（非 UUID） |
+| 401 | 40101 | 未提供 Token、签名无效或 C 端 JWT |
+| 401 | 40102 | Token 已过期 |
+| 403 | 40301 | 角色无 RoomForceClose 权限（finance、cs 角色） |
+| 404 | 40400 | 房间不存在或已软删除 |
+| 409 | 40901 | 房间已处于 closed 状态 |
 
 ---
 
@@ -687,3 +897,8 @@ app_certificate = "${RTC_APP_CERTIFICATE}"
 - 2026-04-17: 初始版本，定义模块1认证契约 + RTC/WS 预留
 - 2026-04-17: v0.2 — 删除 register 端点改为一步登录；验证码存储从 PG 改 Redis；新增 Admin Server 认证契约（§四）；新增 admins/admin_logs 表；users 表增加 coin_balance/vip_level
 - 2026-04-19: v0.4 — 新增 §三 3.2 `GET /api/v1/rooms` 接口定义：查询参数（page/size）、items 字段说明、排序过滤规则（T-00008）
+- 2026-04-20: v0.5 — 新增 §3.3 获取房间详情（T-00009）
+- 2026-04-21: v0.6 — 新增 §3.4 关闭房间（T-00010），新增错误码 40301/40901
+- 2026-04-22: v0.7 — 新增 §4.4 Admin 房间列表接口（T-10004）
+- 2026-04-23: v0.8 — 新增 §4.5 Admin 房间详情接口（T-10005）
+- 2026-04-24: v0.9 — 新增 §4.6 Admin 强制关闭房间（T-10006）

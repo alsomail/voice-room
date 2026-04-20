@@ -201,11 +201,11 @@
 | **T-30008** [TDS](./tds/android/T-30008.md) | Android | WebSocket | WebSocket 连接封装 | T-00011 | OkHttp WebSocket + Flow | 1. 自动重连（指数退避）<br>2. Kotlin Flow 发射连接状态<br>3. 心跳包发送 | ✅ Done | 6h | Done |
 | **T-30009** [TDS](./tds/android/T-30009.md) | Android | Room | 房间页 UI (Compose) | T-00009 | 实现房间完整布局 | 1. 顶部房间信息<br>2. 麦位 Grid<br>3. 聊天列表<br>4. 底部输入栏 | ✅ Done | 8h | DoD |
 | **T-30010** [TDS](./tds/android/T-30010.md) | Android | Room | 房间 ViewModel | T-00012, T-30008, T-30009 | 管理房间状态，处理 WS 消息 | 1. 进入房间发送 JoinRoom<br>2. 监听服务端事件更新 State<br>3. 离开清理资源 | ✅ Done | 6h | DoD |
-| **T-30011** | Android | Mic | 麦位组件 (Compose) | T-30009 | 可复用麦位卡片 | 1. 三种状态渲染<br>2. Lottie 音浪动画<br>3. RTL 布局 | Todo | 5h | Plan |
-| **T-30012** | Android | Mic | 麦克风权限请求 | T-30011 | Accompanist Permissions | 1. 运行时权限请求<br>2. 权限拒绝对话框<br>3. 跳转系统设置 | Todo | 3h | Plan |
-| **T-30013** | Android | Mic | 上麦/下麦逻辑 | T-00014, T-30012 | 发送上麦请求 + RTC 推流 | 1. 权限通过后上麦<br>2. 集成 RTC SDK<br>3. 成功后开启推流 | Todo | 7h | Plan |
-| **T-30014** | Android | Chat | 聊天列表 (Compose) | T-30009 | LazyColumn 聊天消息 | 1. 自动滚动到最新<br>2. 不同类型消息样式<br>3. 系统消息居中 | Todo | 5h | Plan |
-| **T-30015** | Android | Chat | 输入框组件 | T-30014 | TextField + 发送按钮 | 1. 软键盘弹出布局调整<br>2. 回车发送<br>3. 空消息禁用发送 | Todo | 3h | Plan |
-| **T-30016** | Android | Chat | 发送消息逻辑 | T-00016, T-30015 | 发送 SendMessage | 1. 发送中禁用<br>2. 成功清空输入<br>3. 失败重试 | Todo | 3h | Plan |
-| **T-30017** | Android | Chat | 接收消息逻辑 | T-00016, T-30014 | 监听服务端消息 | 1. 实时追加到列表<br>2. 去重（msg_id）<br>3. 自动滚动 | Todo | 3h | Plan |
+| **T-30011** [TDS](./tds/android/T-30011.md) | Android | Mic | 麦位组件 (Compose) | T-30009 | 可复用麦位卡片 | 1. 三种状态渲染<br>2. Lottie 音浪动画<br>3. RTL 布局 | ✅ Done | 5h | DoD |
+| **T-30012** [TDS](./tds/android/T-30012.md) | Android | Mic | 麦克风权限请求 | T-30011 | Accompanist Permissions | 1. 运行时权限请求<br>2. 权限拒绝对话框<br>3. 跳转系统设置 | ✅ Done | 3h | DoD |
+| **T-30013** [TDS](./tds/android/T-30013.md) | Android | Mic | 上麦/下麦逻辑 | T-00014, T-30012 | 发送上麦请求 + RTC 推流 | 1. 权限通过后上麦<br>2. 集成 RTC SDK<br>3. 成功后开启推流 | ✅ Done | 7h | DoD |
+| **T-30014** [TDS](./tds/android/T-30014.md) | Android | Chat | 聊天列表 (Compose) | T-30009 | LazyColumn 聊天消息 | 1. 自动滚动到最新<br>2. 不同类型消息样式<br>3. 系统消息居中 | ✅ Done | 5h | DoD |
+| **T-30015** [TDS](./tds/android/T-30015.md) | Android | Chat | 输入框组件 | T-30014 | TextField + 发送按钮 | 1. 软键盘弹出布局调整<br>2. 回车发送<br>3. 空消息禁用发送 | ✅ Done | 3h | DoD |
+| **T-30016** [TDS](./tds/android/T-30016.md) | Android | Chat | 发送消息逻辑 | T-00016, T-30015 | 发送 SendMessage | 1. 发送中禁用<br>2. 成功清空输入<br>3. 失败重试 | ✅ Done | 3h | DoD |
+| **T-30017** [TDS](./tds/android/T-30017.md) | Android | Chat | 接收消息逻辑 | T-00016, T-30014 | 监听服务端消息 | 1. 实时追加到列表<br>2. 去重（msg_id）<br>3. 自动滚动 | ✅ Done | 3h | DoD |
 

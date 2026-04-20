@@ -106,6 +106,14 @@ impl AuthService {
 
         Ok(UserResponse::from(user))
     }
+
+    /// T-00012: 按 user_id 获取用户信息（用于 JoinRoom 信令填充昵称/头像）
+    pub async fn get_user_by_id(
+        &self,
+        user_id: Uuid,
+    ) -> Result<Option<voice_room_shared::models::user::UserModel>, AppError> {
+        self.user_repo.find_by_id(user_id).await
+    }
 }
 
 impl From<UserModel> for UserResponse {

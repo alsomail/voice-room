@@ -10,7 +10,11 @@ use voice_room_server::{
         redis_store::RedisCodeStore,
         third_party::sms::{MockSmsProvider, TwilioSmsProvider},
     },
-    modules::auth::repository::PgUserRepository,
+    modules::{
+        auth::repository::PgUserRepository,
+        room::repository::PgRoomRepository,
+    },
+    stats::{StatsService, snapshot_task::start_snapshot_task},
 };
 
 #[tokio::main]
@@ -46,6 +50,7 @@ async fn main() -> anyhow::Result<()> {
         .as_deref()
         .unwrap_or("redis://127.0.0.1:6379");
     let code_store = Arc::new(RedisCodeStore::new(redis_url).await?);
+    let stats_service = Arc::new(StatsService::new(redis_url).await?);
 
     // 按环境选择 SMS provider（prod 用 Twilio，dev 用 Mock）
     let sms: Arc<dyn voice_room_server::infrastructure::third_party::sms::SmsProvider> =
@@ -59,11 +64,20 @@ async fn main() -> anyhow::Result<()> {
         };
 
     let state = AppState::new(
-        Arc::new(PgUserRepository::new(pool)),
+        Arc::new(PgUserRepository::new(pool.clone())),
         code_store,
         sms,
         settings.jwt_secret.clone(),
+        Arc::new(PgRoomRepository::new(pool)),
+        stats_service,
     );
+
+    // 優雅停機 channel：axum 完成後向 snapshot_task 發送停止信號
+    let (snapshot_shutdown_tx, snapshot_shutdown_rx) = tokio::sync::watch::channel(false);
+
+    // spawn 週期快照 task（每 60s 寫一次 Redis snapshot）
+    let stats_for_snapshot = state.stats_service.clone();
+    tokio::spawn(start_snapshot_task(stats_for_snapshot, snapshot_shutdown_rx));
 
     let app = build_app(state);
     let bind_addr = settings.server.bind_addr()?;
@@ -74,6 +88,9 @@ async fn main() -> anyhow::Result<()> {
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())
         .await?;
+
+    // 通知 snapshot_task 停止（優雅停機）
+    let _ = snapshot_shutdown_tx.send(true);
 
     Ok(())
 }

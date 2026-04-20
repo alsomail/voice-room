@@ -1,0 +1,341 @@
+//! 单连接消息处理模块
+//!
+//! 提供纯函数 `handle_text_message`，解析 JSON 信令并返回响应。
+//! 真实的读/写 task (`handle_socket`) 构建于此之上，但测试直接调用纯函数。
+//!
+//! 信令格式（对齐 protocol.md §6.3）:
+//! ```json
+//! {"type":"ping","msg_id":"uuid","payload":{},"timestamp":1713312000}
+//! ```
+
+use std::sync::{Arc, RwLock};
+use std::time::Instant;
+
+use axum::extract::ws::{Message, WebSocket};
+use serde::{Deserialize, Serialize};
+use tokio::sync::mpsc;
+use uuid::Uuid;
+
+use super::registry::{ConnectionHandle, ConnectionRegistry};
+use crate::modules::auth::service::AuthService;
+use crate::modules::room::service::RoomService;
+use crate::room::handler::{JoinRoomDeps, LeaveRoomDeps};
+use crate::room::handler::do_leave_room;
+use crate::room::RoomManager;
+use crate::stats::StatsPort;
+
+// ─── 信令数据结构 ─────────────────────────────────────────────────────────────
+
+/// 客户端下行消息（服务端接收）
+#[derive(Debug, Deserialize)]
+pub struct IncomingMessage {
+    #[serde(rename = "type")]
+    pub msg_type: String,
+    pub msg_id: Option<String>,
+    pub payload: Option<serde_json::Value>,
+    pub timestamp: Option<i64>,
+}
+
+/// 服务端上行消息（服务端发送）
+#[derive(Debug, Serialize)]
+pub struct OutgoingMessage {
+    #[serde(rename = "type")]
+    pub msg_type: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub msg_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub payload: Option<serde_json::Value>,
+    pub timestamp: i64,
+}
+
+// ─── 纯函数：消息处理核心逻辑 ─────────────────────────────────────────────────
+
+/// 解析一条文本信令，更新心跳（如有），返回待发送的响应 JSON 字符串。
+///
+/// - `"ping"` → 更新 last_heartbeat，回复 `"pong"`（msg_id 一致）
+/// - 其他类型 → 记录警告，返回 `None`（不 panic）
+pub fn handle_text_message(
+    text: &str,
+    last_heartbeat: &Arc<RwLock<Instant>>,
+) -> Option<String> {
+    let msg: IncomingMessage = match serde_json::from_str(text) {
+        Ok(m) => m,
+        Err(e) => {
+            tracing::warn!(error = %e, "failed to parse incoming ws message");
+            return None;
+        }
+    };
+
+    match msg.msg_type.as_str() {
+        "ping" => {
+            // 更新心跳时间戳
+            match last_heartbeat.write() {
+                Ok(mut guard) => *guard = Instant::now(),
+                Err(e) => tracing::error!("heartbeat lock poisoned: {e}"),
+            }
+
+            let pong = OutgoingMessage {
+                msg_type: "pong".to_string(),
+                msg_id: msg.msg_id,
+                payload: None,
+                timestamp: chrono::Utc::now().timestamp(),
+            };
+
+            serde_json::to_string(&pong).ok()
+        }
+        unknown => {
+            tracing::warn!(msg_type = unknown, "unknown ws message type received");
+            None
+        }
+    }
+}
+
+// ─── 连接生命周期 task ────────────────────────────────────────────────────────
+
+/// 在成功升级的 WebSocket 上运行完整的读/写生命周期。
+///
+/// 每次调用生成独立的 `connection_id`（与 user_id 解耦），
+/// 注销时仅删除自己的条目，不影响同一用户的其他连接。
+pub async fn handle_socket(
+    socket: WebSocket,
+    user_id: Uuid,
+    registry: Arc<ConnectionRegistry>,
+    stats: Arc<dyn StatsPort>,
+    room_manager: Arc<RoomManager>,
+    room_service: Arc<RoomService>,
+    auth_service: Arc<AuthService>,
+) {
+    let connection_id = Uuid::new_v4(); // 每次連接生成唯一 ID，與 user_id 解耦
+    let (tx, mut rx) = mpsc::unbounded_channel::<String>();
+    let last_heartbeat = Arc::new(RwLock::new(Instant::now()));
+
+    let handle = ConnectionHandle {
+        connection_id,
+        user_id,
+        room_id: None,
+        sender: tx,
+        last_heartbeat: last_heartbeat.clone(),
+    };
+    registry.register(handle);
+
+    // 用戶上線統計（HyperLogLog PFADD，失敗不影響主流程）
+    stats.user_online(user_id).await.ok();
+
+    let mut socket = socket;
+
+    loop {
+        tokio::select! {
+            // 出站：從 mpsc channel 轉發到 WebSocket
+            msg = rx.recv() => {
+                match msg {
+                    Some(text) => {
+                        if socket.send(Message::Text(text.into())).await.is_err() {
+                            break;
+                        }
+                    }
+                    None => break,
+                }
+            }
+            // 入站：處理客戶端消息
+            msg = socket.recv() => {
+                match msg {
+                    Some(Ok(Message::Text(text))) => {
+                        let text_str = text.as_str();
+                        // 先尝试解析消息类型，路由到对应处理器
+                        if let Ok(incoming) = serde_json::from_str::<IncomingMessage>(text_str) {
+                            if incoming.msg_type == "JoinRoom" {
+                                let deps = JoinRoomDeps {
+                                    room_manager: room_manager.clone(),
+                                    room_service: room_service.clone(),
+                                    auth_service: auth_service.clone(),
+                                    registry: registry.clone(),
+                                    stats: stats.clone(),
+                                };
+                                let response = crate::room::handler::handle_join_room(
+                                    incoming.payload,
+                                    incoming.msg_id,
+                                    connection_id,
+                                    user_id,
+                                    &deps,
+                                ).await;
+                                if !registry.send_to(connection_id, &response) {
+                                    tracing::warn!(%connection_id, "failed to send JoinRoomResult");
+                                }
+                            } else if incoming.msg_type == "LeaveRoom" {
+                                let deps = LeaveRoomDeps {
+                                    room_manager: room_manager.clone(),
+                                    registry: registry.clone(),
+                                    stats: stats.clone(),
+                                };
+                                let response = crate::room::handler::handle_leave_room(
+                                    incoming.msg_id,
+                                    connection_id,
+                                    user_id,
+                                    &deps,
+                                ).await;
+                                if !registry.send_to(connection_id, &response) {
+                                    tracing::warn!(%connection_id, "failed to send LeaveRoomResult");
+                                }
+                            } else if incoming.msg_type == "TakeMic" {
+                                let deps = crate::room::handler::TakeMicDeps {
+                                    room_manager: room_manager.clone(),
+                                    registry: registry.clone(),
+                                };
+                                let response = crate::room::handler::handle_take_mic(
+                                    incoming.payload,
+                                    incoming.msg_id,
+                                    connection_id,
+                                    user_id,
+                                    &deps,
+                                ).await;
+                                if !registry.send_to(connection_id, &response) {
+                                    tracing::warn!(%connection_id, "failed to send TakeMicResult");
+                                }
+                            } else if incoming.msg_type == "LeaveMic" {
+                                let deps = crate::room::handler::LeaveMicDeps {
+                                    room_manager: room_manager.clone(),
+                                    registry: registry.clone(),
+                                };
+                                let response = crate::room::handler::handle_leave_mic(
+                                    incoming.msg_id,
+                                    connection_id,
+                                    user_id,
+                                    &deps,
+                                ).await;
+                                if !registry.send_to(connection_id, &response) {
+                                    tracing::warn!(%connection_id, "failed to send LeaveMicResult");
+                                }
+                            } else if incoming.msg_type == "SendMessage" {
+                                let deps = crate::room::handler::SendMessageDeps {
+                                    room_manager: room_manager.clone(),
+                                    registry: registry.clone(),
+                                };
+                                let response = crate::room::handler::handle_send_message(
+                                    incoming.payload,
+                                    incoming.msg_id,
+                                    connection_id,
+                                    user_id,
+                                    &deps,
+                                ).await;
+                                if !registry.send_to(connection_id, &response) {
+                                    tracing::warn!(%connection_id, "failed to send SendMessageResult");
+                                }
+                            } else {
+                                // 其他消息类型（ping 等）走纯函数路径
+                                if let Some(response) =
+                                    handle_text_message(text_str, &last_heartbeat)
+                                {
+                                    // MEDIUM-02: 記錄 pong 發送失敗的警告日誌
+                                    if !registry.send_to(connection_id, &response) {
+                                        tracing::warn!(%connection_id, "failed to send pong response");
+                                    }
+                                }
+                            }
+                        } else if let Some(response) =
+                            handle_text_message(text_str, &last_heartbeat)
+                        {
+                            if !registry.send_to(connection_id, &response) {
+                                tracing::warn!(%connection_id, "failed to send pong response");
+                            }
+                        }
+                    }
+                    Some(Ok(Message::Close(_))) | None => break,
+                    Some(Err(_)) => break,
+                    _ => {} // Binary / Ping / Pong 幀
+                }
+            }
+        }
+    }
+
+    // 断线时自动离开房间（必须在 stats.user_offline 和 registry.unregister 之前调用）
+    let leave_deps = LeaveRoomDeps {
+        room_manager: room_manager.clone(),
+        registry: registry.clone(),
+        stats: stats.clone(),
+    };
+    do_leave_room(connection_id, user_id, &leave_deps).await;
+
+    // 用戶下線統計（HLL append-only no-op，失敗不影響主流程）
+    stats.user_offline(user_id).await.ok();
+
+    // 僅注銷本連接的 connection_id，不影響同一用戶的其他連接
+    registry.unregister(connection_id);
+    tracing::info!(%user_id, %connection_id, "websocket connection closed");
+}
+
+// ─── 单元测试 ─────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::{Arc, RwLock};
+    use std::time::Instant;
+
+    fn fresh_heartbeat() -> Arc<RwLock<Instant>> {
+        Arc::new(RwLock::new(Instant::now()))
+    }
+
+    // C01: ping 消息触发 pong 响应，msg_id 一致
+    #[tokio::test]
+    async fn c01_ping_triggers_pong_with_same_msg_id() {
+        let hb = fresh_heartbeat();
+        let ping_json = r#"{"type":"ping","msg_id":"test-msg-id-abc123"}"#;
+
+        let response = handle_text_message(ping_json, &hb);
+
+        assert!(response.is_some(), "ping should produce a pong response");
+
+        let resp_str = response.unwrap();
+        let resp: serde_json::Value =
+            serde_json::from_str(&resp_str).expect("response must be valid JSON");
+
+        assert_eq!(resp["type"], "pong", "response type should be pong");
+        assert_eq!(
+            resp["msg_id"], "test-msg-id-abc123",
+            "pong msg_id must match ping msg_id"
+        );
+    }
+
+    // C02: 未知消息类型不 panic，返回 None
+    #[tokio::test]
+    async fn c02_unknown_message_type_no_panic() {
+        let hb = fresh_heartbeat();
+        let unknown_json = r#"{"type":"some_future_event","msg_id":"xyz","payload":{"foo":1}}"#;
+
+        // 如果 panic 则测试直接失败；正常情况返回 None
+        let result = handle_text_message(unknown_json, &hb);
+
+        assert!(
+            result.is_none(),
+            "unknown message type should return None, not panic"
+        );
+    }
+
+    // C03: ping 消息更新 last_heartbeat
+    #[tokio::test]
+    async fn c03_ping_updates_last_heartbeat() {
+        use std::time::Duration;
+
+        let old_instant = Instant::now() - Duration::from_secs(20);
+        let hb = Arc::new(RwLock::new(old_instant));
+
+        let ping_json = r#"{"type":"ping","msg_id":"hb-test"}"#;
+        let _ = handle_text_message(ping_json, &hb);
+
+        let elapsed = Instant::now().duration_since(*hb.read().unwrap());
+        assert!(
+            elapsed < Duration::from_secs(1),
+            "last_heartbeat should be updated to near-now after ping"
+        );
+    }
+
+    // C04: 格式非法的 JSON 不 panic，返回 None
+    #[tokio::test]
+    async fn c04_malformed_json_no_panic() {
+        let hb = fresh_heartbeat();
+        let bad_json = r#"{not valid json"#;
+
+        let result = handle_text_message(bad_json, &hb);
+        assert!(result.is_none(), "malformed JSON should return None, not panic");
+    }
+}

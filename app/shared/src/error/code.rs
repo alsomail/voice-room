@@ -8,6 +8,8 @@ pub enum ErrorCode {
     InvalidPhoneNumber = 40001,
     #[error("PARAMETER_MISSING")]
     ParameterMissing = 40002,
+    #[error("VALIDATION_ERROR")]
+    ValidationError = 40003,
 
     // 401 - 认证错误
     #[error("UNAUTHORIZED")]
@@ -32,10 +34,14 @@ pub enum ErrorCode {
     // 404 - 资源不存在
     #[error("NOT_FOUND")]
     NotFound = 40400,
+    #[error("USER_NOT_FOUND")]
+    UserNotFound = 40401,
 
     // 409 - 冲突
     #[error("CONFLICT")]
     Conflict = 40900,
+    #[error("ROOM_ALREADY_CLOSED")]
+    RoomAlreadyClosed = 40901,
 
     // 429 - 频率限制
     #[error("VERIFICATION_CODE_COOLDOWN")]
@@ -74,5 +80,7 @@ mod tests {
         assert_eq!(ErrorCode::VerificationCodeCooldown as i32, 42901);
         assert_eq!(ErrorCode::VerificationCodeDailyLimit as i32, 42902);
         assert_eq!(ErrorCode::InternalError as i32, 50000);
+        // E-03: RoomAlreadyClosed 数值必须是 40901
+        assert_eq!(ErrorCode::RoomAlreadyClosed as i32, 40901);
     }
 }

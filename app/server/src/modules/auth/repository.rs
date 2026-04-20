@@ -1,7 +1,8 @@
-use std::{collections::HashMap, sync::Mutex};
-
 use async_trait::async_trait;
+#[cfg(test)]
 use chrono::Utc;
+#[cfg(test)]
+use std::{collections::HashMap, sync::Mutex};
 use sqlx::PgPool;
 use uuid::Uuid;
 use voice_room_shared::models::user::UserModel;
@@ -70,11 +71,13 @@ impl UserRepository for PgUserRepository {
 
 // ─── Fake 实现（内存，用于单元测试）─────────────────────────────────────────
 
+#[cfg(test)]
 #[derive(Default)]
 pub struct FakeUserRepository {
     users: Mutex<HashMap<Uuid, UserModel>>,
 }
 
+#[cfg(test)]
 impl FakeUserRepository {
     /// 测试辅助：预置一个用户
     pub fn seed(&self, user: UserModel) {
@@ -82,6 +85,7 @@ impl FakeUserRepository {
     }
 }
 
+#[cfg(test)]
 #[async_trait]
 impl UserRepository for FakeUserRepository {
     async fn find_by_phone(&self, phone: &str) -> Result<Option<UserModel>, AppError> {
@@ -120,5 +124,28 @@ impl UserRepository for FakeUserRepository {
         };
         self.users.lock().unwrap().insert(user.id, user.clone());
         Ok(user)
+    }
+}
+
+// ─── Failing Fake 实现（测试辅助：模拟 DB 错误）────────────────────────────────
+
+/// 所有方法均返回 `AppError::Internal`，用于注入 DB 错误场景的单元测试。
+#[cfg(test)]
+#[derive(Default)]
+pub struct FailingUserRepository;
+
+#[cfg(test)]
+#[async_trait]
+impl UserRepository for FailingUserRepository {
+    async fn find_by_phone(&self, _phone: &str) -> Result<Option<UserModel>, AppError> {
+        Err(AppError::Internal("simulated db error".into()))
+    }
+
+    async fn find_by_id(&self, _id: Uuid) -> Result<Option<UserModel>, AppError> {
+        Err(AppError::Internal("simulated db error".into()))
+    }
+
+    async fn create(&self, _phone: &str, _nickname: &str) -> Result<UserModel, AppError> {
+        Err(AppError::Internal("simulated db error".into()))
     }
 }
