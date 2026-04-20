@@ -166,7 +166,7 @@ class MainScreenTest {
         }
     }
 
-    // ── TB-07: 消息 Tab 显示占位内容 ────────────────────
+    // ── TB-07: 消息 Tab 显示占位内容 (T-30023 升级: 中文占位文本) ──
     @Test
     fun TB07_messagesTab_showsPlaceholder() {
         composeTestRule.setContent {
@@ -178,8 +178,8 @@ class MainScreenTest {
         composeTestRule.onNodeWithTag("tab_messages").performClick()
         composeTestRule.waitForIdle()
 
-        // 消息 Tab 应显示占位文本
-        composeTestRule.onNodeWithText("Messages").assertIsDisplayed()
+        // 消息 Tab 应显示占位文本 (T-30023: "消息功能即将上线")
+        composeTestRule.onNodeWithText("消息功能即将上线").assertIsDisplayed()
     }
 
     // ── TB-08: 我的 Tab 显示占位内容 ────────────────────
