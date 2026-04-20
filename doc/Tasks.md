@@ -183,24 +183,24 @@
 | **T-10009** [TDS](./tds/adminServer/T-10009.md) | Admin Server | User | 封禁/解封接口 | T-10008 | POST `/api/v1/admin/users/:id/ban` | 1. 支持永久/临时封禁<br>2. 记录封禁原因<br>3. 推送封禁事件到 Redis (→ App Server)<br>4. 记录操作日志 | ✅ Done | 4h | Done |
 | **T-10010** | Admin Server | Stats | 数据统计接口 [TDS](./tds/adminServer/T-10010.md) | T-10003 | GET `/api/v1/admin/stats/overview` | 1. 返回 DAU、新增用户、活跃房间数、在线人数<br>2. 支持按日期范围查询<br>3. 在线人数从 Redis 获取（App Server 维护）<br>4. 响应时间 < 500ms | ✅ Done | 5h | DoD |
 | **T-10011** [TDS](./tds/adminServer/T-10011.md) | Admin Server | Event | 跨服务事件发布 | T-10003, T-0000A | Redis Pub/Sub 发布管理事件 | 1. 封禁用户时发布 `ban_user` 事件<br>2. 关闭房间时发布 `close_room` 事件<br>3. 消息格式: `{type, payload, admin_id, ts}`<br>4. 集成到 T-10009 和 T-10006 中 | ✅ Done | 4h | Done |
-| **T-10012** | Admin Server | Log | 操作审计日志 | T-10001 | 设计 `admin_logs` 表 + 写入中间件 | 1. 记录所有敏感操作（封禁/解封/关闭房间/充值）<br>2. 字段: admin_id, action, target_id, ip, detail, created_at<br>3. Axum 中间件自动拦截记录<br>4. GET `/api/v1/admin/logs` 查询接口 | Todo | 5h | Plan |
+| **T-10012** [TDS](./tds/adminServer/T-10012.md) | Admin Server | Log | 操作审计日志 | T-10001 | 设计 `admin_logs` 表 + 写入中间件 | 1. 记录所有敏感操作（封禁/解封/关闭房间/充值）<br>2. 字段: admin_id, action, target_id, ip, detail, created_at<br>3. Axum 中间件自动拦截记录<br>4. GET `/api/v1/admin/logs` 查询接口 | ✅ Done | 5h | Done |
 
 #### Web 端
 
 | Task ID | 归属端 | 模块 | 任务名称 | 前置依赖 | 核心描述 | TDD 验收标准 | 状态 | 预估工时 | 负责人 |
 |---------|--------|------|----------|----------|----------|-------------|------|----------|--------|
-| **T-20006** | Web | User | 用户管理页面 | T-10007 | Ant Design Table 展示用户列表 | 1. 搜索框（手机号/ID/昵称）<br>2. 分页加载<br>3. 状态筛选（全部/正常/封禁） | Todo | 5h | Plan |
-| **T-20007** | Web | User | 用户详情抽屉 | T-10008, T-20006 | Drawer 展示用户详细信息 | 1. 基础信息卡片<br>2. 资产信息<br>3. 行为数据<br>4. [封禁] [解封] 按钮 | Todo | 5h | Plan |
-| **T-20008** | Web | User | 封禁对话框 | T-10009, T-20007 | Modal 实现封禁操作 | 1. 选择封禁时长<br>2. 选择封禁原因<br>3. 填写备注<br>4. 二次确认 | Todo | 3h | Plan |
-| **T-20009** | Web | Log | 操作日志页面 | T-10012 | Ant Design Table 展示审计日志 | 1. 按时间倒序<br>2. 支持按操作人/类型/时间筛选<br>3. 展示操作详情 | Todo | 4h | Plan |
+| **T-20006** [TDS](./tds/web/T-20006.md) | Web | User | 用户管理页面 | T-10007 | Ant Design Table 展示用户列表 | 1. 搜索框（手机号/ID/昵称）<br>2. 分页加载<br>3. 状态筛选（全部/正常/封禁） | ✅ Done | 5h | Done |
+| **T-20007** [TDS](./tds/web/T-20007.md) | Web | User | 用户详情抽屉 | T-10008, T-20006 | Drawer 展示用户详细信息 | 1. 基础信息卡片<br>2. 资产信息<br>3. 行为数据<br>4. [封禁] [解封] 按钮 | ✅ Done | 5h | Dod |
+| **T-20008** [TDS](./tds/web/T-20008.md) | Web | User | 封禁对话框 | T-10009, T-20007 | Modal 实现封禁操作 | 1. 选择封禁时长<br>2. 选择封禁原因<br>3. 填写备注<br>4. 二次确认 | ✅ Done | 3h | Done |
+| **T-20009** [TDS](./tds/web/T-20009.md) | Web | Log | 操作日志页面 | T-10012 | Ant Design Table 展示审计日志 | 1. 按时间倒序<br>2. 支持按操作人/类型/时间筛选<br>3. 展示操作详情 | ✅ Done | 4h | Done |
 
 #### Android 端
 
 | Task ID | 归属端 | 模块 | 任务名称 | 前置依赖 | 核心描述 | TDD 验收标准 | 状态 | 预估工时 | 负责人 |
 |---------|--------|------|----------|----------|----------|-------------|------|----------|--------|
-| **T-30008** | Android | WebSocket | WebSocket 连接封装 | T-00011 | OkHttp WebSocket + Flow | 1. 自动重连（指数退避）<br>2. Kotlin Flow 发射连接状态<br>3. 心跳包发送 | Todo | 6h | Plan |
-| **T-30009** | Android | Room | 房间页 UI (Compose) | T-00009 | 实现房间完整布局 | 1. 顶部房间信息<br>2. 麦位 Grid<br>3. 聊天列表<br>4. 底部输入栏 | Todo | 8h | Plan |
-| **T-30010** | Android | Room | 房间 ViewModel | T-00012, T-30008, T-30009 | 管理房间状态，处理 WS 消息 | 1. 进入房间发送 JoinRoom<br>2. 监听服务端事件更新 State<br>3. 离开清理资源 | Todo | 6h | Plan |
+| **T-30008** [TDS](./tds/android/T-30008.md) | Android | WebSocket | WebSocket 连接封装 | T-00011 | OkHttp WebSocket + Flow | 1. 自动重连（指数退避）<br>2. Kotlin Flow 发射连接状态<br>3. 心跳包发送 | ✅ Done | 6h | Done |
+| **T-30009** [TDS](./tds/android/T-30009.md) | Android | Room | 房间页 UI (Compose) | T-00009 | 实现房间完整布局 | 1. 顶部房间信息<br>2. 麦位 Grid<br>3. 聊天列表<br>4. 底部输入栏 | ✅ Done | 8h | DoD |
+| **T-30010** [TDS](./tds/android/T-30010.md) | Android | Room | 房间 ViewModel | T-00012, T-30008, T-30009 | 管理房间状态，处理 WS 消息 | 1. 进入房间发送 JoinRoom<br>2. 监听服务端事件更新 State<br>3. 离开清理资源 | ✅ Done | 6h | DoD |
 | **T-30011** | Android | Mic | 麦位组件 (Compose) | T-30009 | 可复用麦位卡片 | 1. 三种状态渲染<br>2. Lottie 音浪动画<br>3. RTL 布局 | Todo | 5h | Plan |
 | **T-30012** | Android | Mic | 麦克风权限请求 | T-30011 | Accompanist Permissions | 1. 运行时权限请求<br>2. 权限拒绝对话框<br>3. 跳转系统设置 | Todo | 3h | Plan |
 | **T-30013** | Android | Mic | 上麦/下麦逻辑 | T-00014, T-30012 | 发送上麦请求 + RTC 推流 | 1. 权限通过后上麦<br>2. 集成 RTC SDK<br>3. 成功后开启推流 | Todo | 7h | Plan |
