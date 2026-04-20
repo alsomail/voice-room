@@ -18,7 +18,7 @@
 - 🧱 [启动装配与壳层页面](./bootstrap.md) - `Application`、`AppContainer`、`MainActivity`、`MainViewModel` 的当前链路。
 - 🌐 [核心基建与防腐层骨架](./foundation.md) - 环境配置、HTTP、WebSocket、遥测、媒体、IM 与调试适配器现状。
 - 🧩 [业务骨架与测试现状](./features.md) - `auth/room/profile` 能力现状：room 模块已完成大厅页完整链路（T-30005）及 Paging3 无限滚动（T-30006），`profile` 仍为预留；测试覆盖面说明。
-- 🔐 [Auth 认证模块](./auth.md) - 登录页组件结构（LoginScreen / LoginViewModel / LoginUiState）、+966 手机号输入、60s 倒计时、RTL 布局支持、StateFlow 数据流。
+- 🔐 [Auth 认证模块](./auth.md) - 登录页组件结构（LoginScreen / LoginViewModel / LoginUiState）、+966 手机号输入、60s 倒计时、RTL 布局支持、StateFlow 数据流；**登录页视觉升级（T-30021）**：MenaTheme 黑金渐变背景 + GoldOutlinedTextField + GoldButton，纯 UI 改造功能不变。
 - 🎨 [中东黑金主题系统](./theme.md) - MenaColors / MenaTypography / MenaShapes / MenaTheme + GoldButton / GoldOutlinedTextField / AvatarWithFrame 通用组件（T-30018）。
 - 🚀 [Splash 启动页与 Compose Navigation](./bootstrap.md) - SplashScreen / SplashViewModel / SplashNavEvent / AppNavGraph / MainActivity Compose 改造（T-30019）。
 - 🧭 [导航架构与 MainScreen 三Tab框架](./navigation.md) - AppNavGraph 三路由骨架（splash/login/main）、MainScreen 底部三Tab（Hall/Messages/Profile）、MenaBottomNavigation 金色主题导航、saveState/restoreState 策略（T-30020）。
@@ -31,6 +31,7 @@
 - 🟢 HTTP 客户端工厂、`RoomSocketRequestFactory` 与物理机 Loopback 预警
 - 🟢 `MainActivity` Compose Navigation 改造 + `AppNavGraph` 三路由骨架 + Splash 启动页完整链路（T-30019）：`SplashScreen` / `SplashViewModel` / `SplashNavEvent` / `AppNavGraph`（splash/login/main），详见 [bootstrap.md](./bootstrap.md)
 - 🟢 `auth` Feature 登录完整链路已完成（T-30001 + T-30002）：LoginScreen / LoginViewModel / IAuthRepository / RetrofitAuthRepository / TokenManager / NavEvent，详见 [auth.md](./auth.md)
+- 🟢 登录页视觉升级（T-30021）：LoginScreen 改用 MenaTheme 黑金风格——`verticalGradient(Background→Surface)` 渐变背景 + `GoldOutlinedTextField`（PhoneInput/CodeInput）+ `GoldButton`（CountdownButton/登录按钮），功能逻辑不变，18 个 androidTest 覆盖，详见 [auth.md § T-30021](./auth.md#十一t-30021-登录页视觉升级黑金风格)
 - 🟢 Retrofit 2.11.0 HTTP 客户端接入，`RetrofitAuthRepository` 实现登录 / 发码接口调用与错误映射
 - 🟢 DataStore 1.1.1 JWT Token 持久化，`TokenManager` 线程安全读写
 - 🟢 OkHttp JWT 拦截器（T-30003）：`AuthInterceptor` 自动注入 `Authorization: Bearer` header；`DefaultUnauthorizedHandler` 用 `AtomicBoolean.compareAndSet` 保证并发 401 只处理一次；登录成功后 `resetUnauthorized()` 重置，详见 [auth.md § T-30003](./auth.md#七t-30003-jwt-拦截器)

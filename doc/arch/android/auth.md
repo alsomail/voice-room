@@ -1,7 +1,7 @@
 # Android Auth 模块架构
 
 **Last Updated:** 2026-05  
-**关联 Task:** [T-30001](../../tds/android/T-30001.md) — 登录页 UI (Compose) · [T-30002](../../tds/android/T-30002.md) — 登录 ViewModel · [T-30003](../../tds/android/T-30003.md) — JWT 拦截器 · [T-30004](../../tds/android/T-30004.md) — 用户信息 Repository  
+**关联 Task:** [T-30001](../../tds/android/T-30001.md) — 登录页 UI (Compose) · [T-30002](../../tds/android/T-30002.md) — 登录 ViewModel · [T-30003](../../tds/android/T-30003.md) — JWT 拦截器 · [T-30004](../../tds/android/T-30004.md) — 用户信息 Repository · [T-30021](../../tds/android/T-30021.md) — 登录页视觉升级（黑金风格）  
 **Entry Points:** `feature/auth/LoginScreen.kt`, `feature/auth/LoginViewModel.kt`
 
 ---
@@ -548,7 +548,39 @@ IUserRepository.getMe()
 - **`vipLevel` 默认 0**：`UserMeResponseData` 中 `vipLevel` 声明为 `Int = 0`，服务端缺省字段时自动降级为普通用户。
 - **401 处理**：由 T-30003 的 `AuthInterceptor` 在 OkHttp 层统一拦截并触发跳转登录，`RetrofitUserRepository` 层不感知 401，仅透传 `ApiException`。
 
-### 10.5 遗留技术债（MEDIUM，后续统一处理）
+---
+
+## 十一、T-30021 登录页视觉升级（黑金风格）
+
+> **Task:** [T-30021](../../tds/android/T-30021.md) · **状态:** ✅ Done
+
+### 11.1 改造范围
+
+LoginScreen 从白色主题升级为 MenaTheme 黑金风格，**功能逻辑与 ViewModel 不变**，纯 UI 层改造：
+
+| 改造点 | 改造前 | 改造后 |
+|--------|--------|--------|
+| 背景 | 白色 `Color.White` | `Brush.verticalGradient(MenaColors.Background → MenaColors.Surface)` 深色渐变 |
+| 手机号输入框 (`PhoneInput`) | Material3 默认 `OutlinedTextField` | `GoldOutlinedTextField`（金色聚焦描边） |
+| 验证码输入框 (`CodeInput`) | Material3 默认 `OutlinedTextField` | `GoldOutlinedTextField`（金色聚焦描边） |
+| 倒计时按钮 (`CountdownButton`) | Material3 默认 `Button` | `GoldButton`（金色渐变填充） |
+| 登录按钮 | Material3 默认 `Button` | `GoldButton`（金色渐变填充） |
+| 文本颜色 | 默认深色文字 | `MenaColors.OnBackground` / `MenaColors.OnSurface` 适配深色底 |
+
+### 11.2 依赖组件
+
+所有视觉组件来自 `core/theme`（T-30018）：
+- `GoldButton` — 金色渐变填充按钮
+- `GoldOutlinedTextField` — 金色聚焦描边输入框
+- `MenaColors` — 11 色彩令牌（Background / Surface / Gold 等）
+
+### 11.3 测试覆盖
+
+18 个 androidTest 用例覆盖登录页视觉改造，确保功能不回归。
+
+---
+
+### 11.4 遗留技术债（MEDIUM，后续统一处理）
 
 | 编号 | 描述 | 计划处理时机 |
 |------|------|------------|
