@@ -125,6 +125,9 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.6")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.6")
 
+    // Navigation Compose — 全局导航骨架 (T-30019)
+    implementation("androidx.navigation:navigation-compose:2.8.1")
+
     // Coil – 异步图片加载（房主头像）
     implementation("io.coil-kt:coil-compose:2.6.0")
 

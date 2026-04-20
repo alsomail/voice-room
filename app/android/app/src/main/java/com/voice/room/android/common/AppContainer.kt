@@ -52,6 +52,7 @@ data class AppContainer(
     val giftRepository: IGiftRepository,
     val roomRepository: IRoomRepository,
     val webSocketClient: IWebSocketClient,
+    val tokenManager: ITokenManager,
 ) {
     companion object {
         fun fromBuildConfig(): AppContainer {
@@ -106,6 +107,7 @@ data class AppContainer(
                 giftRepository = DebugGiftRepository(),
                 roomRepository = RetrofitRoomRepository(roomApiService),
                 webSocketClient = webSocketClient,
+                tokenManager = tokenManager,
             )
         }
     }
