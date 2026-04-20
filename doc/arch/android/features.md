@@ -11,13 +11,14 @@
 | JWT 拦截器 | `core/network/AuthInterceptor.kt` | T-30003 | 🟢 OkHttp 拦截器自动添加 token，401 跳转登录 |
 | 用户信息 Repository | `data/auth/UserRepository.kt` | T-30004 | 🟢 用户信息获取+Room DB 本地缓存+Flow 订阅 |
 
-### Room 大厅模块（🟢 已完成，T-30005 ~ T-30007）
+### Room 大厅模块（🟢 已完成，T-30005 ~ T-30007, T-30022）
 
 | 模块 | 关键文件 | Task | 当前状态 |
 | --- | --- | --- | --- |
 | 大厅页 UI | `feature/room/LobbyScreen.kt` | T-30005 | 🟢 LazyVerticalGrid + Coil 头像加载 + 在线人数 |
 | 房间列表 ViewModel | `feature/room/LobbyViewModel.kt` | T-30006 | 🟢 Paging3 分页加载 + 下拉刷新 + 错误重试 |
 | 创建房间对话框 | `feature/room/CreateRoomSheet.kt` | T-30007 | 🟢 BottomSheet 输入房间信息 + 创建成功导航 |
+| 大厅页视觉升级 | `feature/room/HallScreen.kt` | T-30022 | 🟢 MenaTheme 黑金风格：RoomCard（深色底+圆角16dp）+ OnlineCountBadge（绿点+人数）+ HallTopBar（金色顶栏）+ CategoryTabRow（分类横滑占位）+ 金色渐变 FAB，Paging3 不变 |
 
 ### WebSocket 模块（🟢 已完成，T-30008）
 
@@ -69,6 +70,6 @@
 
 ## 三、 对业务推进的含义
 
-- Android 端 Auth + Room 大厅 + WS 连接 + 房间核心 + 聊天消息全链路（T-30001 ~ T-30017）已全部落地。
+- Android 端 Auth + Room 大厅 + WS 连接 + 房间核心 + 聊天消息全链路（T-30001 ~ T-30017）已全部落地；大厅页已完成黑金视觉升级（T-30022）。
 - Gift / Wallet / VIP 等商业化模块尚未展开，仅目录预留。
 - 后续开发必须继续对齐 `doc/protocol/` 目录下的对应子文件与服务端广播模型，避免客户端自行推断核心状态。
