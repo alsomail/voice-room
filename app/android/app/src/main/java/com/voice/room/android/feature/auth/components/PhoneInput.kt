@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -17,6 +16,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.voice.room.android.core.theme.GoldOutlinedTextField
+import com.voice.room.android.core.theme.MenaColors
+import com.voice.room.android.core.theme.MenaTheme
 
 /**
  * 手机号输入组件
@@ -26,12 +28,13 @@ import androidx.compose.ui.unit.dp
  * - 最多输入 9 位（沙特本机号）
  */
 @Composable
+@Suppress("UNUSED_PARAMETER")
 fun PhoneInput(
     phoneNumber: String,
     onPhoneNumberChanged: (String) -> Unit,
     modifier: Modifier = Modifier,
     countryCode: String = "+966",
-    enabled: Boolean = true
+    enabled: Boolean = true  // 保留 API 兼容性，GoldOutlinedTextField 暂不支持 enabled
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
@@ -39,10 +42,11 @@ fun PhoneInput(
     ) {
         // 国家码前缀标签
         Surface(
+            color = MenaColors.Surface,
             modifier = Modifier
                 .border(
                     width = 1.dp,
-                    color = MaterialTheme.colorScheme.outline,
+                    color = MenaColors.Primary.copy(alpha = 0.5f),
                     shape = MaterialTheme.shapes.extraSmall
                 )
                 .padding(horizontal = 12.dp, vertical = 18.dp)
@@ -50,14 +54,14 @@ fun PhoneInput(
             Text(
                 text = countryCode,
                 style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface
+                color = MenaColors.OnBackground
             )
         }
 
         Spacer(modifier = Modifier.width(8.dp))
 
         // 手机号输入框
-        OutlinedTextField(
+        GoldOutlinedTextField(
             value = phoneNumber,
             onValueChange = { newValue ->
                 // 仅保留数字，最多 9 位
@@ -65,17 +69,11 @@ fun PhoneInput(
                 onPhoneNumberChanged(digits)
             },
             modifier = Modifier.weight(1f),
-            enabled = enabled,
-            singleLine = true,
-            placeholder = {
-                Text(text = "5XXXXXXXX")
-            },
+            label = "رقم الهاتف",
+            placeholder = "5XXXXXXXX",
             keyboardOptions = KeyboardOptions(
                 keyboardType = KeyboardType.Number
             ),
-            label = {
-                Text(text = "رقم الهاتف")  // 阿拉伯语"手机号"
-            }
         )
     }
 }
@@ -83,7 +81,7 @@ fun PhoneInput(
 @Preview(showBackground = true)
 @Composable
 private fun PhoneInputPreview() {
-    MaterialTheme {
+    MenaTheme {
         PhoneInput(
             phoneNumber = "501234567",
             onPhoneNumberChanged = {}

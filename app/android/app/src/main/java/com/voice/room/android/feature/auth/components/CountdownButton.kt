@@ -2,13 +2,12 @@ package com.voice.room.android.feature.auth.components
 
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.material3.Button
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.voice.room.android.core.theme.GoldButton
+import com.voice.room.android.core.theme.MenaTheme
 
 /**
  * 发送验证码 / 倒计时按钮
@@ -25,24 +24,20 @@ fun CountdownButton(
     onSendCode: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Button(
+    GoldButton(
+        text = if (isCountingDown) countdownLabel else "إرسال رمز التحقق",
         onClick = onSendCode,
         enabled = isEnabled,
         modifier = modifier
             .fillMaxWidth()
             .height(52.dp)
-    ) {
-        Text(
-            text = if (isCountingDown) countdownLabel else "إرسال رمز التحقق",
-            style = MaterialTheme.typography.labelLarge
-        )
-    }
+    )
 }
 
 @Preview(showBackground = true, name = "CountdownButton - Enabled")
 @Composable
 private fun CountdownButtonEnabledPreview() {
-    MaterialTheme {
+    MenaTheme {
         CountdownButton(
             isEnabled = true,
             isCountingDown = false,
@@ -55,7 +50,7 @@ private fun CountdownButtonEnabledPreview() {
 @Preview(showBackground = true, name = "CountdownButton - Counting")
 @Composable
 private fun CountdownButtonCountingPreview() {
-    MaterialTheme {
+    MenaTheme {
         CountdownButton(
             isEnabled = false,
             isCountingDown = true,

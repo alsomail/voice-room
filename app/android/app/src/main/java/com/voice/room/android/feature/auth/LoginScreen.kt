@@ -1,6 +1,8 @@
 package com.voice.room.android.feature.auth
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -9,9 +11,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -19,6 +19,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -26,6 +27,9 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.voice.room.android.core.theme.GoldButton
+import com.voice.room.android.core.theme.MenaColors
+import com.voice.room.android.core.theme.MenaTheme
 import com.voice.room.android.feature.auth.components.CodeInput
 import com.voice.room.android.feature.auth.components.CountdownButton
 import com.voice.room.android.feature.auth.components.PhoneInput
@@ -78,9 +82,14 @@ fun LoginScreenContent(
     val layoutDirection = if (uiState.isRtlLayout) LayoutDirection.Rtl else LayoutDirection.Ltr
 
     CompositionLocalProvider(LocalLayoutDirection provides layoutDirection) {
-        Surface(
-            modifier = modifier.fillMaxSize(),
-            color = MaterialTheme.colorScheme.background
+        Box(
+            modifier = modifier
+                .fillMaxSize()
+                .background(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(MenaColors.Background, MenaColors.Surface)
+                    )
+                )
         ) {
             Column(
                 modifier = Modifier
@@ -104,13 +113,14 @@ fun LoginScreenContent(
                     text = "Voice Room",
                     style = MaterialTheme.typography.headlineLarge,
                     fontWeight = FontWeight.Bold,
+                    color = MenaColors.OnBackground,
                     textAlign = TextAlign.Center
                 )
 
                 Text(
                     text = "تسجيل الدخول",  // 阿拉伯语"登录"
                     style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = MenaColors.Primary,
                     textAlign = TextAlign.Center
                 )
 
@@ -144,18 +154,14 @@ fun LoginScreenContent(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 // ── 登录按钮 ──────────────────────────────────────
-                Button(
+                GoldButton(
+                    text = "تسجيل الدخول",  // 阿拉伯语"登录"
                     onClick = onLogin,
                     enabled = uiState.isLoginButtonEnabled,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(52.dp)
-                ) {
-                    Text(
-                        text = "تسجيل الدخول",  // 阿拉伯语"登录"
-                        style = MaterialTheme.typography.labelLarge
-                    )
-                }
+                )
             }
         }
     }
@@ -172,7 +178,7 @@ fun LoginScreenContent(
 )
 @Composable
 private fun LoginScreenRtlPreview() {
-    MaterialTheme {
+    MenaTheme {
         LoginScreenContent(
             uiState = LoginUiState(
                 phoneNumber = "501234567",
@@ -192,7 +198,7 @@ private fun LoginScreenRtlPreview() {
 )
 @Composable
 private fun LoginScreenEmptyPreview() {
-    MaterialTheme {
+    MenaTheme {
         LoginScreenContent(
             uiState = LoginUiState(),
             onPhoneNumberChanged = {},
@@ -209,7 +215,7 @@ private fun LoginScreenEmptyPreview() {
 )
 @Composable
 private fun LoginScreenCountdownPreview() {
-    MaterialTheme {
+    MenaTheme {
         LoginScreenContent(
             uiState = LoginUiState(
                 phoneNumber = "501234567",
@@ -230,7 +236,7 @@ private fun LoginScreenCountdownPreview() {
 )
 @Composable
 private fun LoginScreenReadyPreview() {
-    MaterialTheme {
+    MenaTheme {
         LoginScreenContent(
             uiState = LoginUiState(
                 phoneNumber = "501234567",
