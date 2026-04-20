@@ -2,12 +2,14 @@ package com.voice.room.android.feature.splash
 
 import com.voice.room.android.domain.local.ITokenManager
 import com.voice.room.android.utils.MainDispatcherRule
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
@@ -32,16 +34,19 @@ class SplashViewModelTest {
      * 可配置的 FakeTokenManager：
      * - [token]：getToken() 返回值
      * - [shouldThrow]：为 true 时 getToken() 抛出 RuntimeException 模拟 DataStore 损坏
+     * - [throwCancellation]：为 true 时 getToken() 抛出 CancellationException 模拟协程取消
      */
     private class FakeTokenManager(
         private var token: String? = null,
-        private val shouldThrow: Boolean = false
+        private val shouldThrow: Boolean = false,
+        private val throwCancellation: Boolean = false
     ) : ITokenManager {
         override suspend fun saveToken(token: String) {
             this.token = token
         }
 
         override suspend fun getToken(): String? {
+            if (throwCancellation) throw CancellationException("Coroutine cancelled")
             if (shouldThrow) throw RuntimeException("DataStore corrupted")
             return token
         }
@@ -140,6 +145,43 @@ class SplashViewModelTest {
             "Exception in tokenManager should fall back to NavigateToLogin",
             listOf(SplashNavEvent.NavigateToLogin),
             events
+        )
+    }
+
+    // ─── SP-05b: CancellationException 不被吞噬 ─────────
+
+    /**
+     * 验证结构化并发规范：CancellationException 必须重新抛出，
+     * 不能被 catch(_: Exception) 吞噬。
+     *
+     * 参考 RoomViewModel.kt 中的同类处理模式：
+     *   catch (e: CancellationException) { throw e }
+     *   catch (e: Exception) { ... }
+     */
+    @Test
+    fun `SP-05b checkAuth rethrows CancellationException instead of swallowing it`() {
+        val tokenManager = FakeTokenManager(throwCancellation = true)
+        val vm = SplashViewModel(tokenManager)
+        val events = mutableListOf<SplashNavEvent>()
+
+        runTest(mainDispatcherRule.testDispatcher) {
+            val collectJob = launch(UnconfinedTestDispatcher(testScheduler)) {
+                vm.navEvent.collect { events.add(it) }
+            }
+
+            vm.checkAuth()
+            advanceUntilIdle()
+
+            collectJob.cancel()
+        }
+
+        // CancellationException 应被重新抛出而非被 catch 吞噬。
+        // 若被正确重抛，viewModelScope.launch 内的协程会取消退出，
+        // 不会走到 emit(NavigateToLogin) 分支 → events 应为空。
+        assertTrue(
+            "CancellationException must not be swallowed — no nav event should be emitted, " +
+                "but got: $events",
+            events.isEmpty()
         )
     }
 }

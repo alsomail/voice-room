@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.voice.room.android.domain.local.ITokenManager
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -32,6 +33,8 @@ class SplashViewModel(
         viewModelScope.launch {
             val token = try {
                 tokenManager.getToken()
+            } catch (e: CancellationException) {
+                throw e  // 必须 rethrow，保持协程取消语义
             } catch (_: Exception) {
                 null // DataStore 损坏等异常视为未登录
             }
