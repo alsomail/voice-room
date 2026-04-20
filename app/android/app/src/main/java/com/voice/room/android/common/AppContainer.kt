@@ -21,9 +21,11 @@ import com.voice.room.android.core.ws.OkHttpWebSocketClient
 import com.voice.room.android.data.auth.DebugAuthService
 import com.voice.room.android.data.gift.DebugGiftRepository
 import com.voice.room.android.data.remote.api.RoomApiService
+import com.voice.room.android.data.remote.api.UserApiService
 import com.voice.room.android.data.room.DebugRoomGateway
 import com.voice.room.android.data.room.DebugRoomSyncService
 import com.voice.room.android.data.room.RetrofitRoomRepository
+import com.voice.room.android.data.user.RetrofitUserRepository
 import com.voice.room.android.data.wallet.DebugWalletRepository
 import com.voice.room.android.domain.auth.IAuthService
 import com.voice.room.android.domain.gift.IGiftRepository
@@ -31,6 +33,7 @@ import com.voice.room.android.domain.local.ITokenManager
 import com.voice.room.android.domain.room.IRoomGateway
 import com.voice.room.android.domain.room.IRoomRepository
 import com.voice.room.android.domain.room.IRoomSyncService
+import com.voice.room.android.domain.user.IUserRepository
 import com.voice.room.android.domain.wallet.IWalletRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -53,6 +56,7 @@ data class AppContainer(
     val roomRepository: IRoomRepository,
     val webSocketClient: IWebSocketClient,
     val tokenManager: ITokenManager,
+    val userRepository: IUserRepository,
 ) {
     companion object {
         fun fromBuildConfig(): AppContainer {
@@ -82,6 +86,10 @@ data class AppContainer(
                 .build()
             val roomApiService = roomRetrofit.create(RoomApiService::class.java)
 
+            // User API — 复用 roomRetrofit（已注入 AuthInterceptor，Bearer token 自动附加）
+            val userApiService = roomRetrofit.create(UserApiService::class.java)
+            val userRepository: IUserRepository = RetrofitUserRepository(userApiService)
+
             // WebSocket 客户端 — 独立 IO 作用域，随 App 生命周期存在
             val wsHttpClient = AppHttpClientFactory.create(
                 config = NetworkClientConfig(),
@@ -108,6 +116,7 @@ data class AppContainer(
                 roomRepository = RetrofitRoomRepository(roomApiService),
                 webSocketClient = webSocketClient,
                 tokenManager = tokenManager,
+                userRepository = userRepository,
             )
         }
     }

@@ -61,9 +61,16 @@ fun AppNavGraph(appContainer: AppContainer) {
             )
         }
 
-        // ── 主页三 Tab 框架 (T-30020) ──────────────────
+        // ── 主页三 Tab 框架 (T-30020, T-30024 升级) ──────────────────
         composable("main") {
-            MainScreen(appContainer = appContainer)
+            MainScreen(
+                appContainer = appContainer,
+                onLogout = {
+                    navController.navigate("login") {
+                        popUpTo("main") { inclusive = true }
+                    }
+                },
+            )
         }
     }
 }

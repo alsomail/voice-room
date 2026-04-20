@@ -19,6 +19,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.paging.compose.collectAsLazyPagingItems
 import com.voice.room.android.common.AppContainer
 import com.voice.room.android.core.theme.MenaColors
+import com.voice.room.android.feature.profile.ProfileScreen
 import com.voice.room.android.feature.room.CreateRoomBottomSheet
 import com.voice.room.android.feature.room.CreateRoomViewModel
 import com.voice.room.android.feature.room.HallScreen
@@ -36,11 +37,19 @@ import com.voice.room.android.feature.room.RoomListViewModel
  * - HallScreen 新增 onCreateRoom 回调 → 控制 CreateRoomBottomSheet 显隐
  * - 创建成功后暂无导航（TODO: 接入 RoomScreen 导航）
  *
- * @param appContainer 依赖容器，提供 roomRepository 等服务
+ * T-30024 升级:
+ * - 将 ProfilePlaceholder() 替换为 ProfileScreen（真实个人中心页）
+ * - 新增 onLogout 参数，退出登录后由调用方执行导航到 LoginScreen
+ *
+ * @param appContainer 依赖容器，提供 roomRepository / userRepository 等服务
+ * @param onLogout     退出登录后的导航回调（由 AppNavGraph 注入）
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainScreen(appContainer: AppContainer) {
+fun MainScreen(
+    appContainer: AppContainer,
+    onLogout: () -> Unit = {},
+) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
@@ -86,7 +95,10 @@ fun MainScreen(appContainer: AppContainer) {
                 MessagesPlaceholder()
             }
             composable(MainTab.PROFILE.route) {
-                ProfilePlaceholder()
+                ProfileScreen(
+                    appContainer = appContainer,
+                    onLogout = onLogout,
+                )
             }
         }
     }

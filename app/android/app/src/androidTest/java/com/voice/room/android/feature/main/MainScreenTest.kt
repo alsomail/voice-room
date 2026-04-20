@@ -25,19 +25,21 @@ import com.voice.room.android.data.room.DebugRoomSyncService
 import com.voice.room.android.data.room.FakeRoomRepository
 import com.voice.room.android.data.wallet.DebugWalletRepository
 import com.voice.room.android.domain.local.ITokenManager
+import com.voice.room.android.domain.user.IUserRepository
+import com.voice.room.android.domain.user.UserProfile
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * MainScreen Compose UI 集成测试 (T-30020)
+ * MainScreen Compose UI 集成测试 (T-30020, T-30024 升级)
  *
  * 验证底部三 Tab 框架的核心行为：
  * - TB-01: 默认启动显示房间 Tab 选中
  * - TB-02: 点击三个 Tab 均可正常切换
  * - TB-06: 房间 Tab 显示 HallScreen 内容
  * - TB-07: 消息 Tab 显示占位内容
- * - TB-08: 我的 Tab 显示占位内容
+ * - TB-08: 我的 Tab 显示 ProfileScreen 内容（T-30024 升级：不再是占位"Me"）
  * - TB-10: 底部导航栏始终可见
  * - TB-11: main_screen testTag 可定位
  */
@@ -47,7 +49,21 @@ class MainScreenTest {
     @get:Rule
     val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
-    /** 构造测试用 AppContainer（全 Fake/NoOp 实现） */
+    /** FakeUserRepository — 立即返回固定 UserProfile */
+    private class FakeUserRepository : IUserRepository {
+        val profile = UserProfile(
+            id = "u001",
+            phone = "+966512345678",
+            nickname = "TestUser",
+            avatar = null,
+            coinBalance = 1000L,
+            vipLevel = 0,
+            createdAt = "2026-01-01T00:00:00Z",
+        )
+        override suspend fun getMe(): Result<UserProfile> = Result.success(profile)
+    }
+
+    /** 构造测试用 AppContainer（全 Fake/NoOp 实现，T-30024 新增 userRepository） */
     private fun createTestAppContainer(): AppContainer {
         val fakeTokenManager = object : ITokenManager {
             override suspend fun saveToken(token: String) {}
@@ -74,6 +90,7 @@ class MainScreenTest {
             roomRepository = FakeRoomRepository(),
             webSocketClient = FakeWebSocketClient(),
             tokenManager = fakeTokenManager,
+            userRepository = FakeUserRepository(),
         )
     }
 
@@ -182,11 +199,14 @@ class MainScreenTest {
         composeTestRule.onNodeWithText("消息功能即将上线").assertIsDisplayed()
     }
 
-    // ── TB-08: 我的 Tab 显示占位内容 ────────────────────
+    // ── TB-08: 我的 Tab 显示 ProfileScreen 内容（T-30024：不再是占位"Me"）──
     @Test
-    fun TB08_profileTab_showsPlaceholder() {
+    fun TB08_profileTab_showsProfileScreenContent() {
         composeTestRule.setContent {
-            MainScreen(appContainer = createTestAppContainer())
+            MainScreen(
+                appContainer = createTestAppContainer(),
+                onLogout = {},
+            )
         }
         composeTestRule.waitForIdle()
 
@@ -194,8 +214,16 @@ class MainScreenTest {
         composeTestRule.onNodeWithTag("tab_profile").performClick()
         composeTestRule.waitForIdle()
 
-        // 我的 Tab 应显示占位文本
-        composeTestRule.onNodeWithText("Me").assertIsDisplayed()
+        // T-30024: ProfileScreen 替换了 ProfilePlaceholder
+        // FakeUserRepository 立即返回成功，所以 profile_screen testTag 可见
+        // 等待 Loading → Success 完成（最多 5s）
+        composeTestRule.waitUntil(timeoutMillis = 5000) {
+            composeTestRule
+                .onAllNodes(hasTestTag("profile_screen"))
+                .fetchSemanticsNodes()
+                .isNotEmpty()
+        }
+        composeTestRule.onNodeWithTag("profile_screen").assertIsDisplayed()
     }
 
     // ── TB-02 扩展: 三个 Tab 均有 testTag 且可见 ─────────
