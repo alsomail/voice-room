@@ -71,9 +71,9 @@ class HallScreenTest {
         composeTestRule.onNodeWithText("房间A").assertIsDisplayed()
         composeTestRule.onNodeWithText("房间B").assertIsDisplayed()
 
-        // Member counts are visible
-        composeTestRule.onNodeWithText("5/20").assertIsDisplayed()
-        composeTestRule.onNodeWithText("10/20").assertIsDisplayed()
+        // Member counts are visible via OnlineCountBadge (T-30022)
+        composeTestRule.onNodeWithText("5").assertIsDisplayed()
+        composeTestRule.onNodeWithText("10").assertIsDisplayed()
     }
 
     // ─────────────────────────────────────────────

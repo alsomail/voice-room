@@ -6,7 +6,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertIsNotDisplayed
+import androidx.compose.ui.test.assertDoesNotExist
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -100,7 +100,8 @@ class HallScreenPagingTest {
 
         composeTestRule.onNodeWithTag("room_card_id-1").assertIsDisplayed()
         composeTestRule.onNodeWithTag("room_card_id-2").assertIsDisplayed()
-        composeTestRule.onNodeWithTag("hall_empty_state").assertIsNotDisplayed()
+        // T-30022: node doesn't exist when data is loaded (not just hidden)
+        composeTestRule.onNodeWithTag("hall_empty_state").assertDoesNotExist()
     }
 
     // ─────────────────────────────────────────────
