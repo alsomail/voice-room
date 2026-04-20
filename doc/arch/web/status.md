@@ -35,17 +35,23 @@
 | `src/core/telemetry/MockAnalyticsService.test.ts` | 基础上下文注入、保留字段保护、设备 ID 复用 |
 | `src/lib/url.test.ts` | API/WS URL 拼接、绝对地址绕过、路径逃逸防护 |
 
-## 三、 尚未落地的部分
+## 三、 业务能力现状
 
-| 能力 | 当前状态 |
-| --- | --- |
-| 路由系统与页面编排 | 🔴 未开始 |
-| 全局状态管理 / Provider | 🔴 未开始 |
-| i18n / RTL | 🔴 未开始 |
-| 真实 telemetry / crash provider | 🔴 未开始 |
-| 真实业务 API、鉴权、房间协议 | 🔴 未开始 |
+> T-20001 ~ T-20009 已全部落地（详见 [index.md](./index.md) 能力矩阵）。
+
+| 能力 | 当前状态 | 说明 |
+| --- | --- | --- |
+| 路由系统与页面编排 | 🟢 已完成 | BrowserRouter + AuthGuard，Login / Dashboard / Rooms / Users / Logs 五大页面 |
+| 全局状态管理 | 🟢 已完成 | Zustand `useAuthStore`（JWT 持久化、登录/登出） |
+| i18n | 🟢 已完成 | `src/i18n/`（en / zh），RTL 由 Ant Design ConfigProvider 支持 |
+| Admin 登录 | 🟢 已完成 | T-20001：LoginForm + useAuthStore + JWT 持久化 |
+| Dashboard | 🟢 已完成 | T-20002：StatCards + TrendChart + useDashboardStats |
+| 房间管理 | 🟢 已完成 | T-20003（列表）+ T-20004（详情 Modal）+ T-20005（强制关闭） |
+| 用户管理 | 🟢 已完成 | T-20006（列表）+ T-20007（详情 Drawer）+ T-20008（封禁/解封 Modal） |
+| 审计日志 | 🟢 已完成 | T-20009：LogsTable + LogSearchForm + useLogsPage |
+| 真实 telemetry / crash provider | 🔴 未开始 | 当前仅 Mock 实现 |
 
 ## 四、 文档维护提示
 
-- 当 `services/` 下开始接入 RTC、IM、analytics、crash provider 时，应继续拆分独立子文档。
-- 当页面从单页壳层扩展为多路由结构时，应在本目录新增路由与状态管理文档，而不是仅更新此文件。
+- Admin Web 不涉及 RTC / IM / 实时音视频，此类能力无需在本文档追踪。
+- 当新增页面或功能模块时，应同步更新 [structure.md](./structure.md) 和本文件。

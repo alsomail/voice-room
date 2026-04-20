@@ -311,4 +311,4 @@ main.rs
 - [Server 架构总索引](./index.md)
 - [启动与目录结构](./structure.md)
 - [能力状态与缺口盘点](./status.md)
-- 接口契约：`doc/protocol.md` §二 §六
+- 接口契约：`doc/protocol/auth_api.md` + `doc/protocol/data_models.md`

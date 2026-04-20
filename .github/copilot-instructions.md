@@ -4,14 +4,14 @@
 
 ## 🔄 核心工作流与 Definition of Done (DoD)
 本项目采用严格的 **文档驱动与流转闭环**。你的工作分为五个阶段，除非我明确跳过，否则必须按此闭环执行：
-1. **PM 阶段 (需求拆解)**：读取 `doc/product.md`，将业务拆解为端到端的极小粒度任务，并更新到 `doc/Tasks.md` 中，将负责人修改为Plan。
-2. **Plan 阶段 (方案设计)**：从 `doc/Tasks.md` 领取任务，找到Tasks.md中plan阶段的任务，读取或者按需修改 `doc/protocol.md` (通信契约)，并从对应端的 `doc/arch/[$端]/index.md` 顺藤摸瓜读取相关子文档，输出具体的技术实现方案与文件修改清单，参照`doc/tds/_template.md`输出到对应的`doc/tds/[$端]/T-XXX.md`，并且将`doc/Tasks.md`负责人修改为TDD，链接为对应的tds目录。
+1. **PM 阶段 (需求拆解)**：读取 `doc/product/index.md`，将业务拆解为端到端的极小粒度任务，并更新到 `doc/Tasks.md` 中，将负责人修改为Plan。
+2. **Plan 阶段 (方案设计)**：从 `doc/Tasks.md` 领取任务，找到Tasks.md中plan阶段的任务，读取或者按需修改 `doc/architecture/index.md`、`doc/protocol/index.md` 、`doc/product/index.md` 及Task对应的设计文件，并从对应端的 `doc/arch/[$端]/index.md` 顺藤摸瓜读取相关子文档，输出具体的技术实现方案与文件修改清单，参照`doc/tds/_template.md`输出到对应的`doc/tds/[$端]/T-XXX.md`，并且将`doc/Tasks.md`负责人修改为TDD，链接为对应的tds目录，如有必要。
 3. **TDD 阶段 (测试驱动编码)**：从`doc/Tasks.md` 领取任务，找到Tasks.md中第一个负责人是TDD的任务，根据对应的`doc/tds/[$端]/T-XXX.md`，如果没有Review意见，则表示是新需求，先写测试用例，运行报错后，再实现业务代码，直到测试完全通过，将`doc/Tasks.md`负责人修改为Review。如果有Review意见，且意见是未通过，则先根据Review意见修改、增加测试用例，确保覆盖所有边界场景，再修改业务代码，直到测试完全通过，将`doc/Tasks.md`负责人修改为Review。
-4. **Review 阶段（审查实现代码）**：从`doc/Tasks.md` 领取任务，找到Tasks.md中第一个负责人是Review的任务，结合`doc/protocol.md` (通信契约)、并从对应端的 `doc/arch/[$端]/index.md` 顺藤摸瓜读取相关子文档及对应的`doc/tds/[$端]/T-XXX.md`，查看代码实现，进行代码审查，确保代码质量和规范。如果通过，修改`doc/Tasks.md`负责人为Dod，并在TDS的【Reviewer意见】章节记录审查意见；如果未通过，修改`doc/Tasks.md`负责人为TDD，并在TDS的【Reviewer意见】章节记录未通过的理由和改进建议。
+4. **Review 阶段（审查实现代码）**：从`doc/Tasks.md` 领取任务，找到Tasks.md中第一个负责人是Review的任务，结合`doc/protocol/index.md` (通信契约)、并从对应端的 `doc/arch/[$端]/index.md` 顺藤摸瓜读取相关子文档及对应的`doc/tds/[$端]/T-XXX.md`，查看代码实现，进行代码审查，确保代码质量和规范。如果通过，修改`doc/Tasks.md`负责人为Dod，并在TDS的【Reviewer意见】章节记录审查意见；如果未通过，修改`doc/Tasks.md`负责人为TDD，并在TDS的【Reviewer意见】章节记录未通过的理由和改进建议。
 5. **DoD 阶段 (状态与文档同步 - 绝对红线)**：Review 通过后，**必须主动执行**：
    - 找到对应端的文档目录（如 `doc/arch/web/`），更新具体受影响的子模块文档（如新增了路由，则更新 `router.md`；若新增了全新模块，必须同步更新 `index.md` 的索引）。
    - 在 `doc/Tasks.md` 中将该任务状态标记为已完成。
-   - (若大功能闭环) 更新 `doc/product.md` 的功能实现状态。
+   - (若大功能闭环) 更新 `doc/product/index.md` 的功能实现状态。
    - **严禁**写完代码后不更新文档就直接结束对话。
 
 ## 🚨 第 0 原则：排障心法 (Troubleshooting First Principles)
@@ -35,26 +35,26 @@
 **⚠️ 寻路铁律：对于目录级文档（如 `doc/arch/server/`），必须先读取其内部的 `index.md` 获取结构地图，再精准定位读取目标子文档，严禁盲猜文件名。**
 
 **项目管理与契约：**
-- **了解宏观业务、看竞品、查总体进度？** -> 详见 `doc/product.md`
+- **了解宏观业务、看竞品、查总体进度？** -> 详见 `doc/product/index.md`
 - **领任务、查依赖、看开发进度？** -> 详见 `doc/Tasks.md`
 - **查看某个 Task 的具体技术设计方案？** -> 详见 `doc/tds/T-xxx.md`（先读 `_template.md` 了解规范）
-- **前后端通信、API 接口、WebSocket 信令格式？** -> 详见 `doc/protocol.md` (如无则优先建立)
+- **前后端通信、API 接口、WebSocket 信令格式？** -> 详见 `doc/protocol/index.md`
 - **查阅重大架构变更和技术选型原因？** -> 详见 `doc/adr/` (架构决策记录)
 
 **多端架构与现状：**
-- **想看总体系统骨架、基础依赖说明？** -> 详见 `doc/ARCHITECTURE.md`
+- **想看总体系统骨架、基础依赖说明？** -> 详见 `doc/architecture/index.md`
 - **Rust Server 架构入口？** -> 从 `doc/arch/server/index.md` 开始寻路
 - **Web 端架构入口？** -> 从 `doc/arch/web/index.md` 开始寻路
 - **Android 端架构入口？** -> 从 `doc/arch/android/index.md` 开始寻路
 
-**细分架构规约 (对应 ARCHITECTURE.md 章节)：**
-- **想看全局原则或各层职责？** -> 详见【第 1 节与第 2 节】。
-- **目录在哪？怎么做 DDD？** -> 详见【第 3 节与第 4 节】。
-- **设计接口、JWT 鉴权或错误码？** -> 详见【第 7 节】。
-- **写 WS 信令、断线重连？** -> 详见【第 8 节与第 11 节】。
-- **写打赏扣减逻辑？** -> 详见【第 9 节：强事务】。
-- **接入外部 SDK？** -> 详见【第 10 节：防腐层】。
-- **加日志、做埋点？** -> 详见【第 12 节：观测基建】。
-- **写 UI 适配 RTL？** -> 详见【第 13 节：中东本土化】。
+**细分架构规约 (对应 `doc/architecture/` 子文件)：**
+- **想看全局原则或各层职责？** -> 详见 `doc/architecture/goals_and_overview.md`
+- **目录在哪？怎么做 DDD？** -> 详见 `doc/architecture/directory_and_ddd.md` + `doc/architecture/domain_design.md`
+- **设计接口、JWT 鉴权或错误码？** -> 详见 `doc/architecture/api_and_auth.md`
+- **写 WS 信令、断线重连？** -> 详见 `doc/architecture/websocket_and_state.md` + `doc/architecture/resilience.md`
+- **写打赏扣减逻辑？** -> 详见 `doc/architecture/transaction_and_gift.md`
+- **接入外部 SDK？** -> 详见 `doc/architecture/anticorruption_layer.md`
+- **加日志、做埋点？** -> 详见 `doc/architecture/observability.md`
+- **写 UI 适配 RTL？** -> 详见 `doc/architecture/mena_localization.md`
 
 **遇到严重报错或联调不通？** -> 强制读取 `/doc/DEBUG_SOP.md` 执行科学排障。

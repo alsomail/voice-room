@@ -10,11 +10,12 @@
 | 环境配置 | `core/config/AppEnvironment.kt` | 🟢 负责裁剪环境值，并对物理机 Loopback 地址给出预警 |
 | 远程配置 | `core/config/IRemoteConfigService.kt`、`InMemoryRemoteConfigService.kt` | 🟡 只有内存实现，尚未接入远程配置中心 |
 | HTTP | `core/network/AppHttpClientFactory.kt`、`NetworkClientConfig.kt` | 🟢 已提供 OkHttp 工厂与超时/重试配置 |
+| HTTP API | Retrofit 2.11.0 + kotlinx.serialization | 🟢 **T-30002 起**已接入，配合 OkHttp 工厂使用 |
 | WebSocket | `core/ws/WebSocketState.kt`<br>`core/ws/IWebSocketClient.kt`<br>`core/ws/OkHttpWebSocketClient.kt`<br>`core/ws/FakeWebSocketClient.kt` | 🟢 **T-30008 完成**：`WebSocketState` sealed class（Connecting/Connected/Disconnected/Error）；`IWebSocketClient` 接口（`connect/disconnect/send/state: StateFlow`）；`OkHttpWebSocketClient` 实现指数退避自动重连（1s→2s→4s…60s上限）、30s心跳保活、`SharedFlow<String>` 消息流；`FakeWebSocketClient` 供单元测试注入 |
 | Telemetry | `core/telemetry/IAnalyticsService.kt`、`NoOpAnalyticsService.kt`、`ICrashReporter.kt`、`NoOpCrashReporter.kt` | 🟡 接口隔离已完成，当前仅 `NoOp` 占位 |
 | Media | `core/media/IMediaService.kt`、`NoOpMediaService.kt` | 🟡 防腐层接口已建，RTC 尚未接入 |
 | IM | `core/im/IIMService.kt`、`NoOpIMService.kt` | 🟡 防腐层接口已建，IM 尚未接入 |
-| Storage / Security / Logging / i18n | `core/*/.gitkeep` 或目录占位 | 🔴 目录已预留，能力未实现 |
+| Storage / Security / Logging / i18n | `core/*/.gitkeep` 或目录占位 | � Storage 已接入 DataStore 1.1.1（T-30002 token 持久化）；其余能力未实现 |
 
 ## 三、 调试实现与领域接口
 
@@ -37,6 +38,7 @@
 
 ## 五、 仍待补全的关键能力
 
-- WS 长连接生命周期、心跳、重连、鉴权刷新与服务端广播消费。
-- 真正的埋点、崩溃上报、媒体与 IM Provider 适配器。
-- 本地缓存、安全存储、日志落盘、国际化与 RTL 行为的工程化实现。
+- ~~WS 长连接生命周期、心跳、重连~~ → 已由 T-30008（`OkHttpWebSocketClient`）完成，支持指数退避重连（1s→60s 上限）+ 30s 心跳保活 + `SharedFlow<String>` 消息流。
+- ~~鉴权刷新~~ → T-30003（JWT 拦截器）已自动添加 token，401 时跳转登录页。
+- 真正的埋点、崩溃上报、媒体与 IM Provider 适配器（当前仅 NoOp）。
+- 安全存储（KeyStore）、日志落盘、国际化与 RTL 行为的工程化实现。

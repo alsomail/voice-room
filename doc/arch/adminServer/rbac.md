@@ -86,7 +86,8 @@ pub enum Permission {
 
     // 房间管理
     RoomRead,       // 查询房间列表 / 详情
-    RoomWrite,      // 强制关闭房间
+    RoomWrite,      // 通用房间写入（预留，当前无端点使用）
+    RoomForceClose, // 强制关闭房间（DELETE /admin/rooms/:id）
 
     // 数据统计
     StatsRead,      // 查看统计概览
@@ -97,6 +98,7 @@ pub enum Permission {
 
     // 系统管理
     SystemAdmin,    // 系统级管理（仅 super_admin）
+    LogRead,        // 查看审计日志（GET /admin/logs）
 }
 ```
 
@@ -104,23 +106,25 @@ pub enum Permission {
 
 ## 四、RBAC 角色权限矩阵
 
-> 对应 `has_permission` 方法的 `match self.role.as_str()` 分支，与 `doc/protocol.md §3.3` 完全一致。
+> 对应 `has_permission` 方法的 `match self.role.as_str()` 分支，与 `doc/protocol/admin_api.md §4.3` 完全一致。
 
 | Permission | super_admin | operator | cs（客服） | finance |
 |-----------|:-----------:|:--------:|:---------:|:-------:|
 | `UserRead` | ✅ | ✅ | ✅ | ❌ |
 | `UserWrite` | ✅ | ✅ | ❌ | ❌ |
 | `RoomRead` | ✅ | ✅ | ✅ | ❌ |
-| `RoomWrite` | ✅ | ✅ | ✅ | ❌ |
+| `RoomWrite` | ✅ | ✅ | ❌ | ❌ |
+| `RoomForceClose` | ✅ | ✅ | ❌ | ❌ |
 | `StatsRead` | ✅ | ✅ | ❌ | ✅ |
 | `FinanceRead` | ✅ | ❌ | ❌ | ✅ |
 | `FinanceWrite` | ✅ | ❌ | ❌ | ✅ |
 | `SystemAdmin` | ✅ | ❌ | ❌ | ❌ |
+| `LogRead` | ✅ | ✅ | ❌ | ❌ |
 
 **矩阵说明：**
 - `super_admin`：`has_permission` 恒返回 `true`（全权）
-- `operator`：用户读写 + 房间读写 + 数据统计，无财务和系统权限
-- `cs`（客服）：用户只读（无 `UserWrite`）+ 房间读写，无统计/财务/系统权限
+- `operator`：用户读写 + 房间读写 + 强制关房 + 数据统计 + 日志读，无财务和系统权限
+- `cs`（客服）：用户只读 + 房间只读，无写入/统计/财务/系统权限
 - `finance`：统计读 + 财务读写，无用户/房间/系统管理权限
 - 未知角色：恒返回 `false`（fail-closed 安全策略）
 

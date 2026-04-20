@@ -1,9 +1,9 @@
 # Voice Room 开发任务清单
 
-> **版本**: v0.9  
-> **更新日期**: 2026-04-18  
-> **任务总数**: 61 个 (基建: 4, App Server: 16, Admin Server: 12, Web: 12, Android: 17)  
-> **当前阶段**: Phase 0 - MVP 基础设施
+> **版本**: v1.0  
+> **更新日期**: 2026-04-20  
+> **任务总数**: 72 个 (基建: 4, App Server: 16, Admin Server: 12, Web: 11, Android: 26, ~~原 Web 9~~)  
+> **当前阶段**: Phase 0.5 - 交互壳体与基础体验
 
 ---
 
@@ -18,6 +18,7 @@
 | **v0.5** | **04-18** | **TDS 文档重建：14 个模块1 TDS 按端拆分（server 5 + adminServer 3 + web 2 + android 4），protocol.md v0.2，ARCHITECTURE.md 双 Server 架构** |
 | **v0.6** | **04-18** | **负责人标记：有 TDS 的 14 个任务标为 TDD，其余 46 个标为 Plan；ARCHITECTURE.md §3 目录树修正（doc/arch, doc/tds, shared/ 简化, Web 目录去 WS/RTC/IM）** |
 | **v0.7** | **04-18** | **职责流转规则：新增 PM→Plan→TDD→Review→DoD 流转说明；模块0 新增 4 个 TDS（infra/T-0000A~T-0000D）；全部 18 个有 TDS 的任务标为 TDD，42 个标为 Plan** |
+| **v1.0** | **04-20** | **Phase 0.5 新增：产品文档重构为 doc/product/index.md + 子文件；新增 11 个 Task（Android 9 + Web 2）覆盖 Splash/主页三Tab/中东黑金主题/个人中心/房间视觉升级/解封弹窗/活水监控；创建 doc/design/android/ 和 doc/design/adminWeb/ 设计文档** |
 
 ---
 
@@ -47,10 +48,10 @@
 | 阶段 | 负责人标记 | 职责 | 完成后动作 |
 |------|-----------|------|-----------|
 | **PM** | `PM` | 创建 Task，定义需求、验收标准 | 将负责人改为 `Plan` |
-| **Plan** | `Plan` | 设计技术方案，输出 TDS 文档到 `doc/tds/[$端]/T-xxx.md` | 将负责人改为 `TDD`，在任务名称后补充 `[TDS]` 链接 |
-| **TDD** | `TDD` | 按 TDS 编写测试 → 实现代码 → 测试通过 | 将负责人改为 `Review`，更新 TDS 第四节【实现结果】 |
-| **Review** | `Review` | 按 TDS、protocol → review代码 → review通过/不通过 | 通过：将负责人改为 `Dod`，更新 TDS 第五节【Review意见】；不通过：将负责人改回 `TDD`，更新 TDS 第五节 |
-| **DoD** | `Dod` | 按照代码实现，更新`doc/arch/[$端]/`下的文档，并更新目录下的index.md文件 | 将状态改为 `Done` |
+| **Plan** | `Plan` | 设计技术方案，输出 TDS 文档到 `doc/tds/[$端]/T-xxx.md`, 完善`doc/architecture/`、`doc/protocol/`设计文件 | 将负责人改为 `TDD`，在任务名称后补充 `[TDS]` 链接 |
+| **TDD** | `TDD` | 按 TDS、protocol及`doc/design` 编写测试 → 实现代码 → 测试通过 | 将负责人改为 `Review`，更新 TDS 第四节【实现结果】 |
+| **Review** | `Review` | 按 TDS、protocol、design → review代码 → review通过/不通过 | 通过：将负责人改为 `Dod`，更新 TDS 第五节【Review意见】；不通过：将负责人改回 `TDD`，更新 TDS 第五节 |
+| **DoD** | `Dod` | 按照代码实现，更新`doc/arch/[$端]/`下的文档，并更新目录下的index.md文件，及`doc/product/index.md`的功能实现状态 | 将状态改为 `Done` |
 
 **规则**：
 1. 每个阶段的负责人只能由**上一阶段的负责人**修改为下一阶段
@@ -96,7 +97,7 @@
 |---------|--------|------|----------|----------|----------|-------------|------|----------|--------|
 | **T-10001** | Admin Server | Auth | 管理员表设计 [TDS](./tds/adminServer/T-10001.md) | T-00001 | 设计 `admins` 表（id, username, password_hash, role, created_at） | 1. username 唯一索引<br>2. password_hash 使用 bcrypt<br>3. role 字段（super_admin, operator, cs, finance） | ✅ Done | 2 | DoD |
 | **T-10002** | Admin Server | Auth | 管理员登录接口 [TDS](./tds/adminServer/T-10002.md) | T-10001 | POST `/api/v1/admin/login`，账号密码登录 | 1. 账号不存在/密码错误返回 401<br>2. 成功返回 JWT (有效期 7 天，含 admin_id, role)<br>3. 记录登录日志（IP、时间） | ✅ Done | 3 | DoD |
-| **T-10003** | Admin Server | Auth | 管理员 JWT 中间件 [TDS](./tds/adminServer/T-10003.md) | T-10002 | Axum 中间件 + RBAC 权限校验 | 1. 校验 JWT 有效性<br>2. 注入 admin_id 和 role<br>3. 根据 role 校验接口权限 | ✅ Done | 4 | DoD |
+| **T-10003** | Admin Server | Auth | 管理员 JWT 中间件 [TDS](./tds/adminServer/T-10003.md) | T-10002 | Axum 中间件 + RBAC 权限校验 | 1. 校验 JWT 有效性<br>2. 注入 admin_id 和 role<br>3. 根据 role 校验接口权限 | In Progress | 4 | TDD |
 
 #### Web 端 (后台管理前端)
 
@@ -132,8 +133,8 @@
 
 | Task ID | 归属端 | 模块 | 任务名称 | 前置依赖 | 核心描述 | TDD 验收标准 | 状态 | 预估工时 | 负责人 |
 |---------|--------|------|----------|----------|----------|-------------|------|----------|--------|
-| **T-10004** | Admin Server | Room | 房间列表接口（后台） | T-00006, T-10003 | GET `/api/v1/admin/rooms` | 1. 支持多条件筛选（房主/状态/时间）<br>2. 返回完整字段（含举报次数）<br>3. 支持导出 CSV | Done | 3h | DoD |
-| **T-10005** | Admin Server | Room | 房间详情接口（后台） | T-10004 | GET `/api/v1/admin/rooms/:id` | 1. 包含所有成员列表<br>2. 最近聊天记录<br>3. 举报记录 | Done | 3h | DoD |
+| **T-10004** | Admin Server | Room | 房间列表接口（后台） | T-00006, T-10003 | GET `/api/v1/admin/rooms` | 1. 支持多条件筛选（房主/状态/时间）<br>2. 返回完整字段（含举报次数）<br>3. 支持导出 CSV | ✅ Done | 3h | DoD |
+| **T-10005** | Admin Server | Room | 房间详情接口（后台） | T-10004 | GET `/api/v1/admin/rooms/:id` | 1. 包含所有成员列表<br>2. 最近聊天记录<br>3. 举报记录 | ✅ Done | 3h | DoD |
 | **T-10006** | Admin Server | Room | 强制关闭房间接口 [TDS](./tds/adminServer/T-10006.md) | T-10005 | DELETE `/api/v1/admin/rooms/:id` | 1. 需要 RoomForceClose 权限（operator/super_admin）<br>2. 不存在/软删除 → 404/40400<br>3. 已 closed → 409/40901<br>4. 无 owner 检查 | ✅ Done | 4h | DoD |
 
 #### Web 端
@@ -208,4 +209,72 @@
 | **T-30015** [TDS](./tds/android/T-30015.md) | Android | Chat | 输入框组件 | T-30014 | TextField + 发送按钮 | 1. 软键盘弹出布局调整<br>2. 回车发送<br>3. 空消息禁用发送 | ✅ Done | 3h | DoD |
 | **T-30016** [TDS](./tds/android/T-30016.md) | Android | Chat | 发送消息逻辑 | T-00016, T-30015 | 发送 SendMessage | 1. 发送中禁用<br>2. 成功清空输入<br>3. 失败重试 | ✅ Done | 3h | DoD |
 | **T-30017** [TDS](./tds/android/T-30017.md) | Android | Chat | 接收消息逻辑 | T-00016, T-30014 | 监听服务端消息 | 1. 实时追加到列表<br>2. 去重（msg_id）<br>3. 自动滚动 | ✅ Done | 3h | DoD |
+
+---
+
+## Phase 0.5: 交互壳体与基础体验
+
+> **说明**：Phase 0 的代码已全部完成，但 Android App 仍停留在 Auth Bootstrap 调试页面，缺少完整的用户交互壳。Phase 0.5 聚焦于让 App "能看能用"：中东黑金视觉主题、Splash 启动页、主页三Tab框架、个人中心，以及对已有页面的视觉升级。Web 端补充解封确认弹窗和活水房间监控。  
+> **产品设计规范**: 详见 [doc/product/android_app_design.md](./product/android_app_design.md)
+
+### 模块 4: 中东黑金主题与 App 壳体 (MENA Theme & App Shell)
+
+#### Android 端
+
+| Task ID | 归属端 | 模块 | 任务名称 | 前置依赖 | 核心描述 | TDD 验收标准 | 状态 | 预估工时 | 负责人 | UI设计文档 |
+|---------|--------|------|----------|----------|----------|-------------|------|----------|--------|------------|
+| **T-30018** | Android | Theme | MenaTheme 中东黑金主题系统 | 无 | 封装 Material3 黑金主题（Colors/Typography/Shapes）+ RTL Provider + GoldButton / GoldOutlinedTextField / AvatarWithFrame 通用组件 | 1. `MenaTheme {}` 内自动黑金色系<br>2. GoldButton 金色渐变+白字+24dp圆角<br>3. RTL 自动生效 | Todo | 6h | Plan | [T-30018.md](./design/android/T-30018.md) |
+| **T-30019** | Android | Splash | Splash 启动页 | T-30018 | 品牌 Splash 页：Logo 缩放动画 → JWT 检测 → 自动导航到 MainScreen 或 LoginScreen | 1. Logo 缩放+淡入动画 800ms<br>2. 有效 JWT → MainScreen<br>3. 无效 JWT → LoginScreen<br>4. 返回键不可回退到 Splash | Todo | 4h | Plan | [T-30019.md](./design/android/T-30019.md) |
+| **T-30020** | Android | Navigation | MainScreen 底部三Tab框架 | T-30018, T-30019 | BottomNavigation 三Tab（房间/消息/我的），Tab切换保持状态 | 1. 默认显示房间Tab<br>2. 三Tab可切换，选中项金色<br>3. Tab切换保持各页面状态 | Todo | 5h | Plan | [T-30020.md](./design/android/T-30020.md) |
+| **T-30021** | Android | Auth | 登录页视觉升级 | T-30018 | 将现有 LoginScreen 从白色主题改造为黑金风格：渐变背景 + GoldOutlinedTextField + GoldButton。功能逻辑不变 | 1. 深色渐变背景<br>2. 所有输入框用 GoldOutlinedTextField<br>3. 按钮用 GoldButton<br>4. **现有功能测试不回归** | Todo | 3h | Plan | [T-30021.md](./design/android/T-30021.md) |
+| **T-30022** | Android | Room | 大厅页视觉升级 | T-30018, T-30020 | 将 HallScreen 改造为黑金风格：深色RoomCard + OnlineCountBadge + 顶部栏 + 分类横滑(占位)。Paging3 逻辑不变 | 1. RoomCard 深色底+圆角16dp<br>2. OnlineCountBadge 绿点+数字<br>3. 创建房间 FAB 金色<br>4. **Paging3不回归** | Todo | 5h | Plan | [T-30022.md](./design/android/T-30022.md) |
+| **T-30023** | Android | Messages | 消息Tab占位页 | T-30018, T-30020 | IM 功能占位页：PlaceholderScreen 通用组件 + "消息功能即将上线" | 1. 消息Tab显示占位页<br>2. PlaceholderScreen 可复用<br>3. 深色背景 | Todo | 2h | Plan | [T-30023.md](./design/android/T-30023.md) |
+| **T-30024** | Android | Profile | 个人中心页 | T-30018, T-30020, T-30004 | "我的"Tab 页面：头像(AvatarWithFrame)+昵称+ID+余额+设置入口+退出登录(二次确认) | 1. 显示用户头像/昵称/ID/余额<br>2. 复制ID到剪贴板<br>3. 退出登录二次确认→清JWT→LoginScreen<br>4. 网络异常用本地缓存 | Todo | 6h | Plan | [T-30024.md](./design/android/T-30024.md) |
+| **T-30025** | Android | Room | 房间页视觉升级 | T-30018 | 将 RoomScreen 改造为黑金风格：主麦突出(80dp金色光圈) + 副麦4列 + 弹幕金色昵称 + 深色背景。WS/上下麦逻辑不变 | 1. 主麦80dp+金色光圈<br>2. 副麦60dp四列<br>3. 空麦位虚线+"+"<br>4. 系统消息金黄色居中<br>5. **WS/上下麦不回归** | Todo | 6h | Plan | [T-30025.md](./design/android/T-30025.md) |
+| **T-30026** | Android | Room | 房间底部操作栏升级 | T-30018, T-30025 | 底部操作栏扩展：输入框 + 🎤麦克风开关 + 🎁礼物(灰禁) + ❤️表情(灰禁) + 🚪退出(二次确认) | 1. 4个功能按钮可见<br>2. 🎤不在麦上时禁用<br>3. 🎤在麦上时绿/红切换<br>4. 🎁❤️灰色禁用+Toast<br>5. 🚪二次确认退出 | Todo | 5h | Plan | [T-30026.md](./design/android/T-30026.md) |
+
+---
+
+### 模块 5: Web 管理端增强 (Admin Web Enhancements)
+
+#### Web 端
+
+| Task ID | 归属端 | 模块 | 任务名称 | 前置依赖 | 核心描述 | TDD 验收标准 | 状态 | 预估工时 | 负责人 | UI设计文档 |
+|---------|--------|------|----------|----------|----------|-------------|------|----------|--------|------------|
+| **T-20010** | Web | User | 解封用户确认弹窗 | T-20007, T-10009 | UnbanModal 组件：解封原因+备注+二次确认+API调用。与 BanModal 对称 | 1. 封禁用户 [解封] 弹出 UnbanModal<br>2. 原因必填<br>3. 成功后状态变"正常"<br>4. isConfirming 防重复 | Todo | 3h | Plan | [T-20010.md](./design/adminWeb/T-20010.md) |
+| **T-20011** | Web | Room | 活水房间监控增强 | T-20004 | 房间列表增加"活跃状态"Tag(活跃/冷清/异常) + "持续时长"列 + 活跃度筛选条件 | 1. 新增活跃状态+持续时长两列<br>2. Tag颜色根据规则渲染<br>3. 活跃度筛选可过滤<br>4. 异常房间行高亮<br>5. **现有功能不回归** | Todo | 4h | Plan | [T-20011.md](./design/adminWeb/T-20011.md) |
+
+---
+
+## Phase 0.5: 交互壳体与基础体验
+
+> **说明**：Phase 0 的代码已全部完成，但 Android App 仍停留在 Auth Bootstrap 调试页面，缺少完整的用户交互壳。Phase 0.5 聚焦于让 App "能看能用"：中东黑金视觉主题、Splash 启动页、主页三Tab框架、个人中心，以及对已有页面的视觉升级。Web 端补充解封确认弹窗和活水房间监控。  
+> **产品设计规范**: 详见 [doc/product/android_app_design.md](./product/android_app_design.md)
+
+### 模块 4: 中东黑金主题与 App 壳体 (MENA Theme & App Shell)
+
+#### Android 端
+
+| Task ID | 归属端 | 模块 | 任务名称 | 前置依赖 | 核心描述 | TDD 验收标准 | 状态 | 预估工时 | 负责人 | UI设计文档 |
+|---------|--------|------|----------|----------|----------|-------------|------|----------|--------|------------|
+| **T-30018** | Android | Theme | MenaTheme 中东黑金主题系统 | 无 | 封装 Material3 黑金主题（Colors/Typography/Shapes）+ RTL Provider + GoldButton / GoldOutlinedTextField / AvatarWithFrame 通用组件 | 1. `MenaTheme {}` 内自动黑金色系<br>2. GoldButton 金色渐变+白字+24dp圆角<br>3. RTL 自动生效 | Todo | 6h | Plan | [T-30018.md](./design/android/T-30018.md) |
+| **T-30019** | Android | Splash | Splash 启动页 | T-30018 | 品牌 Splash 页：Logo 缩放动画 → JWT 检测 → 自动导航到 MainScreen 或 LoginScreen | 1. Logo 缩放+淡入动画 800ms<br>2. 有效 JWT → MainScreen<br>3. 无效 JWT → LoginScreen<br>4. 返回键不可回退到 Splash | Todo | 4h | Plan | [T-30019.md](./design/android/T-30019.md) |
+| **T-30020** | Android | Navigation | MainScreen 底部三Tab框架 | T-30018, T-30019 | BottomNavigation 三Tab（房间/消息/我的），Tab切换保持状态 | 1. 默认显示房间Tab<br>2. 三Tab可切换，选中项金色<br>3. Tab切换保持各页面状态 | Todo | 5h | Plan | [T-30020.md](./design/android/T-30020.md) |
+| **T-30021** | Android | Auth | 登录页视觉升级 | T-30018 | 将现有 LoginScreen 从白色主题改造为黑金风格：渐变背景 + GoldOutlinedTextField + GoldButton。功能逻辑不变 | 1. 深色渐变背景<br>2. 所有输入框用 GoldOutlinedTextField<br>3. 按钮用 GoldButton<br>4. **现有功能测试不回归** | Todo | 3h | Plan | [T-30021.md](./design/android/T-30021.md) |
+| **T-30022** | Android | Room | 大厅页视觉升级 | T-30018, T-30020 | 将 HallScreen 改造为黑金风格：深色RoomCard + OnlineCountBadge + 顶部栏 + 分类横滑(占位)。Paging3 逻辑不变 | 1. RoomCard 深色底+圆角16dp<br>2. OnlineCountBadge 绿点+数字<br>3. 创建房间 FAB 金色<br>4. **Paging3不回归** | Todo | 5h | Plan | [T-30022.md](./design/android/T-30022.md) |
+| **T-30023** | Android | Messages | 消息Tab占位页 | T-30018, T-30020 | IM 功能占位页：PlaceholderScreen 通用组件 + "消息功能即将上线" | 1. 消息Tab显示占位页<br>2. PlaceholderScreen 可复用<br>3. 深色背景 | Todo | 2h | Plan | [T-30023.md](./design/android/T-30023.md) |
+| **T-30024** | Android | Profile | 个人中心页 | T-30018, T-30020, T-30004 | "我的"Tab 页面：头像(AvatarWithFrame)+昵称+ID+余额+设置入口+退出登录(二次确认) | 1. 显示用户头像/昵称/ID/余额<br>2. 复制ID到剪贴板<br>3. 退出登录二次确认→清JWT→LoginScreen<br>4. 网络异常用本地缓存 | Todo | 6h | Plan | [T-30024.md](./design/android/T-30024.md) |
+| **T-30025** | Android | Room | 房间页视觉升级 | T-30018 | 将 RoomScreen 改造为黑金风格：主麦突出(80dp金色光圈) + 副麦4列 + 弹幕金色昵称 + 深色背景。WS/上下麦逻辑不变 | 1. 主麦80dp+金色光圈<br>2. 副麦60dp四列<br>3. 空麦位虚线+"+"<br>4. 系统消息金黄色居中<br>5. **WS/上下麦不回归** | Todo | 6h | Plan | [T-30025.md](./design/android/T-30025.md) |
+| **T-30026** | Android | Room | 房间底部操作栏升级 | T-30018, T-30025 | 底部操作栏扩展：输入框 + 🎤麦克风开关 + 🎁礼物(灰禁) + ❤️表情(灰禁) + 🚪退出(二次确认) | 1. 4个功能按钮可见<br>2. 🎤不在麦上时禁用<br>3. 🎤在麦上时绿/红切换<br>4. 🎁❤️灰色禁用+Toast<br>5. 🚪二次确认退出 | Todo | 5h | Plan | [T-30026.md](./design/android/T-30026.md) |
+
+---
+
+### 模块 5: Web 管理端增强 (Admin Web Enhancements)
+
+#### Web 端
+
+| Task ID | 归属端 | 模块 | 任务名称 | 前置依赖 | 核心描述 | TDD 验收标准 | 状态 | 预估工时 | 负责人 | UI设计文档 |
+|---------|--------|------|----------|----------|----------|-------------|------|----------|--------|------------|
+| **T-20010** | Web | User | 解封用户确认弹窗 | T-20007, T-10009 | UnbanModal 组件：解封原因+备注+二次确认+API调用。与 BanModal 对称 | 1. 封禁用户 [解封] 弹出 UnbanModal<br>2. 原因必填<br>3. 成功后状态变"正常"<br>4. isConfirming 防重复 | Todo | 3h | Plan | [T-20010.md](./design/adminWeb/T-20010.md) |
+| **T-20011** | Web | Room | 活水房间监控增强 | T-20004 | 房间列表增加"活跃状态"Tag(活跃/冷清/异常) + "持续时长"列 + 活跃度筛选条件 | 1. 新增活跃状态+持续时长两列<br>2. Tag颜色根据规则渲染<br>3. 活跃度筛选可过滤<br>4. 异常房间行高亮<br>5. **现有功能不回归** | Todo | 4h | Plan | [T-20011.md](./design/adminWeb/T-20011.md) |
 

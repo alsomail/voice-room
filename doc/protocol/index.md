@@ -1,0 +1,44 @@
+# API 协议文档索引
+
+> **原始文件**: `doc/protocol.md`（已拆分为本目录下的子文件）
+> **版本**: v0.9
+> **拆分日期**: 2026-04-20
+> **维护约束**: 新增/修改接口时必须同步更新对应子文件；前后端联调前必须以本目录文档为唯一契约源。
+
+---
+
+## 📑 子文件索引
+
+| # | 文件 | 内容概要 | 原章节 |
+|---|------|---------|--------|
+| 0 | [conventions.md](conventions.md) | 基础地址、请求头、统一响应、错误码、分页、幂等策略 | §一 |
+| 1 | [auth_api.md](auth_api.md) | 验证码发送、手机号登录、获取用户信息 | §二 |
+| 2 | [room_api.md](room_api.md) | 创建房间、房间列表、房间详情、关闭房间 | §三 |
+| 3 | [admin_api.md](admin_api.md) | Admin 登录、RBAC 权限矩阵、Admin 房间管理 | §四 |
+| 4 | [rtc_api.md](rtc_api.md) | RTC Token 签发（预留） | §五 |
+| 5 | [websocket_signals.md](websocket_signals.md) | WebSocket 信令格式（预留） | §六 |
+| 6 | [data_models.md](data_models.md) | users 表、Redis 验证码存储、admins 表、admin_logs 表 | §七 |
+| 7 | [providers.md](providers.md) | SMS Provider、RTC Provider 配置模型 | §八 |
+
+---
+
+## 🔗 关联文档
+
+- **系统架构**: [doc/architecture/index.md](../architecture/index.md)
+- **产品需求**: [doc/product/index.md](../product/index.md)
+- **任务看板**: [doc/Tasks.md](../Tasks.md)
+- **各端实现架构**: `doc/arch/{server,adminServer,android,web}/index.md`
+
+---
+
+## 📝 文档变更历史
+
+- 2026-04-17: 初始版本，定义模块1认证契约 + RTC/WS 预留
+- 2026-04-17: v0.2 — 删除 register 端点改为一步登录；验证码存储从 PG 改 Redis；新增 Admin Server 认证契约（§四）；新增 admins/admin_logs 表；users 表增加 coin_balance/vip_level
+- 2026-04-19: v0.4 — 新增 §三 3.2 `GET /api/v1/rooms` 接口定义
+- 2026-04-20: v0.5 — 新增 §3.3 获取房间详情（T-00009）
+- 2026-04-21: v0.6 — 新增 §3.4 关闭房间（T-00010），新增错误码 40301/40901
+- 2026-04-22: v0.7 — 新增 §4.4 Admin 房间列表接口（T-10004）
+- 2026-04-23: v0.8 — 新增 §4.5 Admin 房间详情接口（T-10005）
+- 2026-04-24: v0.9 — 新增 §4.6 Admin 强制关闭房间（T-10006）
+- 2026-04-20: 拆分为子文件结构

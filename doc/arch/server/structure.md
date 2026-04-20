@@ -23,7 +23,24 @@
 | `app/server/src/modules/auth/service.rs` | `AuthService`（send_code / login / get_me）+ 内联单元测试 | 🟢 已落地 |
 | `app/server/src/modules/auth/dto.rs` | `SendCodeRequest/Response`、`LoginRequest/Response`、`UserResponse` | 🟢 已落地 |
 | `app/server/src/modules/auth/repository.rs` | `UserRepository` trait + `PgUserRepository`（SQLx）+ `FakeUserRepository`（测试） | 🟢 已落地 |
-| `app/server/src/lib.rs` | 暴露模块并包含 `/ping` 及 Auth 路由集成测试 | 🟢 已落地 |
+| `app/server/src/modules/room/routes.rs` | `room_routes()` 注册房间 CRUD 路由（T-00007~T-00010） | 🟢 已落地 |
+| `app/server/src/modules/room/controller.rs` | 创建/列表/详情/关闭房间 handler | 🟢 已落地 |
+| `app/server/src/modules/room/service.rs` | `RoomService`（创建/列表/详情/关闭）+ 单元测试 | 🟢 已落地 |
+| `app/server/src/modules/room/repository.rs` | `RoomRepository` trait + `PgRoomRepository` + `FakeRoomRepository` | 🟢 已落地 |
+| `app/server/src/ws/handler.rs` | WS 握手 + JWT 鉴权（T-00011） | 🟢 已落地 |
+| `app/server/src/ws/registry.rs` | `ConnectionRegistry`（DashMap 连接注册表） | 🟢 已落地 |
+| `app/server/src/ws/heartbeat.rs` | 心跳检测 task（10s 扫描，30s 超时） | 🟢 已落地 |
+| `app/server/src/ws/connection.rs` | 单连接生命周期 + 信令路由 | 🟢 已落地 |
+| `app/server/src/events/admin_event.rs` | `AdminEvent` enum（BanUser/CloseRoom/BroadcastNotice，T-00011B） | 🟢 已落地 |
+| `app/server/src/events/handler.rs` | 三路事件处理（ban/close/broadcast） | 🟢 已落地 |
+| `app/server/src/events/subscriber.rs` | Redis Pub/Sub 订阅者 + 自动重连 | 🟢 已落地 |
+| `app/server/src/stats/service.rs` | `StatsPort` trait + `StatsService`（Redis HLL/Set，T-00011C） | 🟢 已落地 |
+| `app/server/src/stats/snapshot_task.rs` | 定时快照 task（60s 间隔 + 优雅停机） | 🟢 已落地 |
+| `app/server/src/room/manager.rs` | `RoomManager`（DashMap 房间运行时状态管理，T-00012） | 🟢 已落地 |
+| `app/server/src/room/state.rs` | `RoomState`（成员表 + 麦位 + banned_mics + muted_users + msg_id 去重） | 🟢 已落地 |
+| `app/server/src/room/handler.rs` | 进/退房 + 上/下麦 + 文本消息 handler（T-00012~T-00016） | 🟢 已落地 |
+| `app/server/src/room/filter.rs` | 敏感词过滤（T-00016） | 🟢 已落地 |
+| `app/server/src/lib.rs` | 暴露模块并包含 `/ping` 及 Auth/Room 路由集成测试 | 🟢 已落地 |
 
 ## 二、 当前启动流程
 
@@ -58,8 +75,7 @@
   - Redis `verify_and_consume` 原子性（同一 OTP 仅可消费一次）
   - Redis `revoke_code` 清除 code + cooldown、保留 daily count
   - `AppError` HTTP 状态码与业务错误码映射
-- **当前通过测试数：39 个，`cargo clippy -- -D warnings` 零警告**
+- **当前通过测试数：196 个，`cargo clippy -- -D warnings` 零警告**
 
 ## 五、 结论
-Server 端 Auth 业务域（T-00002 ～ T-00005）已全部落地，具备完整的短信验证码、登录、鉴权与用户信息能力。下一步应优先展开房间业务域与 WebSocket 网关。
-当前 Server 端更接近“可运行的生产骨架”，还不是“可支撑业务的领域服务”。后续应优先补上鉴权、模块边界、数据库访问与 WS 广播模型。
+Server 端 Auth 业务域（T-00002 ~ T-00005）、Room 业务域（T-00006 ~ T-00010、T-00012 ~ T-00016）、WebSocket 网关（T-00011、T-00011B、T-00011C）已全部落地，具备完整的鉴权、房间 CRUD、实时通信与在线统计能力。下一步应优先展开支付业务域。

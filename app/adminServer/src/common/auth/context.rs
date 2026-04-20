@@ -50,7 +50,7 @@ impl AdminAuthContext {
     /// |---------|---------|---------|---------|---------|---------|
     /// | super_admin | 读写 | 读写 | ✅ | ✅ | ✅ |
     /// | operator    | 读写 | 读写 | ✅ | ❌ | ❌ |
-    /// | cs          | 只读 | 读写 | ❌ | ❌ | ❌ |
+    /// | cs          | 只读 | 只读 | ❌ | ❌ | ❌ |
     /// | finance     |  ❌  |  ❌  | ✅ | ✅ | ❌ |
     pub fn has_permission(&self, permission: Permission) -> bool {
         match self.role.as_str() {
@@ -67,7 +67,7 @@ impl AdminAuthContext {
             ),
             "cs" => matches!(
                 permission,
-                Permission::UserRead | Permission::RoomRead | Permission::RoomWrite
+                Permission::UserRead | Permission::RoomRead
             ),
             "finance" => matches!(
                 permission,
@@ -151,14 +151,13 @@ mod tests {
 
     // ── cs ──────────────────────────────────────────────────────────────────
 
-    /// T-10003-R05: cs 只有用户只读 + 房间读写权限
+    /// T-10003-R05: cs 只有用户只读 + 房间只读权限
     #[test]
-    fn cs_has_user_read_and_room_permissions() {
+    fn cs_has_user_read_and_room_read_permissions() {
         let c = ctx("cs");
         for p in [
             Permission::UserRead,
             Permission::RoomRead,
-            Permission::RoomWrite,
         ] {
             assert!(c.has_permission(p), "cs should have permission {p:?}");
         }
@@ -171,11 +170,12 @@ mod tests {
         assert!(!c.has_permission(Permission::UserWrite));
     }
 
-    /// T-10003-R07: cs 无统计/财务/系统权限
+    /// T-10003-R07: cs 无房间写入/统计/财务/系统权限
     #[test]
-    fn cs_lacks_stats_finance_system() {
+    fn cs_lacks_room_write_stats_finance_system() {
         let c = ctx("cs");
         for p in [
+            Permission::RoomWrite,
             Permission::StatsRead,
             Permission::FinanceRead,
             Permission::FinanceWrite,

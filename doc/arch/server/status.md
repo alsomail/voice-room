@@ -44,13 +44,16 @@
 
 | 能力 | 当前状态 | 说明 |
 | --- | --- | --- |
-| WebSocket 网关 | 🔴 未开始 | 尚无 WS 路由、状态机、广播或回补 |
 | 房间业务域 — 数据层（`rooms` 表） | 🟢 已完成 | T-00006：`002_create_rooms.sql` DDL + `RoomModel` struct，详见 [database.md](./database.md) |
-| 房间业务域 — HTTP 接口 | 🔴 未开始 | T-00007（创建）、T-00008（列表）、T-00009（详情）、T-00010（关闭）待启动 |
+| 房间业务域 — HTTP 接口 | 🟢 已完成 | T-00007（创建）、T-00008（列表）、T-00009（详情）、T-00010（关闭）全部落地 |
+| WebSocket 网关 | 🟢 已完成 | T-00011（连接管理）、T-00011B（Redis 事件订阅）、T-00011C（在线统计），详见 [websocket.md](./websocket.md) |
+| 房间运行时（WS 信令） | 🟢 已完成 | T-00012（进入）、T-00013（离开）、T-00014（上麦）、T-00015（下麦）、T-00016（文本消息），详见 [room_runtime.md](./room_runtime.md) |
+| Admin 房间管理接口 | 🟢 已完成 | T-10004（列表）、T-10005（详情）、T-10006（强制关闭） |
 | 支付业务域 | 🔴 未开始 | coin_balance 已预留字段，业务逻辑未开始 |
 
 ## 三、 文档维护约束
 
-- 当新增 HTTP/WS 契约时，应同步补齐 `doc/protocol.md` 或对应协议文档。
+- 当新增 HTTP/WS 契约时，应同步补齐 `doc/protocol/` 目录下对应子文件。
 - 当 `modules/` 下新增业务域时，需在 `doc/arch/server/` 下为其创建对应子文档，并更新 `index.md` 索引。
 - 当数据库与事务接入后，需要在本目录同步补充"事务边界"和"幂等策略"说明。
+- **当前通过测试数**：App Server 196 个 + Admin Server 74 个，`cargo clippy -- -D warnings` 零警告。

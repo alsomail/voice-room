@@ -10,7 +10,7 @@
 # Android 端架构总索引与状态盘点
 
 ## 一、 架构概述
-本项目 Android 端当前采用 Kotlin + 分层骨架（`core / common / data / domain / presentation / feature`）推进建设，`ViewModel + MainUiState` 已在壳层页面落地，完整业务级状态管理仍在后续演进中。详情参见全局 `/doc/ARCHITECTURE.md` 的第 5 节。
+本项目 Android 端当前采用 Kotlin + 分层骨架（`core / common / data / domain / presentation / feature`）推进建设，`ViewModel + MainUiState` 已在壳层页面落地，完整业务级状态管理仍在后续演进中。详情参见 `doc/architecture/android_architecture.md`。
 
 ## 二、 子模块索引 (Module Router)
 > ⚠️ AI 寻路提示：请点击以下具体模块查看详细架构说明、API 映射和代码存放路径。
