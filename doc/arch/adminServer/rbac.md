@@ -210,9 +210,9 @@ pub fn extract_admin_auth_context(
 | T-10003-R02 | `operator_has_user_room_stats_permissions` | operator 持有用户/房间/统计 5 项权限 |
 | T-10003-R03 | `operator_lacks_finance_permissions` | operator 无 FinanceRead/FinanceWrite |
 | T-10003-R04 | `operator_lacks_system_admin` | operator 无 SystemAdmin |
-| T-10003-R05 | `cs_has_user_read_and_room_permissions` | cs 持有 UserRead + RoomRead + RoomWrite |
+| T-10003-R05 | `cs_has_user_read_and_room_read_permissions` | cs 持有 UserRead + RoomRead |
 | T-10003-R06 | `cs_lacks_user_write` | cs 无 UserWrite（不能封禁） |
-| T-10003-R07 | `cs_lacks_stats_finance_system` | cs 无统计/财务/系统 4 项权限 |
+| T-10003-R07 | `cs_lacks_room_write_stats_finance_system` | cs 无 RoomWrite/统计/财务/系统 5 项权限 |
 | T-10003-R08 | `finance_has_stats_and_finance_permissions` | finance 持有 StatsRead + 财务读写 |
 | T-10003-R09 | `finance_lacks_user_room_system_permissions` | finance 无用户/房间/系统 5 项权限 |
 | T-10003-R10 | `unknown_role_has_no_permissions` | 未知角色无任何权限 |

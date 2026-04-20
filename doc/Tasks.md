@@ -97,7 +97,7 @@
 |---------|--------|------|----------|----------|----------|-------------|------|----------|--------|
 | **T-10001** | Admin Server | Auth | 管理员表设计 [TDS](./tds/adminServer/T-10001.md) | T-00001 | 设计 `admins` 表（id, username, password_hash, role, created_at） | 1. username 唯一索引<br>2. password_hash 使用 bcrypt<br>3. role 字段（super_admin, operator, cs, finance） | ✅ Done | 2 | DoD |
 | **T-10002** | Admin Server | Auth | 管理员登录接口 [TDS](./tds/adminServer/T-10002.md) | T-10001 | POST `/api/v1/admin/login`，账号密码登录 | 1. 账号不存在/密码错误返回 401<br>2. 成功返回 JWT (有效期 7 天，含 admin_id, role)<br>3. 记录登录日志（IP、时间） | ✅ Done | 3 | DoD |
-| **T-10003** | Admin Server | Auth | 管理员 JWT 中间件 [TDS](./tds/adminServer/T-10003.md) | T-10002 | Axum 中间件 + RBAC 权限校验 | 1. 校验 JWT 有效性<br>2. 注入 admin_id 和 role<br>3. 根据 role 校验接口权限 | In Progress | 4 | TDD |
+| **T-10003** | Admin Server | Auth | 管理员 JWT 中间件 [TDS](./tds/adminServer/T-10003.md) | T-10002 | Axum 中间件 + RBAC 权限校验 | 1. 校验 JWT 有效性<br>2. 注入 admin_id 和 role<br>3. 根据 role 校验接口权限 | In Progress | 4 | DoD |
 
 #### Web 端 (后台管理前端)
 
