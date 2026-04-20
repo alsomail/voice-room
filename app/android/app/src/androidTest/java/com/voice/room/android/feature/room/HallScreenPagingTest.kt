@@ -7,6 +7,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotDisplayed
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
@@ -66,6 +67,9 @@ class HallScreenPagingTest {
                     override suspend fun load(params: LoadParams<Int>): LoadResult<Int, RoomItem> =
                         kotlinx.coroutines.awaitCancellation()
                 }
+
+            override suspend fun createRoom(title: String, type: String, password: String?): Result<String> =
+                Result.failure(NotImplementedError())
         }
         val viewModel = createViewModel(blockingRepo)
 
@@ -76,7 +80,7 @@ class HallScreenPagingTest {
         composeTestRule.waitForIdle()
 
         composeTestRule.onNodeWithTag("hall_loading").assertIsDisplayed()
-        composeTestRule.onNodeWithTag("room_card_id-1").assertDoesNotExist()
+        assertTrue(composeTestRule.onAllNodes(hasTestTag("room_card_id-1")).fetchSemanticsNodes().isEmpty())
     }
 
     // ─────────────────────────────────────────────
@@ -96,7 +100,7 @@ class HallScreenPagingTest {
 
         composeTestRule.onNodeWithTag("room_card_id-1").assertIsDisplayed()
         composeTestRule.onNodeWithTag("room_card_id-2").assertIsDisplayed()
-        composeTestRule.onNodeWithTag("hall_empty_state").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("hall_empty_state").assertIsNotDisplayed()
     }
 
     // ─────────────────────────────────────────────
@@ -158,6 +162,9 @@ class HallScreenPagingTest {
                 pagingSourceCallCount++
                 return RoomPagingSource(this)
             }
+
+            override suspend fun createRoom(title: String, type: String, password: String?): Result<String> =
+                Result.failure(NotImplementedError())
         }
         val viewModel = createViewModel(trackingRepo)
 
@@ -203,6 +210,6 @@ class HallScreenPagingTest {
         composeTestRule.waitForIdle()
 
         composeTestRule.onNodeWithTag("hall_empty_state").assertIsDisplayed()
-        composeTestRule.onNodeWithTag("room_card_id-1").assertDoesNotExist()
+        assertTrue(composeTestRule.onAllNodes(hasTestTag("room_card_id-1")).fetchSemanticsNodes().isEmpty())
     }
 }

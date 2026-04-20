@@ -1,8 +1,8 @@
 package com.voice.room.android.feature.room
 
 import androidx.activity.ComponentActivity
-import androidx.compose.ui.test.assertDoesNotExist
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -17,6 +17,7 @@ import com.voice.room.android.domain.room.IRoomRepository
 import com.voice.room.android.domain.room.RoomItem
 import com.voice.room.android.domain.room.RoomsPage
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -95,7 +96,9 @@ class HallScreenTest {
 
         composeTestRule.onNodeWithTag("hall_empty_state").assertIsDisplayed()
         // No room cards visible
-        composeTestRule.onNodeWithTag("room_card_id-1").assertDoesNotExist()
+        assertTrue(
+            composeTestRule.onAllNodes(hasTestTag("room_card_id-1")).fetchSemanticsNodes().isEmpty()
+        )
     }
 
     // ─────────────────────────────────────────────
@@ -117,6 +120,9 @@ class HallScreenTest {
                     ): PagingSource.LoadResult<Int, RoomItem> =
                         kotlinx.coroutines.awaitCancellation()
                 }
+
+            override suspend fun createRoom(title: String, type: String, password: String?): Result<String> =
+                Result.failure(NotImplementedError())
         }
         val viewModel = createViewModel(blockingRepo)
 
@@ -128,7 +134,9 @@ class HallScreenTest {
 
         composeTestRule.onNodeWithTag("hall_loading").assertIsDisplayed()
         // No room cards visible
-        composeTestRule.onNodeWithTag("room_card_id-1").assertDoesNotExist()
+        assertTrue(
+            composeTestRule.onAllNodes(hasTestTag("room_card_id-1")).fetchSemanticsNodes().isEmpty()
+        )
     }
 
     // ─────────────────────────────────────────────
