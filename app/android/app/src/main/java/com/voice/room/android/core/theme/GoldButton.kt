@@ -14,9 +14,14 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.role
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+
+/**
+ * 金色渐变画笔 — 编译期常量色值，无需每次重组重建（MEDIUM-01 修复）
+ */
+private val GoldGradientBrush = Brush.horizontalGradient(
+    colors = listOf(MenaColors.Primary, MenaColors.PrimaryBright)
+)
 
 /**
  * GoldButton — 金色渐变胶囊按钮
@@ -38,26 +43,17 @@ fun GoldButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
 ) {
-    val gradientBrush = Brush.horizontalGradient(
-        colors = listOf(MenaColors.Primary, MenaColors.PrimaryBright)
-    )
-
     val shape = RoundedCornerShape(24.dp)
 
     Box(
         modifier = modifier
-            .semantics {
-                role = Role.Button
-            }
             .alpha(if (enabled) 1f else 0.38f)
             .clip(shape)
-            .background(brush = gradientBrush, shape = shape)
-            .then(
-                if (enabled) {
-                    Modifier.clickable(onClick = onClick)
-                } else {
-                    Modifier
-                }
+            .background(brush = GoldGradientBrush, shape = shape)
+            .clickable(
+                enabled = enabled,
+                onClick = onClick,
+                role = Role.Button,
             )
             .padding(horizontal = 24.dp, vertical = 12.dp),
         contentAlignment = Alignment.Center,

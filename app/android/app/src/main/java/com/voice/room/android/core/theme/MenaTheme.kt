@@ -1,5 +1,7 @@
 package com.voice.room.android.core.theme
 
+import android.text.TextUtils
+import android.view.View
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
@@ -38,7 +40,9 @@ fun MenaTheme(
     // 根据当前 Locale 决定布局方向
     val configuration = LocalConfiguration.current
     val locale = configuration.locales.get(0) ?: Locale.getDefault()
-    val layoutDirection = if (isRtlLocale(locale)) {
+    val layoutDirection = if (
+        TextUtils.getLayoutDirectionFromLocale(locale) == View.LAYOUT_DIRECTION_RTL
+    ) {
         LayoutDirection.Rtl
     } else {
         LayoutDirection.Ltr
@@ -52,13 +56,4 @@ fun MenaTheme(
             content = content,
         )
     }
-}
-
-/**
- * 判断给定 Locale 是否为 RTL 语言
- */
-private fun isRtlLocale(locale: Locale): Boolean {
-    val directionality = Character.getDirectionality(locale.displayName.firstOrNull() ?: return false)
-    return directionality == Character.DIRECTIONALITY_RIGHT_TO_LEFT ||
-            directionality == Character.DIRECTIONALITY_RIGHT_TO_LEFT_ARABIC
 }
