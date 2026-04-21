@@ -24,6 +24,11 @@ use crate::{
         controller::{ban_user_handler, get_user_handler, list_users_handler},
         AdminUserRepository, AdminUserService,
     },
+    modules::wallet::{
+        handler::adjust_balance_handler,
+        repository::WalletRepository,
+        service::WalletService,
+    },
 };
 
 // ─── AppState ─────────────────────────────────────────────────────────────────
@@ -40,9 +45,12 @@ pub struct AppState {
     pub audit_logger: Arc<AuditLogger>,
     /// 审计日志查询服务（T-10012）
     pub audit_service: Arc<AuditService>,
+    /// 钱包调整服务（T-10013）
+    pub wallet_service: Arc<WalletService>,
 }
 
 impl AppState {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         admin_repo: Arc<dyn AdminRepository>,
         log_repo: Arc<dyn AdminLogRepository>,
@@ -52,6 +60,7 @@ impl AppState {
         jwt_secret: String,
         event_publisher: Arc<dyn EventPublisher>,
         audit_repo: Arc<dyn AuditRepository>,
+        wallet_repo: Arc<dyn WalletRepository>,
     ) -> Self {
         let auth_service = Arc::new(AdminAuthService::new(
             admin_repo,
@@ -63,6 +72,7 @@ impl AppState {
         let user_service = Arc::new(AdminUserService::new(user_repo, event_publisher.clone()));
         let audit_logger = Arc::new(AuditLogger::new(audit_repo.clone()));
         let audit_service = Arc::new(AuditService::new(audit_repo));
+        let wallet_service = Arc::new(WalletService::new(wallet_repo, event_publisher.clone()));
         Self {
             auth_service,
             room_service,
@@ -72,6 +82,7 @@ impl AppState {
             event_publisher,
             audit_logger,
             audit_service,
+            wallet_service,
         }
     }
 
@@ -84,6 +95,7 @@ impl AppState {
         use crate::modules::room::repository::FakeAdminRoomRepository;
         use crate::modules::stats::FakeAdminStatsRepository;
         use crate::modules::user::repository::FakeAdminUserRepository;
+        use crate::modules::wallet::repository::FakeWalletRepository;
         Self::new(
             Arc::new(FakeAdminRepository::default()),
             Arc::new(FakeAdminLogRepository::default()),
@@ -93,6 +105,7 @@ impl AppState {
             "test-secret".to_string(),
             Arc::new(NoopEventPublisher::default()),
             Arc::new(FakeAuditRepository::default()),
+            Arc::new(FakeWalletRepository::default()),
         )
     }
 }
@@ -111,6 +124,10 @@ pub fn build_app(state: AppState) -> Router {
         .route("/api/v1/admin/users", get(list_users_handler))
         .route("/api/v1/admin/users/{id}", get(get_user_handler))
         .route("/api/v1/admin/users/{id}/ban", post(ban_user_handler))
+        .route(
+            "/api/v1/admin/users/{id}/wallet/adjust",
+            post(adjust_balance_handler),
+        )
         .route("/api/v1/admin/stats/overview", get(stats_overview_handler))
         .route("/api/v1/admin/logs", get(list_logs_handler))
         .layer(middleware::from_fn(request_context_middleware))
@@ -236,6 +253,7 @@ mod tests {
             "test-secret".to_string(),
             Arc::new(NoopEventPublisher::default()),
             Arc::new(FakeAuditRepository::default()),
+            Arc::new(crate::modules::wallet::repository::FakeWalletRepository::default()),
         ))
     }
 
@@ -483,6 +501,7 @@ mod tests {
             "test-secret".to_string(),
             Arc::new(NoopEventPublisher::default()),
             Arc::new(FakeAuditRepository::default()),
+            Arc::new(crate::modules::wallet::repository::FakeWalletRepository::default()),
         ));
 
         app.oneshot(
@@ -793,6 +812,7 @@ mod tests {
             "test-secret".to_string(),
             Arc::new(NoopEventPublisher::default()),
             Arc::new(FakeAuditRepository::default()),
+            Arc::new(crate::modules::wallet::repository::FakeWalletRepository::default()),
         ))
     }
 
@@ -1141,6 +1161,7 @@ mod tests {
             "test-secret".to_string(),
             Arc::new(NoopEventPublisher::default()),
             Arc::new(FakeAuditRepository::default()),
+            Arc::new(crate::modules::wallet::repository::FakeWalletRepository::default()),
         ))
     }
 
@@ -1159,6 +1180,7 @@ mod tests {
             "test-secret".to_string(),
             Arc::new(NoopEventPublisher::default()),
             Arc::new(FakeAuditRepository::default()),
+            Arc::new(crate::modules::wallet::repository::FakeWalletRepository::default()),
         ))
     }
 
@@ -1353,6 +1375,7 @@ mod tests {
             "test-secret".to_string(),
             Arc::new(NoopEventPublisher::default()),
             Arc::new(FakeAuditRepository::default()),
+            Arc::new(crate::modules::wallet::repository::FakeWalletRepository::default()),
         ));
         (router, room_repo)
     }
@@ -1377,6 +1400,7 @@ mod tests {
             "test-secret".to_string(),
             Arc::new(NoopEventPublisher::default()),
             audit_repo.clone(),
+            Arc::new(crate::modules::wallet::repository::FakeWalletRepository::default()),
         ));
         (router, room_repo, audit_repo)
     }
@@ -1629,6 +1653,7 @@ mod tests {
             "test-secret".to_string(),
             Arc::new(NoopEventPublisher::default()),
             Arc::new(FakeAuditRepository::default()),
+            Arc::new(crate::modules::wallet::repository::FakeWalletRepository::default()),
         ))
     }
 
@@ -1888,6 +1913,7 @@ mod tests {
             "test-secret".to_string(),
             Arc::new(NoopEventPublisher::default()),
             Arc::new(FakeAuditRepository::default()),
+            Arc::new(crate::modules::wallet::repository::FakeWalletRepository::default()),
         ))
     }
 
@@ -2064,6 +2090,7 @@ mod tests {
             "test-secret".to_string(),
             Arc::new(NoopEventPublisher::default()),
             Arc::new(FakeAuditRepository::default()),
+            Arc::new(crate::modules::wallet::repository::FakeWalletRepository::default()),
         ));
         (router, user_repo)
     }
@@ -2089,6 +2116,7 @@ mod tests {
             "test-secret".to_string(),
             Arc::new(NoopEventPublisher::default()),
             audit_repo.clone(),
+            Arc::new(crate::modules::wallet::repository::FakeWalletRepository::default()),
         ));
         (router, user_repo, audit_repo)
     }
@@ -2281,6 +2309,7 @@ mod tests {
             "test-secret".to_string(),
             Arc::new(NoopEventPublisher::default()),
             Arc::new(FakeAuditRepository::default()),
+            Arc::new(crate::modules::wallet::repository::FakeWalletRepository::default()),
         ))
     }
 
@@ -2716,6 +2745,389 @@ mod tests {
             logs.len(),
             0,
             "CA-05: 业务失败时 audit_repo 不应有新记录"
+        );
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // T-10013 集成测试：手动调整余额 API（WA01~WA08）
+    // ════════════════════════════════════════════════════════════════════════
+
+    use crate::modules::wallet::repository::FakeWalletRepository;
+
+    /// 构建带钱包测试状态的 App，返回 (Router, FakeWalletRepository, NoopEventPublisher)
+    fn wallet_app(
+        user_id: Uuid,
+        initial_balance: i64,
+    ) -> (axum::Router, Arc<FakeWalletRepository>, Arc<NoopEventPublisher>) {
+        let admin_repo = Arc::new(FakeAdminRepository::default());
+        let log_repo = Arc::new(FakeAdminLogRepository::default());
+        let fake_wallet = Arc::new(FakeWalletRepository::default());
+        fake_wallet.seed_user(user_id, initial_balance);
+        let fake_pub = Arc::new(NoopEventPublisher::default());
+
+        let state = AppState::new(
+            admin_repo,
+            log_repo,
+            Arc::new(FakeAdminRoomRepository::default()),
+            Arc::new(crate::modules::user::repository::FakeAdminUserRepository::default()),
+            Arc::new(crate::modules::stats::FakeAdminStatsRepository::default()),
+            "test-secret".to_string(),
+            fake_pub.clone(),
+            Arc::new(FakeAuditRepository::default()),
+            fake_wallet.clone(),
+        );
+        (build_app(state), fake_wallet, fake_pub)
+    }
+
+    /// POST /api/v1/admin/users/{id}/wallet/adjust 辅助发送函数
+    async fn post_adjust(
+        app: axum::Router,
+        token: &str,
+        user_id: &str,
+        body: &str,
+    ) -> axum::response::Response {
+        app.oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!(
+                    "/api/v1/admin/users/{user_id}/wallet/adjust"
+                ))
+                .header("Authorization", format!("Bearer {token}"))
+                .header("content-type", "application/json")
+                .header("x-request-id", "test-wallet-req")
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap()
+    }
+
+    // ── WA01: super_admin 成功调整余额 → 余额更新 + 流水 +1 + admin_log +1 + Redis publish 命中
+    #[tokio::test]
+    async fn wa01_super_admin_adjust_balance_success() {
+        let user_id = Uuid::new_v4();
+        let token = make_jwt("test-secret", "super_admin");
+        let (app, fake_wallet, fake_pub) = wallet_app(user_id, 1000);
+
+        let resp = post_adjust(
+            app,
+            &token,
+            &user_id.to_string(),
+            r#"{"amount":500,"reason":"运营补偿 #1234"}"#,
+        )
+        .await;
+
+        // HTTP 200
+        assert_eq!(resp.status(), StatusCode::OK, "WA01: 应返回 200");
+        let json = body_json(resp).await;
+        assert_eq!(json["code"].as_i64().unwrap(), 0, "WA01: code 应为 0");
+
+        // 响应体 data 字段
+        assert_eq!(
+            json["data"]["new_balance"].as_i64().unwrap(),
+            1500,
+            "WA01: new_balance 应为 1500"
+        );
+        assert_eq!(
+            json["data"]["delta"].as_i64().unwrap(),
+            500,
+            "WA01: delta 应为 500"
+        );
+        assert_eq!(
+            json["data"]["user_id"].as_str().unwrap(),
+            user_id.to_string(),
+            "WA01: user_id 应与请求一致"
+        );
+
+        // 余额已更新
+        assert_eq!(
+            fake_wallet.get_balance(user_id),
+            Some(1500),
+            "WA01: FakeWalletRepository 余额应为 1500"
+        );
+
+        // 流水 +1
+        let txns = fake_wallet.get_transactions();
+        assert_eq!(txns.len(), 1, "WA01: 流水记录应有 1 条");
+        assert_eq!(txns[0].amount, 500, "WA01: 流水 amount=500");
+        assert_eq!(txns[0].balance_after, 1500, "WA01: 流水 balance_after=1500");
+
+        // admin_log +1（事务内写入）
+        let admin_logs = fake_wallet.get_admin_logs_written();
+        assert_eq!(admin_logs.len(), 1, "WA01: admin_log 应有 1 条");
+        assert_eq!(admin_logs[0].action, "wallet_adjust", "WA01: action=wallet_adjust");
+        assert_eq!(admin_logs[0].target_id, user_id, "WA01: target_id=user_id");
+        assert_eq!(admin_logs[0].amount, 500, "WA01: admin_log amount=500");
+
+        // Redis publish 命中
+        let calls = fake_pub.calls.lock().unwrap();
+        assert_eq!(calls.len(), 1, "WA01: Redis publish 应调用 1 次");
+        assert_eq!(calls[0].0, "admin:events", "WA01: channel 应为 admin:events");
+        assert_eq!(
+            calls[0].1.r#type,
+            "balance_updated",
+            "WA01: event.type 应为 balance_updated"
+        );
+        let payload = &calls[0].1.payload;
+        assert_eq!(
+            payload["user_id"].as_str().unwrap(),
+            user_id.to_string(),
+            "WA01: payload.user_id 应与请求一致"
+        );
+        assert_eq!(
+            payload["new_balance"].as_i64().unwrap(),
+            1500,
+            "WA01: payload.new_balance=1500"
+        );
+        assert_eq!(
+            payload["delta"].as_i64().unwrap(),
+            500,
+            "WA01: payload.delta=500"
+        );
+    }
+
+    // ── WA02: cs 角色 → 403 (40301)
+    #[tokio::test]
+    async fn wa02_cs_role_returns_403() {
+        let user_id = Uuid::new_v4();
+        let token = make_jwt("test-secret", "cs");
+        let (app, _, _) = wallet_app(user_id, 1000);
+
+        let resp = post_adjust(
+            app,
+            &token,
+            &user_id.to_string(),
+            r#"{"amount":100,"reason":"测试原因"}"#,
+        )
+        .await;
+
+        assert_eq!(resp.status(), StatusCode::FORBIDDEN, "WA02: cs 应返回 403");
+        let json = body_json(resp).await;
+        assert_eq!(
+            json["code"].as_i64().unwrap(),
+            40301,
+            "WA02: cs 错误码应为 40301"
+        );
+    }
+
+    // ── WA03: amount=0 → 40003
+    #[tokio::test]
+    async fn wa03_amount_zero_returns_40003() {
+        let user_id = Uuid::new_v4();
+        let token = make_jwt("test-secret", "super_admin");
+        let (app, _, _) = wallet_app(user_id, 1000);
+
+        let resp = post_adjust(
+            app,
+            &token,
+            &user_id.to_string(),
+            r#"{"amount":0,"reason":"有原因"}"#,
+        )
+        .await;
+
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST, "WA03: amount=0 应返回 400");
+        let json = body_json(resp).await;
+        assert_eq!(
+            json["code"].as_i64().unwrap(),
+            40003,
+            "WA03: 错误码应为 40003"
+        );
+    }
+
+    // ── WA04: reason 空 → 40003
+    #[tokio::test]
+    async fn wa04_empty_reason_returns_40003() {
+        let user_id = Uuid::new_v4();
+        let token = make_jwt("test-secret", "super_admin");
+        let (app, _, _) = wallet_app(user_id, 1000);
+
+        let resp = post_adjust(
+            app,
+            &token,
+            &user_id.to_string(),
+            r#"{"amount":100,"reason":""}"#,
+        )
+        .await;
+
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST, "WA04: reason 空应返回 400");
+        let json = body_json(resp).await;
+        assert_eq!(
+            json["code"].as_i64().unwrap(),
+            40003,
+            "WA04: 错误码应为 40003"
+        );
+    }
+
+    // ── WA05: 用户不存在 → 404 (40401)
+    #[tokio::test]
+    async fn wa05_user_not_found_returns_404() {
+        let nonexistent_id = Uuid::new_v4();
+        let token = make_jwt("test-secret", "super_admin");
+        // 空 wallet repo（无任何预置用户）
+        let (app, _, _) = wallet_app(Uuid::new_v4(), 0); // seed 另一个用户
+
+        let resp = post_adjust(
+            app,
+            &token,
+            &nonexistent_id.to_string(),
+            r#"{"amount":100,"reason":"测试原因"}"#,
+        )
+        .await;
+
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND, "WA05: 用户不存在应返回 404");
+        let json = body_json(resp).await;
+        assert_eq!(
+            json["code"].as_i64().unwrap(),
+            40401,
+            "WA05: 错误码应为 40401"
+        );
+    }
+
+    // ── WA06: amount=-1000 当前余额 500 → 40204，事务回滚，流水无新记录
+    #[tokio::test]
+    async fn wa06_insufficient_balance_returns_40204_no_transaction_written() {
+        let user_id = Uuid::new_v4();
+        let token = make_jwt("test-secret", "super_admin");
+        let (app, fake_wallet, _) = wallet_app(user_id, 500);
+
+        let resp = post_adjust(
+            app,
+            &token,
+            &user_id.to_string(),
+            r#"{"amount":-1000,"reason":"扣款测试"}"#,
+        )
+        .await;
+
+        // HTTP 400 / 40204
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST, "WA06: 余额不足应返回 400");
+        let json = body_json(resp).await;
+        assert_eq!(
+            json["code"].as_i64().unwrap(),
+            40204,
+            "WA06: 错误码应为 40204（INSUFFICIENT_BALANCE）"
+        );
+
+        // 余额未变
+        assert_eq!(
+            fake_wallet.get_balance(user_id),
+            Some(500),
+            "WA06: 余额应保持 500（事务回滚）"
+        );
+
+        // 流水无新增
+        assert_eq!(
+            fake_wallet.get_transactions().len(),
+            0,
+            "WA06: 流水不应有新记录"
+        );
+    }
+
+    // ── WA07: amount=20,000,000 → 40003（超限）
+    #[tokio::test]
+    async fn wa07_amount_exceeds_limit_returns_40003() {
+        let user_id = Uuid::new_v4();
+        let token = make_jwt("test-secret", "super_admin");
+        let (app, _, _) = wallet_app(user_id, 0);
+
+        let resp = post_adjust(
+            app,
+            &token,
+            &user_id.to_string(),
+            r#"{"amount":20000000,"reason":"超限测试"}"#,
+        )
+        .await;
+
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST, "WA07: 超限应返回 400");
+        let json = body_json(resp).await;
+        assert_eq!(
+            json["code"].as_i64().unwrap(),
+            40003,
+            "WA07: 错误码应为 40003"
+        );
+    }
+
+    // ── WA08: 事务原子性：admin_log 注入失败 → 用户余额保持不变
+    #[tokio::test]
+    async fn wa08_admin_log_error_balance_unchanged_transaction_atomicity() {
+        let user_id = Uuid::new_v4();
+        let token = make_jwt("test-secret", "super_admin");
+
+        // 创建可注入错误的 fake_wallet
+        let fake_wallet = Arc::new(FakeWalletRepository::default());
+        fake_wallet.seed_user(user_id, 500);
+        fake_wallet.set_inject_admin_log_error(true); // 注入 admin_log 步骤失败
+
+        let fake_pub = Arc::new(NoopEventPublisher::default());
+        let state = AppState::new(
+            Arc::new(FakeAdminRepository::default()),
+            Arc::new(FakeAdminLogRepository::default()),
+            Arc::new(FakeAdminRoomRepository::default()),
+            Arc::new(crate::modules::user::repository::FakeAdminUserRepository::default()),
+            Arc::new(crate::modules::stats::FakeAdminStatsRepository::default()),
+            "test-secret".to_string(),
+            fake_pub.clone(),
+            Arc::new(FakeAuditRepository::default()),
+            fake_wallet.clone(),
+        );
+        let app = build_app(state);
+
+        let resp = post_adjust(
+            app,
+            &token,
+            &user_id.to_string(),
+            r#"{"amount":100,"reason":"原子性测试"}"#,
+        )
+        .await;
+
+        // 返回 500（数据库错误）
+        assert_eq!(
+            resp.status(),
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "WA08: admin_log 失败应返回 500"
+        );
+
+        // 余额不变（事务回滚）
+        assert_eq!(
+            fake_wallet.get_balance(user_id),
+            Some(500),
+            "WA08: admin_log 失败后余额应保持 500（原子性回滚）"
+        );
+
+        // 流水无新记录（回滚）
+        assert_eq!(
+            fake_wallet.get_transactions().len(),
+            0,
+            "WA08: 回滚后流水不应有新记录"
+        );
+
+        // Redis publish 未调用（业务失败不发布事件）
+        assert_eq!(
+            fake_pub.calls.lock().unwrap().len(),
+            0,
+            "WA08: 业务失败时不应发布 Redis 事件"
+        );
+    }
+
+    // ── WA-finance: finance 角色有权限调用（补充角色覆盖）────────────────────
+    #[tokio::test]
+    async fn wa_finance_role_can_adjust_balance() {
+        let user_id = Uuid::new_v4();
+        let token = make_jwt("test-secret", "finance");
+        let (app, fake_wallet, _) = wallet_app(user_id, 200);
+
+        let resp = post_adjust(
+            app,
+            &token,
+            &user_id.to_string(),
+            r#"{"amount":300,"reason":"财务补偿"}"#,
+        )
+        .await;
+
+        assert_eq!(resp.status(), StatusCode::OK, "WA-finance: finance 应有权限调整");
+        assert_eq!(
+            fake_wallet.get_balance(user_id),
+            Some(500),
+            "WA-finance: 余额应为 500"
         );
     }
 }

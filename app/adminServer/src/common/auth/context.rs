@@ -23,6 +23,8 @@ pub enum Permission {
     RoomForceClose,
     // 审计日志（T-10012）
     LogRead,
+    // 钱包手动调整（T-10013）
+    WalletAdjust,
 }
 
 /// 已鉴权的管理员上下文，由 `AdminAuthContext::from_request_parts` 注入。
@@ -64,6 +66,7 @@ impl AdminAuthContext {
                     | Permission::StatsRead
                     | Permission::RoomForceClose
                     | Permission::LogRead
+                    | Permission::WalletAdjust
             ),
             "cs" => matches!(
                 permission,
@@ -71,7 +74,10 @@ impl AdminAuthContext {
             ),
             "finance" => matches!(
                 permission,
-                Permission::StatsRead | Permission::FinanceRead | Permission::FinanceWrite
+                Permission::StatsRead
+                    | Permission::FinanceRead
+                    | Permission::FinanceWrite
+                    | Permission::WalletAdjust
             ),
             _ => false,
         }

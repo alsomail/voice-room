@@ -54,6 +54,10 @@ pub enum AppError {
     #[error("Validation error: {0}")]
     ValidationError(String),
 
+    // 400 - 钱包余额不足（T-10013，code=40204）
+    #[error("Insufficient balance")]
+    InsufficientBalance,
+
     // 500
     #[error("Database error: {0}")]
     DatabaseError(String),
@@ -70,6 +74,7 @@ impl AppError {
             AppError::AccountDisabled => ErrorCode::AccountDisabled,
             AppError::Forbidden => ErrorCode::Forbidden,
             AppError::ValidationError(_) => ErrorCode::ValidationError,
+            AppError::InsufficientBalance => ErrorCode::InsufficientBalance,
             AppError::NotFound(_) => ErrorCode::NotFound,
             AppError::UserNotFound(_) => ErrorCode::UserNotFound,
             AppError::RoomAlreadyClosed => ErrorCode::RoomAlreadyClosed,
@@ -88,7 +93,9 @@ impl AppError {
             AppError::UserNotFound(_) => StatusCode::NOT_FOUND,
             AppError::RoomAlreadyClosed => StatusCode::CONFLICT,
             AppError::UserAlreadyBanned | AppError::UserAlreadyNormal => StatusCode::CONFLICT,
-            AppError::ValidationError(_) => StatusCode::BAD_REQUEST,
+            AppError::ValidationError(_) | AppError::InsufficientBalance => {
+                StatusCode::BAD_REQUEST
+            }
             AppError::DatabaseError(_) | AppError::Internal(_) => {
                 StatusCode::INTERNAL_SERVER_ERROR
             }

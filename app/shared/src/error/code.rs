@@ -10,6 +10,8 @@ pub enum ErrorCode {
     ParameterMissing = 40002,
     #[error("VALIDATION_ERROR")]
     ValidationError = 40003,
+    #[error("INSUFFICIENT_BALANCE")]
+    InsufficientBalance = 40204,
 
     // 401 - 认证错误
     #[error("UNAUTHORIZED")]

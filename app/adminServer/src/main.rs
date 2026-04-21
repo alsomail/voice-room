@@ -10,6 +10,7 @@ use voice_room_admin_server::{
         room::PgAdminRoomRepository,
         stats::PgAdminStatsRepository,
         user::PgAdminUserRepository,
+        wallet::repository::PgWalletRepository,
     },
 };
 
@@ -70,7 +71,8 @@ async fn main() -> anyhow::Result<()> {
         Arc::new(PgAdminStatsRepository::new(pool.clone())),
         jwt_secret,
         event_publisher,
-        Arc::new(PgAuditRepository::new(pool)),
+        Arc::new(PgAuditRepository::new(pool.clone())),
+        Arc::new(PgWalletRepository::new(pool)),
     );
 
     let app = build_app(state);

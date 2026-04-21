@@ -4,3 +4,4 @@ pub mod event;
 pub mod room;
 pub mod stats;
 pub mod user;
+pub mod wallet;
