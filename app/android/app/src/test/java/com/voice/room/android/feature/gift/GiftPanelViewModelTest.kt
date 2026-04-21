@@ -51,6 +51,8 @@ class GiftPanelViewModelTest {
 
     private class FakeGiftRepository(
         var listGiftsResult: Result<List<GiftVO>> = Result.success(emptyList()),
+        /** 模拟网络延迟（ms），>0 时在 suspend 点挂起，允许测试观察中间状态 */
+        var delayMs: Long = 0L,
     ) : IGiftRepository {
         var listGiftsCallCount = 0
         var lastLocale: String? = null
@@ -60,6 +62,7 @@ class GiftPanelViewModelTest {
         override suspend fun listGifts(locale: String): Result<List<GiftVO>> {
             listGiftsCallCount++
             lastLocale = locale
+            if (delayMs > 0L) kotlinx.coroutines.delay(delayMs)
             return listGiftsResult
         }
     }
@@ -446,6 +449,54 @@ class GiftPanelViewModelTest {
             advanceUntilIdle()
 
             assertEquals(Long.MAX_VALUE, vm.uiState.value.balance)
+        }
+
+    // --- R1-01 (Review Round 1 fix) ---
+
+    /**
+     * R1-01: retryLoad() 触发后状态经历 Error→Loading→Success 完整转换
+     *
+     * 验证 GiftPanelBottomSheet 的"点击重试"按钮（onClick = onRetry）
+     * 能够通过 onRetry = { giftViewModel.retryLoad() } 正确触发加载流程。
+     * 中间必须经过 loading=true、error=null 的状态，最终 gifts 加载成功。
+     *
+     * delayMs=100L：使 Fake 在 IO 点真正挂起，loading=true 的中间状态可观测。
+     */
+    @Test
+    fun `R1-01 retryLoad after error transitions through loading to success`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            // 使用带虚拟延迟的 Fake，先制造错误状态
+            val repo = FakeGiftRepository(
+                listGiftsResult = Result.failure(IOException("Network error")),
+                delayMs = 100L,
+            )
+            val vm = buildViewModel(giftRepository = repo)
+            advanceUntilIdle()          // 完成初始加载（失败）
+
+            // 前置条件：处于错误状态
+            assertNotNull("error should be non-null before retry", vm.uiState.value.error)
+            assertFalse("loading should be false in error state", vm.uiState.value.loading)
+
+            // 切换 repo 为成功，触发重试
+            repo.listGiftsResult = Result.success(makeGifts(6))
+            vm.retryLoad()
+
+            // runCurrent 推进到第一个真实挂起点（delay(100)），此时 loading=true 已被设置
+            mainDispatcherRule.testDispatcher.scheduler.runCurrent()
+
+            // 中间状态验证：loading=true, error=null（重试 spinner 可见）
+            assertTrue("loading should be true immediately after retryLoad",
+                vm.uiState.value.loading)
+            assertNull("error should be cleared while loading",
+                vm.uiState.value.error)
+
+            // 完成所有挂起任务（虚拟时间推进 100ms）
+            advanceUntilIdle()
+
+            // 最终状态：success
+            assertNull("error should be null after successful retry", vm.uiState.value.error)
+            assertFalse("loading should be false after retry completes", vm.uiState.value.loading)
+            assertEquals("gifts should be loaded after retry", 6, vm.uiState.value.gifts.size)
         }
 
     // --- Extra-10 ---

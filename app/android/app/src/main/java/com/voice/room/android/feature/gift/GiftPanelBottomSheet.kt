@@ -66,6 +66,7 @@ import kotlinx.coroutines.flow.SharedFlow
  * @param onDismiss    关闭回调（外部点击 / × / 返回键）
  * @param onSelectGift 选中礼物回调
  * @param onSelectCount 数量档位选择回调
+ * @param onRetry      网络失败后"点击重试"按钮回调（修复 G28-09）
  * @param onSendGift   送出按钮点击回调（T-30030 接入）
  * @param onRechargeClick 充值按钮回调
  * @param modifier     可选 Modifier
@@ -79,6 +80,7 @@ fun GiftPanelBottomSheet(
     onSelectGift: (String) -> Unit,
     onSelectCount: (Int) -> Unit,
     onSelectTab: (GiftTab) -> Unit,
+    onRetry: () -> Unit = {},
     onSendGift: () -> Unit = {},
     onRechargeClick: () -> Unit = {},
     modifier: Modifier = Modifier,
@@ -181,7 +183,7 @@ fun GiftPanelBottomSheet(
                             style = MenaTypography.bodyMedium,
                             color = MenaColors.Error,
                         )
-                        TextButton(onClick = { /* retryLoad 由 onSelectTab 逻辑触发，外部通过 onRetry 传入 */ }) {
+                        TextButton(onClick = onRetry) {
                             Text("点击重试", color = MenaColors.Primary)
                         }
                     }

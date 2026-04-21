@@ -50,6 +50,7 @@ import com.voice.room.android.feature.gift.GiftPanelUiState
  * @param onSelectGiftTab        切换礼物 Tab 回调（T-30028）
  * @param onSendGift             送出礼物回调（T-30030 接入，T-30028 暂留空）
  * @param onGiftRechargeClick    充值按钮回调（T-30028）
+ * @param onGiftRetry        网络失败后点击重试回调（T-30028 R1 修复）
  * @param onGiftPanelDismiss     关闭礼物面板回调（T-30028）
  * @param modifier               可选 Modifier
  */
@@ -69,6 +70,7 @@ fun RoomScreen(
     onSelectGiftTab: (com.voice.room.android.feature.gift.GiftTab) -> Unit = {},
     onSendGift: () -> Unit = {},
     onGiftRechargeClick: () -> Unit = {},
+    onGiftRetry: () -> Unit = {},
     onGiftPanelDismiss: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -149,6 +151,7 @@ fun RoomScreen(
             onSelectGift = onSelectGift,
             onSelectCount = onSelectCount,
             onSelectTab = onSelectGiftTab,
+            onRetry = onGiftRetry,
             onSendGift = onSendGift,
             onRechargeClick = onGiftRechargeClick,
         )
