@@ -66,12 +66,13 @@ export function RoomsTable({
   ];
 
   // T-20011: 活跃度筛选选项（useMemo 避免重复创建，与 UsersTable 保持一致）
-  const activityOptions = useMemo(() => [
+  // 仅包含 ActivityFilter 类型定义的四项：all / active / quiet / abnormal
+  // 注意：'normal' 不在筛选选项中（产品设计文档明确不含此项）
+  const activityOptions = useMemo<{ label: string; value: ActivityFilter }[]>(() => [
     { label: t('rooms.activityAll'), value: 'all' },
     { label: t('rooms.activityLevelActive'), value: 'active' },
-    { label: t('rooms.activityLevelAbnormal'), value: 'abnormal' },
     { label: t('rooms.activityLevelQuiet'), value: 'quiet' },
-    { label: t('rooms.activityLevelNormal'), value: 'normal' },
+    { label: t('rooms.activityLevelAbnormal'), value: 'abnormal' },
   ], [t]);
 
   // useMemo 缓存 columns 避免重复创建（与 UsersTable 保持一致）
@@ -203,11 +204,9 @@ export function RoomsTable({
           </div>
           {/* T-20011: 活跃度筛选 */}
           <div data-testid="activity-filter">
-            <Select
+            <Select<ActivityFilter>
               value={activityFilter}
-              onChange={(value: string) =>
-                onActivityFilterChange(value as ActivityFilter)
-              }
+              onChange={(value: ActivityFilter) => onActivityFilterChange(value)}
               options={activityOptions}
               style={{ width: 120 }}
             />

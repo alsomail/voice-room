@@ -362,9 +362,19 @@ describe('RoomsTable — C20: 持续时长列', () => {
     expect(screen.getByTestId('room-duration-room-abnormal')).toBeInTheDocument();
     expect(screen.getByTestId('room-duration-room-quiet')).toBeInTheDocument();
     expect(screen.getByTestId('room-duration-room-normal')).toBeInTheDocument();
-    // 验证格式（数字 + 单位）
+    // 验证格式（修复后正则：正确匹配 "30m" / "1h 30m" / "3d 2h" 三种形式）
     const durationText = screen.getByTestId('room-duration-room-active').textContent ?? '';
-    expect(durationText).toMatch(/^\d+(m|\d+h \d+m|\d+d \d+h)$/);
+    expect(durationText).toMatch(/^(\d+m|\d+h \d+m|\d+d \d+h)$/);
+  });
+
+  it('超过 1 小时的房间时长匹配 "Xh Ym" 格式（quiet 房间为 90 分钟前）', () => {
+    // quiet 房间 created_at 为 90 分钟前，预期格式 "1h 30m"
+    render(<RoomsTable {...activityProps} />);
+    const quietDuration = screen.getByTestId('room-duration-room-quiet').textContent ?? '';
+    // 验证匹配 "Xh Ym" 格式，确保多单位格式能被正确断言
+    expect(quietDuration).toMatch(/^\d+h \d+m$/);
+    // 精确验证：90 分钟前 → "1h 30m"
+    expect(quietDuration).toBe('1h 30m');
   });
 });
 

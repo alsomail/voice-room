@@ -597,11 +597,11 @@ describe('RoomsPage — I12: 状态筛选与活跃度筛选联合使用', () => 
     const statusCombobox = within(statusContainer).getByRole('combobox');
     await user.click(statusCombobox);
 
-    // 等待 status 下拉框出现
+    // 等待 status 下拉框出现并选择"活跃"
     await waitFor(() =>
-      expect(document.querySelector('.ant-select-dropdown:not(.ant-slide-up-leave)')).toBeInTheDocument(),
+      expect(document.querySelector('.ant-select-dropdown')).toBeInTheDocument(),
     );
-    const statusDropdown = document.querySelector('.ant-select-dropdown:not(.ant-slide-up-leave)') as HTMLElement;
+    const statusDropdown = document.querySelector('.ant-select-dropdown') as HTMLElement;
     await user.click(within(statusDropdown).getByText('rooms.statusActive'));
 
     await waitFor(() => expect(mockAdminGetRooms).toHaveBeenCalledWith(
@@ -609,21 +609,24 @@ describe('RoomsPage — I12: 状态筛选与活跃度筛选联合使用', () => 
       expect.anything(),
     ));
 
-    // 等待 status 下拉框完全关闭（动画结束）
-    await waitFor(() =>
-      expect(document.querySelector('.ant-select-dropdown:not(.ant-slide-up-leave)')).not.toBeInTheDocument(),
-    );
-
     // 再设活跃度过滤（前端侧）
     const activityContainer = screen.getByTestId('activity-filter');
     const activityCombobox = within(activityContainer).getByRole('combobox');
     await user.click(activityCombobox);
 
-    // 等待 activity 下拉框出现（排除正在关闭的旧下拉框）
-    await waitFor(() =>
-      expect(document.querySelector('.ant-select-dropdown:not(.ant-slide-up-leave)')).toBeInTheDocument(),
-    );
-    const activityDropdown = document.querySelector('.ant-select-dropdown:not(.ant-slide-up-leave)') as HTMLElement;
+    // 通过 'rooms.activityAll'（status 下拉框不含此项）定位活跃度专属下拉框
+    // 避免 'rooms.activityLevelAbnormal' 被表格 Tag 误匹配
+    await waitFor(() => {
+      const allDropdowns = document.querySelectorAll('.ant-select-dropdown');
+      const activityDropdown = Array.from(allDropdowns).find(
+        (d) => d.textContent?.includes('rooms.activityAll'),
+      );
+      expect(activityDropdown).toBeTruthy();
+    });
+    const allDropdowns = document.querySelectorAll('.ant-select-dropdown');
+    const activityDropdown = Array.from(allDropdowns).find(
+      (d) => d.textContent?.includes('rooms.activityAll'),
+    ) as HTMLElement;
     await user.click(within(activityDropdown).getByText('rooms.activityLevelAbnormal'));
 
     // 只有异常行可见
