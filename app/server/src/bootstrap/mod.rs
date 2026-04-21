@@ -9,6 +9,7 @@ use crate::{
     modules::{
         auth::{auth_routes, repository::UserRepository, service::AuthService},
         gift::{gift_routes, send_gift::SendGiftServicePort, service::GiftServicePort},
+        ranking::{ranking_routes, RankingServicePort},
         room::{repository::RoomRepository, room_routes, RoomService},
         wallet::{service::WalletServicePort, wallet_routes},
     },
@@ -34,6 +35,8 @@ pub struct AppState {
     pub gift_service: Arc<dyn GiftServicePort>,
     /// 送礼服务（T-00020 SendGift 事务 + 广播）
     pub send_gift_service: Arc<dyn SendGiftServicePort>,
+    /// 榜单服务（T-00021 魅力/财富榜单 API）
+    pub ranking_service: Arc<dyn RankingServicePort>,
 }
 
 impl AppState {
@@ -48,6 +51,7 @@ impl AppState {
         wallet_service: Arc<dyn WalletServicePort>,
         gift_service: Arc<dyn GiftServicePort>,
         send_gift_service: Arc<dyn SendGiftServicePort>,
+        ranking_service: Arc<dyn RankingServicePort>,
     ) -> Self {
         let auth_service = Arc::new(AuthService::new(
             user_repo,
@@ -66,6 +70,7 @@ impl AppState {
             wallet_service,
             gift_service,
             send_gift_service,
+            ranking_service,
         }
     }
 
@@ -82,6 +87,7 @@ impl AppState {
         wallet_service: Arc<dyn WalletServicePort>,
         gift_service: Arc<dyn GiftServicePort>,
         send_gift_service: Arc<dyn SendGiftServicePort>,
+        ranking_service: Arc<dyn RankingServicePort>,
         ws_registry: Arc<ConnectionRegistry>,
         room_manager: Arc<RoomManager>,
     ) -> Self {
@@ -102,6 +108,7 @@ impl AppState {
             wallet_service,
             gift_service,
             send_gift_service,
+            ranking_service,
         }
     }
 
@@ -113,6 +120,7 @@ impl AppState {
         use crate::modules::auth::repository::FakeUserRepository;
         use crate::modules::gift::send_gift::FakeSendGiftService;
         use crate::modules::gift::service::FakeGiftService;
+        use crate::modules::ranking::FakeRankingService;
         use crate::modules::room::FakeRoomRepository;
         use crate::modules::wallet::service::FakeWalletService;
         use crate::stats::FakeStatsService;
@@ -126,6 +134,7 @@ impl AppState {
             Arc::new(FakeWalletService),
             Arc::new(FakeGiftService),
             Arc::new(FakeSendGiftService),
+            Arc::new(FakeRankingService),
         )
     }
 
@@ -138,6 +147,7 @@ impl AppState {
         use crate::modules::auth::repository::FakeUserRepository;
         use crate::modules::gift::send_gift::FakeSendGiftService;
         use crate::modules::gift::service::FakeGiftService;
+        use crate::modules::ranking::FakeRankingService;
         use crate::modules::wallet::service::FakeWalletService;
         use crate::stats::FakeStatsService;
         Self::new(
@@ -150,6 +160,7 @@ impl AppState {
             Arc::new(FakeWalletService),
             Arc::new(FakeGiftService),
             Arc::new(FakeSendGiftService),
+            Arc::new(FakeRankingService),
         )
     }
 
@@ -165,6 +176,7 @@ impl AppState {
         use crate::modules::auth::repository::FakeUserRepository;
         use crate::modules::gift::send_gift::FakeSendGiftService;
         use crate::modules::gift::service::FakeGiftService;
+        use crate::modules::ranking::FakeRankingService;
         use crate::modules::room::FakeRoomRepository;
         use crate::stats::FakeStatsService;
         Self::new(
@@ -177,6 +189,7 @@ impl AppState {
             wallet_service,
             Arc::new(FakeGiftService),
             Arc::new(FakeSendGiftService),
+            Arc::new(FakeRankingService),
         )
     }
 }
@@ -189,6 +202,7 @@ pub fn build_app(state: AppState) -> Router {
         .merge(room_routes())
         .merge(wallet_routes())
         .merge(gift_routes())
+        .merge(ranking_routes())
         .layer(middleware::from_fn(request_context_middleware))
         .with_state(state)
 }

@@ -158,6 +158,16 @@ Server 端基于 Rust + Axum 构建。启动骨架（配置、日志、健康检
     4. **[H-3]** protocol.md 错误码草稿值 — 更新为实现值（40001/40002/40290/40400/40402/40403）
     5. **[M-1]** try_send 静默丢弃 — 改为 send().await，有背压，channel 关闭记 warn
     6. **[L-1]** SG08 测试污染 — 用专用测试礼物隔离数据
+- 🟢 **榜单模块 - 魅力/财富榜单 API**（T-00021）：`src/modules/ranking/` 模块
+  - **HTTP 接口**：`GET /api/v1/ranking?type=charm|wealth&period=day|week&limit=50`（JWT 鉴权）
+    - **参数校验**：`type` 必填（charm/wealth，非法 → 40003）；`period` 可选（day/week，默认 day）；`limit` 1-100（默认 50，超范围 → 40003）
+    - **响应结构**：`{type, period, period_key, items: [{rank, user_id, nickname, avatar, score, medal}], me: {rank, score}}`；Top3 medal=gold/silver/bronze；未入榜 me.rank=null, me.score=0
+  - **Redis 查询**：`ZREVRANGE key 0 (limit-1) WITHSCORES` 取 Top N；`ZREVRANK` + `ZSCORE` 查 viewer 排名（1-based）
+  - **批量用户信息**：`WHERE id = ANY($1)` 一次性查询所有 nickname+avatar，避免 N+1
+  - **归档 Scheduler**：`do_archive_day()` / `do_archive_week()` 使用 `ZUNIONSTORE` 归档到 `ranking_archive:{type}:{period}:{date}`（7 天 TTL）；`compensate_day_archives()` 幂等补偿（读 `ranking:last_archive_{type}:day` 逐日补偿）；`start_ranking_scheduler()` tokio 每小时检查任务
+  - **FakeRankingService**：返回空榜单，供 HTTP 参数校验测试（无需 Redis/PG）
+  - **测试覆盖**：11 个集成测试 R01~R08（含补充 R05b/R06b/r_auth_required）+ ~20 单元测试；全量 335 tests passed, 0 failed，Clippy 零警告
+  - **完成时间**：2025-06-27（TDD 实现）
 - 🔴 支付业务域
 
 ### 遗留技术债 (Tech Debt)

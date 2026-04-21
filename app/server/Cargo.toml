@@ -49,3 +49,7 @@ required-features = ["test-utils"]
 [[test]]
 name = "send_gift_test"
 required-features = ["test-utils"]
+
+[[test]]
+name = "ranking_test"
+required-features = ["test-utils"]

@@ -13,6 +13,7 @@ use voice_room_server::{
     modules::{
         auth::repository::PgUserRepository,
         gift::{send_gift::GiftSendService, service::GiftService},
+        ranking::service::RankingService,
         room::repository::PgRoomRepository,
         wallet::{broadcaster::BalanceBroadcaster, service::WalletService},
     },
@@ -84,6 +85,9 @@ async fn main() -> anyhow::Result<()> {
         redis_url.to_string(),
     ));
 
+    // 创建 RankingService（T-00021）
+    let ranking_service = Arc::new(RankingService::new(pool.clone(), redis_url.to_string()));
+
     let state = AppState::new_with_managers(
         Arc::new(PgUserRepository::new(pool.clone())),
         code_store,
@@ -94,6 +98,7 @@ async fn main() -> anyhow::Result<()> {
         wallet_service,
         gift_service,
         send_gift_service,
+        ranking_service,
         ws_registry,
         room_manager,
     );
@@ -112,6 +117,13 @@ async fn main() -> anyhow::Result<()> {
     let stats_for_snapshot = state.stats_service.clone();
     tokio::spawn(start_snapshot_task(stats_for_snapshot, snapshot_shutdown_rx));
 
+    // 启动 Ranking 定时归档任务（T-00021）
+    let ranking_shutdown = snapshot_shutdown_tx.subscribe();
+    voice_room_server::modules::ranking::scheduler::start_ranking_scheduler(
+        redis_url.to_string(),
+        ranking_shutdown,
+    );
+
     let app = build_app(state);
     let bind_addr = settings.server.bind_addr()?;
     let listener = TcpListener::bind(bind_addr).await?;
@@ -122,7 +134,7 @@ async fn main() -> anyhow::Result<()> {
         .with_graceful_shutdown(shutdown_signal())
         .await?;
 
-    // 通知 snapshot_task 停止（優雅停機）
+    // 通知 snapshot_task / ranking_scheduler 停止（優雅停機）
     let _ = snapshot_shutdown_tx.send(true);
 
     Ok(())
