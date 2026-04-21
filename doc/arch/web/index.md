@@ -32,18 +32,19 @@
   - `src/pages/rooms/useRoomDetail.ts` — `useRoomDetail(roomId)` Hook：监听 roomId 变化，调用 `adminGetRoomDetail`，含 AbortController 防竞态，返回 `{ detail, loading, error }`（T-20005）
   - `src/pages/rooms/RoomDetailModal.tsx` — `RoomDetailModal` 组件：Ant Design Modal（`destroyOnHidden={true}`，切换房间时清除旧数据）展示房间详情（基本信息 + 占位成员列表 + 占位聊天记录）；[强制关闭] 按钮使用 `Modal.confirm` 二次确认，`closeRoom` re-throw 设计保证失败时 Modal 保持打开（T-20005）
   - `src/services/apiClient.ts`（扩展）— `adminCloseRoom(roomId: string): Promise<void>`（T-20004）；`adminGetRoomDetail(roomId: string, signal?: AbortSignal): Promise<RoomDetail>`（T-20005，GET `/admin/rooms/:id`）
-- 👤 **用户管理模块**（T-20006 ✅ · T-20007 ✅）- 路由 `/users`（在 `AuthGuard` 内）；涉及以下文件：
-  - `src/pages/users/index.tsx` — `UsersPage` 页面入口，组合 Hook + 组件；`useCallback` 包裹 `handleReset` / `handleViewDetail` / `handleDrawerClose` 防止不必要渲染
-  - `src/pages/users/useUsersPage.ts` — `useUsersPage` Hook：分页（pageSize=20）、状态过滤（normal/banned/all）、关键词搜索（手机号/用户ID/昵称）、AbortController 防竞态、`useSearchParams` 双向同步 URL Query String（刷新恢复搜索状态）
-  - `src/pages/users/UsersTable.tsx` — `UsersTable` 组件：Ant Design Table、工具栏（搜索表单 + 刷新按钮）、列：ID/手机号/昵称/头像/金币余额/VIP等级/状态/注册时间/操作（查看详情）；`useMemo` 缓存 columns 数组避免重复创建
-  - `src/pages/users/UserSearchForm.tsx` — `UserSearchForm` 组件：Ant Design Form inline 布局，手机号/用户ID/昵称 Input + 状态 Select + 搜索/重置 Button，按钮触发提交（非 debounce）
-  - `src/pages/users/UserStatusTag.tsx` — `UserStatusTag` 组件：normal=绿色"正常"，banned=红色"封禁"
-  - `src/pages/users/UserDetailDrawer.tsx` — `UserDetailDrawer` 组件：Ant Design Drawer（`destroyOnClose={true}`）展示用户详情（头像/手机号/昵称/金币余额/VIP等级/状态/注册时间）及 [封禁]/[解封] 操作按钮，点击 [封禁] 打开 `BanModal`（T-20007 · T-20008）
-  - `src/pages/users/useUserDetail.ts` — `useUserDetail(userId)` Hook：监听 userId 变化，调用 `adminGetUserDetail`，含 AbortController 防竞态，返回 `{ detail, loading, error }`（T-20007）
-  - `src/pages/users/BanModal.tsx` — `BanModal` 组件：Ant Design Modal 封禁对话框；表单含封禁时长 Select（1天/7天/30天/永久）、封禁原因 Select（违规言论/骚扰用户/欺诈行为/其他）、备注 TextArea（可选）；提交前 `Modal.confirm` 二次确认；`isConfirming` ref 并发防护，防止重复提交；成功后回调 `onSuccess` 触发详情刷新（T-20008）
-  - `src/pages/users/UnbanModal.tsx` — `UnbanModal` 组件：与 `BanModal` 对称的解封确认弹窗；表单含解封原因 Select（必填）、备注 TextArea（可选）；提交前 `Modal.confirm` 二次确认；`isConfirming` ref 并发防护，防止重复提交；成功后回调 `onSuccess` 触发用户列表刷新（T-20010）
-  - `src/pages/users/useBanUser.ts` — `useBanUser` Hook：封装 `adminBanUser` API 调用；管理 `loading` / `error` 状态；返回 `{ banUser, loading, error }`；调用方无需关心请求细节（T-20008）
-  - `src/core/network/apiClient.ts`（扩展）— `adminGetUsers(params, signal?): Promise<AdminUsersData>`；新增类型 `AdminUserItem` / `AdminUsersData` / `AdminGetUsersParams`；`adminGetUserDetail(userId, signal?): Promise<AdminUserDetail>`（T-20007）；`adminBanUser(userId, params): Promise<void>`；新增类型 `AdminBanUserParams`（T-20008）
+- 👤 [**用户管理模块**](./user-management.md)（T-20006 ✅ · T-20007 ✅ · T-20008 ✅ · T-20010 ✅ · **T-20012 ✅**）- 路由 `/users`（在 `AuthGuard` 内）；详见 [user-management.md](./user-management.md)。核心组件：
+   - `UsersPage` + `useUsersPage` Hook — 分页、状态筛选、关键词搜索、URL 双向同步、AbortController 防竞态
+   - `UsersTable` — Ant Design Table 展示用户列表
+   - `UserDetailDrawer` — 用户信息展示 + **"调整余额"按钮**（T-20012 新增，RBAC）+ [封禁]/[解封] 按钮
+   - `AdjustBalanceModal`（T-20012 新增）— 余额调整弹窗，负数二次确认，刷新机制
+   - `BanModal` / `UnbanModal` — 封禁/解封对话框
+   - `src/core/network/apiClient.ts`（扩展）— 新增 `adminAdjustBalance`（T-20012）等 API
+- 🎁 [**礼物管理模块**](./gift-management.md)（**T-20012 ✅**）- 路由 `/gifts`（在 `AuthGuard` → `AppLayout` 内）；详见 [gift-management.md](./gift-management.md)。RBAC 菜单控制（super_admin/operator 可见）。核心组件：
+   - `AppLayout`（T-20012 扩展）— 侧栏新增"礼物管理"菜单项，RBAC 控制可见性
+   - `GiftManagementPage` + `useGiftsPage` Hook — 分页、Tier 筛选、状态筛选（all/active/inactive/deleted，含客户端过滤）、AbortController 防竞态
+   - `GiftsTable` — Ant Design Table，列：icon/code/name/price/tier/is_active (Switch)/actions，Switch 乐观更新 + 失败回滚
+   - `GiftEditModal`（T-20012 新增）— 新增/编辑礼物弹窗，Form: code/name_cn/name_ar/price/tier/icon_url/animation_url，图片上传校验、实时预览、price=0 时禁用
+   - `src/core/network/apiClient.ts`（扩展）— 新增 `adminListGifts`、`adminCreateGift`、`adminUpdateGift`、`adminDeleteGift`、`adminUploadGiftAsset`（T-20012）
 - 📋 **操作日志模块**（T-20009 ✅）- 路由 `/logs`（在 `AuthGuard` 内）；涉及以下文件：
   - `src/pages/logs/index.tsx` — `LogsPage` 页面入口，组合 Hook + 组件
   - `src/pages/logs/useLogsPage.ts` — `useLogsPage` Hook：分页（pageSize=20）、操作人ID/操作类型/时间范围过滤、AbortController 防竞态、`useSearchParams` 双向同步 URL Query String
