@@ -1,18 +1,18 @@
 /**
- * UsersPage — 用户管理页面（T-20006 / T-20007 / T-20008）
+ * UsersPage — 用户管理页面（T-20006 / T-20007 / T-20008 / T-20010）
  *
- * 入口组件：集成 useUsersPage Hook + UserSearchForm 组件 + UsersTable 组件 + UserDetailDrawer 组件 + BanModal
+ * 入口组件：集成 useUsersPage Hook + UserSearchForm 组件 + UsersTable 组件 + UserDetailDrawer 组件 + BanModal + UnbanModal
  */
 
 import { useState, useCallback } from 'react';
-import { Alert, Modal, Typography, message } from 'antd';
+import { Alert, Typography, message } from 'antd';
 import { useTranslation } from 'react-i18next';
 import { useUsersPage } from './useUsersPage';
 import { UserSearchForm } from './UserSearchForm';
 import { UsersTable } from './UsersTable';
 import { UserDetailDrawer } from './UserDetailDrawer';
 import { BanModal } from './BanModal';
-import { adminBanUser } from '../../core/network/apiClient';
+import { UnbanModal } from './UnbanModal';
 
 export function UsersPage() {
   const { t } = useTranslation();
@@ -34,6 +34,9 @@ export function UsersPage() {
 
   // T-20008: 正在封禁的用户 ID（null 时 BanModal 关闭）
   const [banUserId, setBanUserId] = useState<string | null>(null);
+
+  // T-20010: 正在解封的用户 ID（null 时 UnbanModal 关闭）
+  const [unbanUserId, setUnbanUserId] = useState<string | null>(null);
 
   const handleReset = useCallback(() => {
     setFilters({});
@@ -66,25 +69,22 @@ export function UsersPage() {
     [t, refresh],
   );
 
-  // ── T-20008: 解封流程（直接 Modal.confirm，不需要额外 Modal 组件）──────────
-  const handleUnbanClick = useCallback(
+  // ── T-20010: 解封流程 ──────────────────────────────────────────────────────
+  const handleUnbanClick = useCallback((userId: string) => {
+    setUnbanUserId(userId);
+  }, []);
+
+  const handleUnbanClose = useCallback(() => {
+    setUnbanUserId(null);
+  }, []);
+
+  const handleUnbanSuccess = useCallback(
     (userId: string) => {
-      Modal.confirm({
-        title: t('users.ban.confirmUnban'),
-        onOk: async () => {
-          try {
-            await adminBanUser(userId, { action: 'unban' });
-            message.success(t('users.ban.unbanSuccessMsg'));
-            setSelectedUserId(null);
-            refresh();
-          } catch (err) {
-            message.error(
-              err instanceof Error ? err.message : t('common.requestError'),
-            );
-            throw err; // re-throw 使 antd 正确复位 OK 按钮 loading
-          }
-        },
-      });
+      void userId; // userId 已通过 setUnbanUserId 追踪，此处仅作类型完整性标注
+      message.success(t('users.unban.successMsg'));
+      setUnbanUserId(null);
+      setSelectedUserId(null);
+      refresh();
     },
     [t, refresh],
   );
@@ -138,6 +138,13 @@ export function UsersPage() {
         userId={banUserId}
         onClose={handleBanClose}
         onSuccess={handleBanSuccess}
+      />
+
+      {/* 解封对话框（T-20010） */}
+      <UnbanModal
+        userId={unbanUserId}
+        onClose={handleUnbanClose}
+        onSuccess={handleUnbanSuccess}
       />
     </div>
   );

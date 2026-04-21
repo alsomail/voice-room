@@ -2,6 +2,7 @@
  * T-20006: UsersPage 集成测试
  * T-20007: UsersPage 集成测试（用户详情抽屉）
  * T-20008: UsersPage 集成测试（封禁对话框）
+ * T-20010: UsersPage 集成测试（解封对话框）
  *
  * 验收用例（T-20006）：
  *   I01: API 成功 → Table 显示 3 行
@@ -18,8 +19,11 @@
  * 验收用例（T-20008）：
  *   I09: UserDetailDrawer 封禁按钮点击 → BanModal 打开
  *   I10: BanModal 封禁成功 → Drawer 关闭 + 用户列表重新加载
- *   I11: UserDetailDrawer 解封按钮点击 → Modal.confirm → 确认后调用 unban API
- *   I12: 解封 API 失败时，message.error 被调用，confirm 的 onOk re-throw 使 antd 正确处理
+ *
+ * 验收用例（T-20010）：
+ *   I11: UserDetailDrawer 解封按钮点击 → UnbanModal 打开
+ *   I12: UnbanModal 解封成功 → Drawer 关闭 + 用户列表重新加载 + message.success 出现
+ *   I13: UnbanModal 取消 → unbanUserId 重置为 null，Modal 关闭
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -43,6 +47,7 @@ vi.mock('../../core/network/apiClient', () => ({
   adminGetUsers: vi.fn(),
   adminGetUserDetail: vi.fn(),
   adminBanUser: vi.fn(),
+  adminUnbanUser: vi.fn(),
 }));
 
 // ── BanModal mock（用于集成测试 I09/I10，聚焦 UsersPage 回调行为）──────────
@@ -63,6 +68,31 @@ vi.mock('./BanModal', () => ({
           close
         </button>
         <button data-testid="mock-ban-success" onClick={() => onSuccess(userId)}>
+          success
+        </button>
+      </div>
+    );
+  },
+}));
+
+// ── UnbanModal mock（用于集成测试 I11/I12/I13，聚焦 UsersPage 回调行为）────
+vi.mock('./UnbanModal', () => ({
+  UnbanModal: ({
+    userId,
+    onClose,
+    onSuccess,
+  }: {
+    userId: string | null;
+    onClose: () => void;
+    onSuccess: (id: string) => void;
+  }) => {
+    if (!userId) return null;
+    return (
+      <div data-testid="unban-modal-mock">
+        <button data-testid="mock-unban-close" onClick={onClose}>
+          close
+        </button>
+        <button data-testid="mock-unban-success" onClick={() => onSuccess(userId)}>
           success
         </button>
       </div>
@@ -386,10 +416,9 @@ describe('UsersPage — I10 (T-20008): BanModal 成功后关闭 Drawer 并刷新
   });
 });
 
-// ── I11: 解封按钮 → Modal.confirm → 确认后调用 unban API ─────────────────
-describe('UsersPage — I11 (T-20008): 解封按钮触发 unban 流程', () => {
-  it('点击解封按钮，Modal.confirm 调用，确认后 adminBanUser 以 action=unban 调用', async () => {
-    // 返回 banned 用户
+// ── I11: 解封按钮 → UnbanModal 打开（T-20010）────────────────────────────
+describe('UsersPage — I11 (T-20010): 解封按钮点击 → UnbanModal 打开', () => {
+  it('点击解封按钮，UnbanModal 打开（unban-modal-mock 出现）', async () => {
     mockAdminGetUserDetail.mockResolvedValue({
       id: 'user-1',
       phone: '+8613800138001',
@@ -404,13 +433,6 @@ describe('UsersPage — I11 (T-20008): 解封按钮触发 unban 流程', () => {
       devices: [],
     });
 
-    const confirmSpy = vi
-      .spyOn(antd.Modal, 'confirm')
-      .mockImplementation(({ onOk }: Parameters<typeof antd.Modal.confirm>[0]) => {
-        void (onOk as (() => Promise<void>) | undefined)?.();
-        return { destroy: vi.fn(), update: vi.fn() };
-      });
-
     const user = userEvent.setup();
     renderWithRouter();
 
@@ -420,34 +442,21 @@ describe('UsersPage — I11 (T-20008): 解封按钮触发 unban 流程', () => {
       expect(rows.length).toBeGreaterThan(0);
     });
 
-    // 打开 Drawer（banned 用户）
     await user.click(screen.getAllByTestId('view-detail-btn')[0]);
     await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
 
-    // 点击解封按钮
     const unbanBtn = await screen.findByTestId('unban-btn');
     await user.click(unbanBtn);
 
-    // Modal.confirm 应被调用
     await waitFor(() => {
-      expect(confirmSpy).toHaveBeenCalled();
+      expect(screen.getByTestId('unban-modal-mock')).toBeInTheDocument();
     });
-
-    // adminBanUser 应以 action=unban 调用
-    await waitFor(() => {
-      expect(mockAdminBanUser).toHaveBeenCalledWith(
-        'user-1',
-        { action: 'unban' },
-      );
-    });
-
-    confirmSpy.mockRestore();
   });
 });
 
-// ── I12: 解封 API 失败 → message.error 被调用 ─────────────────────────────
-describe('UsersPage — I12 (T-20008): 解封 API 失败时显示 message.error', () => {
-  it('unban API 抛错时，message.error 被调用', async () => {
+// ── I12: UnbanModal 成功 → Drawer 关闭 + 用户列表刷新 + message.success ───
+describe('UsersPage — I12 (T-20010): UnbanModal 解封成功后关闭 Drawer 并刷新列表', () => {
+  it('UnbanModal onSuccess 被调用后 Drawer 关闭且 adminGetUsers 重新调用', async () => {
     mockAdminGetUserDetail.mockResolvedValue({
       id: 'user-1',
       phone: '+8613800138001',
@@ -462,20 +471,9 @@ describe('UsersPage — I12 (T-20008): 解封 API 失败时显示 message.error'
       devices: [],
     });
 
-    // 解封 API 失败
-    mockAdminBanUser.mockRejectedValue(new Error('解封失败：服务器错误'));
-
-    const messageErrorSpy = vi
-      .spyOn(antd.message, 'error')
-      .mockImplementation(() => ({ then: vi.fn() } as unknown as ReturnType<typeof antd.message.error>));
-
-    const confirmSpy = vi
-      .spyOn(antd.Modal, 'confirm')
-      .mockImplementation(({ onOk }: Parameters<typeof antd.Modal.confirm>[0]) => {
-        // catch rejection：re-throw 行为是预期的，避免 unhandled promise rejection 警告
-        void (onOk as (() => Promise<void>) | undefined)?.().catch(() => {});
-        return { destroy: vi.fn(), update: vi.fn() };
-      });
+    const messageSuccessSpy = vi
+      .spyOn(antd.message, 'success')
+      .mockImplementation(() => ({ then: vi.fn() } as unknown as ReturnType<typeof antd.message.success>));
 
     const user = userEvent.setup();
     renderWithRouter();
@@ -486,20 +484,65 @@ describe('UsersPage — I12 (T-20008): 解封 API 失败时显示 message.error'
       expect(rows.length).toBeGreaterThan(0);
     });
 
-    // 打开 Drawer（banned 用户）
     await user.click(screen.getAllByTestId('view-detail-btn')[0]);
     await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
-
-    // 点击解封按钮
     const unbanBtn = await screen.findByTestId('unban-btn');
     await user.click(unbanBtn);
+    await waitFor(() => expect(screen.getByTestId('unban-modal-mock')).toBeInTheDocument());
 
-    // message.error 应被调用
+    const callCountBefore = mockAdminGetUsers.mock.calls.length;
+
+    await user.click(screen.getByTestId('mock-unban-success'));
+
     await waitFor(() => {
-      expect(messageErrorSpy).toHaveBeenCalled();
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });
 
-    confirmSpy.mockRestore();
-    messageErrorSpy.mockRestore();
+    await waitFor(() => {
+      expect(mockAdminGetUsers.mock.calls.length).toBeGreaterThan(callCountBefore);
+    });
+
+    expect(messageSuccessSpy).toHaveBeenCalled();
+    messageSuccessSpy.mockRestore();
+  });
+});
+
+// ── I13: UnbanModal 取消 → unbanUserId 重置为 null，Modal 关闭 ────────────
+describe('UsersPage — I13 (T-20010): UnbanModal 取消后关闭', () => {
+  it('UnbanModal onClose 被调用后 unban-modal-mock 消失', async () => {
+    mockAdminGetUserDetail.mockResolvedValue({
+      id: 'user-1',
+      phone: '+8613800138001',
+      nickname: 'User1',
+      avatar_url: null,
+      coin_balance: 100,
+      vip_level: 0,
+      status: 'banned',
+      created_at: '2025-01-01T00:00:00Z',
+      recharge_records: [],
+      consume_records: [],
+      devices: [],
+    });
+
+    const user = userEvent.setup();
+    renderWithRouter();
+
+    const table = await screen.findByTestId('users-table');
+    await waitFor(() => {
+      const rows = table.querySelectorAll('tbody tr');
+      expect(rows.length).toBeGreaterThan(0);
+    });
+
+    await user.click(screen.getAllByTestId('view-detail-btn')[0]);
+    await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
+    const unbanBtn = await screen.findByTestId('unban-btn');
+    await user.click(unbanBtn);
+    await waitFor(() => expect(screen.getByTestId('unban-modal-mock')).toBeInTheDocument());
+
+    await user.click(screen.getByTestId('mock-unban-close'));
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('unban-modal-mock')).not.toBeInTheDocument();
+    });
   });
 });

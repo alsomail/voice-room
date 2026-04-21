@@ -438,3 +438,31 @@ export async function adminGetStatsOverview(
   });
   return res.data;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Admin Unban User（T-20010，对应 PUT /admin/users/:id/unban）
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** PUT /admin/users/:id/unban 请求体 */
+export interface AdminUnbanUserRequest {
+  reason: string;
+  remark?: string;
+}
+
+/**
+ * PUT /admin/users/:id/unban — 管理员解封用户（T-20010）
+ * 成功 200：{ code: 0, data: null }
+ * 40901：用户当前未被封禁（幂等）
+ */
+export async function adminUnbanUser(
+  userId: string,
+  req: AdminUnbanUserRequest,
+  signal?: AbortSignal,
+): Promise<void> {
+  await adminFetch<null>(`/users/${encodeURIComponent(userId)}/unban`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(req),
+    signal,
+  });
+}
