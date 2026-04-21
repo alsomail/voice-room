@@ -98,6 +98,13 @@ Server 端基于 Rust + Axum 构建。启动骨架（配置、日志、健康检
   - **`room/handler.rs` 扩展**：新增 `SendMessageDeps` 依赖结构体；新增 `handle_send_message` 8 步流程：payload 解析 → 内容非空校验 → 长度限制（500 字符）→ 房间存在校验 → 禁言检查（`muted_users`）→ `msg_id` 幂等去重（`processed_msg_ids`）→ 敏感词净化（`filter_content`）→ 广播 `MessageReceived` 事件 → 返回成功响应
   - **`ws/connection.rs` 扩展**：信令路由新增 `SendMessage` 分支，调用 `handle_send_message`
   - **关键设计**：`processed_msg_ids` 基于 `DashSet<String>` 无锁并发去重，幂等插入（`insert` 返回 `false` 表示重复）；`muted_users` DashSet 无锁并发读；敏感词净化在广播前执行，广播内容为净化后文本；全量 196 passed, 0 failed
+- 🟢 **钱包模块 - Schema 与迁移**（T-00017）：`src/shared/models/wallet.rs` + `app/server/migrations/004_create_wallet.sql`
+  - **数据库设计**：`users` 表新增 `diamond_balance BIGINT DEFAULT 0 CHECK(>=0)` 字段；新建 `wallet_transactions` 流水表（id, user_id, type, amount, balance_after, ref_id, reason, operator_id, created_at）
+  - **约束与索引**：CHECK 约束防止余额负数；复合索引 `(user_id, created_at DESC)` 支撑流水查询；`balance_after` CHECK 约束防止非法交易记录
+  - **Rust 模型**：`WalletTransactionModel`（`sqlx::FromRow`）与 `WalletTxnType` enum（5 变体：gift_send/gift_receive/admin_adjust/recharge/refund）从 `shared` crate 导出；`UserModel` 新增 `diamond_balance: i64` 字段
+  - **迁移幂等性**：使用 `IF NOT EXISTS` 语法三处幂等（ALTER TABLE ADD COLUMN、CREATE TABLE、CREATE INDEX），支持重复执行
+  - **测试覆盖**：共 245 passed（196 server lib + 8 wallet 集成 + 41 shared 单元），覆盖 W01~W06 验收标准（幂等/默认值/CHECK 约束/索引/全类型插入）
+  - **后续依赖**：T-00018（余额查询 API + WS 推送）、T-00020（SendGift 事务）等通过本数据基座实现
 - 🔴 支付业务域
 
 ### 遗留技术债 (Tech Debt)

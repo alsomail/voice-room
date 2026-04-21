@@ -1,6 +1,6 @@
 # Server 数据库 Schema 设计
 
-**Last Updated:** 2026-04-19
+**Last Updated:** 2026-04-21
 **Migration 目录:** `app/server/migrations/`
 **Rust 模型目录:** `app/shared/src/models/`
 
@@ -148,7 +148,147 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_rooms_owner_active
 
 ---
 
-## 四、 技术债记录 (Tech Debt)
+## 四、 钱包模块 (T-00017)
+
+### 4.1 DDL 概要
+
+#### 4.1.1 `users` 表扩展
+
+```sql
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS diamond_balance BIGINT NOT NULL DEFAULT 0
+        CHECK (diamond_balance >= 0);
+```
+
+新增字段：
+
+| 字段 | 类型 | 默认值 | 可空 | 说明 |
+| --- | --- | --- | --- | --- |
+| `diamond_balance` | `BIGINT` | `0` | ❌ | 钻石余额，≥ 0（CHECK 约束防止负值） |
+
+**关键特性**：
+- `DEFAULT 0`：新注册用户自动初始化为 0；存量用户迁移后为 0
+- `CHECK (diamond_balance >= 0)`：DB 层强制非负，配合业务层校验双重防护，严禁超扣
+- 大小范围：`BIGINT` 可表示 ±9.2×10¹⁸，足够支撑任意虚拟货币操作
+
+#### 4.1.2 `wallet_transactions` 流水表
+
+```sql
+CREATE TABLE IF NOT EXISTS wallet_transactions (
+    id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id          UUID NOT NULL REFERENCES users(id),
+    type             VARCHAR(32) NOT NULL, -- gift_send | gift_receive | admin_adjust | recharge | refund
+    amount           BIGINT NOT NULL,      -- 正数=加，负数=扣
+    balance_after    BIGINT NOT NULL CHECK (balance_after >= 0),
+    ref_id           UUID,                 -- 关联 gift_record_id / admin_log_id 等
+    reason           TEXT,
+    operator_id      UUID REFERENCES users(id), -- 非空即管理员操作
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_wallet_txn_user_created ON wallet_transactions(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_wallet_txn_type ON wallet_transactions(type, created_at DESC);
+```
+
+### 4.2 字段说明
+
+| 字段 | 类型 | 默认值 | 可空 | 说明 |
+| --- | --- | --- | --- | --- |
+| `id` | `UUID` | `gen_random_uuid()` | ❌ | 流水 ID，PostgreSQL 自动生成 |
+| `user_id` | `UUID` | — | ❌ | 外键 → `users(id)`，账户归属 |
+| `type` | `VARCHAR(32)` | — | ❌ | 枚举：`gift_send`（送礼扣减）/ `gift_receive`（收礼入账）/ `admin_adjust`（管理员手调）/ `recharge`（充值）/ `refund`（退款） |
+| `amount` | `BIGINT` | — | ❌ | 变化量，正数=加，负数=扣 |
+| `balance_after` | `BIGINT` | — | ❌ | 交易后余额（CHECK ≥ 0），便于核账 |
+| `ref_id` | `UUID` | `NULL` | ✅ | 关联记录 ID（`gift_record_id`、`admin_log_id` 等），便于溯源 |
+| `reason` | `TEXT` | `NULL` | ✅ | 流水原因/备注（管理员调整时必填，用户送礼时为空） |
+| `operator_id` | `UUID` | `NULL` | ✅ | 外键 → `users(id)`，管理员 ID（管理员操作时非空） |
+| `created_at` | `TIMESTAMPTZ` | `now()` | ❌ | 创建时间，PostgreSQL 自动填充 |
+
+### 4.3 CHECK 约束
+
+| 约束名 | 规则 | 说明 |
+| --- | --- | --- |
+| `diamond_balance >= 0`（`users` 表） | `diamond_balance BIGINT NOT NULL DEFAULT 0 CHECK (diamond_balance >= 0)` | 防止用户余额为负（强约束） |
+| `balance_after >= 0`（`wallet_transactions` 表） | `balance_after BIGINT NOT NULL CHECK (balance_after >= 0)` | 防止写入非法的交易后余额 |
+
+### 4.4 索引
+
+| 索引名 | 列 | 方向 | 用途 |
+| --- | --- | --- | --- |
+| `idx_wallet_txn_user_created` | `(user_id, created_at DESC)` | `created_at DESC` | 查询用户流水历史，按时间倒序分页；是 `GET /api/v1/wallet/transactions` 的核心查询列 |
+| `idx_wallet_txn_type` | `(type, created_at DESC)` | `created_at DESC` | 按交易类型统计流水，预留扩展点（后续可用于数据看板聚合） |
+
+### 4.5 事务与幂等
+
+**事务边界**：余额扣减操作（如 `SendGift`、`AdminAdjust`）**必须**在同一个 SQLx Transaction 内完成三步：
+1. `UPDATE users SET diamond_balance = diamond_balance ± N WHERE id = ? AND diamond_balance ± N >= 0`（同时校验 CHECK 约束）
+2. `INSERT INTO wallet_transactions (...)` 写入流水
+3. 事务提交或回滚
+
+任何一步失败，整体回滚，保证余额与流水一致性。
+
+**幂等性**：
+- `wallet_transactions` 每条流水自带唯一 `id`，插入天然幂等（无 PRIMARY KEY 冲突）
+- `SendGift` 基于 `(sender_id, msg_id)` 进行应用层去重，重复请求返回幂等结果不再扣减
+
+### 4.6 Rust 模型映射
+
+**文件：** `app/shared/src/models/wallet.rs`
+
+```rust
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type)]
+#[sqlx(type_name = "VARCHAR", rename_all = "snake_case")]
+pub enum WalletTxnType {
+    GiftSend,      // 送礼扣减
+    GiftReceive,   // 收礼入账（MVP 保留，暂不自动加余额）
+    AdminAdjust,   // 管理员手动调整
+    Recharge,      // 充值（E-08 接入）
+    Refund,        // 退款
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct WalletTransactionModel {
+    pub id:            Uuid,
+    pub user_id:       Uuid,
+    #[sqlx(rename = "type")]
+    pub txn_type:      WalletTxnType,
+    pub amount:        i64,
+    pub balance_after: i64,
+    pub ref_id:        Option<Uuid>,
+    pub reason:        Option<String>,
+    pub operator_id:   Option<Uuid>,
+    pub created_at:    DateTime<Utc>,
+}
+```
+
+**关键点**：
+- `WalletTxnType` 使用 `sqlx::Type` + `rename_all = "snake_case"` 实现 serde 自动映射 PostgreSQL VARCHAR 值
+- `WalletTransactionModel` 使用 `sqlx::FromRow` 直接反序列化数据库行，无需手动解包
+- `#[sqlx(rename = "type")]` 避免 SQL 保留字冲突（`type` → `txn_type` 字段名）
+
+**UserModel 扩展**（`app/shared/src/models/user.rs`）：
+```rust
+pub struct UserModel {
+    // 既有字段...
+    pub diamond_balance: i64, // 新增，默认 0
+}
+```
+
+### 4.7 测试覆盖
+
+**共同测试**（`app/server/tests/wallet_schema_test.rs` + shared 单元测试）：
+- **W01** 迁移幂等性：连续执行 `sqlx migrate run` 不报错
+- **W02** 默认值：新注册用户 `diamond_balance = 0`；存量用户迁移后 `diamond_balance = 0`
+- **W03** CHECK 约束（users）：`UPDATE users SET diamond_balance = -1` 被 PG 错误 23514 拒绝
+- **W04** CHECK 约束（wallet_transactions）：插入 `balance_after = -5` 被拒绝
+- **W05** 复合索引命中：`EXPLAIN SELECT ... FROM wallet_transactions WHERE user_id = ? ORDER BY created_at DESC LIMIT 20` 验证 Index Scan
+- **W06** 全类型插入：5 种 `WalletTxnType` 均可正确序列化/反序列化
+
+**测试结果**：245 passed, 0 failed（共 196 server + 8 wallet 集成 + 41 shared 单元测试）
+
+---
+
+## 五、 技术债记录 (Tech Debt)
 
 ### T-00008 Review 遗留 MEDIUM 问题
 
