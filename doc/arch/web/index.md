@@ -12,7 +12,7 @@
 ## 一、 架构概述
 当前 Web 端定位为 **B 端后台管理系统（Admin Web）**，面向运营人员和客服，通过 VPN 访问 Admin Server。
 技术栈：React + Vite + TypeScript + Ant Design + Zustand。
-已完成 Vite 工程脚手架与基础环境配置、管理员登录页 UI（T-20001）、登录逻辑与路由守卫（T-20002）、数据看板首页（T-20003）、房间管理页面（T-20004）、房间详情弹窗（T-20005）、用户管理页面（T-20006）、用户详情抽屉（T-20007）、封禁对话框（T-20008）、操作日志页面（T-20009）、解封弹窗（T-20010）。
+已完成 Vite 工程脚手架与基础环境配置、管理员登录页 UI（T-20001）、登录逻辑与路由守卫（T-20002）、数据看板首页（T-20003）、房间管理页面（T-20004）、房间详情弹窗（T-20005）、用户管理页面（T-20006）、用户详情抽屉（T-20007）、封禁对话框（T-20008）、操作日志页面（T-20009）、解封弹窗（T-20010）、活水房间监控增强（T-20011）。
 **重要**：Web 端只通过 HTTP 与 Admin Server 通信，不涉及 WebSocket、RTC、IM 等实时通信能力。
 
 ## 二、 子模块索引 (Module Router)
@@ -22,11 +22,13 @@
 - 🧱 [目录结构与入口链路](./structure.md) - `main.tsx`、`App`、`HomePage`、环境变量与基础 helper 现状。
 - 📡 [Telemetry 与网络能力现状](./status.md) - 埋点 mock、URL 约束、WS/HTTP helper 与未落地项。
 - 🔐 [Auth 模块（登录页 UI + Zustand 状态管理 + 路由守卫）](./auth.md) - `LoginPage`/`LoginForm` 组件结构、`useAuthStore` JWT 状态管理、`AuthGuard` 路由守卫、401 拦截器、localStorage XSS 风险说明（T-20001 + T-20002）。
-- 🏠 **房间管理模块**（T-20004 ✅ · T-20005 ✅）- 路由 `/rooms`（在 `AuthGuard` 内）；涉及以下文件：
-  - `src/pages/rooms/index.tsx` — `RoomsPage` 页面入口，组合 Hook + 组件
-  - `src/pages/rooms/useRoomsPage.ts` — `useRoomsPage` Hook：分页（pageSize=20）、状态过滤（active/closed/all）、关键词搜索（300 ms debounce）、关闭房间（`closingId` 细粒度 loading）、AbortController 防竞态、`selectedRoomId` 作为 T-20005 接口契约
-  - `src/pages/rooms/RoomsTable.tsx` — `RoomsTable` 组件：Ant Design Table、工具栏（搜索框 + 状态下拉 + 刷新按钮）、Popconfirm 二次确认关闭、closed 行关闭按钮禁用
+- 🏠 **房间管理模块**（T-20004 ✅ · T-20005 ✅ · T-20011 ✅）- 路由 `/rooms`（在 `AuthGuard` 内）；涉及以下文件：
+  - `src/pages/rooms/index.tsx` — `RoomsPage` 页面入口，组合 Hook + 组件；透传 `activityFilter`/`setActivityFilter`/`filteredItems` 给 `RoomsTable`（T-20011）
+  - `src/pages/rooms/useRoomsPage.ts` — `useRoomsPage` Hook：分页（pageSize=20）、状态过滤（active/closed/all）、关键词搜索（300 ms debounce）、关闭房间（`closingId` 细粒度 loading）、AbortController 防竞态、`selectedRoomId` 作为 T-20005 接口契约；**T-20011 扩展**：新增 `activityFilter`（`ActivityFilter` 类型，默认 `'all'`）/ `setActivityFilter` / `filteredItems`（`useMemo` 纯前端过滤，不触发新 API 请求）
+  - `src/pages/rooms/RoomsTable.tsx` — `RoomsTable` 组件：Ant Design Table、工具栏（搜索框 + 状态下拉 + **活跃度下拉** + 刷新按钮）、Popconfirm 二次确认关闭、closed 行关闭按钮禁用；**T-20011 扩展**：新增「活跃状态」列（`RoomActivityTag`）、「持续时长」列（`formatDuration`）、异常房间行高亮（`rgba(231,76,60,0.1)`）；新增 Props：`activityFilter?: ActivityFilter`（默认 `'all'`）/ `onActivityFilterChange?: (filter: ActivityFilter) => void`（默认 noop，向后兼容）
   - `src/pages/rooms/RoomStatusTag.tsx` — `RoomStatusTag` 组件：active=绿色、closed=灰色（使用 i18n）
+  - `src/pages/rooms/roomUtils.ts` — **T-20011 新增**：活跃状态纯函数工具库；导出类型 `ActivityLevel`（`'active' | 'quiet' | 'abnormal' | 'normal'`）/ `ActivityFilter`（`'all' | 'active' | 'quiet' | 'abnormal'`）；`getActivityStatus(room, now?)` 按优先级规则计算活跃等级（≥5人→active / 0人且active状态→abnormal / 1-4人且>1h→quiet / 其余→normal）；`formatDuration(createdAt, now?)` 格式化持续时长（`0m` / `35m` / `2h 35m` / `3d 2h`）；`filterByActivity(items, filter, now?)` 纯前端列表过滤；所有函数注入 `now` 参数支持确定性单元测试
+  - `src/pages/rooms/RoomActivityTag.tsx` — **T-20011 新增**：`RoomActivityTag` 组件；Props：`{ level: ActivityLevel; roomId: string }`；颜色映射：active=success（绿）/ quiet=warning（黄）/ abnormal=error（红）/ normal=processing（蓝）；`useMemo` 缓存 labelMap；`data-testid="room-activity-tag-{roomId}"` 供测试定位
   - `src/pages/rooms/useRoomDetail.ts` — `useRoomDetail(roomId)` Hook：监听 roomId 变化，调用 `adminGetRoomDetail`，含 AbortController 防竞态，返回 `{ detail, loading, error }`（T-20005）
   - `src/pages/rooms/RoomDetailModal.tsx` — `RoomDetailModal` 组件：Ant Design Modal（`destroyOnHidden={true}`，切换房间时清除旧数据）展示房间详情（基本信息 + 占位成员列表 + 占位聊天记录）；[强制关闭] 按钮使用 `Modal.confirm` 二次确认，`closeRoom` re-throw 设计保证失败时 Modal 保持打开（T-20005）
   - `src/services/apiClient.ts`（扩展）— `adminCloseRoom(roomId: string): Promise<void>`（T-20004）；`adminGetRoomDetail(roomId: string, signal?: AbortSignal): Promise<RoomDetail>`（T-20005，GET `/admin/rooms/:id`）
@@ -68,6 +70,7 @@
 - 🟢 封禁对话框（`BanModal` 组件：时长/原因/备注表单 + `Modal.confirm` 二次确认 + `isConfirming` 并发防护；`useBanUser` Hook：封装 `adminBanUser` API，loading/error 状态管理；apiClient 新增 `adminBanUser`）← **T-20008 ✅ Done**
 - 🟢 解封弹窗（`UnbanModal` 组件：解封原因必填 Select + 备注 TextArea + `Modal.confirm` 二次确认 + `isConfirming` 并发防护；与 `BanModal` 对称设计；成功后回调 `onSuccess` 刷新用户列表；apiClient 新增 `adminUnbanUser`）← **T-20010 ✅ Done**
 - 🟢 操作日志页面（`/logs` 路由；LogsPage + useLogsPage + LogsTable + LogSearchForm；操作人ID/操作类型/时间范围筛选/分页/URL双向同步；apiClient 新增 `adminGetLogs`）← **T-20009 ✅ Done**
+- 🟢 活水房间监控增强（`roomUtils.ts` 纯函数库：`getActivityStatus`/`formatDuration`/`filterByActivity`，注入 `now` 参数支持测试；`RoomActivityTag` 组件：4 种活跃等级颜色标签；`RoomsTable` 新增活跃状态列 + 持续时长列 + 活跃度筛选下拉 + 异常行高亮；`useRoomsPage` 新增 `filteredItems`/`activityFilter`/`setActivityFilter`；i18n 新增 8 个 `rooms.activity.*` 翻译键；全部为纯前端过滤，不影响 API 调用）← **T-20011 ✅ Done**
 
 ### 遗留技术债 (Tech Debt)
 - 当前工程脚手架仍保留 C 端时期的 telemetry mock 和 WS helper，需要在后续重构中清理。
