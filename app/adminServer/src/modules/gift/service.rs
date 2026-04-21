@@ -221,6 +221,15 @@ pub fn validate_create_request(req: &CreateGiftRequest) -> Result<(), AppError> 
         ));
     }
 
+    // animation_url 白名单校验（可选字段，若传入则校验，R2 修复）
+    if let Some(ref animation_url) = req.animation_url {
+        if !ALLOWED_URL_PREFIXES.iter().any(|p| animation_url.starts_with(p)) {
+            return Err(AppError::ValidationError(
+                "animation_url 必须指向受控目录 /uploads/gifts/ 或 CDN 白名单前缀".to_string(),
+            ));
+        }
+    }
+
     Ok(())
 }
 
@@ -271,6 +280,19 @@ pub fn validate_update_request(req: &UpdateGiftRequest) -> Result<(), AppError> 
         if !ALLOWED_URL_PREFIXES.iter().any(|p| icon_url.starts_with(p)) {
             return Err(AppError::ValidationError(
                 "icon_url 必须指向受控目录 /uploads/gifts/ 或 CDN 白名单前缀".to_string(),
+            ));
+        }
+    }
+
+    // animation_url 白名单校验（若传入，R2 修复）
+    if let Some(ref animation_url) = req.animation_url {
+        const ALLOWED_URL_PREFIXES: &[&str] = &[
+            "/uploads/gifts/",
+            "https://cdn.your-domain.com/",
+        ];
+        if !ALLOWED_URL_PREFIXES.iter().any(|p| animation_url.starts_with(p)) {
+            return Err(AppError::ValidationError(
+                "animation_url 必须指向受控目录 /uploads/gifts/ 或 CDN 白名单前缀".to_string(),
             ));
         }
     }
@@ -594,6 +616,110 @@ mod tests {
         assert!(
             validate_update_request(&req_cdn).is_ok(),
             "GS-14: CDN 白名单前缀应通过"
+        );
+    }
+
+    // ── GS-15: animation_url 白名单校验（create）────────────────────────────────
+    /// R2 修复：validate_create_request 应拒绝非白名单 animation_url
+    #[test]
+    fn gs15_validate_create_request_animation_url_whitelist() {
+        let mut req = valid_create_req("star_03");
+
+        // None → 不校验，应通过
+        req.animation_url = None;
+        assert!(
+            validate_create_request(&req).is_ok(),
+            "GS-15: animation_url=None 应通过"
+        );
+
+        // 外部恶意 URL → 应拒绝
+        req.animation_url = Some("https://evil.com/malicious.json".to_string());
+        assert!(
+            validate_create_request(&req).is_err(),
+            "GS-15: 外部 URL 应被拒绝"
+        );
+
+        // 非白名单本地路径 → 应拒绝
+        req.animation_url = Some("/static/lottie/test.json".to_string());
+        assert!(
+            validate_create_request(&req).is_err(),
+            "GS-15: 非白名单路径应被拒绝"
+        );
+
+        // http 协议（非 https cdn）→ 应拒绝
+        req.animation_url = Some("http://cdn.your-domain.com/gifts/anim.json".to_string());
+        assert!(
+            validate_create_request(&req).is_err(),
+            "GS-15: http 非白名单 CDN 应被拒绝"
+        );
+
+        // 允许 /uploads/gifts/ 前缀
+        req.animation_url = Some("/uploads/gifts/star.json".to_string());
+        assert!(
+            validate_create_request(&req).is_ok(),
+            "GS-15: /uploads/gifts/ 前缀应通过"
+        );
+
+        // 允许配置的 CDN 前缀
+        req.animation_url = Some("https://cdn.your-domain.com/gifts/star.json".to_string());
+        assert!(
+            validate_create_request(&req).is_ok(),
+            "GS-15: CDN 白名单前缀应通过"
+        );
+    }
+
+    // ── GS-16: animation_url 白名单校验（update）────────────────────────────────
+    /// R2 修复：validate_update_request 应拒绝非白名单 animation_url
+    #[test]
+    fn gs16_validate_update_request_animation_url_whitelist() {
+        // None → 不校验，应通过
+        let req_none = UpdateGiftRequest {
+            animation_url: None,
+            ..Default::default()
+        };
+        assert!(
+            validate_update_request(&req_none).is_ok(),
+            "GS-16: animation_url=None 应通过"
+        );
+
+        // 外部恶意 URL → 应拒绝
+        let req_invalid = UpdateGiftRequest {
+            animation_url: Some("https://evil.com/malicious.json".to_string()),
+            ..Default::default()
+        };
+        assert!(
+            validate_update_request(&req_invalid).is_err(),
+            "GS-16: 外部 URL 应被拒绝"
+        );
+
+        // 非白名单本地路径 → 应拒绝
+        let req_invalid2 = UpdateGiftRequest {
+            animation_url: Some("/public/lottie/test.json".to_string()),
+            ..Default::default()
+        };
+        assert!(
+            validate_update_request(&req_invalid2).is_err(),
+            "GS-16: 非白名单路径应被拒绝"
+        );
+
+        // 允许 /uploads/gifts/ 前缀
+        let req_valid = UpdateGiftRequest {
+            animation_url: Some("/uploads/gifts/valid.json".to_string()),
+            ..Default::default()
+        };
+        assert!(
+            validate_update_request(&req_valid).is_ok(),
+            "GS-16: /uploads/gifts/ 前缀应通过"
+        );
+
+        // 允许 CDN 白名单前缀
+        let req_cdn = UpdateGiftRequest {
+            animation_url: Some("https://cdn.your-domain.com/gifts/anim.json".to_string()),
+            ..Default::default()
+        };
+        assert!(
+            validate_update_request(&req_cdn).is_ok(),
+            "GS-16: CDN 白名单前缀应通过"
         );
     }
 
