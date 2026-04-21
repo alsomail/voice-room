@@ -3685,4 +3685,137 @@ mod tests {
         let resp = put_gift(app, &token, &nonexistent_id, r#"{"price":99}"#).await;
         assert_eq!(resp.status(), StatusCode::NOT_FOUND, "GC-extra03: 不存在礼物应返回 404");
     }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // Review 修复专项集成测试
+    // ════════════════════════════════════════════════════════════════════════
+
+    // ── GC-review-01: POST 非白名单 icon_url → 400（MEDIUM-1）────────────────
+    /// 验证 icon_url 白名单校验在 HTTP 层正确拦截外部/非白名单路径
+    #[tokio::test]
+    async fn gc_review01_post_invalid_icon_url_returns_400() {
+        let token = make_jwt("test-secret", "operator");
+        let (app, _, _) = gift_app(vec![]);
+
+        // 外部 URL 被拒绝
+        let resp = post_gift(
+            app.clone(),
+            &token,
+            r#"{"code":"bad_url_01","name_en":"Test","name_ar":"تجربة","icon_url":"https://evil.com/hack.png","price":10,"tier":1}"#,
+        )
+        .await;
+        assert_eq!(
+            resp.status(),
+            StatusCode::BAD_REQUEST,
+            "GC-review01: 外部 URL 应返回 400"
+        );
+        let json = body_json(resp).await;
+        assert_eq!(
+            json["code"].as_i64().unwrap(),
+            40003,
+            "GC-review01: 错误码应为 40003"
+        );
+
+        // 非白名单本地路径被拒绝
+        let resp2 = post_gift(
+            app,
+            &token,
+            r#"{"code":"bad_url_02","name_en":"Test","name_ar":"تجربة","icon_url":"/static/images/test.png","price":10,"tier":1}"#,
+        )
+        .await;
+        assert_eq!(
+            resp2.status(),
+            StatusCode::BAD_REQUEST,
+            "GC-review01: 非白名单路径应返回 400"
+        );
+    }
+
+    // ── GC-review-02: PUT audit detail 包含变更字段（MEDIUM-2）────────────────
+    /// 验证 update_gift_handler 的 audit log detail 包含变更内容而非仅 id
+    #[tokio::test]
+    async fn gc_review02_update_audit_detail_contains_changes() {
+        let token = make_jwt("test-secret", "operator");
+        let (app, _, audit_repo) = gift_app(vec![]);
+
+        // 先创建礼物
+        let resp = post_gift(
+            app.clone(),
+            &token,
+            r#"{"code":"audit_detail_test","name_en":"Detail","name_ar":"تفاصيل","icon_url":"/uploads/gifts/detail.png","price":10,"tier":1,"is_active":true}"#,
+        )
+        .await;
+        assert_eq!(resp.status(), StatusCode::CREATED, "GC-review02: 创建应 201");
+        let json = body_json(resp).await;
+        let gift_id = json["data"]["id"].as_str().unwrap().to_string();
+
+        // 执行 PUT 修改 price 和 is_active
+        let resp2 = put_gift(
+            app,
+            &token,
+            &gift_id,
+            r#"{"price":99,"is_active":false}"#,
+        )
+        .await;
+        assert_eq!(resp2.status(), StatusCode::OK, "GC-review02: PUT 应 200");
+
+        // 检查审计日志 detail 包含变更内容
+        let logs = audit_repo.get_logs();
+        let update_log = logs
+            .iter()
+            .find(|l| l.action == "gift_update")
+            .expect("GC-review02: 应存在 gift_update 日志");
+
+        let detail = update_log
+            .detail
+            .as_ref()
+            .expect("GC-review02: detail 不应为 None");
+
+        // detail 应包含变更字段（price、is_active 至少有一个）
+        assert!(
+            detail.get("changes").is_some() || detail.get("price").is_some(),
+            "GC-review02: detail 应包含变更字段，实际: {detail}"
+        );
+    }
+
+    // ── GC-review-03: DELETE audit detail 包含 code 字段（MEDIUM-2）───────────
+    /// 验证 delete_gift_handler 的 audit log detail 包含礼物 code
+    #[tokio::test]
+    async fn gc_review03_delete_audit_detail_contains_code() {
+        let token_op = make_jwt("test-secret", "operator");
+        let token_sa = make_jwt("test-secret", "super_admin");
+        let (app, _, audit_repo) = gift_app(vec![]);
+
+        // 创建礼物
+        let resp = post_gift(
+            app.clone(),
+            &token_op,
+            r#"{"code":"delete_audit_test","name_en":"DeleteMe","name_ar":"احذفني","icon_url":"/uploads/gifts/delete.png","price":5,"tier":1,"is_active":true}"#,
+        )
+        .await;
+        assert_eq!(resp.status(), StatusCode::CREATED, "GC-review03: 创建应 201");
+        let json = body_json(resp).await;
+        let gift_id = json["data"]["id"].as_str().unwrap().to_string();
+
+        // 执行 DELETE
+        let resp2 = delete_gift_req(app, &token_sa, &gift_id).await;
+        assert_eq!(resp2.status(), StatusCode::OK, "GC-review03: DELETE 应 200");
+
+        // 检查审计日志 detail 包含 code 字段
+        let logs = audit_repo.get_logs();
+        let delete_log = logs
+            .iter()
+            .find(|l| l.action == "gift_delete")
+            .expect("GC-review03: 应存在 gift_delete 日志");
+
+        let detail = delete_log
+            .detail
+            .as_ref()
+            .expect("GC-review03: detail 不应为 None");
+
+        assert_eq!(
+            detail.get("code").and_then(|v| v.as_str()),
+            Some("delete_audit_test"),
+            "GC-review03: detail 应包含 code='delete_audit_test'，实际: {detail}"
+        );
+    }
 }

@@ -30,7 +30,7 @@ pub struct CreateGiftRequest {
 }
 
 /// PUT /api/v1/admin/gifts/:id 请求体（全部可选，只更新传入的字段）
-#[derive(Debug, Deserialize, Default)]
+#[derive(Debug, Deserialize, Serialize, Default)]
 pub struct UpdateGiftRequest {
     pub name_en: Option<String>,
     pub name_ar: Option<String>,

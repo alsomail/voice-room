@@ -280,7 +280,7 @@
 | Task ID | 归属端 | 模块 | 任务名称 | 前置依赖 | 核心描述 | TDD 验收标准 | 状态 | 预估工时 | 负责人 |
 |---------|--------|------|----------|----------|----------|-------------|------|----------|--------|
 | **T-10013** | Admin Server | Wallet | 手动调整余额 API [TDS](./tds/adminServer/T-10013.md) | T-00017, T-10012 | POST `/api/v1/admin/users/:id/wallet/adjust { amount, reason }`；事务：改 users 余额 + 写 wallet_transactions (type='admin_adjust', operator_id) + 写 admin_logs；Redis PUBLISH admin:events {type:'balance_updated', user_id, new_balance} 通知 App Server 推 WS | 1. amount 正数=加，负数=扣<br>2. reason 必填且写入日志<br>3. 导致余额<0 返回 400<br>4. 事务原子性（任一步失败整体回滚）<br>5. Redis 事件已发布 | Done | 5h | Dod |
-| **T-10014** | Admin Server | Gift | 礼物 CRUD 管理 API [TDS](./tds/adminServer/T-10014.md) | T-00019, T-10012 | `/api/v1/admin/gifts` CRUD（GET 列表含未上架 / POST 新增 / PUT 更新 / DELETE 软删）；图片/Lottie 上传走对象存储或本地静态目录；所有操作写 admin_logs | 1. 上架/下架通过 is_active 字段切换<br>2. 删除为软删（is_deleted=true）<br>3. 上传文件类型白名单校验<br>4. 价格必须 >=1<br>5. 所有写操作落 admin_logs | In Progress | 6h | TDD |
+| **T-10014** | Admin Server | Gift | 礼物 CRUD 管理 API [TDS](./tds/adminServer/T-10014.md) | T-00019, T-10012 | `/api/v1/admin/gifts` CRUD（GET 列表含未上架 / POST 新增 / PUT 更新 / DELETE 软删）；图片/Lottie 上传走对象存储或本地静态目录；所有操作写 admin_logs | 1. 上架/下架通过 is_active 字段切换<br>2. 删除为软删（is_deleted=true）<br>3. 上传文件类型白名单校验<br>4. 价格必须 >=1<br>5. 所有写操作落 admin_logs | In Progress | 6h | Review |
 
 #### Web Admin
 

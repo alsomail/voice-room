@@ -123,9 +123,11 @@ pub async fn update_gift_handler(
     }
 
     let svc: &Arc<GiftService> = &state.gift_service;
+    // MEDIUM-2: 在 move req 进 service 之前，先序列化变更字段用于 audit detail
+    let detail_changes = serde_json::to_value(&req).unwrap_or_default();
     match svc.update_gift(id, req).await {
         Ok(gift) => {
-            // 写审计日志（fire-and-forget）
+            // 写审计日志：记录变更内容（before id + after changes）
             state
                 .audit_logger
                 .log_action(
@@ -134,7 +136,10 @@ pub async fn update_gift_handler(
                     Some("gift"),
                     Some(id),
                     None,
-                    Some(serde_json::json!({ "id": id.to_string() })),
+                    Some(serde_json::json!({
+                        "id": id.to_string(),
+                        "changes": detail_changes,
+                    })),
                 )
                 .await;
 
@@ -161,8 +166,8 @@ pub async fn delete_gift_handler(
 
     let svc: &Arc<GiftService> = &state.gift_service;
     match svc.delete_gift(id).await {
-        Ok(()) => {
-            // 写审计日志（fire-and-forget）
+        Ok(gift) => {
+            // MEDIUM-2: 写审计日志，记录被删除礼物的关键字段（code、name_en）便于审计溯源
             state
                 .audit_logger
                 .log_action(
@@ -171,7 +176,12 @@ pub async fn delete_gift_handler(
                     Some("gift"),
                     Some(id),
                     None,
-                    Some(serde_json::json!({ "id": id.to_string() })),
+                    Some(serde_json::json!({
+                        "id": id.to_string(),
+                        "code": gift.code,
+                        "name_en": gift.name_en,
+                        "is_active": gift.is_active,
+                    })),
                 )
                 .await;
 
@@ -284,22 +294,22 @@ pub async fn upload_gift_file_handler(
         _ => "bin",
     };
 
-    // 生成存储路径
+    // 生成存储路径（HIGH-1: upload_dir 取自 gift_service，保持职责内聚）
     let today = chrono::Utc::now().format("%Y-%m-%d");
     let file_id = Uuid::new_v4();
-    let sub_dir = format!("{}/{}", state.gift_upload_dir, today);
+    let sub_dir = format!("{}/{}", state.gift_service.upload_dir, today);
     let file_path = format!("{sub_dir}/{file_id}.{ext}");
     let url = format!("/uploads/gifts/{today}/{file_id}.{ext}");
 
-    // 创建目录并写入文件
-    if let Err(e) = std::fs::create_dir_all(&sub_dir) {
+    // 创建目录并写入文件（HIGH-1: 使用 tokio 异步 I/O，避免阻塞 Tokio 运行时）
+    if let Err(e) = tokio::fs::create_dir_all(&sub_dir).await {
         tracing::error!(error = %e, path = %sub_dir, "创建上传目录失败");
         return err_response(
             crate::common::error::AppError::Internal(format!("创建目录失败: {e}")),
             req_ctx.request_id(),
         );
     }
-    if let Err(e) = std::fs::write(&file_path, &data) {
+    if let Err(e) = tokio::fs::write(&file_path, &data).await {
         tracing::error!(error = %e, path = %file_path, "写入文件失败");
         return err_response(
             crate::common::error::AppError::Internal(format!("写入文件失败: {e}")),
@@ -427,5 +437,32 @@ mod tests {
                 "MIME {mime} 应通过"
             );
         }
+    }
+
+    /// HV-11: icon_url 白名单校验（Review MEDIUM-1）
+    /// 外部 URL 和非白名单路径应被 validate_create_request 拒绝
+    #[test]
+    fn hv11_icon_url_whitelist_validation() {
+        // 外部 URL → 应失败
+        let mut req = valid_req("r1");
+        req.icon_url = "https://evil.com/hack.png".to_string();
+        assert!(
+            validate_create_request(&req).is_err(),
+            "HV-11: 外部 URL 应被拒绝"
+        );
+
+        // 非白名单本地路径 → 应失败
+        req.icon_url = "/api/images/test.png".to_string();
+        assert!(
+            validate_create_request(&req).is_err(),
+            "HV-11: 非白名单路径应被拒绝"
+        );
+
+        // 白名单路径 → 应通过
+        req.icon_url = "/uploads/gifts/test.png".to_string();
+        assert!(
+            validate_create_request(&req).is_ok(),
+            "HV-11: 白名单路径应通过"
+        );
     }
 }

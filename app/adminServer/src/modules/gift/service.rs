@@ -16,7 +16,7 @@ pub struct GiftService {
     repo: Arc<dyn GiftRepository>,
     event_publisher: Arc<dyn EventPublisher>,
     /// 文件上传目录（用于 upload 端点存储图片/Lottie）
-    pub upload_dir: String,
+    pub(crate) upload_dir: String,
 }
 
 impl GiftService {
@@ -116,15 +116,24 @@ impl GiftService {
 
     /// 软删除礼物（is_deleted=true）。
     ///
+    /// 成功时返回被删除礼物的快照（供 handler 写入 audit detail）。
+    ///
     /// # 错误
     /// - `NotFound` — 礼物不存在或已软删
-    pub async fn delete_gift(&self, id: Uuid) -> Result<(), AppError> {
+    pub async fn delete_gift(&self, id: Uuid) -> Result<GiftModel, AppError> {
+        // 先查询礼物信息，用于 audit detail
+        let gift = self
+            .repo
+            .find_by_id(id)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("gift {id}")))?;
+
         let found = self.repo.soft_delete(id).await?;
         if !found {
             return Err(AppError::NotFound(format!("gift {id}")));
         }
         self.publish_cache_invalidate().await;
-        Ok(())
+        Ok(gift)
     }
 
     /// 通知 App Server 清除礼物缓存（fire-and-forget）。
@@ -201,6 +210,17 @@ pub fn validate_create_request(req: &CreateGiftRequest) -> Result<(), AppError> 
         ));
     }
 
+    // icon_url 必须指向受控目录或 CDN 白名单前缀（MEDIUM-1）
+    const ALLOWED_URL_PREFIXES: &[&str] = &[
+        "/uploads/gifts/",
+        "https://cdn.your-domain.com/",
+    ];
+    if !ALLOWED_URL_PREFIXES.iter().any(|p| req.icon_url.starts_with(p)) {
+        return Err(AppError::ValidationError(
+            "icon_url 必须指向受控目录 /uploads/gifts/ 或 CDN 白名单前缀".to_string(),
+        ));
+    }
+
     Ok(())
 }
 
@@ -241,6 +261,20 @@ pub fn validate_update_request(req: &UpdateGiftRequest) -> Result<(), AppError> 
             ));
         }
     }
+
+    // icon_url 白名单校验（若传入，MEDIUM-1）
+    if let Some(ref icon_url) = req.icon_url {
+        const ALLOWED_URL_PREFIXES: &[&str] = &[
+            "/uploads/gifts/",
+            "https://cdn.your-domain.com/",
+        ];
+        if !ALLOWED_URL_PREFIXES.iter().any(|p| icon_url.starts_with(p)) {
+            return Err(AppError::ValidationError(
+                "icon_url 必须指向受控目录 /uploads/gifts/ 或 CDN 白名单前缀".to_string(),
+            ));
+        }
+    }
+
     Ok(())
 }
 
@@ -464,6 +498,103 @@ mod tests {
         // Lottie >2MB 拒绝
         let err2 = validate_file_upload("application/json", 2 * 1024 * 1024 + 1).unwrap_err();
         assert!(matches!(err2, AppError::ValidationError(_)));
+    }
+
+    // ── GS-13: icon_url 白名单校验（create）────────────────────────────────────
+    /// MEDIUM-1 修复：validate_create_request 应拒绝非白名单 icon_url
+    #[test]
+    fn gs13_validate_create_request_icon_url_whitelist() {
+        let mut req = valid_create_req("rose_02");
+
+        // 外部 URL → 应拒绝
+        req.icon_url = "https://evil.com/hack.png".to_string();
+        assert!(
+            validate_create_request(&req).is_err(),
+            "GS-13: 外部 URL 应被拒绝"
+        );
+
+        // 非白名单本地路径 → 应拒绝
+        req.icon_url = "/static/images/test.png".to_string();
+        assert!(
+            validate_create_request(&req).is_err(),
+            "GS-13: 非白名单路径应被拒绝"
+        );
+
+        // http 协议（非 https cdn）→ 应拒绝
+        req.icon_url = "http://cdn.your-domain.com/gift.png".to_string();
+        assert!(
+            validate_create_request(&req).is_err(),
+            "GS-13: http 非白名单 CDN 应被拒绝"
+        );
+
+        // 允许 /uploads/gifts/ 前缀
+        req.icon_url = "/uploads/gifts/rose.png".to_string();
+        assert!(
+            validate_create_request(&req).is_ok(),
+            "GS-13: /uploads/gifts/ 前缀应通过"
+        );
+
+        // 允许配置的 CDN 前缀
+        req.icon_url = "https://cdn.your-domain.com/gifts/rose.png".to_string();
+        assert!(
+            validate_create_request(&req).is_ok(),
+            "GS-13: CDN 白名单前缀应通过"
+        );
+    }
+
+    // ── GS-14: icon_url 白名单校验（update）────────────────────────────────────
+    /// MEDIUM-1 修复：validate_update_request 应拒绝非白名单 icon_url
+    #[test]
+    fn gs14_validate_update_request_icon_url_whitelist() {
+        // None → 不校验，应通过
+        let req_none = UpdateGiftRequest {
+            icon_url: None,
+            ..Default::default()
+        };
+        assert!(
+            validate_update_request(&req_none).is_ok(),
+            "GS-14: icon_url=None 应通过"
+        );
+
+        // 外部 URL → 应拒绝
+        let req_invalid = UpdateGiftRequest {
+            icon_url: Some("https://evil.com/hack.png".to_string()),
+            ..Default::default()
+        };
+        assert!(
+            validate_update_request(&req_invalid).is_err(),
+            "GS-14: 外部 URL 应被拒绝"
+        );
+
+        // 非白名单本地路径 → 应拒绝
+        let req_invalid2 = UpdateGiftRequest {
+            icon_url: Some("/public/assets/test.png".to_string()),
+            ..Default::default()
+        };
+        assert!(
+            validate_update_request(&req_invalid2).is_err(),
+            "GS-14: 非白名单路径应被拒绝"
+        );
+
+        // 允许 /uploads/gifts/ 前缀
+        let req_valid = UpdateGiftRequest {
+            icon_url: Some("/uploads/gifts/valid.png".to_string()),
+            ..Default::default()
+        };
+        assert!(
+            validate_update_request(&req_valid).is_ok(),
+            "GS-14: /uploads/gifts/ 前缀应通过"
+        );
+
+        // 允许 CDN 白名单前缀
+        let req_cdn = UpdateGiftRequest {
+            icon_url: Some("https://cdn.your-domain.com/gifts/icon.png".to_string()),
+            ..Default::default()
+        };
+        assert!(
+            validate_update_request(&req_cdn).is_ok(),
+            "GS-14: CDN 白名单前缀应通过"
+        );
     }
 
     // ── GS-12: validate_create_request 边界验证 ──────────────────────────────
