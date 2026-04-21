@@ -1,5 +1,5 @@
 /**
- * RoomsPage — 房间管理页面（T-20004 + T-20005）
+ * RoomsPage — 房间管理页面（T-20004 + T-20005 + T-20011）
  *
  * 入口组件：集成 useRoomsPage Hook + RoomsTable 组件 + RoomDetailModal 组件
  */
@@ -13,17 +13,19 @@ import { RoomDetailModal } from './RoomDetailModal';
 export function RoomsPage() {
   const { t } = useTranslation();
   const {
-    items,
+    filteredItems,
     total,
     loading,
     error,
     page,
     pageSize,
     filters,
+    activityFilter,
     closingId,
     selectedRoomId,
     setPage,
     setFilters,
+    setActivityFilter,
     closeRoom,
     refresh,
     setSelectedRoomId,
@@ -47,15 +49,17 @@ export function RoomsPage() {
       )}
 
       <RoomsTable
-        items={items}
+        items={filteredItems}
         total={total}
         page={page}
         pageSize={pageSize}
         filters={filters}
         loading={loading}
         closingId={closingId}
+        activityFilter={activityFilter}
         onPageChange={setPage}
         onFiltersChange={setFilters}
+        onActivityFilterChange={setActivityFilter}
         onCloseRoom={(roomId) => void closeRoom(roomId).catch(() => {})}
         onRowClick={setSelectedRoomId}
         onRefresh={refresh}

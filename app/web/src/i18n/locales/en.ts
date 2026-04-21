@@ -59,6 +59,15 @@ const en = {
     typePaid: 'Paid',
     errorTitle: 'Failed to load data',
     closeErrorTitle: 'Close failed',
+    // T-20011: Activity monitoring translation keys
+    activityFilter: 'Activity',
+    activityAll: 'All',
+    activityLevelActive: 'Active',
+    activityLevelQuiet: 'Quiet',
+    activityLevelAbnormal: 'Abnormal',
+    activityLevelNormal: 'Normal',
+    columnActivityStatus: 'Activity Status',
+    columnDuration: 'Duration',
     detail: {
       title: 'Room Detail',
       roomType: 'Room Type',

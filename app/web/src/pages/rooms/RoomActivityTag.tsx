@@ -1,0 +1,41 @@
+/**
+ * RoomActivityTag — 房间活跃状态标签（T-20011）
+ *
+ * level='active'   → success（绿）
+ * level='quiet'    → warning（黄）
+ * level='abnormal' → error（红）
+ * level='normal'   → processing（蓝）
+ */
+
+import { Tag } from 'antd';
+import { useTranslation } from 'react-i18next';
+import type { ActivityLevel } from './roomUtils';
+
+interface RoomActivityTagProps {
+  level: ActivityLevel;
+  roomId: string;
+}
+
+const colorMap: Record<ActivityLevel, string> = {
+  active: 'success',
+  quiet: 'warning',
+  abnormal: 'error',
+  normal: 'processing',
+};
+
+export function RoomActivityTag({ level, roomId }: RoomActivityTagProps) {
+  const { t } = useTranslation();
+
+  const labelMap: Record<ActivityLevel, string> = {
+    active: t('rooms.activityLevelActive'),
+    quiet: t('rooms.activityLevelQuiet'),
+    abnormal: t('rooms.activityLevelAbnormal'),
+    normal: t('rooms.activityLevelNormal'),
+  };
+
+  return (
+    <Tag color={colorMap[level]} data-testid={`room-activity-tag-${roomId}`}>
+      {labelMap[level]}
+    </Tag>
+  );
+}

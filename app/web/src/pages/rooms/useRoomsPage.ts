@@ -1,5 +1,5 @@
 /**
- * useRoomsPage — 房间管理页面数据 Hook（T-20004）
+ * useRoomsPage — 房间管理页面数据 Hook（T-20004 + T-20011）
  *
  * 职责：
  *   - 分页展示房间列表（page, pageSize 默认 20）
@@ -8,14 +8,16 @@
  *   - 每次 fetch 建立独立 AbortController，cleanup 时 abort
  *   - closeRoom：细粒度 loading（closingId），成功后 refresh，失败后 setError
  *   - selectedRoomId：T-20005 占位 state
+ *   - activityFilter（T-20011）：纯前端活跃度过滤，不触发新 API 请求
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   adminGetRooms,
   adminCloseRoom,
   type AdminRoomItem,
 } from '../../core/network/apiClient';
+import { filterByActivity, type ActivityFilter } from './roomUtils';
 
 export interface RoomsPageFilters {
   status?: 'active' | 'closed';
@@ -24,16 +26,19 @@ export interface RoomsPageFilters {
 
 export interface UseRoomsPageReturn {
   items: AdminRoomItem[];
+  filteredItems: AdminRoomItem[];
   total: number;
   loading: boolean;
   error: Error | null;
   page: number;
   pageSize: number;
   filters: RoomsPageFilters;
+  activityFilter: ActivityFilter;
   closingId: string | null;
   selectedRoomId: string | null;
   setPage: (page: number, pageSize: number) => void;
   setFilters: (patch: Partial<RoomsPageFilters>) => void;
+  setActivityFilter: (filter: ActivityFilter) => void;
   closeRoom: (roomId: string) => Promise<void>;
   refresh: () => void;
   setSelectedRoomId: (id: string | null) => void;
@@ -51,6 +56,8 @@ export function useRoomsPage(): UseRoomsPageReturn {
   const [refreshKey, setRefreshKey] = useState(0);
   const [closingId, setClosingId] = useState<string | null>(null);
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
+  // T-20011: 活跃度筛选（纯前端，不触发 API）
+  const [activityFilter, setActivityFilter] = useState<ActivityFilter>('all');
 
   // ── debounce keyword：300ms 后更新 debouncedKeyword 并重置 page=1 ──────
   useEffect(() => {
@@ -101,6 +108,12 @@ export function useRoomsPage(): UseRoomsPageReturn {
     // 订阅整体会导致多余 refetch。status/keyword 变化已通过各自依赖项精确捕获。
   }, [debouncedKeyword, filters.status, page, pageSize, refreshKey]);
 
+  // ── T-20011: filteredItems — 纯前端活跃度过滤，依赖 items + activityFilter ──
+  const filteredItems = useMemo(
+    () => filterByActivity(items, activityFilter),
+    [items, activityFilter],
+  );
+
   // ── setFilters：status 变化时立即重置 page=1 ──────────────────────────
   const setFilters = useCallback((patch: Partial<RoomsPageFilters>) => {
     setFiltersState((prev) => ({ ...prev, ...patch }));
@@ -140,16 +153,19 @@ export function useRoomsPage(): UseRoomsPageReturn {
 
   return {
     items,
+    filteredItems,
     total,
     loading,
     error,
     page,
     pageSize,
     filters,
+    activityFilter,
     closingId,
     selectedRoomId,
     setPage,
     setFilters,
+    setActivityFilter,
     closeRoom,
     refresh,
     setSelectedRoomId,

@@ -370,3 +370,185 @@ describe('useRoomsPage — H14: filters.status 为 undefined 时不传 status', 
     expect(firstCall[0]).not.toHaveProperty('status');
   });
 });
+
+// ════════════════════════════════════════════════════════════════════════════
+// T-20011: 活跃度筛选相关测试（H11–H17 in T-20011 context）
+// ════════════════════════════════════════════════════════════════════════════
+
+/** 构造不同活跃状态的测试房间（created_at 相对当前时间计算，确保时间有效） */
+function makeActivityRoom(
+  id: string,
+  memberCount: number,
+  status: 'active' | 'closed',
+  minsAgo: number,
+): AdminRoomItem {
+  return {
+    room_id: id,
+    title: `Room ${id}`,
+    room_type: 'normal',
+    member_count: memberCount,
+    max_members: 20,
+    status,
+    owner_id: `user-${id}`,
+    owner_nickname: `Owner-${id}`,
+    owner_avatar: null,
+    created_at: new Date(Date.now() - minsAgo * 60 * 1000).toISOString(),
+  };
+}
+
+// 混合活跃状态的测试数据
+function makeMixedRoomsData(): AdminRoomsData {
+  return {
+    total: 4,
+    page: 1,
+    page_size: 20,
+    items: [
+      makeActivityRoom('act-1', 5, 'active', 30),    // active
+      makeActivityRoom('abn-1', 0, 'active', 30),    // abnormal
+      makeActivityRoom('qui-1', 2, 'active', 90),    // quiet (>1h)
+      makeActivityRoom('nor-1', 3, 'active', 30),    // normal (<1h)
+    ],
+  };
+}
+
+// ── T20011-H11: 初始 activityFilter='all'，filteredItems 与 items 相同 ────────
+describe('useRoomsPage — T20011-H11: 初始 activityFilter 为 all', () => {
+  it('activityFilter 默认值为 "all"，filteredItems 长度等于 items 长度', async () => {
+    mockAdminGetRooms.mockResolvedValue(makeMixedRoomsData());
+
+    const { result } = renderHook(() => useRoomsPage());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.activityFilter).toBe('all');
+    expect(result.current.filteredItems).toHaveLength(result.current.items.length);
+    expect(result.current.filteredItems).toHaveLength(4);
+  });
+});
+
+// ── T20011-H12: setActivityFilter('active') → 只含 member_count≥5 的房间 ─────
+describe('useRoomsPage — T20011-H12: 筛选 active', () => {
+  it('setActivityFilter("active") 后 filteredItems 只含 member_count≥5 的房间', async () => {
+    mockAdminGetRooms.mockResolvedValue(makeMixedRoomsData());
+
+    const { result } = renderHook(() => useRoomsPage());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    act(() => {
+      result.current.setActivityFilter('active');
+    });
+
+    expect(result.current.filteredItems).toHaveLength(1);
+    expect(result.current.filteredItems[0].room_id).toBe('act-1');
+    expect(result.current.filteredItems[0].member_count).toBeGreaterThanOrEqual(5);
+  });
+});
+
+// ── T20011-H13: setActivityFilter('abnormal') → 只含 0人+active 的房间 ────────
+describe('useRoomsPage — T20011-H13: 筛选 abnormal', () => {
+  it('setActivityFilter("abnormal") 后 filteredItems 只含 0人且 active 的房间', async () => {
+    mockAdminGetRooms.mockResolvedValue(makeMixedRoomsData());
+
+    const { result } = renderHook(() => useRoomsPage());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    act(() => {
+      result.current.setActivityFilter('abnormal');
+    });
+
+    expect(result.current.filteredItems).toHaveLength(1);
+    expect(result.current.filteredItems[0].room_id).toBe('abn-1');
+    expect(result.current.filteredItems[0].member_count).toBe(0);
+    expect(result.current.filteredItems[0].status).toBe('active');
+  });
+});
+
+// ── T20011-H14: setActivityFilter('quiet') → 只含冷清条件的房间 ───────────────
+describe('useRoomsPage — T20011-H14: 筛选 quiet', () => {
+  it('setActivityFilter("quiet") 后 filteredItems 只含 1-4人且>1h 的房间', async () => {
+    mockAdminGetRooms.mockResolvedValue(makeMixedRoomsData());
+
+    const { result } = renderHook(() => useRoomsPage());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    act(() => {
+      result.current.setActivityFilter('quiet');
+    });
+
+    expect(result.current.filteredItems).toHaveLength(1);
+    expect(result.current.filteredItems[0].room_id).toBe('qui-1');
+    expect(result.current.filteredItems[0].member_count).toBe(2);
+  });
+});
+
+// ── T20011-H15: 连续切换 all→active，filteredItems 正确变化 ───────────────────
+describe('useRoomsPage — T20011-H15: 连续切换 activityFilter', () => {
+  it('all→active 切换后 filteredItems 正确变化', async () => {
+    mockAdminGetRooms.mockResolvedValue(makeMixedRoomsData());
+
+    const { result } = renderHook(() => useRoomsPage());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    // 初始 all → 4条
+    expect(result.current.filteredItems).toHaveLength(4);
+
+    // 切换为 active → 1条
+    act(() => { result.current.setActivityFilter('active'); });
+    expect(result.current.filteredItems).toHaveLength(1);
+
+    // 切回 all → 4条
+    act(() => { result.current.setActivityFilter('all'); });
+    expect(result.current.filteredItems).toHaveLength(4);
+  });
+});
+
+// ── T20011-H16: API 数据刷新后 filteredItems 随之重新计算 ─────────────────────
+describe('useRoomsPage — T20011-H16: API 刷新后 filteredItems 重新计算', () => {
+  it('items 更新后 filteredItems 依据新 items 重新过滤', async () => {
+    // 第一次：返回 4 条混合数据
+    mockAdminGetRooms.mockResolvedValueOnce(makeMixedRoomsData());
+    // 第二次（refresh）：只返回 1 条 active 房间
+    mockAdminGetRooms.mockResolvedValueOnce({
+      total: 1,
+      page: 1,
+      page_size: 20,
+      items: [makeActivityRoom('act-1', 5, 'active', 30)],
+    });
+
+    const { result } = renderHook(() => useRoomsPage());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    // 设置 activityFilter='active' → 此时 filteredItems=1
+    act(() => { result.current.setActivityFilter('active'); });
+    expect(result.current.filteredItems).toHaveLength(1);
+
+    // 刷新 → API 返回新数据（只有1条active）→ filteredItems 仍为 1
+    act(() => { result.current.refresh(); });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.filteredItems).toHaveLength(1);
+    expect(result.current.items).toHaveLength(1);
+  });
+});
+
+// ── T20011-H17: setActivityFilter 不触发 adminGetRooms 重新请求 ───────────────
+describe('useRoomsPage — T20011-H17: 切换 activityFilter 不触发 API', () => {
+  it('setActivityFilter 不增加 adminGetRooms 的调用次数', async () => {
+    mockAdminGetRooms.mockResolvedValue(makeMixedRoomsData());
+
+    const { result } = renderHook(() => useRoomsPage());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    const callsBeforeFilter = mockAdminGetRooms.mock.calls.length;
+
+    // 多次切换 activityFilter
+    act(() => { result.current.setActivityFilter('active'); });
+    act(() => { result.current.setActivityFilter('abnormal'); });
+    act(() => { result.current.setActivityFilter('all'); });
+
+    // 等待任何可能的异步 effect 触发（应该没有）
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    // adminGetRooms 调用次数不变
+    expect(mockAdminGetRooms.mock.calls.length).toBe(callsBeforeFilter);
+  });
+});

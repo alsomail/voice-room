@@ -432,3 +432,249 @@ describe('RoomsPage (T-20005) — I06: 快速切换行 abort 旧请求', () => {
     abortSpy.mockRestore();
   });
 });
+
+// ════════════════════════════════════════════════════════════════════════════
+// T-20011: RoomsPage 集成测试（I08–I13）
+// ════════════════════════════════════════════════════════════════════════════
+
+/** 生成 N 分钟前的 ISO 时间字符串 */
+const buildCreatedAt = (minsAgo: number) =>
+  new Date(Date.now() - minsAgo * 60 * 1000).toISOString();
+
+/** 构造含不同活跃状态的混合测试数据 */
+function makeMixedRoomsData(): AdminRoomsData {
+  return {
+    total: 3,
+    page: 1,
+    page_size: 20,
+    items: [
+      // active: member_count=5
+      {
+        room_id: 'room-act',
+        title: 'Active Room',
+        room_type: 'normal',
+        member_count: 5,
+        max_members: 20,
+        status: 'active',
+        owner_id: 'u1',
+        owner_nickname: 'Owner1',
+        owner_avatar: null,
+        created_at: buildCreatedAt(30),
+      },
+      // abnormal: member_count=0, status=active
+      {
+        room_id: 'room-abn',
+        title: 'Abnormal Room',
+        room_type: 'normal',
+        member_count: 0,
+        max_members: 20,
+        status: 'active',
+        owner_id: 'u2',
+        owner_nickname: 'Owner2',
+        owner_avatar: null,
+        created_at: buildCreatedAt(30),
+      },
+      // quiet: member_count=2, 155min前（即2h35m）→ duration "2h 35m"
+      {
+        room_id: 'room-qui',
+        title: 'Quiet Room',
+        room_type: 'normal',
+        member_count: 2,
+        max_members: 20,
+        status: 'active',
+        owner_id: 'u3',
+        owner_nickname: 'Owner3',
+        owner_avatar: null,
+        created_at: buildCreatedAt(155),
+      },
+    ],
+  };
+}
+
+// ── I08: mock 混合数据 → 三行渲染，活跃状态正确 ──────────────────────────────
+describe('RoomsPage — I08: 混合数据渲染活跃状态', () => {
+  it('三种活跃状态的房间都正确渲染对应 activity tag', async () => {
+    mockAdminGetRooms.mockResolvedValue(makeMixedRoomsData());
+
+    render(<RoomsPage />);
+
+    await waitFor(() => expect(screen.getByText('Active Room')).toBeInTheDocument());
+
+    // 三个 activity tag 都存在
+    expect(screen.getByTestId('room-activity-tag-room-act')).toBeInTheDocument();
+    expect(screen.getByTestId('room-activity-tag-room-abn')).toBeInTheDocument();
+    expect(screen.getByTestId('room-activity-tag-room-qui')).toBeInTheDocument();
+
+    // 颜色正确
+    expect(screen.getByTestId('room-activity-tag-room-act').className).toContain('ant-tag-success');
+    expect(screen.getByTestId('room-activity-tag-room-abn').className).toContain('ant-tag-error');
+    expect(screen.getByTestId('room-activity-tag-room-qui').className).toContain('ant-tag-warning');
+  });
+});
+
+// ── I09: 筛选"异常" → 只显示异常行，不发新 API 请求 ─────────────────────────
+describe('RoomsPage — I09: 前端活跃度筛选', () => {
+  it('选择 abnormal 过滤后只显示异常行，adminGetRooms 调用次数不变', async () => {
+    const user = userEvent.setup();
+    mockAdminGetRooms.mockResolvedValue(makeMixedRoomsData());
+
+    render(<RoomsPage />);
+
+    await waitFor(() => expect(screen.getByText('Active Room')).toBeInTheDocument());
+
+    const apiCallsBefore = mockAdminGetRooms.mock.calls.length;
+
+    // 打开活跃度筛选
+    const filterContainer = screen.getByTestId('activity-filter');
+    const combobox = within(filterContainer).getByRole('combobox');
+    await user.click(combobox);
+
+    await waitFor(() =>
+      expect(document.querySelector('.ant-select-dropdown')).toBeInTheDocument(),
+    );
+    const dropdown = document.querySelector('.ant-select-dropdown') as HTMLElement;
+    const abnormalOption = within(dropdown).getByText('rooms.activityLevelAbnormal');
+    await user.click(abnormalOption);
+
+    // 只有异常行可见
+    await waitFor(() =>
+      expect(screen.queryByText('Active Room')).not.toBeInTheDocument(),
+    );
+    expect(screen.getByText('Abnormal Room')).toBeInTheDocument();
+    expect(screen.queryByText('Quiet Room')).not.toBeInTheDocument();
+
+    // API 调用次数不变（纯前端过滤）
+    expect(mockAdminGetRooms.mock.calls.length).toBe(apiCallsBefore);
+  });
+});
+
+// ── I10: 异常房间行高亮背景可见 ──────────────────────────────────────────────
+describe('RoomsPage — I10: 异常行高亮背景', () => {
+  it('异常房间所在 tr 有高亮背景 rgba(231, 76, 60, 0.1)', async () => {
+    mockAdminGetRooms.mockResolvedValue(makeMixedRoomsData());
+
+    render(<RoomsPage />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId('room-activity-tag-room-abn')).toBeInTheDocument(),
+    );
+
+    const tag = screen.getByTestId('room-activity-tag-room-abn');
+    const row = tag.closest('tr');
+    expect(row).not.toBeNull();
+    expect(row!.style.background).toBe('rgba(231, 76, 60, 0.1)');
+  });
+});
+
+// ── I11: 持续时长格式正确（2h35m 前的房间显示 "2h 35m"） ─────────────────────
+describe('RoomsPage — I11: 持续时长格式', () => {
+  it('155分钟前创建的房间显示 "2h 35m"', async () => {
+    mockAdminGetRooms.mockResolvedValue(makeMixedRoomsData());
+
+    render(<RoomsPage />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId('room-duration-room-qui')).toBeInTheDocument(),
+    );
+
+    const durationText = screen.getByTestId('room-duration-room-qui').textContent ?? '';
+    expect(durationText).toBe('2h 35m');
+  });
+});
+
+// ── I12: 状态筛选与活跃度筛选可同时生效 ─────────────────────────────────────
+describe('RoomsPage — I12: 状态筛选与活跃度筛选联合使用', () => {
+  it('status=active API 过滤 + activityFilter=abnormal 前端过滤同时生效', async () => {
+    const user = userEvent.setup();
+    mockAdminGetRooms.mockResolvedValue(makeMixedRoomsData());
+
+    render(<RoomsPage />);
+
+    await waitFor(() => expect(screen.getByText('Active Room')).toBeInTheDocument());
+
+    // 先设状态过滤（API 侧）
+    const statusContainer = screen.getByTestId('status-filter');
+    const statusCombobox = within(statusContainer).getByRole('combobox');
+    await user.click(statusCombobox);
+
+    // 等待 status 下拉框出现
+    await waitFor(() =>
+      expect(document.querySelector('.ant-select-dropdown:not(.ant-slide-up-leave)')).toBeInTheDocument(),
+    );
+    const statusDropdown = document.querySelector('.ant-select-dropdown:not(.ant-slide-up-leave)') as HTMLElement;
+    await user.click(within(statusDropdown).getByText('rooms.statusActive'));
+
+    await waitFor(() => expect(mockAdminGetRooms).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'active' }),
+      expect.anything(),
+    ));
+
+    // 等待 status 下拉框完全关闭（动画结束）
+    await waitFor(() =>
+      expect(document.querySelector('.ant-select-dropdown:not(.ant-slide-up-leave)')).not.toBeInTheDocument(),
+    );
+
+    // 再设活跃度过滤（前端侧）
+    const activityContainer = screen.getByTestId('activity-filter');
+    const activityCombobox = within(activityContainer).getByRole('combobox');
+    await user.click(activityCombobox);
+
+    // 等待 activity 下拉框出现（排除正在关闭的旧下拉框）
+    await waitFor(() =>
+      expect(document.querySelector('.ant-select-dropdown:not(.ant-slide-up-leave)')).toBeInTheDocument(),
+    );
+    const activityDropdown = document.querySelector('.ant-select-dropdown:not(.ant-slide-up-leave)') as HTMLElement;
+    await user.click(within(activityDropdown).getByText('rooms.activityLevelAbnormal'));
+
+    // 只有异常行可见
+    await waitFor(() =>
+      expect(screen.queryByText('Active Room')).not.toBeInTheDocument(),
+    );
+    expect(screen.getByText('Abnormal Room')).toBeInTheDocument();
+  });
+});
+
+// ── I13: 回归测试 — 原有功能（搜索/分页/关闭/详情/刷新）不可回归 ─────────────
+describe('RoomsPage — I13: 回归验证（关键路径）', () => {
+  it('添加活跃度筛选后搜索仍然正常工作', async () => {
+    mockAdminGetRooms.mockResolvedValue(makeMixedRoomsData());
+
+    render(<RoomsPage />);
+
+    await waitFor(() => expect(screen.getByTestId('rooms-table')).toBeInTheDocument());
+    await waitFor(() => expect(mockAdminGetRooms).toHaveBeenCalled());
+
+    mockAdminGetRooms.mockClear();
+
+    // 搜索功能
+    const searchInput = screen.getByPlaceholderText('rooms.search');
+    fireEvent.change(searchInput, { target: { value: 'test' } });
+
+    await waitFor(
+      () => {
+        expect(mockAdminGetRooms).toHaveBeenCalled();
+        const lastCall = mockAdminGetRooms.mock.calls[mockAdminGetRooms.mock.calls.length - 1];
+        expect(lastCall[0]).toMatchObject({ keyword: 'test' });
+      },
+      { timeout: 2000 },
+    );
+  });
+
+  it('添加活跃度筛选后关闭功能仍然正常', async () => {
+    const user = userEvent.setup();
+    mockAdminGetRooms.mockResolvedValue(makeMixedRoomsData());
+    mockAdminCloseRoom.mockResolvedValue(undefined);
+
+    render(<RoomsPage />);
+
+    await waitFor(() => expect(screen.getByText('Active Room')).toBeInTheDocument());
+
+    const closeBtn = screen.getByTestId('close-btn-room-act');
+    await user.click(closeBtn);
+
+    const confirmBtn = await screen.findByText('rooms.confirmCloseOk');
+    await user.click(confirmBtn);
+
+    await waitFor(() => expect(mockAdminCloseRoom).toHaveBeenCalledWith('room-act'));
+  });
+});

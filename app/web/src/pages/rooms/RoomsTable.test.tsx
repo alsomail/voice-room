@@ -16,7 +16,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import { render, screen, fireEvent, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 
@@ -234,5 +234,226 @@ describe('RoomsTable — C14: closed Tag 使用 i18n 文本', () => {
     const closedTag = screen.getByTestId('status-tag-closed');
     expect(closedTag).toHaveTextContent('rooms.statusClosed');
     expect(closedTag).not.toHaveTextContent('closed');
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// T-20011: 新增列/筛选/行高亮测试（C15–C26）
+// ════════════════════════════════════════════════════════════════════════════
+
+/** 辅助：生成 N 分钟前的 ISO 时间（相对于测试执行时间，确保时间判断稳定） */
+const buildCreatedAt = (minsAgo: number) =>
+  new Date(Date.now() - minsAgo * 60 * 1000).toISOString();
+
+// 含不同活跃状态的测试数据集
+const activeRoom: AdminRoomItem = {
+  room_id: 'room-active',
+  title: 'Active Room',
+  room_type: 'normal',
+  member_count: 5,   // active: ≥5
+  max_members: 20,
+  status: 'active',
+  owner_id: 'u1',
+  owner_nickname: 'Owner1',
+  owner_avatar: null,
+  created_at: buildCreatedAt(30),
+};
+
+const abnormalRoom: AdminRoomItem = {
+  room_id: 'room-abnormal',
+  title: 'Abnormal Room',
+  room_type: 'normal',
+  member_count: 0,   // abnormal: 0人+active
+  max_members: 20,
+  status: 'active',
+  owner_id: 'u2',
+  owner_nickname: 'Owner2',
+  owner_avatar: null,
+  created_at: buildCreatedAt(30),
+};
+
+const quietRoom: AdminRoomItem = {
+  room_id: 'room-quiet',
+  title: 'Quiet Room',
+  room_type: 'normal',
+  member_count: 2,   // quiet: 1-4人且>1h
+  max_members: 20,
+  status: 'active',
+  owner_id: 'u3',
+  owner_nickname: 'Owner3',
+  owner_avatar: null,
+  created_at: buildCreatedAt(90),  // 90分钟前
+};
+
+const normalRoom: AdminRoomItem = {
+  room_id: 'room-normal',
+  title: 'Normal Room',
+  room_type: 'normal',
+  member_count: 3,   // normal: 1-4人且≤1h
+  max_members: 20,
+  status: 'active',
+  owner_id: 'u4',
+  owner_nickname: 'Owner4',
+  owner_avatar: null,
+  created_at: buildCreatedAt(30),  // 30分钟前
+};
+
+const activityItems = [activeRoom, abnormalRoom, quietRoom, normalRoom];
+
+const activityProps = {
+  ...defaultProps,
+  items: activityItems,
+  total: 4,
+};
+
+// ── C15: 3行数据 → 每行有 room-activity-tag testid ──────────────────────────
+describe('RoomsTable — C15: 每行有活跃状态 Tag testid', () => {
+  it('4条数据 → 4个 room-activity-tag testid', () => {
+    render(<RoomsTable {...activityProps} />);
+    expect(screen.getByTestId('room-activity-tag-room-active')).toBeInTheDocument();
+    expect(screen.getByTestId('room-activity-tag-room-abnormal')).toBeInTheDocument();
+    expect(screen.getByTestId('room-activity-tag-room-quiet')).toBeInTheDocument();
+    expect(screen.getByTestId('room-activity-tag-room-normal')).toBeInTheDocument();
+  });
+});
+
+// ── C16: member_count=5 → Tag level='active'（绿） ──────────────────────────
+describe('RoomsTable — C16: 活跃房间 → success 色 Tag', () => {
+  it('member_count=5 的房间 Tag 带有 ant-tag-success 类', () => {
+    render(<RoomsTable {...activityProps} />);
+    const tag = screen.getByTestId('room-activity-tag-room-active');
+    expect(tag.className).toContain('ant-tag-success');
+  });
+});
+
+// ── C17: member_count=0+active → level='abnormal'（红） ─────────────────────
+describe('RoomsTable — C17: 异常房间 → error 色 Tag', () => {
+  it('member_count=0 且 status=active 的房间 Tag 带有 ant-tag-error 类', () => {
+    render(<RoomsTable {...activityProps} />);
+    const tag = screen.getByTestId('room-activity-tag-room-abnormal');
+    expect(tag.className).toContain('ant-tag-error');
+  });
+});
+
+// ── C18: member_count=2, 90min前 → level='quiet'（黄） ──────────────────────
+describe('RoomsTable — C18: 冷清房间 → warning 色 Tag', () => {
+  it('member_count=2 且 created 90min 前的房间 Tag 带有 ant-tag-warning 类', () => {
+    render(<RoomsTable {...activityProps} />);
+    const tag = screen.getByTestId('room-activity-tag-room-quiet');
+    expect(tag.className).toContain('ant-tag-warning');
+  });
+});
+
+// ── C19: 正常房间 → level='normal'（蓝） ────────────────────────────────────
+describe('RoomsTable — C19: 正常房间 → processing 色 Tag', () => {
+  it('member_count=3 且 created 30min 前的房间 Tag 带有 ant-tag-processing 类', () => {
+    render(<RoomsTable {...activityProps} />);
+    const tag = screen.getByTestId('room-activity-tag-room-normal');
+    expect(tag.className).toContain('ant-tag-processing');
+  });
+});
+
+// ── C20: 每行含 room-duration testid，格式正确 ──────────────────────────────
+describe('RoomsTable — C20: 持续时长列', () => {
+  it('每行都有 room-duration testid 且内容为时长格式', () => {
+    render(<RoomsTable {...activityProps} />);
+    // 验证存在
+    expect(screen.getByTestId('room-duration-room-active')).toBeInTheDocument();
+    expect(screen.getByTestId('room-duration-room-abnormal')).toBeInTheDocument();
+    expect(screen.getByTestId('room-duration-room-quiet')).toBeInTheDocument();
+    expect(screen.getByTestId('room-duration-room-normal')).toBeInTheDocument();
+    // 验证格式（数字 + 单位）
+    const durationText = screen.getByTestId('room-duration-room-active').textContent ?? '';
+    expect(durationText).toMatch(/^\d+(m|\d+h \d+m|\d+d \d+h)$/);
+  });
+});
+
+// ── C21: 异常房间行背景 rgba(231, 76, 60, 0.1) ──────────────────────────────
+describe('RoomsTable — C21: 异常行高亮背景', () => {
+  it('异常房间所在 tr 有高亮背景色', () => {
+    render(<RoomsTable {...activityProps} />);
+    const activityTag = screen.getByTestId('room-activity-tag-room-abnormal');
+    const row = activityTag.closest('tr');
+    expect(row).not.toBeNull();
+    expect(row!.style.background).toBe('rgba(231, 76, 60, 0.1)');
+  });
+});
+
+// ── C22: 非异常房间无高亮背景 ──────────────────────────────────────────────
+describe('RoomsTable — C22: 非异常行无高亮', () => {
+  it('active/quiet/normal 房间所在 tr 不含高亮背景色', () => {
+    render(<RoomsTable {...activityProps} />);
+
+    for (const roomId of ['room-active', 'room-quiet', 'room-normal']) {
+      const tag = screen.getByTestId(`room-activity-tag-${roomId}`);
+      const row = tag.closest('tr');
+      expect(row).not.toBeNull();
+      expect(row!.style.background).not.toBe('rgba(231, 76, 60, 0.1)');
+    }
+  });
+});
+
+// ── C23: 工具栏含 activity-filter Select ────────────────────────────────────
+describe('RoomsTable — C23: 工具栏活跃度筛选', () => {
+  it('工具栏存在 data-testid="activity-filter" 的 Select', () => {
+    render(<RoomsTable {...defaultProps} />);
+    expect(screen.getByTestId('activity-filter')).toBeInTheDocument();
+  });
+});
+
+// ── C24: 选择"异常" → onActivityFilterChange('abnormal') 被调用 ─────────────
+describe('RoomsTable — C24: 选择活跃度筛选选项', () => {
+  it('选择异常选项后 onActivityFilterChange("abnormal") 被调用', async () => {
+    const user = userEvent.setup();
+    const onActivityFilterChange = vi.fn();
+    render(
+      <RoomsTable
+        {...defaultProps}
+        onActivityFilterChange={onActivityFilterChange}
+      />,
+    );
+
+    const filterContainer = screen.getByTestId('activity-filter');
+    const combobox = within(filterContainer).getByRole('combobox');
+    await user.click(combobox);
+
+    await waitFor(() => {
+      expect(document.querySelector('.ant-select-dropdown')).toBeInTheDocument();
+    });
+    const dropdown = document.querySelector('.ant-select-dropdown') as HTMLElement;
+    const abnormalOption = within(dropdown).getByText('rooms.activityLevelAbnormal');
+    await user.click(abnormalOption);
+
+    expect(onActivityFilterChange).toHaveBeenCalledWith('abnormal');
+  });
+});
+
+// ── C25: activityFilter='active' → Select 显示受控值 ────────────────────────
+describe('RoomsTable — C25: activityFilter 受控显示', () => {
+  it('activityFilter="active" 时 Select 显示对应 label', () => {
+    render(<RoomsTable {...defaultProps} activityFilter="active" />);
+    const filterContainer = screen.getByTestId('activity-filter');
+    // Ant Design Select 的选中项显示在 selection-item 中
+    expect(filterContainer.textContent).toContain('rooms.activityLevelActive');
+  });
+});
+
+// ── C26: 点击行 onRowClick 正常触发，不受活跃度筛选影响 ─────────────────────
+describe('RoomsTable — C26: 筛选不影响行点击', () => {
+  it('activityFilter 存在时点击行仍触发 onRowClick', async () => {
+    const user = userEvent.setup();
+    const onRowClick = vi.fn();
+    render(
+      <RoomsTable
+        {...defaultProps}
+        items={activityItems}
+        total={4}
+        activityFilter="active"
+        onRowClick={onRowClick}
+      />,
+    );
+
+    await user.click(screen.getByText('Active Room'));
+    expect(onRowClick).toHaveBeenCalledWith('room-active');
   });
 });

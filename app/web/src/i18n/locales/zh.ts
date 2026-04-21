@@ -59,6 +59,15 @@ const zh = {
     typePaid: '付费',
     errorTitle: '数据加载失败',
     closeErrorTitle: '关闭失败',
+    // T-20011: 活跃度监控翻译键
+    activityFilter: '活跃度',
+    activityAll: '全部',
+    activityLevelActive: '活跃',
+    activityLevelQuiet: '冷清',
+    activityLevelAbnormal: '异常',
+    activityLevelNormal: '正常',
+    columnActivityStatus: '活跃状态',
+    columnDuration: '持续时长',
     detail: {
       title: '房间详情',
       roomType: '房间类型',
