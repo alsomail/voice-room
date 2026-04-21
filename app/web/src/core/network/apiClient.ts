@@ -566,6 +566,7 @@ export interface AdminUploadGiftAssetResponse {
  */
 export async function adminListGifts(
   params?: AdminListGiftsParams,
+  signal?: AbortSignal,
 ): Promise<AdminGiftsData> {
   const query = params
     ? '?' + new URLSearchParams(
@@ -574,7 +575,7 @@ export async function adminListGifts(
           .map(([k, v]) => [k, String(v)]),
       ).toString()
     : '';
-  const res = await adminFetch<AdminGiftsData>(`/gifts${query}`);
+  const res = await adminFetch<AdminGiftsData>(`/gifts${query}`, { signal });
   return res.data;
 }
 
@@ -583,10 +584,12 @@ export async function adminListGifts(
  */
 export async function adminCreateGift(
   req: AdminCreateGiftRequest,
+  signal?: AbortSignal,
 ): Promise<AdminGiftItem> {
   const res = await adminFetch<AdminGiftItem>('/gifts', {
     method: 'POST',
     body: JSON.stringify(req),
+    signal,
   });
   return res.data;
 }
@@ -597,12 +600,14 @@ export async function adminCreateGift(
 export async function adminUpdateGift(
   id: string,
   req: AdminUpdateGiftRequest,
+  signal?: AbortSignal,
 ): Promise<AdminGiftItem> {
   const res = await adminFetch<AdminGiftItem>(
     `/gifts/${encodeURIComponent(id)}`,
     {
       method: 'PUT',
       body: JSON.stringify(req),
+      signal,
     },
   );
   return res.data;
@@ -611,9 +616,10 @@ export async function adminUpdateGift(
 /**
  * DELETE /admin/gifts/:id — 管理员软删除礼物（T-20012）
  */
-export async function adminDeleteGift(id: string): Promise<void> {
+export async function adminDeleteGift(id: string, signal?: AbortSignal): Promise<void> {
   await adminFetch<null>(`/gifts/${encodeURIComponent(id)}`, {
     method: 'DELETE',
+    signal,
   });
 }
 

@@ -13,7 +13,15 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { adminLogin, adminCloseRoom, adminGetRoomDetail } from './apiClient';
+import {
+  adminLogin,
+  adminCloseRoom,
+  adminGetRoomDetail,
+  adminListGifts,
+  adminCreateGift,
+  adminUpdateGift,
+  adminDeleteGift,
+} from './apiClient';
 
 // ── 常量 ────────────────────────────────────────────────────────────────────
 const ADMIN_TOKEN_KEY = 'adminToken';
@@ -408,5 +416,135 @@ describe('adminGetRoomDetail — T-20005', () => {
     controller.abort();
 
     await expect(promise).rejects.toMatchObject({ name: 'AbortError' });
+  });
+});
+
+// ── 7. MEDIUM-1: T-20012 新增 API 函数 AbortSignal 参数 ────────────────────────
+// 验证 adminListGifts / adminCreateGift / adminUpdateGift / adminDeleteGift
+// 支持外部 AbortSignal，并在信号预先 abort 时立即取消请求。
+//
+// 测试策略：
+//   - 预先调用 controller.abort()（信号已 abort）
+//   - mock fetch：若 init.signal 已 abort → 立即 reject（模拟真实 fetch 行为）
+//             否则 → 正常 resolve（以区分"信号被正确转发"vs"信号被忽略"两种状态）
+//   - RED：函数无 signal 参数 → 信号未传入 adminFetch → fetch 使用内部 signal（未 abort）
+//           → mock 正常 resolve → expect rejects.toThrow() 断言 FAIL
+//   - GREEN：函数接受 signal → adminFetch 检测到 init.signal.aborted=true → 立即 abort 内部 controller
+//            → fetch 使用已 abort 的内部 signal → mock 立即 reject → 断言 PASS
+describe('MEDIUM-1: T-20012 新增 API 函数 — AbortSignal 参数', () => {
+  /** 构造一个当 signal 已 abort 时立即 reject，否则正常 resolve 的 fetch mock */
+  function makeFetchMockWithSignalCheck(successData: unknown) {
+    return vi.fn().mockImplementation((_url: string, init?: RequestInit) => {
+      const signal = init?.signal as AbortSignal | undefined;
+      if (signal?.aborted) {
+        return Promise.reject(new DOMException('The user aborted a request.', 'AbortError'));
+      }
+      return Promise.resolve(
+        mockResponse(
+          { code: 0, message: 'ok', data: successData },
+          { status: 200, ok: true },
+        ),
+      );
+    });
+  }
+
+  // ── adminListGifts ─────────────────────────────────────────────────────────
+  describe('adminListGifts', () => {
+    it('传入预先 abort 的 signal，请求应立即失败（signal 被正确转发至 adminFetch）', async () => {
+      const controller = new AbortController();
+      controller.abort(); // 预先 abort
+
+      vi.stubGlobal('fetch', makeFetchMockWithSignalCheck({
+        total: 0, page: 1, size: 50, items: [],
+      }));
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await expect((adminListGifts as any)(undefined, controller.signal)).rejects.toThrow();
+    });
+
+    it('未传 signal 时请求正常完成', async () => {
+      vi.stubGlobal('fetch', makeFetchMockWithSignalCheck({
+        total: 0, page: 1, size: 50, items: [],
+      }));
+
+      await expect(adminListGifts()).resolves.toEqual({
+        total: 0, page: 1, size: 50, items: [],
+      });
+    });
+  });
+
+  // ── adminCreateGift ────────────────────────────────────────────────────────
+  describe('adminCreateGift', () => {
+    const MOCK_GIFT = {
+      id: 'g-1', code: 'rose', name_en: 'Rose', name_ar: 'وردة',
+      icon_url: '/rose.png', price: 10, tier: 1, effect_level: 1,
+      animation_url: null, is_active: true, sort_order: 1,
+      is_deleted: false, created_at: '', updated_at: '',
+    };
+
+    it('传入预先 abort 的 signal，请求应立即失败', async () => {
+      const controller = new AbortController();
+      controller.abort();
+
+      vi.stubGlobal('fetch', makeFetchMockWithSignalCheck(MOCK_GIFT));
+
+      const req = { code: 'rose', name_en: 'Rose', name_ar: 'وردة', icon_url: '/rose.png', price: 10, tier: 1, effect_level: 1 };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await expect((adminCreateGift as any)(req, controller.signal)).rejects.toThrow();
+    });
+
+    it('未传 signal 时请求正常完成', async () => {
+      vi.stubGlobal('fetch', makeFetchMockWithSignalCheck(MOCK_GIFT));
+
+      const req = { code: 'rose', name_en: 'Rose', name_ar: 'وردة', icon_url: '/rose.png', price: 10, tier: 1, effect_level: 1 };
+      const result = await adminCreateGift(req);
+      expect(result.code).toBe('rose');
+    });
+  });
+
+  // ── adminUpdateGift ────────────────────────────────────────────────────────
+  describe('adminUpdateGift', () => {
+    const MOCK_UPDATED = {
+      id: 'g-1', code: 'rose', name_en: 'Rose Updated', name_ar: 'وردة',
+      icon_url: '/rose.png', price: 20, tier: 1, effect_level: 1,
+      animation_url: null, is_active: false, sort_order: 1,
+      is_deleted: false, created_at: '', updated_at: '',
+    };
+
+    it('传入预先 abort 的 signal，请求应立即失败', async () => {
+      const controller = new AbortController();
+      controller.abort();
+
+      vi.stubGlobal('fetch', makeFetchMockWithSignalCheck(MOCK_UPDATED));
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await expect((adminUpdateGift as any)('g-1', { is_active: false }, controller.signal)).rejects.toThrow();
+    });
+
+    it('未传 signal 时请求正常完成', async () => {
+      vi.stubGlobal('fetch', makeFetchMockWithSignalCheck(MOCK_UPDATED));
+
+      const result = await adminUpdateGift('g-1', { is_active: false });
+      expect(result.is_active).toBe(false);
+    });
+  });
+
+  // ── adminDeleteGift ────────────────────────────────────────────────────────
+  describe('adminDeleteGift', () => {
+    it('传入预先 abort 的 signal，请求应立即失败', async () => {
+      const controller = new AbortController();
+      controller.abort();
+
+      vi.stubGlobal('fetch', makeFetchMockWithSignalCheck(null));
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await expect((adminDeleteGift as any)('g-1', controller.signal)).rejects.toThrow();
+    });
+
+    it('未传 signal 时请求正常完成', async () => {
+      vi.stubGlobal('fetch', makeFetchMockWithSignalCheck(null));
+
+      await expect(adminDeleteGift('g-1')).resolves.toBeUndefined();
+    });
   });
 });

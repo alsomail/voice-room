@@ -51,6 +51,17 @@ vi.mock('../../../pages/users/useUserDetail', () => ({
   useUserDetail: vi.fn(),
 }));
 
+// ── useAuthStore mock（A11 测试中 UserDetailDrawer 需要 RBAC 角色）───────────
+// 默认 super_admin 有调整余额权限，确保 adjust-balance-btn 可见
+vi.mock('../../../stores/useAuthStore', () => ({
+  useAuthStore: (selector?: (s: { admin: { role: string } }) => unknown) => {
+    const state = { admin: { role: 'super_admin' } };
+    if (typeof selector === 'function') return selector(state);
+    return state;
+  },
+  ADMIN_TOKEN_KEY: 'adminToken',
+}));
+
 import { adminAdjustBalance } from '../../../core/network/apiClient';
 import { AdjustBalanceModal } from '../AdjustBalanceModal';
 

@@ -27,6 +27,10 @@ import { useTranslation } from 'react-i18next';
 import { useUserDetail } from './useUserDetail';
 import { UserStatusTag } from './UserStatusTag';
 import { AdjustBalanceModal } from '../../features/user/AdjustBalanceModal';
+import { useAuthStore } from '../../stores/useAuthStore';
+
+/** 有权限调整余额的角色（对应 T-10013 RBAC WalletAdjust 权限） */
+const WALLET_ADJUST_ROLES = ['super_admin', 'operator', 'finance'];
 
 export interface UserDetailDrawerProps {
   userId: string | null;
@@ -47,8 +51,14 @@ export function UserDetailDrawer({
   const [refreshKey, setRefreshKey] = useState(0);
   const { detail, loading, error } = useUserDetail(userId, refreshKey);
 
-  const handleAdjustSuccess = (newBalance: number) => {
-    void newBalance; // 新余额通过刷新获取
+  // MEDIUM-2 修复：根据角色控制"调整余额"按钮可见性（W12-01 RBAC）
+  const admin = useAuthStore((s) => s.admin);
+  const role = admin?.role ?? '';
+  const canAdjustBalance = WALLET_ADJUST_ROLES.includes(role);
+
+  // LOW 修复：省略 newBalance 参数（TypeScript 允许回调省略尾部参数），通过 refreshKey 重新拉取最新余额
+  const handleAdjustSuccess = () => {
+    // 通过 refreshKey 重新拉取最新余额，无需直接使用 newBalance
     setRefreshKey((k) => k + 1);
     setAdjustOpen(false);
   };
@@ -145,13 +155,15 @@ export function UserDetailDrawer({
                 </Button>
               )}
 
-              {/* T-20012: 调整余额按钮 */}
-              <Button
-                data-testid="adjust-balance-btn"
-                onClick={() => setAdjustOpen(true)}
-              >
-                {t('wallet.adjust.adjustBalance')}
-              </Button>
+              {/* T-20012: 调整余额按钮（仅 super_admin/operator/finance 可见） */}
+              {canAdjustBalance && (
+                <Button
+                  data-testid="adjust-balance-btn"
+                  onClick={() => setAdjustOpen(true)}
+                >
+                  {t('wallet.adjust.adjustBalance')}
+                </Button>
+              )}
             </Space>
           </>
         )}

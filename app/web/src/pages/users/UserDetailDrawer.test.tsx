@@ -33,6 +33,20 @@ vi.mock('./useUserDetail', () => ({
   useUserDetail: vi.fn(),
 }));
 
+// ── useAuthStore mock（MEDIUM-2 RBAC 控制）────────────────────────────────
+// UserDetailDrawer 修复后会通过 useAuthStore 读取当前角色，控制"调整余额"按钮可见性。
+// 这里通过可变变量 mockAdminRole 让每个测试可以灵活设置角色。
+let mockAdminRole = 'super_admin';
+
+vi.mock('../../stores/useAuthStore', () => ({
+  useAuthStore: (selector?: (s: { admin: { role: string } | null }) => unknown) => {
+    const state = { admin: { role: mockAdminRole } };
+    if (typeof selector === 'function') return selector(state);
+    return state;
+  },
+  ADMIN_TOKEN_KEY: 'adminToken',
+}));
+
 import { useUserDetail } from './useUserDetail';
 import { UserDetailDrawer } from './UserDetailDrawer';
 import type { AdminUserDetailResponse } from '../../core/network/apiClient';
@@ -79,6 +93,8 @@ function makeProps(
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // 默认角色 super_admin（有调整余额权限）
+  mockAdminRole = 'super_admin';
   // 默认：成功态（normal 用户）
   mockUseUserDetail.mockReturnValue({
     detail: mockDetailNormal,
@@ -229,5 +245,57 @@ describe('UserDetailDrawer — D10: 解封按钮点击', () => {
     await user.click(unbanBtn);
 
     expect(props.onUnbanClick).toHaveBeenCalledWith('user-uuid-1');
+  });
+});
+
+// ── D11 / D12 / D13: RBAC — 调整余额按钮可见性（MEDIUM-2）────────────────
+/**
+ * 验证"调整余额"按钮根据管理员角色控制可见性：
+ *   - super_admin / operator / finance → 可见
+ *   - cs → 不可见（无 WalletAdjust 权限）
+ *
+ * T-10013 RBAC 规定：WalletAdjust 权限仅授予 super_admin / operator / finance。
+ * 修复前：按钮对所有角色均可见 → D11 断言 not.toBeInTheDocument() FAIL（RED）
+ * 修复后：cs 角色按钮隐藏 → D11 PASS；finance/super_admin 可见 → D12/D13 PASS
+ */
+describe('UserDetailDrawer — D11/D12/D13: RBAC 调整余额按钮', () => {
+  it('D11: cs 角色不可见"调整余额"按钮', async () => {
+    mockAdminRole = 'cs';
+    render(<UserDetailDrawer {...makeProps()} />);
+
+    await waitFor(() => {
+      // 用户详情已加载（detail 存在）
+      expect(screen.getByTestId('ban-btn')).toBeInTheDocument();
+    });
+
+    // cs 无 WalletAdjust 权限，按钮不应出现
+    expect(screen.queryByTestId('adjust-balance-btn')).not.toBeInTheDocument();
+  });
+
+  it('D12: finance 角色可见"调整余额"按钮', async () => {
+    mockAdminRole = 'finance';
+    render(<UserDetailDrawer {...makeProps()} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('adjust-balance-btn')).toBeInTheDocument();
+    });
+  });
+
+  it('D13: super_admin 角色可见"调整余额"按钮', async () => {
+    mockAdminRole = 'super_admin';
+    render(<UserDetailDrawer {...makeProps()} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('adjust-balance-btn')).toBeInTheDocument();
+    });
+  });
+
+  it('D14: operator 角色可见"调整余额"按钮', async () => {
+    mockAdminRole = 'operator';
+    render(<UserDetailDrawer {...makeProps()} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('adjust-balance-btn')).toBeInTheDocument();
+    });
   });
 });

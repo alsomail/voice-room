@@ -23,30 +23,30 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">95.45% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>21/22</span>
+                <span class='fraction'>0/22</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">83.33% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>10/12</span>
+                <span class='fraction'>0/1</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>1/1</span>
+                <span class='fraction'>0/1</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">95.45% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>21/22</span>
+                <span class='fraction'>0/22</span>
             </div>
         
             
@@ -61,7 +61,7 @@
             </div>
         </template>
     </div>
-    <div class='status-line high'></div>
+    <div class='status-line low'></div>
     <pre><table class="coverage">
 <tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
 <a name='L2'></a><a href='#L2'>2</a>
@@ -90,60 +90,60 @@
 <a name='L25'></a><a href='#L25'>25</a>
 <a name='L26'></a><a href='#L26'>26</a>
 <a name='L27'></a><a href='#L27'>27</a>
-<a name='L28'></a><a href='#L28'>28</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">6x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">6x</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">6x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">6x</span>
-<span class="cline-any cline-yes">6x</span>
-<span class="cline-any cline-yes">3x</span>
+<a name='L28'></a><a href='#L28'>28</a></td><td class="line-coverage quiet"><span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-yes">6x</span>
-<span class="cline-any cline-yes">6x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">6x</span>
-<span class="cline-any cline-yes">6x</span>
-<span class="cline-any cline-yes">3x</span>
-<span class="cline-any cline-yes">6x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">export function joinConfiguredUrl(base: string, path: string) {
-  const trimmedPath = path.trim();
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js"><span class="cstat-no" title="statement not covered" >export function joinConfiguredUrl(base: string, path: string) {<span class="fstat-no" title="function not covered" ><span class="branch-0 cbranch-no" title="branch not covered" ></span></span></span>
+<span class="cstat-no" title="statement not covered" >  const trimmedPath = path.trim();</span>
 &nbsp;
-  if (/^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(trimmedPath)) {
-    throw new Error('Path must be relative to the configured base URL.');
-  }
+<span class="cstat-no" title="statement not covered" >  if (/^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(trimmedPath)) {</span>
+<span class="cstat-no" title="statement not covered" >    throw new Error('Path must be relative to the configured base URL.');</span>
+<span class="cstat-no" title="statement not covered" >  }</span>
 &nbsp;
-  if (/(^|\/)\.\.?(\/|$)/.test(trimmedPath)) {
-    throw new Error('Path must not contain dot segments.');
-  }
+<span class="cstat-no" title="statement not covered" >  if (/(^|\/)\.\.?(\/|$)/.test(trimmedPath)) {</span>
+<span class="cstat-no" title="statement not covered" >    throw new Error('Path must not contain dot segments.');</span>
+<span class="cstat-no" title="statement not covered" >  }</span>
 &nbsp;
-  const normalizedBaseUrl = new URL(base.endsWith('/'<span class="branch-0 cbranch-no" title="branch not covered" >) ? base : `</span>${base}/`);
-  const normalizedBasePath = normalizedBaseUrl.pathname.endsWith('/')
-    ? normalizedBaseUrl.<span class="branch-0 cbranch-no" title="branch not covered" >pathname</span>
+<span class="cstat-no" title="statement not covered" >  const normalizedBaseUrl = new URL(base.endsWith('/') ? base : `${base}/`);</span>
+<span class="cstat-no" title="statement not covered" >  const normalizedBasePath = normalizedBaseUrl.pathname.endsWith('/')</span>
+<span class="cstat-no" title="statement not covered" >    ? normalizedBaseUrl.pathname</span>
 <span class="cstat-no" title="statement not covered" >    : `${normalizedBaseUrl.pathname}/`;</span>
-  const normalizedPath = trimmedPath.replace(/^\/+/, '');
-  const resolvedUrl = new URL(normalizedPath, normalizedBaseUrl);
+<span class="cstat-no" title="statement not covered" >  const normalizedPath = trimmedPath.replace(/^\/+/, '');</span>
+<span class="cstat-no" title="statement not covered" >  const resolvedUrl = new URL(normalizedPath, normalizedBaseUrl);</span>
 &nbsp;
-  if (
-    resolvedUrl.origin !== normalizedBaseUrl.origin ||
-    !resolvedUrl.pathname.startsWith(normalizedBasePath)
-  ) {
-    throw new Error('Resolved URL must stay within the configured base URL.');
-  }
+<span class="cstat-no" title="statement not covered" >  if (</span>
+<span class="cstat-no" title="statement not covered" >    resolvedUrl.origin !== normalizedBaseUrl.origin ||</span>
+<span class="cstat-no" title="statement not covered" >    !resolvedUrl.pathname.startsWith(normalizedBasePath)</span>
+<span class="cstat-no" title="statement not covered" >  ) {</span>
+<span class="cstat-no" title="statement not covered" >    throw new Error('Resolved URL must stay within the configured base URL.');</span>
+<span class="cstat-no" title="statement not covered" >  }</span>
 &nbsp;
-  return resolvedUrl.toString();
-}
+<span class="cstat-no" title="statement not covered" >  return resolvedUrl.toString();</span>
+<span class="cstat-no" title="statement not covered" >}</span>
 &nbsp;</pre></td></tr></table></pre>
 
                 <div class='push'></div><!-- for sticky footer -->
@@ -151,7 +151,7 @@
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-04-21T21:35:48.476Z
+                at 2026-04-21T22:27:58.414Z
             </div>
         <script src="../../prettify.js"></script>
         <script>

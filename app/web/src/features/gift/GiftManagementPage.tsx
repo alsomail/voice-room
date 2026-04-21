@@ -61,35 +61,45 @@ export function GiftManagementPage() {
   const [editingGift, setEditingGift] = useState<AdminGiftItem | null>(null);
 
   // ── 拉取礼物列表
-  const fetchGifts = useCallback(async (params: AdminListGiftsParams) => {
+  const fetchGifts = useCallback(async (
+    params: AdminListGiftsParams,
+    clientFilter: 'all' | 'active' | 'inactive' = 'all',
+    signal?: AbortSignal,
+  ) => {
     setLoading(true);
     setLoadError(null);
     try {
-      const result = await adminListGifts(params);
-      setGifts(result.items);
-      setTotal(result.total);
+      const result = await adminListGifts(params, signal);
+      // HIGH-1 修复：inactive 筛选在前端做客户端过滤
+      // API 不支持"仅返回下架礼物"，需先以 include_inactive=true 获取全量再过滤
+      const items =
+        clientFilter === 'inactive'
+          ? result.items.filter((g) => !g.is_active)
+          : result.items;
+      setGifts(items);
+      setTotal(items.length);
     } catch (err) {
-      setLoadError(err instanceof Error ? err.message : t('gift.mgmt.errorLoad'));
+      if ((err as Error).name !== 'AbortError') {
+        setLoadError(err instanceof Error ? err.message : t('gift.mgmt.errorLoad'));
+      }
     } finally {
       setLoading(false);
     }
   }, [t]);
 
-  // ── 筛选变化时重新加载
+  // ── 筛选变化时重新加载（含 AbortController 防竞态）
   useEffect(() => {
+    const controller = new AbortController();
     const params: AdminListGiftsParams = {
       page,
       size: 50,
     };
     if (tierFilter !== undefined) params.tier = tierFilter;
-    if (statusFilter === 'all') {
-      params.include_inactive = true;
-    } else if (statusFilter === 'active') {
-      params.include_inactive = false;
-    } else {
-      params.include_inactive = true;
-    }
-    void fetchGifts(params);
+    // 'all' 和 'inactive' 均需要 include_inactive=true 以获取全量数据；
+    // 'inactive' 的下架过滤由 fetchGifts 的客户端过滤完成。
+    params.include_inactive = statusFilter !== 'active';
+    void fetchGifts(params, statusFilter, controller.signal);
+    return () => controller.abort();
   }, [page, tierFilter, statusFilter, fetchGifts]);
 
   // ── Switch 切换上下架（乐观更新 + 失败回滚）
@@ -142,7 +152,7 @@ export function GiftManagementPage() {
       size: 50,
       include_inactive: true,
       ...(tierFilter !== undefined ? { tier: tierFilter } : {}),
-    });
+    }, statusFilter);
   };
 
   // ── tier 筛选选项

@@ -21,10 +21,18 @@ import '@testing-library/jest-dom';
 import React from 'react';
 
 // ── i18n mock ─────────────────────────────────────────────────────────────────
+// 注意：使用 vi.hoisted 创建稳定的 t/i18n 引用，避免 useCallback([t]) 每次渲染
+// 都重新创建函数，从而防止 fetchGifts 在 useEffect deps 中引发无限循环。
+const { _stableT, _stableI18n } = vi.hoisted(() => {
+  const t = (key: string) => key;
+  const i18n = { changeLanguage: vi.fn(), language: 'zh' };
+  return { _stableT: t, _stableI18n: i18n };
+});
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string) => key,
-    i18n: { changeLanguage: vi.fn(), language: 'zh' },
+    t: _stableT,
+    i18n: _stableI18n,
   }),
   initReactI18next: { type: '3rdParty', init: vi.fn() },
 }));
@@ -367,6 +375,108 @@ describe('GiftManagementPage — G08: 状态筛选参数', () => {
     await waitFor(() => {
       expect(mockListGifts).toHaveBeenCalled();
     });
+  });
+
+  it('默认（all）加载时 adminListGifts 携带 include_inactive=true 参数', async () => {
+    render(<GiftManagementPage />);
+
+    await waitFor(() => {
+      expect(mockListGifts).toHaveBeenCalledWith(
+        expect.objectContaining({ include_inactive: true }),
+        expect.anything(),
+      );
+    });
+  });
+});
+
+// ── G11: inactive 状态客户端过滤（HIGH-1 修复验收）────────────────────────────
+describe('GiftManagementPage — G11: inactive 客户端过滤', () => {
+  it('选择 inactive 筛选后，只显示 is_active=false 的礼物，active 礼物不可见', async () => {
+    const user = userEvent.setup();
+    render(<GiftManagementPage />);
+
+    // 等待初始加载（两个礼物均可见）
+    await waitFor(() => {
+      expect(screen.getByText('unicorn_01')).toBeInTheDocument(); // is_active=true
+      expect(screen.getByText('rose_01')).toBeInTheDocument();   // is_active=false
+    });
+
+    // 打开状态筛选下拉
+    const statusFilterWrap = screen.getByTestId('gift-status-filter');
+    const combobox =
+      statusFilterWrap.querySelector('[role="combobox"]') ?? statusFilterWrap;
+    await user.click(combobox as HTMLElement);
+
+    // 等待下拉菜单出现
+    await waitFor(() => {
+      expect(document.querySelector('.ant-select-dropdown')).toBeInTheDocument();
+    });
+
+    // 选择「inactive」选项（i18n mock 直接返回 key）
+    const dropdowns = document.querySelectorAll(
+      '.ant-select-dropdown:not(.ant-select-dropdown-hidden)',
+    );
+    const dropdown = dropdowns[dropdowns.length - 1] as HTMLElement;
+    const inactiveOption =
+      (dropdown.querySelector('[title="gift.mgmt.filterInactive"]') as HTMLElement | null) ??
+      (Array.from(
+        dropdown.querySelectorAll('.ant-select-item-option-content'),
+      ).find((el) => el.textContent === 'gift.mgmt.filterInactive') as HTMLElement | undefined);
+
+    // 必须找到选项才能继续
+    expect(inactiveOption).toBeTruthy();
+    await user.click(inactiveOption!);
+
+    // 等待 API 被再次调用（filter 变化触发第2次请求）
+    await waitFor(() => {
+      expect(mockListGifts).toHaveBeenCalledTimes(2);
+    });
+
+    // 只有下架礼物可见，上架礼物应被客户端过滤掉
+    await waitFor(() => {
+      expect(screen.queryByText('unicorn_01')).not.toBeInTheDocument();
+      expect(screen.getByText('rose_01')).toBeInTheDocument();
+    });
+  });
+
+  it('选择 inactive 筛选时 adminListGifts 仍以 include_inactive=true 请求（以获取下架礼物）', async () => {
+    const user = userEvent.setup();
+    render(<GiftManagementPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('gift-status-filter')).toBeInTheDocument();
+    });
+
+    const statusFilterWrap = screen.getByTestId('gift-status-filter');
+    const combobox =
+      statusFilterWrap.querySelector('[role="combobox"]') ?? statusFilterWrap;
+    await user.click(combobox as HTMLElement);
+
+    await waitFor(() => {
+      expect(document.querySelector('.ant-select-dropdown')).toBeInTheDocument();
+    });
+
+    const dropdowns = document.querySelectorAll(
+      '.ant-select-dropdown:not(.ant-select-dropdown-hidden)',
+    );
+    const dropdown = dropdowns[dropdowns.length - 1] as HTMLElement;
+    const inactiveOption =
+      (dropdown.querySelector('[title="gift.mgmt.filterInactive"]') as HTMLElement | null) ??
+      (Array.from(
+        dropdown.querySelectorAll('.ant-select-item-option-content'),
+      ).find((el) => el.textContent === 'gift.mgmt.filterInactive') as HTMLElement | undefined);
+
+    expect(inactiveOption).toBeTruthy();
+    await user.click(inactiveOption!);
+
+    await waitFor(() => {
+      expect(mockListGifts).toHaveBeenCalledTimes(2);
+    });
+
+    // 第2次调用必须携带 include_inactive=true
+    const allCalls = mockListGifts.mock.calls;
+    const lastCall = allCalls[allCalls.length - 1][0] as Record<string, unknown>;
+    expect(lastCall.include_inactive).toBe(true);
   });
 });
 
