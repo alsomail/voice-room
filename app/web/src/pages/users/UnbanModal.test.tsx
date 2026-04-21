@@ -17,7 +17,7 @@
  *   M13: 外层 Modal 关闭（直接 onClose）后重新打开，按钮不处于 disabled 状态
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, type MockInstance } from 'vitest';
 import { render, screen, waitFor, within, act, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
@@ -80,7 +80,8 @@ async function selectOption(
 }
 
 let mockUnban: ReturnType<typeof vi.fn>;
-let confirmSpy: ReturnType<typeof vi.spyOn>;
+let confirmSpy: MockInstance<(typeof Modal)['confirm']>;
+
 
 beforeEach(() => {
   vi.clearAllMocks();

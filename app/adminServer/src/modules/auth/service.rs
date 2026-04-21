@@ -120,9 +120,9 @@ impl AdminAuthService {
             expires_in: TOKEN_EXPIRES_SECS,
             admin: AdminInfo {
                 id: admin.id.to_string(),
-                username: admin.username.clone(),
-                role: admin.role.clone(),
-                display_name: admin.display_name.clone(),
+                username: admin.username,
+                role: admin.role,
+                display_name: admin.display_name,
                 last_login_at: Some(now_dt.to_rfc3339()),
             },
         })

@@ -10,7 +10,7 @@ use uuid::Uuid;
 // ─── 错误类型 ─────────────────────────────────────────────────────────────────
 
 /// `take_mic_slot` 原子操作的错误枚举
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum TakeMicError {
     /// 该 user_id 已占用其他麦位
     AlreadyOnMic,
