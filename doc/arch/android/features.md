@@ -36,6 +36,17 @@
 | 麦克风权限 | `feature/room/MicPermission.kt` | T-30012 | 🟢 Accompanist 运行时权限 + 设置引导 |
 | 上麦/下麦逻辑 | `feature/room/MicManager.kt` | T-30013 | 🟢 权限检查 → 上麦请求 → RTC 推流 |
 
+### 房间页视觉升级模块（T-30025）
+
+| 组件 | 关键文件 | Task | 当前状态 |
+| --- | --- | --- | --- |
+| 主麦位组件 | `feature/room/HostMicSlot.kt` | T-30025 | 🟢 80dp AvatarWithFrame + Canvas GoldGlowRing（stroke 6dp，MenaColors.Primary）居中突出 |
+| 副麦位组件 | `feature/room/MicSlotCard.kt` | T-30025 | 🟢 60dp 深色背景，三态 EMPTY/OCCUPIED/MUTED，黑金风格改造 |
+| 空麦位组件 | `feature/room/EmptyMicSlot.kt` | T-30025 | 🟢 虚线圆圈 + "+" 图标，可点击触发上麦 onMicSlotClick |
+| 麦位网格 | `feature/room/MicSlotsGrid.kt` | T-30025 | 🟢 LazyVerticalGrid 4列（原3列），userScrollEnabled=false |
+| 弹幕消息列表 | `feature/room/ChatMessageList.kt` | T-30025 | 🟢 USER_TEXT 昵称金色（MenaColors.Primary）+ SYSTEM_NOTICE 金黄居中 |
+| 房间页主屏 | `feature/room/RoomScreen.kt` | T-30025 | 🟢 整体背景 MenaColors.Background 深色，WS/上下麦逻辑不变 |
+
 ### Chat 模块（🟢 已完成，T-30014 ~ T-30017）
 
 | 模块 | 关键文件 | Task | 当前状态 |
@@ -82,6 +93,6 @@
 
 ## 三、 对业务推进的含义
 
-- Android 端 Auth + Room 大厅 + WS 连接 + 房间核心 + 聊天消息全链路（T-30001 ~ T-30017）已全部落地；大厅页已完成黑金视觉升级（T-30022）；`core/ui/PlaceholderScreen` 通用占位组件与消息Tab占位页（T-30023）已完成，供后续 Profile 等 Tab 复用。
+- Android 端 Auth + Room 大厅 + WS 连接 + 房间核心 + 聊天消息全链路（T-30001 ~ T-30017）已全部落地；大厅页已完成黑金视觉升级（T-30022）；房间页已完成黑金视觉升级（T-30025，HostMicSlot 80dp 金色光圈 + MicSlotCard 副麦 60dp + EmptyMicSlot 虚线"+" + MicSlotsGrid 4列 + ChatMessageList 金色昵称/系统消息金黄，WS/上下麦逻辑不变）；`core/ui/PlaceholderScreen` 通用占位组件与消息Tab占位页（T-30023）已完成，供后续 Profile 等 Tab 复用。
 - Gift / Wallet / VIP 等商业化模块尚未展开，仅目录预留。
 - 后续开发必须继续对齐 `doc/protocol/` 目录下的对应子文件与服务端广播模型，避免客户端自行推断核心状态。
