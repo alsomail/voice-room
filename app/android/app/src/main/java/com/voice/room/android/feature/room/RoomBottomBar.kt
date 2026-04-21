@@ -21,7 +21,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TextField
+import com.voice.room.android.core.theme.GoldOutlinedTextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -39,7 +39,7 @@ import com.voice.room.android.core.theme.MenaColors
 /**
  * 房间底部操作栏（T-30026）
  *
- * 布局：Row — [TextField(weight=1f)] + [MicButton] + [GiftButton] + [EmoteButton] + [ExitButton]
+ * 布局：Row — [GoldOutlinedTextField(weight=1f)] + [MicButton] + [GiftButton] + [EmoteButton] + [ExitButton]
  * 背景：MenaColors.Surface，上边框：1dp MenaColors.SurfaceVariant
  *
  * testTag 协议：
@@ -96,7 +96,7 @@ fun RoomBottomBar(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // ── 输入框（沿用 ChatInputBar 的 testTag 协议） ──────────────────────
-        TextField(
+        GoldOutlinedTextField(
             value = inputText,
             onValueChange = onInputTextChange,
             modifier = Modifier
