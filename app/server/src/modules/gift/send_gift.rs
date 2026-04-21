@@ -57,12 +57,6 @@ pub enum SendGiftError {
     /// 余额不足 (40290)
     #[error("insufficient balance")]
     InsufficientBalance,
-    /// 幂等命中：已处理过该 msg_id，返回首次结果
-    #[error("idempotent: already processed")]
-    Idempotent {
-        gift_record_id: Uuid,
-        total_price: i64,
-    },
     /// 内部错误
     #[error("internal error: {0}")]
     Internal(String),
@@ -99,7 +93,8 @@ pub trait SendGiftServicePort: Send + Sync {
     /// - `payload`：礼物信息（gift_id, receiver_id, count, msg_id）
     ///
     /// # 幂等
-    /// 相同 `(sender_id, msg_id)` 再次调用时返回 `Err(SendGiftError::Idempotent { ... })`
+    /// 相同 `(sender_id, msg_id)` 再次调用时返回 `Ok(SendGiftResult { ... })`（首次结果），
+    /// 不重新扣款、不重新广播。`Err` 仅在业务校验失败或内部错误时返回。
     async fn send(
         &self,
         sender_id: Uuid,
@@ -233,7 +228,7 @@ impl GiftSendService {
 
         txn.commit().await.map_err(|e| SendGiftError::Internal(e.to_string()))?;
 
-        // 事务提交成功后通知 BalanceBroadcaster
+        // 事务提交成功后通知 BalanceBroadcaster（[M-1] 改用 send().await 避免静默丢弃）
         let event = BalanceEvent {
             user_id: sender_id,
             balance_after: new_balance,
@@ -241,8 +236,8 @@ impl GiftSendService {
             reason: "gift_send".to_string(),
             ref_id: Some(gift_record_id),
         };
-        if let Err(e) = self.balance_tx.try_send(event) {
-            tracing::warn!("GiftSendService: balance event channel error: {:?}", e);
+        if let Err(e) = self.balance_tx.send(event).await {
+            tracing::warn!("GiftSendService: balance event channel closed, event dropped: {:?}", e);
         }
 
         Ok(gift_record_id)
@@ -295,16 +290,18 @@ impl SendGiftServicePort for GiftSendService {
             });
         }
 
-        // ── 4. 查询 gift（必须 active）──────────────────────────────────────
-        let gift_row: Option<(i64, i16)> = sqlx::query_as(
-            "SELECT price, effect_level FROM gifts WHERE id = $1 AND is_active = true AND is_deleted = false"
+        // ── 4. 查询 gift（必须 active）并获取全部展示字段 ──────────────────
+        let gift_row = sqlx::query_as::<_, (i64, i16, String, String, String, Option<String>)>(
+            "SELECT price, effect_level, code, name_ar, icon_url, animation_url \
+             FROM gifts WHERE id = $1 AND is_active = true AND is_deleted = false"
         )
         .bind(gift_id)
         .fetch_optional(&self.pool)
         .await
         .map_err(|e| SendGiftError::Internal(e.to_string()))?;
 
-        let (price, _effect_level) = gift_row.ok_or(SendGiftError::GiftUnavailable)?;
+        let (price, effect_level, gift_code, gift_name, gift_icon_url, gift_animation_url) =
+            gift_row.ok_or(SendGiftError::GiftUnavailable)?;
 
         // ── 5. 校验接收者在麦上 ──────────────────────────────────────────────
         let receiver_on_mic = {
@@ -314,6 +311,27 @@ impl SendGiftServicePort for GiftSendService {
         if !receiver_on_mic {
             return Err(SendGiftError::ReceiverUnavailable);
         }
+
+        // ── 5.5 查询 sender/receiver 用户信息（用于广播 payload，[H-1]）──────
+        let sender_info: Option<(String, Option<String>)> = sqlx::query_as(
+            "SELECT nickname, avatar FROM users WHERE id = $1 AND deleted_at IS NULL"
+        )
+        .bind(sender_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| SendGiftError::Internal(e.to_string()))?;
+        let (sender_nickname, sender_avatar) = sender_info
+            .unwrap_or_else(|| (sender_id.to_string(), None));
+
+        let receiver_info: Option<(String, Option<String>)> = sqlx::query_as(
+            "SELECT nickname, avatar FROM users WHERE id = $1 AND deleted_at IS NULL"
+        )
+        .bind(receiver_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| SendGiftError::Internal(e.to_string()))?;
+        let (receiver_nickname, receiver_avatar) = receiver_info
+            .unwrap_or_else(|| (receiver_id.to_string(), None));
 
         // ── 6-f. 执行事务 ────────────────────────────────────────────────────
         let total = price * count as i64;
@@ -331,12 +349,21 @@ impl SendGiftServicePort for GiftSendService {
             }
         }
 
-        // ── 8. 广播 GiftReceived 给房间所有成员 ─────────────────────────────
+        // ── 8. 广播 GiftReceived 给房间所有成员（[H-1] 补全 TDS 规定字段）──
         let broadcast_msg = build_gift_received_msg(
             gift_record_id,
             sender_id,
+            &sender_nickname,
+            sender_avatar.as_deref(),
             receiver_id,
+            &receiver_nickname,
+            receiver_avatar.as_deref(),
             gift_id,
+            &gift_code,
+            &gift_name,
+            &gift_icon_url,
+            gift_animation_url.as_deref(),
+            effect_level,
             count,
             total,
         );
@@ -348,12 +375,25 @@ impl SendGiftServicePort for GiftSendService {
     }
 }
 
-/// 构建 GiftReceived 广播消息 JSON
+/// 构建 GiftReceived 广播消息 JSON（[H-1] 补全 TDS §广播 S→C 所有必填字段）
+///
+/// 包含：sender/receiver 的 user_id、nickname、avatar；
+/// gift 的 id、code、name、icon_url、animation_url、effect_level；count、total_price。
+#[allow(clippy::too_many_arguments)]
 fn build_gift_received_msg(
     gift_record_id: Uuid,
     sender_id: Uuid,
+    sender_nickname: &str,
+    sender_avatar: Option<&str>,
     receiver_id: Uuid,
+    receiver_nickname: &str,
+    receiver_avatar: Option<&str>,
     gift_id: Uuid,
+    gift_code: &str,
+    gift_name: &str,
+    gift_icon_url: &str,
+    gift_animation_url: Option<&str>,
+    gift_effect_level: i16,
     count: i32,
     total_price: i64,
 ) -> String {
@@ -362,9 +402,24 @@ fn build_gift_received_msg(
         "msg_id": Uuid::new_v4().to_string(),
         "payload": {
             "gift_record_id": gift_record_id.to_string(),
-            "sender": { "user_id": sender_id.to_string() },
-            "receiver": { "user_id": receiver_id.to_string() },
-            "gift": { "id": gift_id.to_string() },
+            "sender": {
+                "user_id": sender_id.to_string(),
+                "nickname": sender_nickname,
+                "avatar": sender_avatar,
+            },
+            "receiver": {
+                "user_id": receiver_id.to_string(),
+                "nickname": receiver_nickname,
+                "avatar": receiver_avatar,
+            },
+            "gift": {
+                "id": gift_id.to_string(),
+                "code": gift_code,
+                "name": gift_name,
+                "icon_url": gift_icon_url,
+                "animation_url": gift_animation_url,
+                "effect_level": gift_effect_level,
+            },
             "count": count,
             "total_price": total_price,
         },
@@ -441,10 +496,6 @@ pub async fn handle_send_gift(
         Err(SendGiftError::GiftUnavailable) => send_gift_error_response(msg_id, 40402, "gift not found or inactive"),
         Err(SendGiftError::ReceiverUnavailable) => send_gift_error_response(msg_id, 40403, "receiver not on mic"),
         Err(SendGiftError::InsufficientBalance) => send_gift_error_response(msg_id, 40290, "insufficient balance"),
-        Err(SendGiftError::Idempotent { gift_record_id, total_price }) => {
-            // 幂等命中：返回首次结果（code=0），不重发广播
-            build_send_gift_result_response(msg_id, gift_record_id, total_price)
-        }
         Err(SendGiftError::Internal(e)) => {
             tracing::error!("SendGift internal error: {}", e);
             send_gift_error_response(msg_id, 50000, "internal error")
@@ -650,22 +701,43 @@ mod tests {
         assert!(json["payload"]["gift_record_id"].is_string(), "SGU06: response should contain gift_record_id");
     }
 
-    // SGU07: build_gift_received_msg 包含正确字段
+    // SGU07: build_gift_received_msg 包含 TDS 规定的全部字段（[H-1] 更新）
     #[test]
     fn sgu07_build_gift_received_msg_contains_required_fields() {
         let msg = build_gift_received_msg(
-            Uuid::new_v4(),
-            Uuid::new_v4(),
-            Uuid::new_v4(),
-            Uuid::new_v4(),
-            2,
-            1040,
+            Uuid::new_v4(),         // gift_record_id
+            Uuid::new_v4(),         // sender_id
+            "Alice",                // sender_nickname
+            Some("https://cdn.example.com/alice.png"), // sender_avatar
+            Uuid::new_v4(),         // receiver_id
+            "Bob",                  // receiver_nickname
+            None,                   // receiver_avatar
+            Uuid::new_v4(),         // gift_id
+            "castle_01",            // gift_code
+            "قصر",                  // gift_name
+            "https://cdn.example.com/castle.png",      // gift_icon_url
+            Some("https://cdn.example.com/castle.mp4"), // gift_animation_url
+            4i16,                   // gift_effect_level
+            2,                      // count
+            1040,                   // total_price
         );
         let json: serde_json::Value = serde_json::from_str(&msg).unwrap();
         assert_eq!(json["type"], "GiftReceived", "SGU07: type should be GiftReceived");
         assert_eq!(json["payload"]["count"], 2, "SGU07: count should be 2");
         assert_eq!(json["payload"]["total_price"], 1040, "SGU07: total_price should be 1040");
         assert!(json["msg_id"].is_string(), "SGU07: should have msg_id");
+        // 验证 sender 字段
+        assert_eq!(json["payload"]["sender"]["nickname"], "Alice", "SGU07: sender nickname");
+        assert_eq!(json["payload"]["sender"]["avatar"], "https://cdn.example.com/alice.png", "SGU07: sender avatar");
+        // 验证 receiver 字段
+        assert_eq!(json["payload"]["receiver"]["nickname"], "Bob", "SGU07: receiver nickname");
+        assert!(json["payload"]["receiver"]["avatar"].is_null(), "SGU07: receiver avatar null");
+        // 验证 gift 字段
+        assert_eq!(json["payload"]["gift"]["code"], "castle_01", "SGU07: gift code");
+        assert_eq!(json["payload"]["gift"]["name"], "قصر", "SGU07: gift name");
+        assert_eq!(json["payload"]["gift"]["icon_url"], "https://cdn.example.com/castle.png", "SGU07: gift icon_url");
+        assert_eq!(json["payload"]["gift"]["animation_url"], "https://cdn.example.com/castle.mp4", "SGU07: gift animation_url");
+        assert_eq!(json["payload"]["gift"]["effect_level"], 4, "SGU07: gift effect_level");
     }
 
     // SGU08: SendGiftError 实现 Debug（for assertions）

@@ -56,13 +56,9 @@ pub async fn update_rankings(
     let sender_str = sender_id.to_string();
     let score = total as f64;
 
-    // 魅力日榜
+    // 魅力日榜（[C-1] 修复：删除 zadd，改为纯 ZINCRBY，与 charm_week 保持一致）
     let charm_day = charm_day_key();
-    if let Err(e) = conn.zadd::<_, _, _, ()>(&charm_day, &recv_str, score).await {
-        tracing::warn!("ranking: charm day zadd failed: {}", e);
-    } else {
-        let _ = increment_zscore(conn, &charm_day, &recv_str, score).await;
-    }
+    let _ = increment_zscore(conn, &charm_day, &recv_str, score).await;
     let _: Result<(), _> = conn.expire(&charm_day, DAY_TTL_SECS as i64).await;
 
     // 魅力周榜

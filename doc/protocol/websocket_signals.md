@@ -78,13 +78,35 @@ ws://host/ws?token=<JWT>
 { "type":"SendGift", "msg_id":"uuid",
   "payload":{ "room_id":"uuid","gift_id":"uuid","receiver_id":"uuid","count":1 } }
 ```
-错误码：`40201` INSUFFICIENT_BALANCE、`40202` RECEIVER_UNAVAILABLE、`40203` GIFT_NOT_AVAILABLE、`40003` 参数非法。
+**错误码**（更新日期：T-00020 Review Round 1，与 TDS/实现对齐）：
+
+| code | 常量名 | 含义 |
+|------|--------|------|
+| `40001` | INVALID_COUNT | count 为 0 或超过 9999 |
+| `40002` | MISSING_PARAMS | 参数缺失或格式非法 |
+| `40290` | INSUFFICIENT_BALANCE | 发送者钻石余额不足 |
+| `40400` | SENDER_NOT_IN_ROOM | 发送者不在指定房间 |
+| `40402` | GIFT_NOT_AVAILABLE | 礼物不存在或已下架 |
+| `40403` | RECEIVER_UNAVAILABLE | 接收者不在房间或不在麦上 |
 
 ### 6.4.3 GiftReceived（S→房间）
 ```json
-{ "type":"GiftReceived",
-  "payload":{ "sender":{...}, "receiver":{...}, "gift":{...}, "count":1,
-              "effect_level":1, "total_price": 520 } }
+{
+  "type": "GiftReceived",
+  "msg_id": "uuid",
+  "payload": {
+    "gift_record_id": "uuid",
+    "sender": { "user_id":"uuid", "nickname":"Alice", "avatar":"https://..." },
+    "receiver": { "user_id":"uuid", "nickname":"Bob", "avatar":null },
+    "gift": {
+      "id":"uuid", "code":"castle_01", "name":"قصر",
+      "icon_url":"https://...", "animation_url":"https://...", "effect_level":4
+    },
+    "count": 1,
+    "total_price": 520
+  },
+  "timestamp": 1720000000000
+}
 ```
 
 ---

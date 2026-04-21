@@ -164,6 +164,23 @@ fn join_room(registry: &ConnectionRegistry, room_state: &RoomState, user_id: Uui
     (connection_id, rx)
 }
 
+/// 插入一个专用的下架测试礼物（is_active=false），不依赖种子数据
+/// 测试结束后由调用者负责 DELETE（或直接丢弃，UUID 隔离无污染）
+async fn insert_inactive_test_gift(pool: &PgPool) -> Uuid {
+    let gift_id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO gifts \
+         (id, code, name_en, name_ar, icon_url, price, tier, effect_level, sort_order, is_active, is_deleted) \
+         VALUES ($1, $2, 'Test Gift', 'هدية اختبار', '/test/icon.png', 1, 1, 1, 999, false, false)"
+    )
+    .bind(gift_id)
+    .bind(format!("test_inactive_{}", &gift_id.to_string().replace('-', "")[..8]))
+    .execute(pool)
+    .await
+    .expect("insert inactive test gift");
+    gift_id
+}
+
 /// 让接收者上麦
 fn take_mic(room_state: &RoomState, user_id: Uuid, slot: usize) {
     room_state.take_mic_slot(slot, user_id).expect("take_mic_slot should succeed");
@@ -373,9 +390,10 @@ async fn sg04_redis_ranking_zincrby_updated() {
     let charm_key = format!("ranking:charm:day:{}", today);
     let score: Option<f64> = conn.zscore(&charm_key, receiver_id.to_string()).await.ok().flatten();
     assert!(score.is_some(), "SG04: charm ranking key should exist");
-    assert!(
-        score.unwrap() >= total as f64,
-        "SG04: charm score should be >= total"
+    // [C-1] 修复：charm_day 改为纯 ZINCRBY，score 必须精确等于 total（不能双倍）
+    assert_eq!(
+        score.unwrap(), total as f64,
+        "SG04: charm score must equal total exactly (pure ZINCRBY, no double-counting)"
     );
 }
 
@@ -565,19 +583,8 @@ async fn sg08_inactive_gift_returns_gift_unavailable() {
     };
     sqlx::migrate!("./migrations").run(&pool).await.expect("migrate");
 
-    // 取价格最高的活跃礼物，临时标记为下架（与其他测试使用的最便宜礼物隔离，避免竞争）
-    let (gift_id, _) = {
-        let row = sqlx::query("SELECT id, price FROM gifts WHERE is_active = true ORDER BY price DESC LIMIT 1")
-            .fetch_one(&pool)
-            .await
-            .expect("get most expensive active gift for sg08");
-        (row.get::<Uuid, _>("id"), row.get::<i64, _>("price"))
-    };
-    sqlx::query("UPDATE gifts SET is_active = false WHERE id = $1")
-        .bind(gift_id)
-        .execute(&pool)
-        .await
-        .expect("mark gift inactive for sg08 test");
+    // [L-1] 修复：使用专用下架测试礼物（UUID 隔离），避免修改种子数据造成状态污染
+    let gift_id = insert_inactive_test_gift(&pool).await;
 
     let sender_id = insert_test_user(&pool, 10_000).await;
     let receiver_id = insert_test_user(&pool, 0).await;
@@ -601,12 +608,11 @@ async fn sg08_inactive_gift_returns_gift_unavailable() {
         SendGiftPayload { gift_id, receiver_id, count: 1, msg_id: Uuid::new_v4().to_string() },
     ).await;
 
-    // 无论断言结果如何，还原礼物状态（防止污染其他测试）
-    sqlx::query("UPDATE gifts SET is_active = true WHERE id = $1")
+    // 清理专用测试礼物（即使断言失败也不影响其他测试，因为是独立 UUID）
+    let _ = sqlx::query("DELETE FROM gifts WHERE id = $1")
         .bind(gift_id)
         .execute(&pool)
-        .await
-        .expect("restore gift active for sg08 test");
+        .await;
 
     assert!(
         matches!(result, Err(SendGiftError::GiftUnavailable)),
