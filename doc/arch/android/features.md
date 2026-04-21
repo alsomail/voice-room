@@ -93,17 +93,30 @@
 | --- | --- | --- | --- |
 | 消息Tab占位页 | `feature/main/MessagesPlaceholder.kt` | T-30023 | 🟢 委托 `PlaceholderScreen`，显示聊天图标 + "消息功能即将上线" + "敬请期待"；外层 `Box(testTag("messages_placeholder"))` 保持 T-30020 兼容性；18 个测试（7 JVM + 11 androidTest）全部通过 |
 
+### Wallet 钱包模块（🟢 已完成，T-30027，Review R2 通过）
+
+| 模块 | 关键文件 | Task | 当前状态 |
+| --- | --- | --- | --- |
+| 余额显示 | `feature/wallet/WalletScreen.kt` | T-30027 | 🟢 大卡片展示钻石余额（金色 MenaColors.Primary），充值按钮占位 Toast "即将上线"，testTag `"wallet_balance_value"` |
+| 流水列表 | `feature/wallet/WalletTxnPagingSource.kt` + `WalletScreen.kt` | T-30027 | 🟢 Paging3 分页加载（1-based 页码，lastPage 判断：`size < loadSize`），LazyColumn 显示收入/支出项（绿色+/红色-），testTag `"wallet_txn_list"` 挂在 LazyColumn 上 |
+| ViewModel | `feature/wallet/WalletViewModel.kt` | T-30027 | 🟢 Manual Factory + StateFlow + SharedFlow；init 调用 `loadBalance` + `subscribeToWsEvents`；WS 按 protocol §6.4.1 读取嵌套 `payload.diamond_balance` 字段（R1-CRITICAL 修复）；401 → NavigateToLogin；CancellationException re-throw |
+| 下拉刷新 | `feature/wallet/WalletScreen.kt` | T-30027 | 🟢 PullToRefreshBox 包裹 LazyColumn；刷新时同时更新余额 + 流水首页；401 时发射 NavigateToLogin（R1-HIGH-2 修复） |
+| 空状态占位 | `feature/wallet/WalletScreen.kt` | T-30027 | 🟢 LazyColumn itemCount 为 0 时显示占位文案 "暂无流水" + 插画，testTag `"wallet_empty"` |
+| 导航集成 | `feature/profile/ProfileContent.kt` + `feature/main/MainScreen.kt` | T-30027 | 🟢 ProfileContent 余额行新增 `onNavigateToWallet` clickable（W27-09）；MainScreen 内部 NavHost 新增 "wallet" composable |
+| Data 层 | `data/wallet/WalletApiService.kt` + `WalletTxnPagingSource.kt` + `RetrofitWalletRepository.kt` | T-30027 | 🟢 HTTP API（GET `wallet/balance` + GET `wallet/transactions`）+ Paging3 分页数据源 + Repository 实现（与 RetrofitUserRepository 统一 parseBody 错误处理策略） |
+| Domain 层 | `domain/wallet/IWalletRepository.kt` + `WalletTxn.kt` + `TxnsPage.kt` | T-30027 | 🟢 Repository 接口 + 领域模型；`IWalletRepository` 扩展 `getBalance()`/`listTxns()` 接口，保留 `walletPreviewLabel()` 向后兼容 |
+| 测试覆盖 | `test/WalletViewModelTest.kt` + `test/WalletTxnPagingSourceTest.kt` | T-30027 | 🟢 22 个单元测试全部通过（WalletViewModelTest 15 个：W27-01~08 + R1-CRITICAL-1/1b + R1-HIGH-3/3b；WalletTxnPagingSourceTest 7 个），Review R2 ✅ |
+
 ### 待开发模块
 
 | 模块 | 当前状态 |
 | --- | --- |
-| Profile | 🟡 仅保留模块描述与后续落点 |
-| Gift / Wallet / Seat / Family / CP / VIP / Backpack / Game | 🔴 仅目录预留，尚无 UI 与逻辑 |
+| Gift / Seat / Family / CP / VIP / Backpack / Game | 🔴 仅目录预留，尚无 UI 与逻辑 |
 
 ## 二、 当前测试覆盖
 
-- **测试文件**：28 个（含 `test/` 和 `androidTest/` 目录）
-- **测试方法**：293 个 `@Test`
+- **测试文件**：30 个（含 `test/` 和 `androidTest/` 目录）
+- **测试方法**：317 个 `@Test`（新增 T-30027 相关 22 个单元测试）
 
 ### 代表性测试文件
 
@@ -118,6 +131,6 @@
 
 ## 三、 对业务推进的含义
 
-- Android 端 Auth + Room 大厅 + WS 连接 + 房间核心 + 聊天消息全链路（T-30001 ~ T-30017）已全部落地；大厅页已完成黑金视觉升级（T-30022）；房间页已完成黑金视觉升级（T-30025，HostMicSlot 80dp 金色光圈 + MicSlotCard 副麦 60dp + EmptyMicSlot 虚线"+" + MicSlotsGrid 4列 + ChatMessageList 金色昵称/系统消息金黄，WS/上下麦逻辑不变）；房间底部操作栏已完成升级（T-30026，RoomBottomBar Row布局：GoldOutlinedTextField输入框 + MicButton三态（不在麦灰禁/在麦绿色/静音红色）+ GiftButton/EmoteButton灰禁Toast + ExitButton AlertDialog二次确认，RoomViewModel新增toggleMicMute()/isCurrentUserOnMic/isCurrentUserMuted）；`core/ui/PlaceholderScreen` 通用占位组件与消息Tab占位页（T-30023）已完成，供后续 Profile 等 Tab 复用。
-- Gift / Wallet / VIP 等商业化模块尚未展开，仅目录预留。
+- Android 端 Auth + Room 大厅 + WS 连接 + 房间核心 + 聊天消息全链路（T-30001 ~ T-30017）已全部落地；大厅页已完成黑金视觉升级（T-30022）；房间页已完成黑金视觉升级（T-30025，HostMicSlot 80dp 金色光圈 + MicSlotCard 副麦 60dp + EmptyMicSlot 虚线"+" + MicSlotsGrid 4列 + ChatMessageList 金色昵称/系统消息金黄，WS/上下麦逻辑不变）；房间底部操作栏已完成升级（T-30026，RoomBottomBar Row布局：GoldOutlinedTextField输入框 + MicButton三态（不在麦灰禁/在麦绿色/静音红色）+ GiftButton/EmoteButton灰禁Toast + ExitButton AlertDialog二次确认，RoomViewModel新增toggleMicMute()/isCurrentUserOnMic/isCurrentUserMuted）；`core/ui/PlaceholderScreen` 通用占位组件与消息Tab占位页（T-30023）已完成；钱包页完整链路（T-30027，Review R2 通过）已完成：WalletScreen 余额大卡片 + 下拉刷新 + Paging3 流水列表 + 空状态占位，WalletViewModel 初始化加载 + WS 实时更新（按 protocol §6.4.1 读取嵌套 `payload.diamond_balance`）+ 401 导航，Repository 层 HTTP API + Paging3 分页，22 个单元测试全部通过。
+- Gift / 榜单 等商业化模块与后续 Task（T-30028~T-30033）在进行中，依赖于钱包页 T-30027 的完成。
 - 后续开发必须继续对齐 `doc/protocol/` 目录下的对应子文件与服务端广播模型，避免客户端自行推断核心状态。
