@@ -140,7 +140,9 @@ fun WalletScreen(
                 .padding(innerPadding),
         ) {
             LazyColumn(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .testTag("wallet_txn_list"),
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
@@ -257,9 +259,7 @@ private fun WalletTxnItem(txn: WalletTxn) {
     val amountText = if (isIncome) "+${txn.amount}" else "${txn.amount}"
 
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .testTag("wallet_txn_list"),
+        modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = MenaColors.Surface),
     ) {

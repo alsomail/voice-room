@@ -167,8 +167,10 @@ class WalletViewModelTest {
             // 初始余额应为 1000
             assertEquals(1000L, vm.uiState.value.balance)
 
-            // 模拟 WS BalanceUpdated 消息
-            wsClient.simulateMessage("""{"type":"BalanceUpdated","new_balance":2500}""")
+            // 模拟 WS BalanceUpdated 消息（正确协议格式 §6.4.1：payload.diamond_balance）
+            wsClient.simulateMessage(
+                """{"type":"BalanceUpdated","msg_id":"uuid-w2704","payload":{"diamond_balance":2500,"delta":1500,"reason":"recharge"},"timestamp":1720000000000}"""
+            )
             advanceUntilIdle()
             job.cancel()
 
@@ -340,6 +342,145 @@ class WalletViewModelTest {
                 "Balance unchanged after malformed JSON",
                 300L,
                 vm.uiState.value.balance,
+            )
+        }
+
+    // ─── R1-CRITICAL-1: WS BalanceUpdated 必须读 payload.diamond_balance ──────
+    // RED: 当前代码读 "new_balance"（顶层），新测试使用正确协议格式，应 FAIL
+
+    @Test
+    fun `R1-CRITICAL-1 WS BalanceUpdated correct protocol format payload_diamond_balance updates balance`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            val wsClient = FakeWebSocketClient()
+            val fakeRepo = FakeWalletRepository(balanceResult = Result.success(1000L))
+            val vm = buildViewModel(walletRepository = fakeRepo, wsClient = wsClient)
+
+            val job = launch(UnconfinedTestDispatcher(testScheduler)) { vm.uiState.collect {} }
+            advanceUntilIdle()
+
+            assertEquals(1000L, vm.uiState.value.balance)
+
+            // 正确协议格式：payload.diamond_balance（§6.4.1）
+            wsClient.simulateMessage(
+                """{"type":"BalanceUpdated","msg_id":"uuid-001","payload":{"diamond_balance":4800,"delta":-200,"reason":"gift_send"},"timestamp":1720000000000}"""
+            )
+            advanceUntilIdle()
+            job.cancel()
+
+            assertEquals(
+                "Balance should update to 4800 from payload.diamond_balance (correct protocol format)",
+                4800L,
+                vm.uiState.value.balance,
+            )
+        }
+
+    // ─── R1-CRITICAL-1b: 旧格式顶层 new_balance 不应更新余额 ─────────────────
+    // 验证修复后旧的错误格式被忽略（diamond_balance 缺失时视为无效消息）
+
+    @Test
+    fun `R1-CRITICAL-1b WS BalanceUpdated with old wrong format top-level new_balance is ignored`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            val wsClient = FakeWebSocketClient()
+            val fakeRepo = FakeWalletRepository(balanceResult = Result.success(1000L))
+            val vm = buildViewModel(walletRepository = fakeRepo, wsClient = wsClient)
+
+            val job = launch(UnconfinedTestDispatcher(testScheduler)) { vm.uiState.collect {} }
+            advanceUntilIdle()
+
+            assertEquals(1000L, vm.uiState.value.balance)
+
+            // 错误格式（顶层 new_balance，无 payload）
+            wsClient.simulateMessage("""{"type":"BalanceUpdated","new_balance":9999}""")
+            advanceUntilIdle()
+            job.cancel()
+
+            assertEquals(
+                "Old wrong format (top-level new_balance) should be ignored after fix",
+                1000L,
+                vm.uiState.value.balance,
+            )
+        }
+
+    // ─── R1-HIGH-3: refresh() 遇到 401 应发射 NavigateToLogin ─────────────────
+    // RED: 当前 refresh() 的 onFailure 仅设置 error 消息，未检测 401，应 FAIL
+
+    @Test
+    fun `R1-HIGH-3 refresh with 401 ApiException emits NavigateToLogin event`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            // 初始化时成功，refresh 时返回 401
+            var callCount = 0
+            val fakeRepo = object : IWalletRepository {
+                override fun walletPreviewLabel(): String = "Fake"
+                override suspend fun getBalance(): Result<Long> {
+                    callCount++
+                    return if (callCount == 1) Result.success(500L)
+                    else Result.failure(ApiException(401, "Unauthorized"))
+                }
+                override suspend fun listTxns(page: Int, size: Int): Result<TxnsPage> =
+                    Result.success(TxnsPage(emptyList(), 0, 1))
+            }
+            val vm = buildViewModel(walletRepository = fakeRepo)
+
+            val events = mutableListOf<WalletEvent>()
+            val eventsJob = launch(UnconfinedTestDispatcher(testScheduler)) {
+                vm.events.collect { events.add(it) }
+            }
+
+            advanceUntilIdle()
+            // 确认初始化成功，无 NavigateToLogin
+            assertTrue("No NavigateToLogin on init success", events.none { it == WalletEvent.NavigateToLogin })
+
+            // 触发 refresh，此时返回 401
+            vm.refresh()
+            advanceUntilIdle()
+            eventsJob.cancel()
+
+            assertTrue(
+                "refresh() with 401 must emit NavigateToLogin, got: $events",
+                events.contains(WalletEvent.NavigateToLogin),
+            )
+            assertEquals(
+                "refreshing should be false after 401",
+                false,
+                vm.uiState.value.refreshing,
+            )
+        }
+
+    // ─── R1-HIGH-3b: refresh() 非 401 错误不应发射 NavigateToLogin ─────────────
+
+    @Test
+    fun `R1-HIGH-3b refresh with non-401 error sets error message not NavigateToLogin`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            var callCount = 0
+            val fakeRepo = object : IWalletRepository {
+                override fun walletPreviewLabel(): String = "Fake"
+                override suspend fun getBalance(): Result<Long> {
+                    callCount++
+                    return if (callCount == 1) Result.success(500L)
+                    else Result.failure(IOException("Network error"))
+                }
+                override suspend fun listTxns(page: Int, size: Int): Result<TxnsPage> =
+                    Result.success(TxnsPage(emptyList(), 0, 1))
+            }
+            val vm = buildViewModel(walletRepository = fakeRepo)
+
+            val events = mutableListOf<WalletEvent>()
+            val eventsJob = launch(UnconfinedTestDispatcher(testScheduler)) {
+                vm.events.collect { events.add(it) }
+            }
+
+            advanceUntilIdle()
+            vm.refresh()
+            advanceUntilIdle()
+            eventsJob.cancel()
+
+            assertTrue(
+                "Non-401 refresh error must NOT emit NavigateToLogin, got: $events",
+                events.none { it == WalletEvent.NavigateToLogin },
+            )
+            assertNotNull(
+                "Non-401 refresh error must set uiState.error",
+                vm.uiState.value.error,
             )
         }
 }

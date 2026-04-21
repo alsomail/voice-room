@@ -109,6 +109,8 @@ class WalletViewModel(
 
     /**
      * 下拉刷新：重新拉取余额 + 通知 UI 刷新流水。
+     *
+     * 401 错误与 [loadBalance] 保持一致，发射 [WalletEvent.NavigateToLogin]。
      */
     fun refresh() {
         viewModelScope.launch {
@@ -120,7 +122,12 @@ class WalletViewModel(
                 }
                 .onFailure { e ->
                     if (e is CancellationException) throw e
-                    _uiState.update { it.copy(refreshing = false, error = e.message) }
+                    if (e is ApiException && e.code == 401) {
+                        _uiState.update { it.copy(refreshing = false) }
+                        _events.emit(WalletEvent.NavigateToLogin)
+                    } else {
+                        _uiState.update { it.copy(refreshing = false, error = e.message) }
+                    }
                 }
         }
     }
@@ -139,7 +146,10 @@ class WalletViewModel(
     /**
      * 订阅 WS 消息流，处理 `BalanceUpdated` 事件。
      *
-     * 消息格式：`{"type":"BalanceUpdated","new_balance":xxx}`
+     * 消息格式（§6.4.1 协议）：
+     * ```json
+     * {"type":"BalanceUpdated","msg_id":"uuid","payload":{"diamond_balance":4800,...},"timestamp":...}
+     * ```
      * 成功解析后：更新 [WalletUiState.balance] + 发射 [WalletEvent.RefreshTransactions]
      * 解析失败静默忽略，不影响 UI 状态。
      */
@@ -157,7 +167,9 @@ class WalletViewModel(
         try {
             val json = JsonParser.parseString(text)?.asJsonObject ?: return
             if (json.get("type")?.asString == "BalanceUpdated") {
-                val newBalance = json.get("new_balance")?.asLong ?: return
+                // 按协议 §6.4.1 读取 payload.diamond_balance
+                val payload = json.getAsJsonObject("payload") ?: return
+                val newBalance = payload.get("diamond_balance")?.asLong ?: return
                 _uiState.update { it.copy(balance = newBalance) }
                 viewModelScope.launch {
                     _events.emit(WalletEvent.RefreshTransactions)
