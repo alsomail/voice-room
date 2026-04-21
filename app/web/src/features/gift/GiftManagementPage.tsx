@@ -150,7 +150,7 @@ export function GiftManagementPage() {
     void fetchGifts({
       page,
       size: 50,
-      include_inactive: true,
+      include_inactive: statusFilter !== 'active',
       ...(tierFilter !== undefined ? { tier: tierFilter } : {}),
     }, statusFilter);
   };
