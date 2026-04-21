@@ -22,6 +22,7 @@ Server 端基于 Rust + Axum 构建。启动骨架（配置、日志、健康检
 - 🗄️ [数据库 Schema 设计](./database.md) - 各业务表 DDL 说明、字段约束、索引策略与 Rust 模型映射（含 `rooms` 表，T-00006）。
 - 🔌 [WebSocket 模块架构](./websocket.md) - WS 握手鉴权（T-00011）、`ConnectionRegistry`、心跳检测、单连接生命周期与 `connection_id` 解耦设计。
 - 🏠 [房间运行时模块](./room_runtime.md) - `src/room/` 模块说明：`RoomManager`（DashMap 全局状态）、`RoomState`（成员表 + 麦位 + `banned_mics` + `muted_users` + `processed_msg_ids`）、`handle_join_room` WS 信令处理（T-00012）、`do_leave_room` / `handle_leave_room` 离开房间逻辑（T-00013）、`take_mic_slot` / `handle_take_mic` 上麦逻辑（T-00014）、`leave_mic_slot` / `handle_leave_mic` 下麦逻辑（T-00015）、`filter_content` 敏感词净化 / `handle_send_message` 文本消息广播（T-00016）。
+- 💰 [Wallet 模块架构](./wallet.md) - 余额查询 API（T-00018）、流水分页查询、`WalletService.apply_delta` 原子事务支持、`BalanceBroadcaster` Redis PubSub 跨进程推送、WS `BalanceUpdated` 信令设计。
 
 ## 三、 当前能力全景与状态 (Capability Matrix)
 > 状态枚举：🟢 已完成 | 🟡 开发/调试中 | 🔴 待开发
@@ -105,6 +106,15 @@ Server 端基于 Rust + Axum 构建。启动骨架（配置、日志、健康检
   - **迁移幂等性**：使用 `IF NOT EXISTS` 语法三处幂等（ALTER TABLE ADD COLUMN、CREATE TABLE、CREATE INDEX），支持重复执行
   - **测试覆盖**：共 245 passed（196 server lib + 8 wallet 集成 + 41 shared 单元），覆盖 W01~W06 验收标准（幂等/默认值/CHECK 约束/索引/全类型插入）
   - **后续依赖**：T-00018（余额查询 API + WS 推送）、T-00020（SendGift 事务）等通过本数据基座实现
+- 🟢 **钱包模块 - 余额查询 API + WS 推送**（T-00018）：`src/modules/wallet/` 模块完整实现
+  - **HTTP 接口**：`GET /api/v1/wallet/balance`（JWT 鉴权，返回 `diamond_balance`）、`GET /api/v1/wallet/transactions?page=&size=&type=`（分页流水，按 created_at 倒序）
+  - **WS 信令**：`BalanceUpdated { msg_id, diamond_balance, delta, reason, ref_id, timestamp }`，同一用户多连接全部推送
+  - **WalletService 设计**：`apply_delta<'c>(&self, txn: &mut Transaction, ...)` 接受外部事务参数（行锁防并发超扣）；事务提交后调用 `notify_balance_updated` 触发推送（失败记 warn 日志）
+  - **BalanceBroadcaster 设计**：`run_with_redis(rx, redis_url, registry, shutdown)` 同时监听本进程 mpsc channel 和 Redis `admin:events` PubSub，自动重连；`handle_redis_payload` 解析 Redis `balance_updated` 事件；`broadcast_event` 对所有用户连接广播，每条消息独立生成 `msg_id: Uuid::new_v4()`
+  - **断线恢复**：重连时客户端主动 `GET /wallet/balance` 拉最新值（Android 在 WS `Connected` 事件触发）
+  - **错误码**：401（未登录）、40003（参数非法）
+  - **测试覆盖**：B01~B09 集成测试 9 个（含未登录 401、初始余额 0、分页、过滤、WS 推送延迟、多连接、Redis 事件、余额负数回滚、参数校验）；BR01~BR08 单元测试（broadcaster）；WS01~WS06 单元测试（service）；共 219 单元 + 9 集成，全部 ✅ 通过，clippy 零警告
+  - **完成时间**：2025-07-15（Review Round 2 通过）
 - 🔴 支付业务域
 
 ### 遗留技术债 (Tech Debt)
