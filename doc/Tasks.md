@@ -230,7 +230,7 @@
 | **T-30023** [TDS](./tds/android/T-30023.md) | Android | Messages | 消息Tab占位页 | T-30018, T-30020 | 通用 `PlaceholderScreen` Composable（`core/ui/`）+ `MessagesPlaceholder` 委托，消息 Tab 展示"即将上线"占位页 | 1. 消息Tab显示占位页<br>2. PlaceholderScreen 可复用<br>3. 深色背景 | ✅ Done | 2h | Done |
 | **T-30024** [TDS](./tds/android/T-30024.md) | Android | Profile | 个人中心页 | T-30018, T-30020, T-30004 | "我的"Tab 页面：头像(AvatarWithFrame)+昵称+ID+余额+设置入口+退出登录(二次确认) | 1. 显示用户头像/昵称/ID/余额<br>2. 复制ID到剪贴板<br>3. 退出登录二次确认→清JWT→LoginScreen<br>4. 网络异常用本地缓存 | ✅ Done | 6h | Done | [T-30024.md](./design/android/T-30024.md) |
 | **T-30025** [TDS](./tds/android/T-30025.md) | Android | Room | 房间页视觉升级 | T-30018 | 将 RoomScreen 改造为黑金风格：主麦突出(80dp金色光圈) + 副麦4列 + 弹幕金色昵称 + 深色背景。WS/上下麦逻辑不变 | 1. 主麦80dp+金色光圈<br>2. 副麦60dp四列<br>3. 空麦位虚线+"+"<br>4. 系统消息金黄色居中<br>5. **WS/上下麦不回归** | ✅ Done | 6h | Done | [T-30025.md](./design/android/T-30025.md) |
-| **T-30026** [TDS](./tds/android/T-30026.md) | Android | Room | 房间底部操作栏升级 | T-30018, T-30025 | 底部操作栏扩展：输入框 + 🎤麦克风开关 + 🎁礼物(灰禁) + ❤️表情(灰禁) + 🚪退出(二次确认) | 1. 4个功能按钮可见<br>2. 🎤不在麦上时禁用<br>3. 🎤在麦上时绿/红切换<br>4. 🎁❤️灰色禁用+Toast<br>5. 🚪二次确认退出 | In Progress | 5h | Review | [T-30026.md](./design/android/T-30026.md) |
+| **T-30026** [TDS](./tds/android/T-30026.md) | Android | Room | 房间底部操作栏升级 | T-30018, T-30025 | 底部操作栏扩展：输入框 + 🎤麦克风开关 + 🎁礼物(灰禁) + ❤️表情(灰禁) + 🚪退出(二次确认) | 1. 4个功能按钮可见<br>2. 🎤不在麦上时禁用<br>3. 🎤在麦上时绿/红切换<br>4. 🎁❤️灰色禁用+Toast<br>5. 🚪二次确认退出 | In Progress | 5h | TDD | [T-30026.md](./design/android/T-30026.md) |
 
 ---
 
