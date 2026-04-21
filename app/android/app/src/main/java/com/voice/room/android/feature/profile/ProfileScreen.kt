@@ -30,15 +30,18 @@ import com.voice.room.android.core.theme.MenaColors
  * - 将 UI 状态传递给无状态的 [ProfileContent]
  * - 控制退出登录确认弹框的显隐
  * - 处理剪贴板写入（ClipboardManager）
+ * - T-30027：接受 [onNavigateToWallet] 回调，转发给 [ProfileContent] 余额行点击
  *
- * @param appContainer 依赖容器，提供 userRepository / tokenManager
- * @param onLogout     退出登录成功后导航回 LoginScreen 的回调
- * @param modifier     外部 Modifier
+ * @param appContainer       依赖容器，提供 userRepository / tokenManager
+ * @param onLogout           退出登录成功后导航回 LoginScreen 的回调
+ * @param onNavigateToWallet 点击余额行时导航到钱包页（T-30027）
+ * @param modifier           外部 Modifier
  */
 @Composable
 fun ProfileScreen(
     appContainer: AppContainer,
     onLogout: () -> Unit,
+    onNavigateToWallet: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val viewModel: ProfileViewModel = viewModel(
@@ -73,6 +76,7 @@ fun ProfileScreen(
         },
         onLogoutClick = { showLogoutDialog = true },
         onRetry = { viewModel.loadProfile() },
+        onNavigateToWallet = onNavigateToWallet,
     )
 
     // ── 退出登录二次确认弹框 ─────────────────────────────────────────────────

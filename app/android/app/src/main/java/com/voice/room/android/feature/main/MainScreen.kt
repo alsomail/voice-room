@@ -20,6 +20,7 @@ import androidx.paging.compose.collectAsLazyPagingItems
 import com.voice.room.android.common.AppContainer
 import com.voice.room.android.core.theme.MenaColors
 import com.voice.room.android.feature.profile.ProfileScreen
+import com.voice.room.android.feature.wallet.WalletScreen
 import com.voice.room.android.feature.room.CreateRoomBottomSheet
 import com.voice.room.android.feature.room.CreateRoomViewModel
 import com.voice.room.android.feature.room.HallScreen
@@ -98,6 +99,15 @@ fun MainScreen(
                 ProfileScreen(
                     appContainer = appContainer,
                     onLogout = onLogout,
+                    onNavigateToWallet = { navController.navigate("wallet") },
+                )
+            }
+            // ── 钱包页（T-30027）─────────────────────────────
+            composable("wallet") {
+                WalletScreen(
+                    appContainer = appContainer,
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateToLogin = onLogout,
                 )
             }
         }

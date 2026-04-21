@@ -21,12 +21,13 @@ import com.voice.room.android.core.ws.OkHttpWebSocketClient
 import com.voice.room.android.data.auth.DebugAuthService
 import com.voice.room.android.data.gift.DebugGiftRepository
 import com.voice.room.android.data.remote.api.RoomApiService
+import com.voice.room.android.data.remote.api.WalletApiService
+import com.voice.room.android.data.wallet.RetrofitWalletRepository
 import com.voice.room.android.data.remote.api.UserApiService
 import com.voice.room.android.data.room.DebugRoomGateway
 import com.voice.room.android.data.room.DebugRoomSyncService
 import com.voice.room.android.data.room.RetrofitRoomRepository
 import com.voice.room.android.data.user.RetrofitUserRepository
-import com.voice.room.android.data.wallet.DebugWalletRepository
 import com.voice.room.android.domain.auth.IAuthService
 import com.voice.room.android.domain.gift.IGiftRepository
 import com.voice.room.android.domain.local.ITokenManager
@@ -90,6 +91,10 @@ data class AppContainer(
             val userApiService = roomRetrofit.create(UserApiService::class.java)
             val userRepository: IUserRepository = RetrofitUserRepository(userApiService)
 
+            // Wallet API — 复用 roomRetrofit（已注入 AuthInterceptor）(T-30027)
+            val walletApiService = roomRetrofit.create(WalletApiService::class.java)
+            val walletRepository: IWalletRepository = RetrofitWalletRepository(walletApiService)
+
             // WebSocket 客户端 — 独立 IO 作用域，随 App 生命周期存在
             val wsHttpClient = AppHttpClientFactory.create(
                 config = NetworkClientConfig(),
@@ -111,7 +116,7 @@ data class AppContainer(
                 authService = DebugAuthService(),
                 roomGateway = DebugRoomGateway(),
                 roomSyncService = DebugRoomSyncService(),
-                walletRepository = DebugWalletRepository(),
+                walletRepository = walletRepository,
                 giftRepository = DebugGiftRepository(),
                 roomRepository = RetrofitRoomRepository(roomApiService),
                 webSocketClient = webSocketClient,

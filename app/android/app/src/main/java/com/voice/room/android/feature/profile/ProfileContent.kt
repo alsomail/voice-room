@@ -47,11 +47,12 @@ import com.voice.room.android.domain.user.UserProfile
  * - profile_balance / profile_cache_badge / profile_settings_item
  * - profile_logout_button / profile_error / profile_retry_button / profile_loading
  *
- * @param uiState        当前 UI 状态
- * @param onCopyId       点击 ID 区域时回调，参数为用户 ID
- * @param onLogoutClick  点击"退出登录"按钮时回调
- * @param onRetry        点击"重试"按钮时回调（Error 状态）
- * @param modifier       外部 Modifier
+ * @param uiState             当前 UI 状态
+ * @param onCopyId            点击 ID 区域时回调，参数为用户 ID
+ * @param onLogoutClick       点击"退出登录"按钮时回调
+ * @param onRetry             点击"重试"按钮时回调（Error 状态）
+ * @param onNavigateToWallet  点击余额行时导航到钱包页（T-30027）
+ * @param modifier            外部 Modifier
  */
 @Composable
 fun ProfileContent(
@@ -59,6 +60,7 @@ fun ProfileContent(
     onCopyId: (String) -> Unit,
     onLogoutClick: () -> Unit,
     onRetry: () -> Unit,
+    onNavigateToWallet: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Box(
@@ -75,6 +77,7 @@ fun ProfileContent(
                 fromCache = uiState.fromCache,
                 onCopyId = onCopyId,
                 onLogoutClick = onLogoutClick,
+                onNavigateToWallet = onNavigateToWallet,
             )
             is ProfileUiState.Error -> ProfileErrorContent(
                 message = uiState.message,
@@ -106,6 +109,7 @@ private fun ProfileSuccessContent(
     fromCache: Boolean,
     onCopyId: (String) -> Unit,
     onLogoutClick: () -> Unit,
+    onNavigateToWallet: () -> Unit = {},
 ) {
     Column(
         modifier = Modifier
@@ -162,12 +166,14 @@ private fun ProfileSuccessContent(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // ── 余额 ─────────────────────────────────────────
+        // ── 余额（点击跳转钱包页，T-30027）──────────────────────
         Text(
             text = "💰 ${profile.coinBalance} 金币",
             style = MaterialTheme.typography.bodyLarge,
             color = MenaColors.Primary,
-            modifier = Modifier.testTag("profile_balance"),
+            modifier = Modifier
+                .testTag("profile_balance")
+                .clickable { onNavigateToWallet() },
         )
 
         // ── 缓存标记（仅 fromCache=true 时显示）─────────

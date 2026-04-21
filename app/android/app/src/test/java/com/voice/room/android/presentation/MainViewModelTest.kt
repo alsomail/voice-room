@@ -34,6 +34,9 @@ class MainViewModelTest {
             },
             walletRepository = object : IWalletRepository {
                 override fun walletPreviewLabel(): String = "Wallet module reserved"
+                override suspend fun getBalance(): Result<Long> = Result.success(0L)
+                override suspend fun listTxns(page: Int, size: Int) =
+                    Result.success(com.voice.room.android.domain.wallet.TxnsPage(emptyList(), 0, page))
             },
             giftRepository = object : IGiftRepository {
                 override fun featuredGiftLabel(): String = "Gift module reserved"
@@ -66,6 +69,9 @@ class MainViewModelTest {
             },
             walletRepository = object : IWalletRepository {
                 override fun walletPreviewLabel(): String = "Wallet module reserved"
+                override suspend fun getBalance(): Result<Long> = Result.success(0L)
+                override suspend fun listTxns(page: Int, size: Int) =
+                    Result.success(com.voice.room.android.domain.wallet.TxnsPage(emptyList(), 0, page))
             },
             giftRepository = object : IGiftRepository {
                 override fun featuredGiftLabel(): String = "Gift module reserved"
