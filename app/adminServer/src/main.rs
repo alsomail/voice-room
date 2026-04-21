@@ -7,6 +7,7 @@ use voice_room_admin_server::{
         audit::repository::PgAuditRepository,
         auth::{PgAdminLogRepository, PgAdminRepository},
         event::publisher::{EventPublisher, NoopEventPublisher, RedisEventPublisher},
+        gift::repo::PgGiftRepository,
         room::PgAdminRoomRepository,
         stats::PgAdminStatsRepository,
         user::PgAdminUserRepository,
@@ -72,7 +73,8 @@ async fn main() -> anyhow::Result<()> {
         jwt_secret,
         event_publisher,
         Arc::new(PgAuditRepository::new(pool.clone())),
-        Arc::new(PgWalletRepository::new(pool)),
+        Arc::new(PgWalletRepository::new(pool.clone())),
+        Arc::new(PgGiftRepository::new(pool)),
     );
 
     let app = build_app(state);

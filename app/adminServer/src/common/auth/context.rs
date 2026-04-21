@@ -25,6 +25,10 @@ pub enum Permission {
     LogRead,
     // 钱包手动调整（T-10013）
     WalletAdjust,
+    // 礼物管理读写（T-10014）：super_admin + operator
+    GiftWrite,
+    // 礼物软删除（T-10014）：仅 super_admin
+    GiftDelete,
 }
 
 /// 已鉴权的管理员上下文，由 `AdminAuthContext::from_request_parts` 注入。
@@ -67,6 +71,7 @@ impl AdminAuthContext {
                     | Permission::RoomForceClose
                     | Permission::LogRead
                     | Permission::WalletAdjust
+                    | Permission::GiftWrite
             ),
             "cs" => matches!(
                 permission,

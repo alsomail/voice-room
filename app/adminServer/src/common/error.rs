@@ -58,6 +58,10 @@ pub enum AppError {
     #[error("Insufficient balance")]
     InsufficientBalance,
 
+    // 409 - 礼物 code 已存在（T-10014，code=40900）
+    #[error("Duplicate code: {0}")]
+    DuplicateCode(String),
+
     // 500
     #[error("Database error: {0}")]
     DatabaseError(String),
@@ -79,6 +83,7 @@ impl AppError {
             AppError::UserNotFound(_) => ErrorCode::UserNotFound,
             AppError::RoomAlreadyClosed => ErrorCode::RoomAlreadyClosed,
             AppError::UserAlreadyBanned | AppError::UserAlreadyNormal => ErrorCode::Conflict,
+            AppError::DuplicateCode(_) => ErrorCode::Conflict,
             AppError::DatabaseError(_) | AppError::Internal(_) => ErrorCode::InternalError,
         }
     }
@@ -93,6 +98,7 @@ impl AppError {
             AppError::UserNotFound(_) => StatusCode::NOT_FOUND,
             AppError::RoomAlreadyClosed => StatusCode::CONFLICT,
             AppError::UserAlreadyBanned | AppError::UserAlreadyNormal => StatusCode::CONFLICT,
+            AppError::DuplicateCode(_) => StatusCode::CONFLICT,
             AppError::ValidationError(_) | AppError::InsufficientBalance => {
                 StatusCode::BAD_REQUEST
             }

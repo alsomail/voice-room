@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use axum::{middleware, routing::{get, post}, Router};
+use axum::{middleware, routing::{get, post, put}, Router};
 
 use crate::{
     infrastructure::logging::request_context_middleware,
@@ -12,6 +12,14 @@ use crate::{
     modules::auth::{controller::login_handler, repository::AdminLogRepository, AdminAuthService},
     modules::auth::repository::AdminRepository,
     modules::event::publisher::EventPublisher,
+    modules::gift::{
+        handler::{
+            create_gift_handler, delete_gift_handler, list_gifts_handler,
+            update_gift_handler, upload_gift_file_handler,
+        },
+        repo::GiftRepository,
+        service::GiftService,
+    },
     modules::room::{
         controller::{force_close_room_handler, get_room_detail_handler, list_rooms_handler},
         AdminRoomRepository, AdminRoomService,
@@ -47,6 +55,10 @@ pub struct AppState {
     pub audit_service: Arc<AuditService>,
     /// 钱包调整服务（T-10013）
     pub wallet_service: Arc<WalletService>,
+    /// 礼物管理服务（T-10014）
+    pub gift_service: Arc<GiftService>,
+    /// 礼物文件上传目录（T-10014）
+    pub gift_upload_dir: String,
 }
 
 impl AppState {
@@ -61,6 +73,7 @@ impl AppState {
         event_publisher: Arc<dyn EventPublisher>,
         audit_repo: Arc<dyn AuditRepository>,
         wallet_repo: Arc<dyn WalletRepository>,
+        gift_repo: Arc<dyn GiftRepository>,
     ) -> Self {
         let auth_service = Arc::new(AdminAuthService::new(
             admin_repo,
@@ -73,6 +86,13 @@ impl AppState {
         let audit_logger = Arc::new(AuditLogger::new(audit_repo.clone()));
         let audit_service = Arc::new(AuditService::new(audit_repo));
         let wallet_service = Arc::new(WalletService::new(wallet_repo, event_publisher.clone()));
+        let gift_upload_dir = std::env::var("GIFT_UPLOAD_DIR")
+            .unwrap_or_else(|_| "./static/uploads/gifts".to_string());
+        let gift_service = Arc::new(GiftService::new(
+            gift_repo,
+            event_publisher.clone(),
+            gift_upload_dir.clone(),
+        ));
         Self {
             auth_service,
             room_service,
@@ -83,6 +103,8 @@ impl AppState {
             audit_logger,
             audit_service,
             wallet_service,
+            gift_service,
+            gift_upload_dir,
         }
     }
 
@@ -92,6 +114,7 @@ impl AppState {
         use crate::modules::audit::repository::FakeAuditRepository;
         use crate::modules::auth::repository::{FakeAdminLogRepository, FakeAdminRepository};
         use crate::modules::event::publisher::NoopEventPublisher;
+        use crate::modules::gift::repo::FakeGiftRepository;
         use crate::modules::room::repository::FakeAdminRoomRepository;
         use crate::modules::stats::FakeAdminStatsRepository;
         use crate::modules::user::repository::FakeAdminUserRepository;
@@ -106,6 +129,7 @@ impl AppState {
             Arc::new(NoopEventPublisher::default()),
             Arc::new(FakeAuditRepository::default()),
             Arc::new(FakeWalletRepository::default()),
+            Arc::new(FakeGiftRepository::default()),
         )
     }
 }
@@ -130,6 +154,16 @@ pub fn build_app(state: AppState) -> Router {
         )
         .route("/api/v1/admin/stats/overview", get(stats_overview_handler))
         .route("/api/v1/admin/logs", get(list_logs_handler))
+        // ── T-10014: 礼物管理 CRUD ────────────────────────────────────────────
+        .route(
+            "/api/v1/admin/gifts",
+            get(list_gifts_handler).post(create_gift_handler),
+        )
+        .route(
+            "/api/v1/admin/gifts/{id}",
+            put(update_gift_handler).delete(delete_gift_handler),
+        )
+        .route("/api/v1/admin/gifts/upload", post(upload_gift_file_handler))
         .layer(middleware::from_fn(request_context_middleware))
         .with_state(state)
 }
@@ -254,6 +288,7 @@ mod tests {
             Arc::new(NoopEventPublisher::default()),
             Arc::new(FakeAuditRepository::default()),
             Arc::new(crate::modules::wallet::repository::FakeWalletRepository::default()),
+            Arc::new(crate::modules::gift::repo::FakeGiftRepository::default()),
         ))
     }
 
@@ -502,6 +537,7 @@ mod tests {
             Arc::new(NoopEventPublisher::default()),
             Arc::new(FakeAuditRepository::default()),
             Arc::new(crate::modules::wallet::repository::FakeWalletRepository::default()),
+            Arc::new(crate::modules::gift::repo::FakeGiftRepository::default()),
         ));
 
         app.oneshot(
@@ -813,6 +849,7 @@ mod tests {
             Arc::new(NoopEventPublisher::default()),
             Arc::new(FakeAuditRepository::default()),
             Arc::new(crate::modules::wallet::repository::FakeWalletRepository::default()),
+            Arc::new(crate::modules::gift::repo::FakeGiftRepository::default()),
         ))
     }
 
@@ -1162,6 +1199,7 @@ mod tests {
             Arc::new(NoopEventPublisher::default()),
             Arc::new(FakeAuditRepository::default()),
             Arc::new(crate::modules::wallet::repository::FakeWalletRepository::default()),
+            Arc::new(crate::modules::gift::repo::FakeGiftRepository::default()),
         ))
     }
 
@@ -1181,6 +1219,7 @@ mod tests {
             Arc::new(NoopEventPublisher::default()),
             Arc::new(FakeAuditRepository::default()),
             Arc::new(crate::modules::wallet::repository::FakeWalletRepository::default()),
+            Arc::new(crate::modules::gift::repo::FakeGiftRepository::default()),
         ))
     }
 
@@ -1376,6 +1415,7 @@ mod tests {
             Arc::new(NoopEventPublisher::default()),
             Arc::new(FakeAuditRepository::default()),
             Arc::new(crate::modules::wallet::repository::FakeWalletRepository::default()),
+            Arc::new(crate::modules::gift::repo::FakeGiftRepository::default()),
         ));
         (router, room_repo)
     }
@@ -1401,6 +1441,7 @@ mod tests {
             Arc::new(NoopEventPublisher::default()),
             audit_repo.clone(),
             Arc::new(crate::modules::wallet::repository::FakeWalletRepository::default()),
+            Arc::new(crate::modules::gift::repo::FakeGiftRepository::default()),
         ));
         (router, room_repo, audit_repo)
     }
@@ -1654,6 +1695,7 @@ mod tests {
             Arc::new(NoopEventPublisher::default()),
             Arc::new(FakeAuditRepository::default()),
             Arc::new(crate::modules::wallet::repository::FakeWalletRepository::default()),
+            Arc::new(crate::modules::gift::repo::FakeGiftRepository::default()),
         ))
     }
 
@@ -1914,6 +1956,7 @@ mod tests {
             Arc::new(NoopEventPublisher::default()),
             Arc::new(FakeAuditRepository::default()),
             Arc::new(crate::modules::wallet::repository::FakeWalletRepository::default()),
+            Arc::new(crate::modules::gift::repo::FakeGiftRepository::default()),
         ))
     }
 
@@ -2091,6 +2134,7 @@ mod tests {
             Arc::new(NoopEventPublisher::default()),
             Arc::new(FakeAuditRepository::default()),
             Arc::new(crate::modules::wallet::repository::FakeWalletRepository::default()),
+            Arc::new(crate::modules::gift::repo::FakeGiftRepository::default()),
         ));
         (router, user_repo)
     }
@@ -2117,6 +2161,7 @@ mod tests {
             Arc::new(NoopEventPublisher::default()),
             audit_repo.clone(),
             Arc::new(crate::modules::wallet::repository::FakeWalletRepository::default()),
+            Arc::new(crate::modules::gift::repo::FakeGiftRepository::default()),
         ));
         (router, user_repo, audit_repo)
     }
@@ -2310,6 +2355,7 @@ mod tests {
             Arc::new(NoopEventPublisher::default()),
             Arc::new(FakeAuditRepository::default()),
             Arc::new(crate::modules::wallet::repository::FakeWalletRepository::default()),
+            Arc::new(crate::modules::gift::repo::FakeGiftRepository::default()),
         ))
     }
 
@@ -2775,6 +2821,7 @@ mod tests {
             fake_pub.clone(),
             Arc::new(FakeAuditRepository::default()),
             fake_wallet.clone(),
+            Arc::new(crate::modules::gift::repo::FakeGiftRepository::default()),
         );
         (build_app(state), fake_wallet, fake_pub)
     }
@@ -3068,6 +3115,7 @@ mod tests {
             fake_pub.clone(),
             Arc::new(FakeAuditRepository::default()),
             fake_wallet.clone(),
+            Arc::new(crate::modules::gift::repo::FakeGiftRepository::default()),
         );
         let app = build_app(state);
 
@@ -3129,5 +3177,512 @@ mod tests {
             Some(500),
             "WA-finance: 余额应为 500"
         );
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // T-10014: 礼物 CRUD 管理 API 集成测试（GC01~GC12）
+    // ════════════════════════════════════════════════════════════════════════
+
+    use crate::modules::gift::repo::FakeGiftRepository;
+
+    /// 构建含预置礼物仓库的 App，同时返回 FakeGiftRepository 和 FakeAuditRepository（用于断言）。
+    fn gift_app(
+        gifts: Vec<voice_room_shared::models::gift::GiftModel>,
+    ) -> (axum::Router, Arc<FakeGiftRepository>, Arc<FakeAuditRepository>) {
+        let gift_repo = Arc::new(FakeGiftRepository::default());
+        for g in gifts {
+            gift_repo.seed(g);
+        }
+        let audit_repo = Arc::new(FakeAuditRepository::default());
+        let state = AppState::new(
+            Arc::new(FakeAdminRepository::default()),
+            Arc::new(FakeAdminLogRepository::default()),
+            Arc::new(FakeAdminRoomRepository::default()),
+            Arc::new(crate::modules::user::repository::FakeAdminUserRepository::default()),
+            Arc::new(crate::modules::stats::FakeAdminStatsRepository::default()),
+            "test-secret".to_string(),
+            Arc::new(NoopEventPublisher::default()),
+            audit_repo.clone(),
+            Arc::new(crate::modules::wallet::repository::FakeWalletRepository::default()),
+            gift_repo.clone(),
+        );
+        (build_app(state), gift_repo, audit_repo)
+    }
+
+    fn make_gift_model_for_test(
+        code: &str,
+        price: i64,
+        tier: i16,
+        is_active: bool,
+        is_deleted: bool,
+    ) -> voice_room_shared::models::gift::GiftModel {
+        voice_room_shared::models::gift::GiftModel {
+            id: Uuid::new_v4(),
+            code: code.to_string(),
+            name_en: "Test Gift".to_string(),
+            name_ar: "هدية".to_string(),
+            icon_url: "/uploads/gifts/test.png".to_string(),
+            price,
+            tier,
+            effect_level: 1,
+            animation_url: None,
+            sort_order: 10,
+            is_active,
+            is_deleted,
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+        }
+    }
+
+    async fn post_gift(app: axum::Router, token: &str, body: &str) -> axum::response::Response {
+        app.oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/admin/gifts")
+                .header("Authorization", format!("Bearer {token}"))
+                .header("content-type", "application/json")
+                .header("x-request-id", "test-gc")
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap()
+    }
+
+    async fn get_gifts(app: axum::Router, token: &str, query: &str) -> axum::response::Response {
+        app.oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/api/v1/admin/gifts{query}"))
+                .header("Authorization", format!("Bearer {token}"))
+                .header("x-request-id", "test-gc")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap()
+    }
+
+    async fn put_gift(
+        app: axum::Router,
+        token: &str,
+        id: &str,
+        body: &str,
+    ) -> axum::response::Response {
+        app.oneshot(
+            Request::builder()
+                .method("PUT")
+                .uri(format!("/api/v1/admin/gifts/{id}"))
+                .header("Authorization", format!("Bearer {token}"))
+                .header("content-type", "application/json")
+                .header("x-request-id", "test-gc")
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap()
+    }
+
+    async fn delete_gift_req(
+        app: axum::Router,
+        token: &str,
+        id: &str,
+    ) -> axum::response::Response {
+        app.oneshot(
+            Request::builder()
+                .method("DELETE")
+                .uri(format!("/api/v1/admin/gifts/{id}"))
+                .header("Authorization", format!("Bearer {token}"))
+                .header("x-request-id", "test-gc")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap()
+    }
+
+    /// 构建 multipart/form-data 请求体
+    fn make_multipart_body(
+        filename: &str,
+        content_type: &str,
+        data: &[u8],
+        kind: &str,
+    ) -> (String, Vec<u8>) {
+        let boundary = "testboundary12345";
+        let mut body: Vec<u8> = Vec::new();
+        // kind field
+        body.extend_from_slice(
+            format!(
+                "--{boundary}\r\nContent-Disposition: form-data; name=\"kind\"\r\n\r\n{kind}\r\n"
+            )
+            .as_bytes(),
+        );
+        // file field
+        body.extend_from_slice(
+            format!(
+                "--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"{filename}\"\r\nContent-Type: {content_type}\r\n\r\n"
+            )
+            .as_bytes(),
+        );
+        body.extend_from_slice(data);
+        body.extend_from_slice(format!("\r\n--{boundary}--\r\n").as_bytes());
+        (
+            format!("multipart/form-data; boundary={boundary}"),
+            body,
+        )
+    }
+
+    // ── GC01: POST 创建成功 → 201 + 返回 id ──────────────────────────────────
+    #[tokio::test]
+    async fn gc01_post_create_gift_returns_201_with_id() {
+        let token = make_jwt("test-secret", "operator");
+        let (app, gift_repo, _) = gift_app(vec![]);
+
+        let resp = post_gift(
+            app,
+            &token,
+            r#"{
+                "code":"unicorn_01","name_en":"Unicorn","name_ar":"يونيكورن",
+                "icon_url":"/uploads/gifts/unicorn.png","price":66,"tier":3,
+                "effect_level":3,"sort_order":35,"is_active":true
+            }"#,
+        )
+        .await;
+
+        assert_eq!(resp.status(), StatusCode::CREATED, "GC01: 应返回 201");
+        let json = body_json(resp).await;
+        assert_eq!(json["code"].as_i64().unwrap(), 0, "GC01: code 应为 0");
+        assert!(json["data"]["id"].as_str().is_some(), "GC01: 应返回 id");
+        assert_eq!(json["data"]["code"].as_str().unwrap(), "unicorn_01");
+
+        // 验证礼物已存入仓库
+        let all = gift_repo.get_all();
+        assert_eq!(all.len(), 1, "GC01: 仓库中应有 1 个礼物");
+    }
+
+    // ── GC02: 重复 code → 40900 ───────────────────────────────────────────────
+    #[tokio::test]
+    async fn gc02_duplicate_code_returns_40900() {
+        let token = make_jwt("test-secret", "operator");
+        let (app, _, _) = gift_app(vec![make_gift_model_for_test(
+            "rose_01", 1, 1, true, false,
+        )]);
+
+        let resp = post_gift(
+            app,
+            &token,
+            r#"{"code":"rose_01","name_en":"Rose","name_ar":"وردة","icon_url":"/uploads/gifts/rose.png","price":1,"tier":1}"#,
+        )
+        .await;
+
+        assert_eq!(resp.status(), StatusCode::CONFLICT, "GC02: 重复 code 应返回 409");
+        let json = body_json(resp).await;
+        assert_eq!(
+            json["code"].as_i64().unwrap(),
+            40900,
+            "GC02: 错误码应为 40900"
+        );
+    }
+
+    // ── GC03: GET 默认仅返回 active+non-deleted；include_inactive=true 返回全部非软删 ─
+    #[tokio::test]
+    async fn gc03_list_default_active_only_include_inactive_returns_all() {
+        let token = make_jwt("test-secret", "operator");
+        let (app, _, _) = gift_app(vec![
+            make_gift_model_for_test("active_01", 10, 1, true, false),
+            make_gift_model_for_test("inactive_01", 20, 2, false, false),
+            make_gift_model_for_test("deleted_01", 30, 3, true, true),
+        ]);
+
+        // 默认只返回 active
+        let resp = get_gifts(app.clone(), &token, "").await;
+        assert_eq!(resp.status(), StatusCode::OK);
+        let json = body_json(resp).await;
+        assert_eq!(
+            json["data"]["total"].as_i64().unwrap(),
+            1,
+            "GC03: 默认应只返回 1 个 active 礼物"
+        );
+        assert_eq!(json["data"]["items"][0]["code"].as_str().unwrap(), "active_01");
+
+        // include_inactive=true 返回 active+inactive（不含已软删）
+        let resp2 = get_gifts(app, &token, "?include_inactive=true").await;
+        let json2 = body_json(resp2).await;
+        assert_eq!(
+            json2["data"]["total"].as_i64().unwrap(),
+            2,
+            "GC03: include_inactive=true 应返回 2 个（active+inactive，不含软删）"
+        );
+    }
+
+    // ── GC04: PUT is_active=false 切换下架 ───────────────────────────────────
+    #[tokio::test]
+    async fn gc04_put_is_active_false_deactivates_gift() {
+        let token = make_jwt("test-secret", "operator");
+        let gift = make_gift_model_for_test("switch_me", 10, 1, true, false);
+        let gift_id = gift.id.to_string();
+        let (app, gift_repo, _) = gift_app(vec![gift]);
+
+        let resp = put_gift(
+            app,
+            &token,
+            &gift_id,
+            r#"{"is_active":false}"#,
+        )
+        .await;
+
+        assert_eq!(resp.status(), StatusCode::OK, "GC04: 应返回 200");
+        let json = body_json(resp).await;
+        assert_eq!(json["code"].as_i64().unwrap(), 0);
+        assert!(!json["data"]["is_active"].as_bool().unwrap(), "GC04: is_active 应为 false");
+
+        // 仓库中验证
+        let gifts = gift_repo.get_all();
+        assert!(!gifts[0].is_active, "GC04: 仓库中 is_active 应为 false");
+    }
+
+    // ── GC05: DELETE 软删后 is_deleted=true；再次 DELETE 返回 404 ─────────────
+    #[tokio::test]
+    async fn gc05_delete_soft_deletes_and_second_delete_returns_404() {
+        let token = make_jwt("test-secret", "super_admin");
+        let gift = make_gift_model_for_test("delete_me", 10, 1, true, false);
+        let gift_id = gift.id.to_string();
+        let (app, gift_repo, _) = gift_app(vec![gift]);
+
+        // 第一次软删 → 200
+        let resp = delete_gift_req(app.clone(), &token, &gift_id).await;
+        assert_eq!(resp.status(), StatusCode::OK, "GC05: 首次软删应返回 200");
+
+        // 仓库中验证 is_deleted=true
+        let gifts = gift_repo.get_all();
+        assert!(gifts[0].is_deleted, "GC05: is_deleted 应为 true");
+
+        // 第二次软删 → 404
+        let resp2 = delete_gift_req(app, &token, &gift_id).await;
+        assert_eq!(
+            resp2.status(),
+            StatusCode::NOT_FOUND,
+            "GC05: 重复软删应返回 404"
+        );
+    }
+
+    // ── GC06: DELETE 非 super_admin → 403 ────────────────────────────────────
+    #[tokio::test]
+    async fn gc06_delete_by_operator_returns_403() {
+        let token = make_jwt("test-secret", "operator"); // operator 无 GiftDelete 权限
+        let gift = make_gift_model_for_test("protected_gift", 10, 1, true, false);
+        let gift_id = gift.id.to_string();
+        let (app, _, _) = gift_app(vec![gift]);
+
+        let resp = delete_gift_req(app, &token, &gift_id).await;
+        assert_eq!(
+            resp.status(),
+            StatusCode::FORBIDDEN,
+            "GC06: operator 不能删除礼物，应返回 403"
+        );
+        let json = body_json(resp).await;
+        assert_eq!(json["code"].as_i64().unwrap(), 40301);
+    }
+
+    // ── GC07: upload 非白名单 MIME（如 gif）→ 400 ─────────────────────────────
+    #[tokio::test]
+    async fn gc07_upload_non_whitelist_mime_returns_400() {
+        let token = make_jwt("test-secret", "operator");
+        let (app, _, _) = gift_app(vec![]);
+        let (content_type_header, body) =
+            make_multipart_body("test.gif", "image/gif", b"fake gif data", "icon");
+
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/admin/gifts/upload")
+                    .header("Authorization", format!("Bearer {token}"))
+                    .header("content-type", content_type_header)
+                    .header("x-request-id", "test-gc07")
+                    .body(Body::from(body))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST, "GC07: gif 应返回 400");
+        let json = body_json(resp).await;
+        assert_eq!(json["code"].as_i64().unwrap(), 40003);
+    }
+
+    // ── GC08: upload 文件 >1MB → 400 ─────────────────────────────────────────
+    #[tokio::test]
+    async fn gc08_upload_file_over_1mb_returns_400() {
+        let token = make_jwt("test-secret", "operator");
+        let (app, _, _) = gift_app(vec![]);
+        // 生成 1MB+1 byte 的假数据
+        let large_data = vec![0u8; 1024 * 1024 + 1];
+        let (content_type_header, body) =
+            make_multipart_body("large.png", "image/png", &large_data, "icon");
+
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/admin/gifts/upload")
+                    .header("Authorization", format!("Bearer {token}"))
+                    .header("content-type", content_type_header)
+                    .header("x-request-id", "test-gc08")
+                    .body(Body::from(body))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST, "GC08: >1MB 图片应返回 400");
+        let json = body_json(resp).await;
+        assert_eq!(json["code"].as_i64().unwrap(), 40003);
+    }
+
+    // ── GC09: price=0 → 40003 ─────────────────────────────────────────────────
+    #[tokio::test]
+    async fn gc09_price_zero_returns_40003() {
+        let token = make_jwt("test-secret", "operator");
+        let (app, _, _) = gift_app(vec![]);
+
+        let resp = post_gift(
+            app,
+            &token,
+            r#"{"code":"bad_price","name_en":"Bad","name_ar":"سيئ","icon_url":"/uploads/gifts/bad.png","price":0,"tier":1}"#,
+        )
+        .await;
+
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST, "GC09: price=0 应返回 400");
+        let json = body_json(resp).await;
+        assert_eq!(json["code"].as_i64().unwrap(), 40003, "GC09: 错误码应为 40003");
+    }
+
+    // ── GC10: tier=6 → 40003 ─────────────────────────────────────────────────
+    #[tokio::test]
+    async fn gc10_tier_out_of_range_returns_40003() {
+        let token = make_jwt("test-secret", "operator");
+        let (app, _, _) = gift_app(vec![]);
+
+        let resp = post_gift(
+            app,
+            &token,
+            r#"{"code":"bad_tier","name_en":"Bad","name_ar":"سيئ","icon_url":"/uploads/gifts/bad.png","price":10,"tier":6}"#,
+        )
+        .await;
+
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST, "GC10: tier=6 应返回 400");
+        let json = body_json(resp).await;
+        assert_eq!(json["code"].as_i64().unwrap(), 40003, "GC10: 错误码应为 40003");
+    }
+
+    // ── GC11: 每次写操作 admin_logs +1 记录 ──────────────────────────────────
+    #[tokio::test]
+    async fn gc11_each_write_operation_creates_audit_log() {
+        let token = make_jwt("test-secret", "operator");
+        let (app, gift_repo, audit_repo) = gift_app(vec![]);
+
+        // POST 创建 → audit_logs +1
+        let resp = post_gift(
+            app.clone(),
+            &token,
+            r#"{"code":"audit_test","name_en":"Audit","name_ar":"تدقيق","icon_url":"/uploads/gifts/audit.png","price":10,"tier":1,"is_active":true}"#,
+        )
+        .await;
+        assert_eq!(resp.status(), StatusCode::CREATED, "GC11: POST 应 201");
+        let json = body_json(resp).await;
+        let gift_id = json["data"]["id"].as_str().unwrap().to_string();
+
+        let logs = audit_repo.get_logs();
+        assert_eq!(logs.len(), 1, "GC11: 创建后 audit_logs 应为 1");
+        assert_eq!(logs[0].action, "gift_create");
+
+        // PUT 更新 → audit_logs +1
+        let resp2 = put_gift(app.clone(), &token, &gift_id, r#"{"price":20}"#).await;
+        assert_eq!(resp2.status(), StatusCode::OK, "GC11: PUT 应 200");
+        let logs2 = audit_repo.get_logs();
+        assert_eq!(logs2.len(), 2, "GC11: 更新后 audit_logs 应为 2");
+        assert_eq!(logs2[1].action, "gift_update");
+
+        // DELETE 软删（需要 super_admin）
+        let super_token = make_jwt("test-secret", "super_admin");
+        let resp3 = delete_gift_req(app, &super_token, &gift_id).await;
+        assert_eq!(resp3.status(), StatusCode::OK, "GC11: DELETE 应 200");
+        let logs3 = audit_repo.get_logs();
+        assert_eq!(logs3.len(), 3, "GC11: 软删后 audit_logs 应为 3");
+        assert_eq!(logs3[2].action, "gift_delete");
+
+        let _ = gift_repo;
+    }
+
+    // ── GC12: 创建成功后 Redis gift_cache_invalidate 事件已发布 ──────────────
+    // 注：在测试环境中无法直接检查 Redis key，改为验证事件发布
+    #[tokio::test]
+    async fn gc12_create_gift_publishes_cache_invalidate_event() {
+        let token = make_jwt("test-secret", "operator");
+        let publisher = Arc::new(NoopEventPublisher::default());
+        let state = AppState::new(
+            Arc::new(FakeAdminRepository::default()),
+            Arc::new(FakeAdminLogRepository::default()),
+            Arc::new(FakeAdminRoomRepository::default()),
+            Arc::new(crate::modules::user::repository::FakeAdminUserRepository::default()),
+            Arc::new(crate::modules::stats::FakeAdminStatsRepository::default()),
+            "test-secret".to_string(),
+            publisher.clone(),
+            Arc::new(FakeAuditRepository::default()),
+            Arc::new(crate::modules::wallet::repository::FakeWalletRepository::default()),
+            Arc::new(FakeGiftRepository::default()),
+        );
+        let app = build_app(state);
+
+        let resp = post_gift(
+            app,
+            &token,
+            r#"{"code":"cache_test","name_en":"Cache","name_ar":"ذاكرة","icon_url":"/uploads/gifts/cache.png","price":10,"tier":1}"#,
+        )
+        .await;
+        assert_eq!(resp.status(), StatusCode::CREATED, "GC12: 创建应 201");
+
+        let calls = publisher.calls.lock().unwrap();
+        assert!(
+            calls.iter().any(|(_, e)| e.r#type == "gift_cache_invalidate"),
+            "GC12: 应发布 gift_cache_invalidate 事件"
+        );
+    }
+
+    // ── GC-extra-01: 无 Token → 401 ──────────────────────────────────────────
+    #[tokio::test]
+    async fn gc_extra01_no_token_returns_401() {
+        let (app, _, _) = gift_app(vec![]);
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/api/v1/admin/gifts")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED, "GC-extra01: 无 Token 应返回 401");
+    }
+
+    // ── GC-extra-02: cs 角色无权访问 gifts → 403 ─────────────────────────────
+    #[tokio::test]
+    async fn gc_extra02_cs_role_cannot_access_gifts() {
+        let token = make_jwt("test-secret", "cs");
+        let (app, _, _) = gift_app(vec![]);
+        let resp = get_gifts(app, &token, "").await;
+        assert_eq!(resp.status(), StatusCode::FORBIDDEN, "GC-extra02: cs 应返回 403");
+    }
+
+    // ── GC-extra-03: PUT 不存在的礼物 → 404 ──────────────────────────────────
+    #[tokio::test]
+    async fn gc_extra03_put_nonexistent_gift_returns_404() {
+        let token = make_jwt("test-secret", "operator");
+        let nonexistent_id = Uuid::new_v4().to_string();
+        let (app, _, _) = gift_app(vec![]);
+        let resp = put_gift(app, &token, &nonexistent_id, r#"{"price":99}"#).await;
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND, "GC-extra03: 不存在礼物应返回 404");
     }
 }
