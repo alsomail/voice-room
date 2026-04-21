@@ -47,6 +47,31 @@
 | 弹幕消息列表 | `feature/room/ChatMessageList.kt` | T-30025 | 🟢 USER_TEXT 昵称金色（MenaColors.Primary）+ SYSTEM_NOTICE 金黄居中 |
 | 房间页主屏 | `feature/room/RoomScreen.kt` | T-30025 | 🟢 整体背景 MenaColors.Background 深色，WS/上下麦逻辑不变 |
 
+### 房间底部操作栏升级模块（T-30026）
+
+| 组件 | 关键文件 | Task | 当前状态 |
+| --- | --- | --- | --- |
+| 底部操作栏 | `feature/room/RoomBottomBar.kt` | T-30026 | 🟢 Row布局：GoldOutlinedTextField(weight=1f) + MicButton + GiftButton + EmoteButton + ExitButton |
+| 麦克风按钮 | `feature/room/RoomBottomBar.kt` | T-30026 | 🟢 三态：不在麦灰禁 / 在麦未静音绿色 / 在麦已静音红色；点击 toggleMicMute() |
+| 礼物按钮 | `feature/room/RoomBottomBar.kt` | T-30026 | 🟢 灰色禁用样式，点击弹 Toast("敬请期待") |
+| 表情按钮 | `feature/room/RoomBottomBar.kt` | T-30026 | 🟢 灰色禁用样式，点击弹 Toast("敬请期待") |
+| 退出按钮 | `feature/room/RoomBottomBar.kt` | T-30026 | 🟢 点击弹 AlertDialog 二次确认，确认后 leaveRoom() + 导航返回 |
+| ViewModel 扩展 | `feature/room/RoomViewModel.kt` | T-30026 | 🟢 新增 toggleMicMute()；RoomUiState 新增 isCurrentUserOnMic / isCurrentUserMuted |
+
+### 房间底部操作栏升级模块（🟢 已完成，T-30026）
+
+| 组件 | 关键文件 | Task | 当前状态 |
+| --- | --- | --- | --- |
+| 底部操作栏 | `feature/room/RoomBottomBar.kt` | T-30026 | 🟢 Row 布局：GoldOutlinedTextField（输入框）+ MicButton + GiftButton + EmoteButton + ExitButton |
+| 麦克风按钮 | `feature/room/RoomBottomBar.kt` → `MicButton` | T-30026 | 🟢 三态：isOnMic=false → 灰色禁用；true+未静音 → 绿色激活；true+已静音 → 红色静音 |
+| 礼物/表情按钮 | `feature/room/RoomBottomBar.kt` → `GiftButton`/`EmoteButton` | T-30026 | 🟢 灰色禁用，点击弹 Toast "敬请期待" |
+| 退出按钮 | `feature/room/RoomBottomBar.kt` → `ExitButton` | T-30026 | 🟢 点击触发 AlertDialog 二次确认，确认后退出房间 |
+| 房间 ViewModel 扩展 | `feature/room/RoomViewModel.kt` | T-30026 | 🟢 新增 toggleMicMute()、isCurrentUserOnMic: StateFlow、isCurrentUserMuted: StateFlow |
+
+> **包路径**：`com.voice.room.android.feature.room`  
+> **布局**：`RoomScreen` 的 `Scaffold.bottomBar` 替换为 `RoomBottomBar`，`imePadding()` 保留  
+> **状态驱动**：`MicButton` 颜色/可用性完全由 ViewModel 的 `isCurrentUserOnMic`/`isCurrentUserMuted` 驱动，严禁客户端自行推断
+
 ### Chat 模块（🟢 已完成，T-30014 ~ T-30017）
 
 | 模块 | 关键文件 | Task | 当前状态 |
@@ -93,6 +118,6 @@
 
 ## 三、 对业务推进的含义
 
-- Android 端 Auth + Room 大厅 + WS 连接 + 房间核心 + 聊天消息全链路（T-30001 ~ T-30017）已全部落地；大厅页已完成黑金视觉升级（T-30022）；房间页已完成黑金视觉升级（T-30025，HostMicSlot 80dp 金色光圈 + MicSlotCard 副麦 60dp + EmptyMicSlot 虚线"+" + MicSlotsGrid 4列 + ChatMessageList 金色昵称/系统消息金黄，WS/上下麦逻辑不变）；`core/ui/PlaceholderScreen` 通用占位组件与消息Tab占位页（T-30023）已完成，供后续 Profile 等 Tab 复用。
+- Android 端 Auth + Room 大厅 + WS 连接 + 房间核心 + 聊天消息全链路（T-30001 ~ T-30017）已全部落地；大厅页已完成黑金视觉升级（T-30022）；房间页已完成黑金视觉升级（T-30025，HostMicSlot 80dp 金色光圈 + MicSlotCard 副麦 60dp + EmptyMicSlot 虚线"+" + MicSlotsGrid 4列 + ChatMessageList 金色昵称/系统消息金黄，WS/上下麦逻辑不变）；房间底部操作栏已完成升级（T-30026，RoomBottomBar Row布局：GoldOutlinedTextField输入框 + MicButton三态（不在麦灰禁/在麦绿色/静音红色）+ GiftButton/EmoteButton灰禁Toast + ExitButton AlertDialog二次确认，RoomViewModel新增toggleMicMute()/isCurrentUserOnMic/isCurrentUserMuted）；`core/ui/PlaceholderScreen` 通用占位组件与消息Tab占位页（T-30023）已完成，供后续 Profile 等 Tab 复用。
 - Gift / Wallet / VIP 等商业化模块尚未展开，仅目录预留。
 - 后续开发必须继续对齐 `doc/protocol/` 目录下的对应子文件与服务端广播模型，避免客户端自行推断核心状态。
