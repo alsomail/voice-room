@@ -5,6 +5,7 @@
  *   - userId 非 null 时发起 adminGetUserDetail 请求
  *   - userId = null 时清空 detail/error，不发请求
  *   - userId 变化时 abort 旧请求，建立新 AbortController
+ *   - refreshKey 变化时重新拉取（T-20012 余额刷新）
  *   - 成功 → setDetail(data), setLoading(false)
  *   - AbortError → 静默忽略（不修改 error 和 loading）
  *   - 其他错误 → setError, setDetail(null), setLoading(false)
@@ -17,7 +18,11 @@ import {
   type AdminUserDetailResponse,
 } from '../../core/network/apiClient';
 
-export function useUserDetail(userId: string | null): {
+export function useUserDetail(
+  userId: string | null,
+  /** T-20012: 变化时重新拉取，用于余额刷新 */
+  refreshKey = 0,
+): {
   detail: AdminUserDetailResponse | null;
   loading: boolean;
   error: Error | null;
@@ -70,7 +75,9 @@ export function useUserDetail(userId: string | null): {
     return () => {
       controller.abort();
     };
-  }, [userId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, refreshKey]);
 
   return { detail, loading, error };
 }
+

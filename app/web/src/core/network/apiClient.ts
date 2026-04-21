@@ -466,3 +466,197 @@ export async function adminUnbanUser(
     signal,
   });
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Admin Wallet Adjust（T-20012，对应 T-10013 后端接口）
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** POST /admin/users/:id/wallet/adjust 请求体 */
+export interface AdminAdjustBalanceRequest {
+  amount: number;   // 正数=增加，负数=扣减，非零，|amount| ≤ 10,000,000
+  reason: string;   // 2-200 字符，必填
+}
+
+/** POST /admin/users/:id/wallet/adjust 响应 data */
+export interface AdminAdjustBalanceResponse {
+  new_balance: number;
+}
+
+/**
+ * POST /admin/users/:id/wallet/adjust — 手动调整用户余额（T-20012）
+ * 正数=充值，负数=扣减；成功返回调整后的新余额
+ */
+export async function adminAdjustBalance(
+  userId: string,
+  req: AdminAdjustBalanceRequest,
+): Promise<AdminAdjustBalanceResponse> {
+  const res = await adminFetch<AdminAdjustBalanceResponse>(
+    `/users/${encodeURIComponent(userId)}/wallet/adjust`,
+    {
+      method: 'POST',
+      body: JSON.stringify(req),
+    },
+  );
+  return res.data;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Admin Gift CRUD（T-20012，对应 T-10014 后端接口）
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** 单个礼物条目（T-10014） */
+export interface AdminGiftItem {
+  id: string;
+  code: string;
+  name_en: string;
+  name_ar: string;
+  icon_url: string;
+  price: number;
+  tier: number;
+  effect_level: number;
+  animation_url: string | null;
+  is_active: boolean;
+  sort_order: number;
+  is_deleted: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+/** GET /admin/gifts 查询参数 */
+export interface AdminListGiftsParams {
+  include_inactive?: boolean;
+  page?: number;
+  size?: number;
+  tier?: number;
+}
+
+/** GET /admin/gifts 响应 data */
+export interface AdminGiftsData {
+  total: number;
+  page: number;
+  size: number;
+  items: AdminGiftItem[];
+}
+
+/** POST /admin/gifts 请求体 */
+export interface AdminCreateGiftRequest {
+  code: string;
+  name_en: string;
+  name_ar: string;
+  icon_url: string;
+  price: number;
+  tier: number;
+  effect_level: number;
+  animation_url?: string;
+  sort_order?: number;
+  is_active?: boolean;
+}
+
+/** PUT /admin/gifts/:id 请求体（所有字段可选） */
+export type AdminUpdateGiftRequest = Partial<AdminCreateGiftRequest>;
+
+/** POST /admin/gifts/upload 响应 data */
+export interface AdminUploadGiftAssetResponse {
+  url: string;
+  file_name: string;
+}
+
+/**
+ * GET /admin/gifts — 管理员查询礼物列表（T-20012）
+ */
+export async function adminListGifts(
+  params?: AdminListGiftsParams,
+): Promise<AdminGiftsData> {
+  const query = params
+    ? '?' + new URLSearchParams(
+        Object.entries(params)
+          .filter(([, v]) => v !== undefined)
+          .map(([k, v]) => [k, String(v)]),
+      ).toString()
+    : '';
+  const res = await adminFetch<AdminGiftsData>(`/gifts${query}`);
+  return res.data;
+}
+
+/**
+ * POST /admin/gifts — 管理员创建礼物（T-20012）
+ */
+export async function adminCreateGift(
+  req: AdminCreateGiftRequest,
+): Promise<AdminGiftItem> {
+  const res = await adminFetch<AdminGiftItem>('/gifts', {
+    method: 'POST',
+    body: JSON.stringify(req),
+  });
+  return res.data;
+}
+
+/**
+ * PUT /admin/gifts/:id — 管理员更新礼物（T-20012）
+ */
+export async function adminUpdateGift(
+  id: string,
+  req: AdminUpdateGiftRequest,
+): Promise<AdminGiftItem> {
+  const res = await adminFetch<AdminGiftItem>(
+    `/gifts/${encodeURIComponent(id)}`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(req),
+    },
+  );
+  return res.data;
+}
+
+/**
+ * DELETE /admin/gifts/:id — 管理员软删除礼物（T-20012）
+ */
+export async function adminDeleteGift(id: string): Promise<void> {
+  await adminFetch<null>(`/gifts/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  });
+}
+
+/**
+ * POST /admin/gifts/upload — 管理员上传礼物图片/Lottie（T-20012）
+ * kind='icon'      → 图片（PNG/JPEG/WEBP，≤1MB）
+ * kind='animation' → Lottie JSON，≤2MB
+ */
+export async function adminUploadGiftAsset(
+  file: File,
+  kind: 'icon' | 'animation',
+): Promise<AdminUploadGiftAssetResponse> {
+  const base = getAdminApiBaseUrl().replace(/\/$/, '');
+  const url = `${base}/gifts/upload`;
+
+  const token = localStorage.getItem(ADMIN_TOKEN_KEY);
+  const headers: Record<string, string> = token
+    ? { Authorization: `Bearer ${token}` }
+    : {};
+
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('kind', kind);
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers,
+    body: formData,
+  });
+
+  if (!response.ok) {
+    let message = `HTTP Error ${response.status}`;
+    try {
+      const errBody = await response.json();
+      message = (errBody as { message?: string }).message || message;
+    } catch {
+      // ignore
+    }
+    throw new Error(message);
+  }
+
+  const body = (await response.json()) as ApiResponse<AdminUploadGiftAssetResponse>;
+  if (body.code !== 0) throw new Error(body.message);
+  return body.data;
+}
+
