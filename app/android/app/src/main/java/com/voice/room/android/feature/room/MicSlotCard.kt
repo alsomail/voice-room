@@ -7,6 +7,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -17,21 +18,24 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.MicOff
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
+import com.voice.room.android.core.theme.AvatarWithFrame
+import com.voice.room.android.core.theme.MenaColors
 
 /**
  * 麦位卡片 — T-30011
@@ -63,34 +67,30 @@ fun MicSlotCard(
 
     Box(
         modifier = modifier
-            .size(80.dp)
             .testTag(if (!isOccupied) "mic_slot_empty_${slot.index}" else "mic_slot_occupied_${slot.index}")
             .clickable(onClickLabel = contentDesc) { onClick(slot.index) }
             .semantics { contentDescription = contentDesc },  // 内层 = 被 clickable mergeDescendants 合并
         contentAlignment = Alignment.Center,
     ) {
         if (!isOccupied) {
-            // ── EMPTY ────────────────────────────────────────────────────────
+            // ── EMPTY ── 黑金风格：虚线圆圈 + 金色"+"图标 + 座位序号 (T-30025) ──
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = null,
-                    modifier = Modifier.size(32.dp),
+                EmptySlotCircle(size = AVATAR_SIZE_GUEST_DP)
+                Text(
+                    text = "${slot.index + 1}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MenaColors.Primary,
                 )
-                Text(text = "${slot.index + 1}")
             }
         } else {
-            // ── OCCUPIED / MUTED ─────────────────────────────────────────────
+            // ── OCCUPIED / MUTED ── 黑金风格：AvatarWithFrame(60dp) (T-30025) ──
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Box {
-                    AsyncImage(
-                        model = slot.avatarUrl,
-                        contentDescription = null,
-                        placeholder = painterResource(android.R.drawable.ic_menu_myplaces),
-                        fallback = painterResource(android.R.drawable.ic_menu_myplaces),
-                        modifier = Modifier
-                            .size(48.dp)
-                            .clip(CircleShape),
+                    // 60dp AvatarWithFrame：有人显示金色边框，静音不显示边框
+                    AvatarWithFrame(
+                        imageUrl = slot.avatarUrl,
+                        size = AVATAR_SIZE_GUEST_DP,
+                        showFrame = !isMuted,
                     )
 
                     // 音浪动画占位：仅 OCCUPIED（非静音）时显示（MC-02 / MC-03）
@@ -117,9 +117,53 @@ fun MicSlotCard(
                         )
                     }
                 }
-                Text(text = slot.nickname ?: "")
+                Text(
+                    text = slot.nickname ?: "",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MenaColors.OnBackground,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
+    }
+}
+
+/** 副麦 avatar 尺寸常量 (60dp) */
+private val AVATAR_SIZE_GUEST_DP = 60.dp
+
+/**
+ * 空麦位通用子组件（T-30025）
+ *
+ * 虚线圆形边框 + 金色 "+" 图标，尺寸由 [size] 参数控制。
+ * 使用 Canvas drawCircle + PathEffect.dashPathEffect(floatArrayOf(8f, 6f))。
+ *
+ * @param size  整体尺寸（主麦 80dp，副麦 60dp）
+ */
+@Composable
+private fun EmptySlotCircle(size: androidx.compose.ui.unit.Dp) {
+    Box(
+        modifier = Modifier.size(size),
+        contentAlignment = Alignment.Center,
+    ) {
+        Canvas(modifier = Modifier.size(size)) {
+            val strokeWidthPx = 2.dp.toPx()
+            val radius = (this.size.minDimension - strokeWidthPx) / 2f
+            drawCircle(
+                color = MenaColors.Primary.copy(alpha = 0.6f),
+                radius = radius,
+                style = Stroke(
+                    width = strokeWidthPx,
+                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 6f)),
+                ),
+            )
+        }
+        Icon(
+            imageVector = Icons.Default.Add,
+            contentDescription = null,
+            modifier = Modifier.size(24.dp),
+            tint = MenaColors.Primary,
+        )
     }
 }
 

@@ -22,6 +22,7 @@ import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.voice.room.android.core.theme.MenaColors
 
 /**
  * 聊天消息列表 (T-30014)
@@ -82,7 +83,9 @@ fun ChatMessageList(
 }
 
 /**
- * 用户消息条目：左对齐，昵称（primary 色）+ 内容（bodyMedium）
+ * 用户消息条目：左对齐，昵称（金色 MenaColors.Primary）+ 内容（bodyMedium）
+ *
+ * T-30025: 昵称色改为 MenaColors.Primary (#D4AF37 金色)
  */
 @Composable
 private fun UserMessageItem(
@@ -95,7 +98,7 @@ private fun UserMessageItem(
                 Text(
                     text = message.senderNickname,
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = MenaColors.Primary,   // T-30025: #D4AF37 金色
                 )
             }
             Text(
@@ -107,7 +110,9 @@ private fun UserMessageItem(
 }
 
 /**
- * 系统通知条目：居中，灰色文字（onSurface 60%），无昵称头像
+ * 系统通知条目：居中，金黄色（MenaColors.SystemMessage），无昵称头像
+ *
+ * T-30025: 颜色改为 MenaColors.SystemMessage (#F39C12 金黄色)
  */
 @Composable
 private fun SystemNoticeItem(
@@ -121,7 +126,7 @@ private fun SystemNoticeItem(
         Text(
             text = message.content,
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+            color = MenaColors.SystemMessage,   // T-30025: #F39C12 金黄色
             textAlign = TextAlign.Center,
         )
     }
