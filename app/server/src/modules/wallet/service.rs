@@ -1,11 +1,13 @@
 //! WalletService — 余额查询、流水列表与余额变更
 //!
 //! - `WalletServicePort` trait：供 HTTP handler 注入，支持 FakeWalletService 测试替身
-//! - `WalletService`：真实 PgPool 实现，`apply_delta` 管理完整事务生命周期
+//! - `WalletService`：真实 PgPool 实现
+//!   - `apply_delta`：接受外部事务 `&mut Transaction<'_, Postgres>`，不自行 begin/commit
+//!   - `notify_balance_updated`：事务提交后由调用方调用，通知广播器（带 warn 日志）
 //! - `FakeWalletService`：`#[cfg(test)]` 内存替身，供 `AppState::for_test()` 注入
 
 use async_trait::async_trait;
-use sqlx::PgPool;
+use sqlx::{PgPool, Postgres, Transaction};
 use tokio::sync::mpsc;
 use uuid::Uuid;
 use voice_room_shared::models::wallet::{WalletTransactionModel, WalletTxnType};
@@ -48,15 +50,25 @@ impl WalletService {
         Self { pool, balance_tx }
     }
 
-    /// 余额变更：在独立事务中执行 SELECT FOR UPDATE + UPDATE + INSERT，
-    /// 事务提交后通过 channel 通知 BalanceBroadcaster。
+    /// 余额变更：在外部事务内执行 SELECT FOR UPDATE + UPDATE + INSERT。
+    ///
+    /// **调用方负责事务生命周期**（begin / commit / rollback）。
+    /// 事务提交成功后，调用方应调用 `notify_balance_updated` 触发 WS 推送。
+    ///
+    /// # 设计意图
+    /// 接受外部事务允许 T-00020 SendGift 等业务在同一 DB 事务内原子完成
+    /// "余额扣减 + 礼物记录写入"，彻底防止跨表数据不一致。
     ///
     /// # 错误
     /// - `AppError::NotFound`：用户不存在
-    /// - `AppError::ValidationError("insufficient balance")`：变更后余额 < 0（事务回滚）
+    /// - `AppError::ValidationError("insufficient balance")`：变更后余额 < 0
     /// - `AppError::DatabaseError`：DB 操作失败
-    pub async fn apply_delta(
+    ///
+    /// 出错时事务由调用方 drop 触发 ROLLBACK，本函数不 commit。
+    #[allow(clippy::too_many_arguments)]
+    pub async fn apply_delta<'c>(
         &self,
+        txn: &mut Transaction<'c, Postgres>,
         user_id: Uuid,
         delta: i64,
         ty: WalletTxnType,
@@ -64,20 +76,18 @@ impl WalletService {
         reason: Option<String>,
         operator_id: Option<Uuid>,
     ) -> Result<i64, AppError> {
-        let mut txn = self.pool.begin().await?;
-
         // SELECT ... FOR UPDATE 行锁防并发
         let current: i64 = sqlx::query_scalar(
             "SELECT diamond_balance FROM users WHERE id = $1 AND deleted_at IS NULL FOR UPDATE",
         )
         .bind(user_id)
-        .fetch_optional(&mut *txn)
+        .fetch_optional(&mut **txn)
         .await?
         .ok_or_else(|| AppError::NotFound("user not found".into()))?;
 
         let new_balance = current + delta;
         if new_balance < 0 {
-            // 事务自动回滚（txn 离开作用域时 drop 触发 ROLLBACK）
+            // 事务由调用方 drop 触发 ROLLBACK
             return Err(AppError::ValidationError(
                 "insufficient balance".to_string(),
             ));
@@ -89,7 +99,7 @@ impl WalletService {
         )
         .bind(new_balance)
         .bind(user_id)
-        .execute(&mut *txn)
+        .execute(&mut **txn)
         .await?;
 
         // 写入流水记录
@@ -105,28 +115,30 @@ impl WalletService {
         .bind(ref_id)
         .bind(&reason)
         .bind(operator_id)
-        .execute(&mut *txn)
+        .execute(&mut **txn)
         .await?;
-
-        // 提交事务
-        txn.commit().await?;
-
-        // 事务成功后，异步通知广播器（fire-and-forget，失败不影响主流程）
-        let event_reason = reason.unwrap_or_else(|| txn_type_to_str(&ty));
-        let _ = self.balance_tx.try_send(BalanceEvent {
-            user_id,
-            balance_after: new_balance,
-            delta,
-            reason: event_reason,
-            ref_id,
-        });
 
         Ok(new_balance)
     }
+
+    /// 在事务提交成功后调用，通知 BalanceBroadcaster 发送 WS 推送。
+    ///
+    /// # MEDIUM-1 修复
+    /// `try_send` 失败时记录 `warn!` 日志（channel 满时事件丢失但不影响主流程）。
+    pub fn notify_balance_updated(&self, event: BalanceEvent) {
+        if let Err(e) = self.balance_tx.try_send(event) {
+            tracing::warn!(
+                "BalanceEvent channel full, WS push dropped (event lost): {:?}",
+                e
+            );
+        }
+    }
 }
 
-/// 将 WalletTxnType 转换为 snake_case 字符串（用于 reason 默认值）
-pub(crate) fn txn_type_to_str(ty: &WalletTxnType) -> String {
+/// 将 WalletTxnType 转换为 snake_case 字符串（用于 reason 字段默认值）。
+///
+/// T-00020 SendGift 等调用 `apply_delta` 的业务可使用此函数构造 reason 参数。
+pub fn txn_type_to_str(ty: &WalletTxnType) -> String {
     match ty {
         WalletTxnType::GiftSend => "gift_send".to_string(),
         WalletTxnType::GiftReceive => "gift_receive".to_string(),
@@ -259,6 +271,7 @@ impl WalletServicePort for FakeWalletService {
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
+    use std::time::Duration;
 
     use super::*;
 
@@ -293,5 +306,79 @@ mod tests {
     #[test]
     fn ws04_fake_service_is_send_sync() {
         let _svc: Arc<dyn WalletServicePort> = Arc::new(FakeWalletService);
+    }
+
+    // WS05: notify_balance_updated 成功时事件被发送到 channel
+    #[tokio::test]
+    async fn ws05_notify_balance_updated_sends_event() {
+        let (tx, mut rx) = tokio::sync::mpsc::channel::<BalanceEvent>(10);
+        // 创建 WalletService（pool 用不到，只测 notify 路径）
+        // 注意：不会实际连接 DB，只测 channel 逻辑
+        let fake_pool = {
+            // 使用环境变量提供的 DB URL，如果没有则跳过
+            let url = std::env::var("DATABASE_URL")
+                .unwrap_or_else(|_| "postgres://localhost/test".to_string());
+            match sqlx::PgPool::connect_lazy(&url) {
+                Ok(p) => p,
+                Err(_) => {
+                    eprintln!("[SKIP] ws05: cannot create PgPool");
+                    return;
+                }
+            }
+        };
+        let svc = WalletService::new(fake_pool, tx);
+
+        let user_id = Uuid::new_v4();
+        svc.notify_balance_updated(BalanceEvent {
+            user_id,
+            balance_after: 500,
+            delta: 500,
+            reason: "recharge".to_string(),
+            ref_id: None,
+        });
+
+        let event = tokio::time::timeout(Duration::from_millis(100), rx.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(event.user_id, user_id);
+        assert_eq!(event.balance_after, 500);
+        assert_eq!(event.delta, 500);
+    }
+
+    // WS06: notify_balance_updated channel 满时记录 warn 日志（不 panic）
+    #[tokio::test]
+    async fn ws06_notify_balance_updated_channel_full_no_panic() {
+        // channel 容量为 0（unbounded send 不能用；用 capacity=0 的有界 channel 测试满）
+        let (tx, _rx) = tokio::sync::mpsc::channel::<BalanceEvent>(1);
+
+        // 先填满 channel
+        let _ = tx.try_send(BalanceEvent {
+            user_id: Uuid::new_v4(),
+            balance_after: 0,
+            delta: 0,
+            reason: "fill".to_string(),
+            ref_id: None,
+        });
+
+        let fake_pool = {
+            let url = std::env::var("DATABASE_URL")
+                .unwrap_or_else(|_| "postgres://localhost/test".to_string());
+            match sqlx::PgPool::connect_lazy(&url) {
+                Ok(p) => p,
+                Err(_) => return,
+            }
+        };
+        let svc = WalletService::new(fake_pool, tx);
+
+        // channel 已满，notify 不应 panic（应记录 warn）
+        svc.notify_balance_updated(BalanceEvent {
+            user_id: Uuid::new_v4(),
+            balance_after: 100,
+            delta: 100,
+            reason: "overflow".to_string(),
+            ref_id: None,
+        });
+        // 如果能运行到这里说明没有 panic
     }
 }

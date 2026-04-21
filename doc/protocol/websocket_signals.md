@@ -41,11 +41,37 @@ ws://host/ws?token=<JWT>
 | `GiftReceived` | S→房间广播 | T-00020 | 同上 |
 
 ### 6.4.1 BalanceUpdated（S→C）
+
+**更新日期**：T-00018 Review Round 2（对齐实现 + WS 通用格式 §6.3）
+
 ```json
-{ "type":"BalanceUpdated",
-  "payload":{ "diamond": 1234, "charm":56, "reason":"gift_send"|"gift_receive"|"admin_adjust" },
-  "timestamp": ... }
+{
+  "type": "BalanceUpdated",
+  "msg_id": "uuid",
+  "payload": {
+    "diamond_balance": 4800,
+    "delta": -520,
+    "reason": "gift_send",
+    "ref_id": "uuid|null"
+  },
+  "timestamp": 1720000000000
+}
 ```
+
+**字段说明**：
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `type` | string | ✅ | 固定值 `"BalanceUpdated"` |
+| `msg_id` | string (UUID) | ✅ | 每条推送独立生成，符合 §6.3 通用格式 |
+| `payload.diamond_balance` | int64 | ✅ | 变更后的钻石余额 |
+| `payload.delta` | int64 | ✅ | 本次变化量（正数=充值/收礼，负数=扣款/送礼） |
+| `payload.reason` | string | ✅ | 变化原因：`"gift_send"` / `"gift_receive"` / `"admin_adjust"` / `"recharge"` / `"refund"` |
+| `payload.ref_id` | string (UUID) \| null | | 关联业务 ID（礼物记录 ID 或 admin_log_id），可选 |
+| `timestamp` | int64 (ms) | ✅ | 服务端推送时间戳（毫秒） |
+
+**推送时机**：`WalletService.apply_delta()` 事务提交成功后，通过 `notify_balance_updated` 触发本进程推送；Admin 服务通过 Redis PUBLISH `admin:events` 触发跨进程推送。
+
+**多端在线**：同一用户多个 WS 会话均会收到推送，每条消息有独立 `msg_id`。
 
 ### 6.4.2 SendGift（C→S）
 ```json

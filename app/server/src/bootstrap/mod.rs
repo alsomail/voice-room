@@ -100,9 +100,10 @@ impl AppState {
     }
 
     /// 測試輔助：注入真實 WalletService（DB 集成測試 T-00018）
+    /// LOW-1: 参数类型改为 Arc<dyn WalletServicePort>（接口抽象，而非具体类型）
     #[cfg(any(test, feature = "test-utils"))]
     pub fn for_test_with_wallet(
-        wallet_service: Arc<crate::modules::wallet::service::WalletService>,
+        wallet_service: Arc<dyn WalletServicePort>,
     ) -> Self {
         use crate::infrastructure::{
             redis_store::FakeCodeStore, third_party::sms::MockSmsProvider,
@@ -117,7 +118,7 @@ impl AppState {
             "test-secret".to_string(),
             Arc::new(FakeRoomRepository::default()),
             Arc::new(FakeStatsService::default()),
-            wallet_service as Arc<dyn WalletServicePort>,
+            wallet_service,
         )
     }
 }

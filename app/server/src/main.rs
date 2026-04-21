@@ -81,12 +81,15 @@ async fn main() -> anyhow::Result<()> {
         wallet_service,
     );
 
-    // 启动 BalanceBroadcaster（与 ws_registry 共享同一 ConnectionRegistry）
+    // 启动 BalanceBroadcaster（HIGH-2：同时监听本进程 mpsc channel 和 Redis PubSub）
     let broadcaster = BalanceBroadcaster::new(state.ws_registry.clone());
-    tokio::spawn(broadcaster.run(balance_rx));
-
-    // 優雅停機 channel：axum 完成後向 snapshot_task 發送停止信號
     let (snapshot_shutdown_tx, snapshot_shutdown_rx) = tokio::sync::watch::channel(false);
+    let broadcaster_shutdown = snapshot_shutdown_tx.subscribe();
+    tokio::spawn(broadcaster.run_with_redis(
+        balance_rx,
+        redis_url.to_string(),
+        broadcaster_shutdown,
+    ));
 
     // spawn 週期快照 task（每 60s 寫一次 Redis snapshot）
     let stats_for_snapshot = state.stats_service.clone();
