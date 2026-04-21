@@ -72,6 +72,7 @@ fun RoomBottomBar(
     isMicMuted: Boolean,
     onMicToggle: () -> Unit,
     onLeaveRoom: () -> Unit,
+    onGiftClick: () -> Unit = {},   // T-30028: 🎁 按钮点击回调（替换 Toast 占位）
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -139,18 +140,16 @@ fun RoomBottomBar(
             )
         }
 
-        // ── 礼物按钮（始终灰色 + 点击 Toast） ───────────────────────────────
+        // ── 礼物按钮（T-30028: 点击弹出 GiftPanelBottomSheet） ───────────────
         IconButton(
-            onClick = {
-                Toast.makeText(context, "礼物功能敬请期待", Toast.LENGTH_SHORT).show()
-            },
-            enabled = true,   // 允许点击以触发 Toast（enabled=false 会拦截 onClick）
+            onClick = onGiftClick,
+            enabled = true,
             modifier = Modifier.testTag("btn_gift"),
         ) {
             Icon(
                 imageVector = Icons.Default.CardGiftcard,
                 contentDescription = "礼物",
-                tint = MenaColors.OnBackgroundTertiary,
+                tint = MenaColors.Primary,  // T-30028: 礼物按钮激活为金色
             )
         }
 

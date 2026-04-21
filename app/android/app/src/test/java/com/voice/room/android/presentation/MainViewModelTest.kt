@@ -40,6 +40,7 @@ class MainViewModelTest {
             },
             giftRepository = object : IGiftRepository {
                 override fun featuredGiftLabel(): String = "Gift module reserved"
+                override suspend fun listGifts(locale: String) = Result.success(emptyList<com.voice.room.android.domain.gift.GiftVO>())
             }
         )
 
@@ -75,6 +76,7 @@ class MainViewModelTest {
             },
             giftRepository = object : IGiftRepository {
                 override fun featuredGiftLabel(): String = "Gift module reserved"
+                override suspend fun listGifts(locale: String) = Result.success(emptyList<com.voice.room.android.domain.gift.GiftVO>())
             }
         )
 

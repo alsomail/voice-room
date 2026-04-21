@@ -17,42 +17,66 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.emptyFlow
 import com.voice.room.android.core.theme.MenaColors
+import com.voice.room.android.feature.gift.GiftPanelBottomSheet
+import com.voice.room.android.feature.gift.GiftPanelEvent
+import com.voice.room.android.feature.gift.GiftPanelUiState
 
 /**
- * 房间页顶层 Composable (T-30009 / T-30026)
+ * 房间页顶层 Composable (T-30009 / T-30026 / T-30028)
  *
  * 布局（从上到下）：
- *  - [RoomTopBar]        ← topBar（房间名、在线人数、返回按钮）
- *  - [MicSlotsGrid]      ← 9 宫格麦位区（由 [MicPermissionHandler] 守卫点击事件）
- *  - [ChatMessageList]   ← 聊天消息列表（weight(1f)，自动填充剩余高度）
- *  - [RoomBottomBar]     ← bottomBar（输入框 + 发送 + 🎤🎁❤️🚪，T-30026）
+ *  - [RoomTopBar]          ← topBar（房间名、在线人数、返回按钮）
+ *  - [MicSlotsGrid]        ← 9 宫格麦位区（由 [MicPermissionHandler] 守卫点击事件）
+ *  - [ChatMessageList]     ← 聊天消息列表（weight(1f)，自动填充剩余高度）
+ *  - [RoomBottomBar]       ← bottomBar（输入框 + 发送 + 🎤🎁❤️🚪，T-30026）
+ *  - [GiftPanelBottomSheet]← 礼物面板 BottomSheet（T-30028，🎁 点击弹出）
  *
  * 纯 UI，ViewModel 逻辑通过回调参数注入。
  *
  * @param uiState                房间页 UI 状态（含 [RoomUiState.isSendingMessage]）
  * @param events                 ViewModel 一次性事件流（T-30016：监听 [RoomEvent.ClearInput]）
+ * @param giftUiState            礼物面板 UI 状态（T-30028，由 GiftPanelViewModel 提供）
+ * @param giftEvents             礼物面板一次性事件流（T-30028）
  * @param onBack                 点击返回按钮的回调
  * @param onSendMessage          点击发送按钮的回调，参数为消息文本
  * @param onMicPermissionGranted 麦克风权限授予后的回调，参数为麦位 index（T-30012）
  * @param onMicToggle            点击麦克风静音切换按钮的回调（T-30026）
  * @param onLeaveRoom            确认退出房间的回调（T-30026）
+ * @param onSelectGift           选中礼物回调（T-30028）
+ * @param onSelectCount          数量档位选择回调（T-30028）
+ * @param onSelectGiftTab        切换礼物 Tab 回调（T-30028）
+ * @param onSendGift             送出礼物回调（T-30030 接入，T-30028 暂留空）
+ * @param onGiftRechargeClick    充值按钮回调（T-30028）
+ * @param onGiftPanelDismiss     关闭礼物面板回调（T-30028）
  * @param modifier               可选 Modifier
  */
 @Composable
 fun RoomScreen(
     uiState: RoomUiState,
     events: Flow<RoomEvent> = emptyFlow(),
+    giftUiState: GiftPanelUiState = GiftPanelUiState(loading = false),
+    giftEvents: kotlinx.coroutines.flow.SharedFlow<GiftPanelEvent> = MutableSharedFlow(),
     onBack: () -> Unit = {},
     onSendMessage: (String) -> Unit = {},
     onMicPermissionGranted: (slotIndex: Int) -> Unit = {},
-    onMicToggle: () -> Unit = {},        // 新增 T-30026
-    onLeaveRoom: () -> Unit = {},        // 新增 T-30026
+    onMicToggle: () -> Unit = {},
+    onLeaveRoom: () -> Unit = {},
+    onSelectGift: (String) -> Unit = {},
+    onSelectCount: (Int) -> Unit = {},
+    onSelectGiftTab: (com.voice.room.android.feature.gift.GiftTab) -> Unit = {},
+    onSendGift: () -> Unit = {},
+    onGiftRechargeClick: () -> Unit = {},
+    onGiftPanelDismiss: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     // T-30016: 输入框本地状态，由 ClearInput 事件驱动清空
     var localInputText by remember { mutableStateOf("") }
+
+    // T-30028: 礼物面板显示状态（本地）
+    var showGiftPanel by remember { mutableStateOf(false) }
 
     // 监听 ViewModel 事件：成功发送后清空输入框
     LaunchedEffect(Unit) {
@@ -86,6 +110,8 @@ fun RoomScreen(
                 isMicMuted = uiState.isCurrentUserMuted,
                 onMicToggle = onMicToggle,
                 onLeaveRoom = onLeaveRoom,
+                // T-30028: 🎁 按钮点击 → 弹出 GiftPanelBottomSheet
+                onGiftClick = { showGiftPanel = true },
             )
         },
     ) { padding ->
@@ -109,6 +135,23 @@ fun RoomScreen(
                 modifier = Modifier.weight(1f),
             )
         }
+    }
+
+    // T-30028: 礼物面板 BottomSheet
+    if (showGiftPanel) {
+        GiftPanelBottomSheet(
+            uiState = giftUiState,
+            events = giftEvents,
+            onDismiss = {
+                showGiftPanel = false
+                onGiftPanelDismiss()
+            },
+            onSelectGift = onSelectGift,
+            onSelectCount = onSelectCount,
+            onSelectTab = onSelectGiftTab,
+            onSendGift = onSendGift,
+            onRechargeClick = onGiftRechargeClick,
+        )
     }
 }
 

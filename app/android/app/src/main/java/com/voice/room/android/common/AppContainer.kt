@@ -95,6 +95,13 @@ data class AppContainer(
             val walletApiService = roomRetrofit.create(WalletApiService::class.java)
             val walletRepository: IWalletRepository = RetrofitWalletRepository(walletApiService)
 
+            // Gift API — 复用 roomRetrofit（已注入 AuthInterceptor）(T-30028)
+            val giftApiService = roomRetrofit.create(
+                com.voice.room.android.data.remote.api.GiftApiService::class.java
+            )
+            val giftRepository: IGiftRepository =
+                com.voice.room.android.data.gift.RetrofitGiftRepository(giftApiService)
+
             // WebSocket 客户端 — 独立 IO 作用域，随 App 生命周期存在
             val wsHttpClient = AppHttpClientFactory.create(
                 config = NetworkClientConfig(),
@@ -117,7 +124,7 @@ data class AppContainer(
                 roomGateway = DebugRoomGateway(),
                 roomSyncService = DebugRoomSyncService(),
                 walletRepository = walletRepository,
-                giftRepository = DebugGiftRepository(),
+                giftRepository = giftRepository,
                 roomRepository = RetrofitRoomRepository(roomApiService),
                 webSocketClient = webSocketClient,
                 tokenManager = tokenManager,
