@@ -21,13 +21,13 @@ import kotlinx.coroutines.flow.emptyFlow
 import com.voice.room.android.core.theme.MenaColors
 
 /**
- * 房间页顶层 Composable (T-30009)
+ * 房间页顶层 Composable (T-30009 / T-30026)
  *
  * 布局（从上到下）：
  *  - [RoomTopBar]        ← topBar（房间名、在线人数、返回按钮）
  *  - [MicSlotsGrid]      ← 9 宫格麦位区（由 [MicPermissionHandler] 守卫点击事件）
  *  - [ChatMessageList]   ← 聊天消息列表（weight(1f)，自动填充剩余高度）
- *  - [ChatInputBar]      ← bottomBar（输入框 + 发送按钮）
+ *  - [RoomBottomBar]     ← bottomBar（输入框 + 发送 + 🎤🎁❤️🚪，T-30026）
  *
  * 纯 UI，ViewModel 逻辑通过回调参数注入。
  *
@@ -36,6 +36,8 @@ import com.voice.room.android.core.theme.MenaColors
  * @param onBack                 点击返回按钮的回调
  * @param onSendMessage          点击发送按钮的回调，参数为消息文本
  * @param onMicPermissionGranted 麦克风权限授予后的回调，参数为麦位 index（T-30012）
+ * @param onMicToggle            点击麦克风静音切换按钮的回调（T-30026）
+ * @param onLeaveRoom            确认退出房间的回调（T-30026）
  * @param modifier               可选 Modifier
  */
 @Composable
@@ -45,6 +47,8 @@ fun RoomScreen(
     onBack: () -> Unit = {},
     onSendMessage: (String) -> Unit = {},
     onMicPermissionGranted: (slotIndex: Int) -> Unit = {},
+    onMicToggle: () -> Unit = {},        // 新增 T-30026
+    onLeaveRoom: () -> Unit = {},        // 新增 T-30026
     modifier: Modifier = Modifier,
 ) {
     // T-30016: 输入框本地状态，由 ClearInput 事件驱动清空
@@ -69,7 +73,7 @@ fun RoomScreen(
             )
         },
         bottomBar = {
-            ChatInputBar(
+            RoomBottomBar(
                 inputText = localInputText,
                 onInputTextChange = { localInputText = it },
                 isSending = uiState.isSendingMessage,
@@ -78,6 +82,10 @@ fun RoomScreen(
                     // 不立即清空：等待 ViewModel 发出 ClearInput 事件（成功后）
                     // 失败时保留输入内容，允许重试（T-30016 验收标准 3）
                 },
+                isOnMic = uiState.isCurrentUserOnMic,
+                isMicMuted = uiState.isCurrentUserMuted,
+                onMicToggle = onMicToggle,
+                onLeaveRoom = onLeaveRoom,
             )
         },
     ) { padding ->

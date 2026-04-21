@@ -8,6 +8,7 @@ import com.voice.room.android.data.room.IRoomSnapshotRepository
 import com.voice.room.android.data.room.MicSlotData
 import com.voice.room.android.data.room.RoomSnapshot
 import com.voice.room.android.utils.MainDispatcherRule
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -793,6 +794,199 @@ class RoomViewModelTest {
             assertTrue("""JSON should contain "roomId":"room-1"""", sent.contains(""""roomId":"room-1""""))
             assertTrue("""JSON should contain "content":"Hello World"""", sent.contains(""""content":"Hello World""""))
             assertTrue("JSON should contain a msgId field", sent.contains(""""msgId":"""))
+        }
+
+    // ─── MT-01: 不在麦上时 toggleMicMute() 无效 ──────────────────────────────
+
+    @Test
+    fun `MT-01 toggleMicMute when not on mic - isCurrentUserMuted unchanged, mediaService not called`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            viewModel.joinRoom("room-1", userId = "me")
+            advanceUntilIdle()
+
+            // 确认初始不在麦上
+            val before = viewModel.uiState.value as RoomViewState.Success
+            assertFalse("isCurrentUserOnMic should be false initially", before.uiState.isCurrentUserOnMic)
+
+            viewModel.toggleMicMute()
+            advanceUntilIdle()
+
+            val after = viewModel.uiState.value as RoomViewState.Success
+            assertFalse("isCurrentUserMuted should remain false", after.uiState.isCurrentUserMuted)
+            assertTrue("stopPublishAudio should NOT be called", fakeMediaService.stopPublishAudioCalls.isEmpty())
+            assertTrue("startPublishAudio should NOT be called (for toggleMicMute)", fakeMediaService.startPublishAudioCalls.isEmpty())
+        }
+
+    // ─── MT-02: 在麦上 + 未静音 → stopPublishAudio，isCurrentUserMuted=true ────
+
+    @Test
+    fun `MT-02 toggleMicMute when on mic and not muted - stopPublishAudio called and isCurrentUserMuted becomes true`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            viewModel.joinRoom("room-1", userId = "me")
+            advanceUntilIdle()
+
+            // 模拟自己上麦，令 isCurrentUserOnMic = true, isCurrentUserMuted = false
+            fakeWsClient.simulateMessage(
+                """{"type":"MicTaken","slotIndex":1,"userId":"me","nickname":"MyNick"}"""
+            )
+            advanceUntilIdle()
+
+            val before = viewModel.uiState.value as RoomViewState.Success
+            assertTrue("Should be on mic", before.uiState.isCurrentUserOnMic)
+            assertFalse("Should not be muted initially", before.uiState.isCurrentUserMuted)
+
+            // 清空 startPublishAudio 调用记录（上麦时会调用一次）
+            fakeMediaService.stopPublishAudioCalls.clear()
+
+            viewModel.toggleMicMute()
+            advanceUntilIdle()
+
+            assertEquals("stopPublishAudio should be called once", 1, fakeMediaService.stopPublishAudioCalls.size)
+            val after = viewModel.uiState.value as RoomViewState.Success
+            assertTrue("isCurrentUserMuted should become true", after.uiState.isCurrentUserMuted)
+        }
+
+    // ─── MT-03: 在麦上 + 已静音 → startPublishAudio，isCurrentUserMuted=false ──
+
+    @Test
+    fun `MT-03 toggleMicMute when on mic and already muted - startPublishAudio called and isCurrentUserMuted becomes false`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            viewModel.joinRoom("room-1", userId = "me")
+            advanceUntilIdle()
+
+            // 上麦
+            fakeWsClient.simulateMessage(
+                """{"type":"MicTaken","slotIndex":1,"userId":"me","nickname":"MyNick"}"""
+            )
+            advanceUntilIdle()
+
+            // 先调一次 toggleMicMute 令其静音
+            fakeMediaService.stopPublishAudioCalls.clear()
+            viewModel.toggleMicMute()
+            advanceUntilIdle()
+
+            val muted = viewModel.uiState.value as RoomViewState.Success
+            assertTrue("Should be muted now", muted.uiState.isCurrentUserMuted)
+
+            // 再次 toggle → 取消静音
+            fakeMediaService.startPublishAudioCalls.clear()
+            viewModel.toggleMicMute()
+            advanceUntilIdle()
+
+            assertEquals("startPublishAudio should be called once", 1, fakeMediaService.startPublishAudioCalls.size)
+            val after = viewModel.uiState.value as RoomViewState.Success
+            assertFalse("isCurrentUserMuted should become false again", after.uiState.isCurrentUserMuted)
+        }
+
+    // ─── MT-04: toggleMicMute() 中 stopPublishAudio 抛异常 → ShowToast，状态不变 ─
+
+    @Test
+    fun `MT-04 toggleMicMute stopPublishAudio throws - ShowToast emitted and isCurrentUserMuted unchanged`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            viewModel.joinRoom("room-1", userId = "me")
+            advanceUntilIdle()
+
+            fakeWsClient.simulateMessage(
+                """{"type":"MicTaken","slotIndex":1,"userId":"me","nickname":"MyNick"}"""
+            )
+            advanceUntilIdle()
+
+            // 注入 stopPublishAudio 失败
+            fakeMediaService.stopPublishAudioResult = Result.failure(RuntimeException("mic hardware error"))
+            fakeMediaService.stopPublishAudioCalls.clear()
+
+            val events = mutableListOf<RoomEvent>()
+            val job = launch { viewModel.events.collect { events.add(it) } }
+
+            viewModel.toggleMicMute()
+            advanceUntilIdle()
+
+            assertTrue(
+                "ShowToast event should be emitted on stopPublishAudio failure",
+                events.any { it is RoomEvent.ShowToast }
+            )
+            val toastMsg = events.filterIsInstance<RoomEvent.ShowToast>().first().message
+            assertTrue("Toast message should not be blank", toastMsg.isNotBlank())
+
+            val after = viewModel.uiState.value as RoomViewState.Success
+            assertFalse("isCurrentUserMuted should remain false after failure", after.uiState.isCurrentUserMuted)
+
+            job.cancel()
+        }
+
+    // ─── MT-05: CancellationException 在 toggleMicMute() 中被 re-throw ─────────
+
+    @Test
+    fun `MT-05 toggleMicMute CancellationException is re-thrown not swallowed`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            viewModel.joinRoom("room-1", userId = "me")
+            advanceUntilIdle()
+
+            fakeWsClient.simulateMessage(
+                """{"type":"MicTaken","slotIndex":1,"userId":"me","nickname":"MyNick"}"""
+            )
+            advanceUntilIdle()
+
+            // 注入 CancellationException
+            fakeMediaService.stopPublishAudioResult =
+                Result.failure(kotlinx.coroutines.CancellationException("coroutine cancelled"))
+
+            val events = mutableListOf<RoomEvent>()
+            val job = launch { viewModel.events.collect { events.add(it) } }
+
+            // CancellationException 不应被 ShowToast 吞掉
+            viewModel.toggleMicMute()
+            advanceUntilIdle()
+
+            assertFalse(
+                "ShowToast should NOT be emitted for CancellationException",
+                events.any { it is RoomEvent.ShowToast }
+            )
+            job.cancel()
+        }
+
+    // ─── MT-06: WS MicTaken（自己）→ isCurrentUserOnMic=true, isCurrentUserMuted=false ─
+
+    @Test
+    fun `MT-06 WS MicTaken for self - isCurrentUserOnMic becomes true and isCurrentUserMuted reset to false`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            viewModel.joinRoom("room-1", userId = "me")
+            advanceUntilIdle()
+
+            fakeWsClient.simulateMessage(
+                """{"type":"MicTaken","slotIndex":2,"userId":"me","nickname":"Me"}"""
+            )
+            advanceUntilIdle()
+
+            val state = viewModel.uiState.value as RoomViewState.Success
+            assertTrue("isCurrentUserOnMic should be true after MicTaken", state.uiState.isCurrentUserOnMic)
+            assertFalse("isCurrentUserMuted should be false after MicTaken", state.uiState.isCurrentUserMuted)
+        }
+
+    // ─── MT-07: WS MicLeft（自己）→ isCurrentUserOnMic=false, isCurrentUserMuted=false ─
+
+    @Test
+    fun `MT-07 WS MicLeft for self - isCurrentUserOnMic becomes false and isCurrentUserMuted reset to false`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            // 先让自己上麦
+            viewModel.joinRoom("room-1", userId = "me")
+            advanceUntilIdle()
+
+            fakeWsClient.simulateMessage(
+                """{"type":"MicTaken","slotIndex":2,"userId":"me","nickname":"Me"}"""
+            )
+            advanceUntilIdle()
+
+            val onMic = viewModel.uiState.value as RoomViewState.Success
+            assertTrue("Should be on mic before MicLeft", onMic.uiState.isCurrentUserOnMic)
+
+            // 再触发下麦事件
+            fakeWsClient.simulateMessage("""{"type":"MicLeft","slotIndex":2}""")
+            advanceUntilIdle()
+
+            val state = viewModel.uiState.value as RoomViewState.Success
+            assertFalse("isCurrentUserOnMic should be false after MicLeft", state.uiState.isCurrentUserOnMic)
+            assertFalse("isCurrentUserMuted should be false after MicLeft", state.uiState.isCurrentUserMuted)
         }
 }
 

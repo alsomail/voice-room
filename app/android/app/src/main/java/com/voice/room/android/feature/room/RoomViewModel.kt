@@ -159,6 +159,38 @@ class RoomViewModel(
     }
 
     /**
+     * 切换当前用户麦克风静音状态（T-30026）。
+     *
+     * - 仅在用户已上麦（isCurrentUserOnMic = true）时有效。
+     * - 不发送任何 WS 消息，纯本地媒体操作。
+     * - CancellationException 必须 re-throw。
+     */
+    fun toggleMicMute() {
+        val currentState = _uiState.value as? RoomViewState.Success ?: return
+        if (!currentState.uiState.isCurrentUserOnMic) return
+        val willMute = !currentState.uiState.isCurrentUserMuted
+        viewModelScope.launch {
+            try {
+                if (willMute) {
+                    val result = mediaService.stopPublishAudio()
+                    if (result.isFailure) throw result.exceptionOrNull()!!
+                } else {
+                    val result = mediaService.startPublishAudio()
+                    if (result.isFailure) throw result.exceptionOrNull()!!
+                }
+                val updated = _uiState.value as? RoomViewState.Success ?: return@launch
+                _uiState.value = RoomViewState.Success(
+                    updated.uiState.copy(isCurrentUserMuted = willMute)
+                )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _events.trySend(RoomEvent.ShowToast("麦克风操作失败：${e.message}"))
+            }
+        }
+    }
+
+    /**
      * 发送聊天消息（需已通过 [joinRoom] 设置 currentRoomId）。
      *
      * 流程：
@@ -290,7 +322,14 @@ class RoomViewModel(
                     if (slot.index == slotIndex) slot.copy(userId = userId, nickname = nickname)
                     else slot
                 }
-                _uiState.value = RoomViewState.Success(state.copy(micSlots = newSlots))
+                val isSelf = userId != null && userId == currentUserId && currentUserId.isNotEmpty()
+                _uiState.value = RoomViewState.Success(
+                    state.copy(
+                        micSlots = newSlots,
+                        isCurrentUserOnMic = if (isSelf) true else state.isCurrentUserOnMic,
+                        isCurrentUserMuted = if (isSelf) false else state.isCurrentUserMuted,
+                    )
+                )
 
                 // 若是当前用户上麦成功，调用 RTC mediaService
                 if (userId != null && userId == currentUserId && currentUserId.isNotEmpty()) {
@@ -332,7 +371,16 @@ class RoomViewModel(
                     if (slot.index == slotIndex) slot.copy(userId = null, nickname = null)
                     else slot
                 }
-                _uiState.value = RoomViewState.Success(state.copy(micSlots = newSlots))
+                val isSelfLeaving = leavingUserId != null
+                    && leavingUserId == currentUserId
+                    && currentUserId.isNotEmpty()
+                _uiState.value = RoomViewState.Success(
+                    state.copy(
+                        micSlots = newSlots,
+                        isCurrentUserOnMic = if (isSelfLeaving) false else state.isCurrentUserOnMic,
+                        isCurrentUserMuted = if (isSelfLeaving) false else state.isCurrentUserMuted,
+                    )
+                )
 
                 // 若是当前用户下麦，停止推流并离开频道
                 if (leavingUserId != null

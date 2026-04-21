@@ -22,6 +22,20 @@ data class RoomUiState(
      * 由 [RoomViewModel.sendMessage] 在发送前设为 `true`，`finally` 中复位为 `false`。
      */
     val isSendingMessage: Boolean = false,
+
+    /**
+     * 当前登录用户是否在麦上（由 MicTaken/MicLeft WS 事件驱动，T-30026）
+     *
+     * 驱动 RoomBottomBar 中 MicButton 的 enabled 状态。
+     */
+    val isCurrentUserOnMic: Boolean = false,
+
+    /**
+     * 当前登录用户麦克风是否静音（由 toggleMicMute() 本地切换，T-30026）
+     *
+     * true → 红色 MicOff 图标；false → 绿色 Mic 图标（仅 isCurrentUserOnMic=true 时有意义）。
+     */
+    val isCurrentUserMuted: Boolean = false,
 )
 
 /**
