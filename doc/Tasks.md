@@ -1,9 +1,9 @@
 # Voice Room 开发任务清单
 
-> **版本**: v1.0  
-> **更新日期**: 2026-04-20  
-> **任务总数**: 72 个 (基建: 4, App Server: 16, Admin Server: 12, Web: 11, Android: 26, ~~原 Web 9~~)  
-> **当前阶段**: Phase 0.5 - 交互壳体与基础体验
+> **版本**: v1.3  
+> **更新日期**: 2026-04-21  
+> **任务总数**: 111 个 (基建: 4, App Server: 30, Admin Server: 16, Web: 14, Android: 44, E-07 15 + E-07.5 6 + E-10 18)  
+> **当前阶段**: Phase 1 - 核心营收闭环（E-07 + E-07.5 并行）→ Phase 1.5 E-10 房间治理
 
 ---
 
@@ -19,6 +19,9 @@
 | **v0.6** | **04-18** | **负责人标记：有 TDS 的 14 个任务标为 TDD，其余 46 个标为 Plan；ARCHITECTURE.md §3 目录树修正（doc/arch, doc/tds, shared/ 简化, Web 目录去 WS/RTC/IM）** |
 | **v0.7** | **04-18** | **职责流转规则：新增 PM→Plan→TDD→Review→DoD 流转说明；模块0 新增 4 个 TDS（infra/T-0000A~T-0000D）；全部 18 个有 TDS 的任务标为 TDD，42 个标为 Plan** |
 | **v1.0** | **04-20** | **Phase 0.5 新增：产品文档重构为 doc/product/index.md + 子文件；新增 11 个 Task（Android 9 + Web 2）覆盖 Splash/主页三Tab/中东黑金主题/个人中心/房间视觉升级/解封弹窗/活水监控；创建 doc/design/android/ 和 doc/design/adminWeb/ 设计文档** |
+| **v1.1** | **04-21** | **Phase 1 启动：E-07 虚拟礼物与钱包闭环 MVP，新增 15 个 Task（App Server 5 / Admin Server 2 / Web 1 / Android 7）；产出 `doc/product/phase1_gift_economy.md` 方向总纲、`competitors.md` 附录 A、`business_flows.md §2.7`；Android 7 个新设计文档** |
+| **v1.2** | **04-21** | **E-07.5 埋点与观测性基建（与 E-07 并行）：新增 6 个 Task（App Server 2 / Admin Server 1 / Web 1 / Android 2）；产出 `doc/product/phase1_observability.md` 方向总纲、`business_flows.md §2.9` 事件字典；Android 2 个新设计文档** |
+| **v1.3** | **04-21** | **Phase 1.5 E-10 房间主权与管理员体系：新增 18 个 Task（App Server 7 / Admin Server 1 / Web 1 / Android 9）；产出 `doc/product/phase1_room_governance.md` 方向总纲、`competitors.md` 附录 B、`business_flows.md §2.8` 治理流程；Android 9 个新设计文档** |
 
 ---
 
@@ -243,3 +246,165 @@
 | **T-20010** | Web | User | 解封用户确认弹窗 [TDS](./tds/web/T-20010.md) | T-20007, T-10009 | UnbanModal 组件：解封原因+备注+二次确认+API调用。与 BanModal 对称 | 1. 封禁用户 [解封] 弹出 UnbanModal<br>2. 原因必填<br>3. 成功后状态变"正常"<br>4. isConfirming 防重复 | ✅ Done | 3h | Done | [T-20010.md](./design/adminWeb/T-20010.md) |
 | **T-20011** | Web | Room | 活水房间监控增强 [TDS](./tds/web/T-20011.md) | T-20004 | 房间列表增加"活跃状态"Tag(活跃/冷清/异常) + "持续时长"列 + 活跃度筛选条件 | 1. 新增活跃状态+持续时长两列<br>2. Tag颜色根据规则渲染<br>3. 活跃度筛选可过滤<br>4. 异常房间行高亮<br>5. **现有功能不回归** | ✅ Done | 4h | Done | [T-20011.md](./design/adminWeb/T-20011.md) |
 
+---
+
+## Phase 1: 核心营收闭环
+
+> **说明**：Phase 1 聚焦营收打通。E-07 采用"封闭内循环"策略——充值通道为 Admin 手动调整（快速打通闭环），真实支付延后到 E-08。详见 [phase1_gift_economy.md](./product/phase1_gift_economy.md)。
+> **产品流程规范**: [business_flows.md §2.7](./product/business_flows.md)
+
+### 模块 6: 虚拟礼物与钱包闭环 MVP (E-07)
+
+> **依赖关系图**:
+> ```
+> T-00017 (钱包schema) ──┬─► T-00018 (余额API) ──► T-30027 (Android钱包)
+>                        └─► T-10013 (Admin充值) ──► T-20012 (Web充值UI)
+> T-00019 (礼物表+API) ──► T-10014 (Admin礼物CRUD) ──► T-30028 (礼物面板)
+> T-00017 + T-00019 ──► T-00020 (SendGift事务) ──► T-30029~T-30031 (送礼UI+动画)
+> T-00020 ──► T-00021 (榜单) ──► T-30033 (榜单页)
+> T-30028 + T-30027 ──► T-30032 (余额不足引导)
+> ```
+
+#### App Server
+
+| Task ID | 归属端 | 模块 | 任务名称 | 前置依赖 | 核心描述 | TDD 验收标准 | 状态 | 预估工时 | 负责人 |
+|---------|--------|------|----------|----------|----------|-------------|------|----------|--------|
+| **T-00017** | App Server | Wallet | 钱包 Schema 与迁移 | T-0000B | users 表增 `diamond_balance BIGINT DEFAULT 0`（CHECK >= 0）+ 新建 `wallet_transactions` 流水表（user_id/type/amount/balance_after/ref_id/reason/created_at） | 1. 迁移脚本可幂等执行<br>2. CHECK 约束防止余额为负<br>3. 流水表带 (user_id, created_at) 索引<br>4. 新注册用户默认 0 | Todo | 3h | Plan |
+| **T-00018** | App Server | Wallet | 余额查询 API + WS 推送 | T-00017 | GET `/api/v1/wallet/balance`、GET `/api/v1/wallet/transactions`（分页）；新增 WS 信令 `BalanceUpdated { diamond, reason }`，在余额变化时推送给当前用户所有会话 | 1. 查询返回最新余额<br>2. 流水按时间倒序分页<br>3. 余额变化后 500ms 内 WS 推送<br>4. 离线用户重连后自拉刷新 | Todo | 5h | Plan |
+| **T-00019** | App Server | Gift | 礼物配置表 + 列表 API | T-0000B | 新建 `gifts` 表（id/name_en/name_ar/icon_url/price/tier/effect_level/animation_url/is_active/sort_order）；GET `/api/v1/gifts/list` 返回上架礼物列表（按 tier+sort_order 排序） | 1. 迁移脚本创建表并插入 8 款 MVP 礼物种子数据<br>2. 列表只返回 is_active=true<br>3. 支持 Accept-Language 切换 name_en/name_ar<br>4. 响应时间 <50ms（加缓存） | Todo | 5h | Plan |
+| **T-00020** | App Server | Gift | SendGift 事务 + 广播 | T-00017, T-00019, T-00016 | 新增 WS 信令 `SendGift { gift_id, receiver_id, count, msg_id }`；SQLx 事务：查余额→扣发送者→加接收者魅力值→写流水→写 gift_records→Redis ZINCRBY 日/周榜；广播 `GiftReceived { sender, receiver, gift, count, effect_level, total }` 给房间所有人；发送者单独推送 BalanceUpdated | 1. 并发 20 QPS 无超扣/脏数据<br>2. 重复 msg_id 幂等返回首次结果<br>3. 余额不足返回 INSUFFICIENT_BALANCE 并回滚<br>4. 接收者离线返回 RECEIVER_UNAVAILABLE<br>5. 全链路落 4 张表 + 2 个 Redis key | Todo | 10h | Plan |
+| **T-00021** | App Server | Ranking | 魅力/财富榜单 API | T-00020 | GET `/api/v1/ranking?type=charm|wealth&period=day|week&limit=50`；读取 Redis ZSet 返回 Top N + 当前用户排名；定时任务：每日 00:00 Riyadh 切换日榜 key，每周六切换周榜 key | 1. Top 50 返回 <100ms<br>2. 返回值包含 Top3 金银铜标识字段<br>3. 当前用户未入榜时返回 rank=null<br>4. 时区切换任务可补偿执行<br>5. 旧榜归档到 ranking_archive | Todo | 6h | Plan |
+
+#### Admin Server
+
+| Task ID | 归属端 | 模块 | 任务名称 | 前置依赖 | 核心描述 | TDD 验收标准 | 状态 | 预估工时 | 负责人 |
+|---------|--------|------|----------|----------|----------|-------------|------|----------|--------|
+| **T-10013** | Admin Server | Wallet | 手动调整余额 API | T-00017, T-10012 | POST `/api/v1/admin/users/:id/wallet/adjust { amount, reason }`；事务：改 users 余额 + 写 wallet_transactions (type='admin_adjust', operator_id) + 写 admin_logs；Redis PUBLISH admin:events {type:'balance_updated', user_id, new_balance} 通知 App Server 推 WS | 1. amount 正数=加，负数=扣<br>2. reason 必填且写入日志<br>3. 导致余额<0 返回 400<br>4. 事务原子性（任一步失败整体回滚）<br>5. Redis 事件已发布 | Todo | 5h | Plan |
+| **T-10014** | Admin Server | Gift | 礼物 CRUD 管理 API | T-00019, T-10012 | `/api/v1/admin/gifts` CRUD（GET 列表含未上架 / POST 新增 / PUT 更新 / DELETE 软删）；图片/Lottie 上传走对象存储或本地静态目录；所有操作写 admin_logs | 1. 上架/下架通过 is_active 字段切换<br>2. 删除为软删（is_deleted=true）<br>3. 上传文件类型白名单校验<br>4. 价格必须 >=1<br>5. 所有写操作落 admin_logs | Todo | 6h | Plan |
+
+#### Web Admin
+
+| Task ID | 归属端 | 模块 | 任务名称 | 前置依赖 | 核心描述 | TDD 验收标准 | 状态 | 预估工时 | 负责人 | UI设计文档 |
+|---------|--------|------|----------|----------|----------|-------------|------|----------|--------|------------|
+| **T-20012** | Web | User | 余额调整弹窗 + 礼物管理页 | T-10013, T-10014, T-20007 | 用户详情页新增"调整余额"按钮→`AdjustBalanceModal`（金额/原因/确认）；新增"礼物管理"菜单页：列表 + 新增弹窗 + 编辑 + 上下架开关 + 软删 | 1. 调整成功后用户余额实时刷新<br>2. 原因必填校验<br>3. 负数显示红色二次确认<br>4. 礼物列表可筛选 tier/状态<br>5. 上传图片预览 | Todo | 8h | Plan | （Plan 阶段产出 TDS 后补） |
+
+#### Android
+
+| Task ID | 归属端 | 模块 | 任务名称 | 前置依赖 | 核心描述 | TDD 验收标准 | 状态 | 预估工时 | 负责人 | UI设计文档 |
+|---------|--------|------|----------|----------|----------|-------------|------|----------|--------|------------|
+| **T-30027** | Android | Wallet | 钱包页（余额 + 流水） | T-00018, T-30024 | 新建 `WalletScreen`：顶部大卡片显示钻石余额 + "充值"按钮（占位 Toast"即将上线"）；下方 LazyColumn 流水列表（收入绿色/支出红色 + 图标 + 时间）；WS `BalanceUpdated` 自动刷新；个人中心"钻石余额"项点击跳转进入 | 1. 余额大号金色显示<br>2. 下拉刷新拉最新余额<br>3. 流水分页加载<br>4. 收到 BalanceUpdated 事件即时更新<br>5. 空状态占位"暂无流水" | Todo | 6h | Plan | [T-30027.md](./design/android/T-30027.md) |
+| **T-30028** | Android | Gift | 礼物面板 Bottom Sheet | T-00019, T-30026 | `GiftPanelBottomSheet` Composable：顶部余额条 + 礼物网格（4列）+ 分类 Tab（热门/全部）+ 数量选择器（1/10/66/520/786/1314）+ 发送按钮；房间页 🎁 按钮点击弹出（替换 T-30026 的 Toast 占位） | 1. 面板占屏幕 55% 高度<br>2. 余额实时显示（WS 更新）<br>3. 选中礼物有金色边框<br>4. 数量按钮吉祥数档位<br>5. 余额不足时"送出"置灰 | Todo | 7h | Plan | [T-30028.md](./design/android/T-30028.md) |
+| **T-30029** | Android | Gift | 接收者选择器 | T-30028 | 礼物面板顶部横向滚动的麦位头像条：默认选中 1 号主麦；点击切换；选中项金色光圈；空麦位不显示 | 1. 显示所有在麦用户<br>2. 默认主麦<br>3. 选中高亮<br>4. 无人在麦时发送按钮禁用 + 提示<br>5. 麦位变化实时刷新 | Todo | 4h | Plan | [T-30029.md](./design/android/T-30029.md) |
+| **T-30030** | Android | Gift | SendGift 客户端 + 幂等 | T-30028, T-30029, T-00020 | 点"送出"生成 UUID msg_id → WS 发送 SendGift → 按钮 loading → 收到 GiftReceived 或错误后还原；同礼物 3s 内连击累加 count，最终只发一次；错误码对应处理（余额不足弹窗/接收者不可用 Toast） | 1. msg_id 每次唯一<br>2. 3s 连击聚合<br>3. 超时 5s 自动失败<br>4. 余额不足跳 T-30032 弹窗<br>5. 成功后面板不自动关 | Todo | 5h | Plan | [T-30030.md](./design/android/T-30030.md) |
+| **T-30031** | Android | Gift | 送礼特效播放器 + 弹幕样式 | T-30030 | 分层特效：L1 聊天区气泡（礼物图标+文字）；L2 接收者麦位金色光圈闪烁 2s；L3 全屏 Lottie 动画覆盖层（使用 airbnb/lottie-compose），动画期间可继续交互但不可点击覆盖层 | 1. L1 弹幕礼物消息金色昵称+图标+"送给 xxx x N"<br>2. L2 麦位动画 2s 后自动结束<br>3. L3 全屏动画 5-8s 可跳过<br>4. 连击礼物动画仅播一次，数量徽章更新<br>5. 接收补偿消息不回放动画 | Todo | 8h | Plan | [T-30031.md](./design/android/T-30031.md) |
+| **T-30032** | Android | Wallet | 余额不足引导弹窗 | T-30028 | `InsufficientBalanceDialog` AlertDialog：标题"钻石不足" + 当前余额 + 所需余额 + "去充值"按钮 → 跳 WalletScreen；"取消"按钮关闭 | 1. 显示当前/所需钻石<br>2. "去充值"跳钱包页<br>3. 点击外部不关闭<br>4. 关闭后礼物面板保留选中状态 | Todo | 2h | Plan | [T-30032.md](./design/android/T-30032.md) |
+| **T-30033** | Android | Ranking | 魅力/财富榜页 | T-00021, T-30018 | 新建 `RankingScreen`：顶部双 Tab（魅力/财富）+ 子 Tab（日榜/周榜）；列表项：排名+头像(Top3带金银铜光圈+Top1王冠)+昵称+钻石数；底部固定"我的排名"；入口：大厅顶部 🏆 图标 + 房间页"榜单"菜单项 | 1. 四组 Tab 数据独立加载<br>2. Top3 头像光圈颜色不同<br>3. Top1 王冠图标<br>4. 未入榜显示"未上榜，继续加油"<br>5. 下拉刷新 | Todo | 7h | Plan | [T-30033.md](./design/android/T-30033.md) |
+
+---
+
+## Phase 1 并行 Epic：E-07.5 埋点与观测性基建
+
+> **说明**：为 E-07 礼物闭环提供数据验证能力。需在 E-07 上线前完成。与 E-07 **零依赖冲突**，可完全并行。详见 [phase1_observability.md](./product/phase1_observability.md)。
+> **产品流程规范**: [business_flows.md §2.9](./product/business_flows.md)
+
+### 模块 7: 埋点与观测性基建 (E-07.5)
+
+> **依赖关系图**:
+> ```
+> T-00022 (events表+HTTP API) ──┬─► T-00023 (WS ReportEvent) ──────────┐
+>                              └─► T-10015 (Admin 查询 API) ──► T-20013 (Web 行为流Tab)
+> T-30034 (Analytics防腐层+Sentry) ─► T-30035 (EventReportClient+核心埋点+隐私弹窗)
+>                                        ↑依赖 T-00022 + T-00023
+> ```
+
+#### App Server
+
+| Task ID | 归属端 | 模块 | 任务名称 | 前置依赖 | 核心描述 | TDD 验收标准 | 状态 | 预估工时 | 负责人 |
+|---------|--------|------|----------|----------|----------|-------------|------|----------|--------|
+| **T-00022** | App Server | Analytics | 事件表 Schema + 分区 + HTTP 接收 API | T-0000B | 新建 `events` 表（id / user_id? / device_id / event_name / properties JSONB / session_id / client_ts / server_ts / app_version / os_version / locale / network_type）。按日分区（PG `PARTITION BY RANGE (server_ts)`）；新增每日凌晨 Asia/Riyadh 自动建次日分区的定时任务；提供 HTTP `POST /api/v1/events/batch { events: [...] }`（兼容未登录 Splash 阶段），异步批量写入，取 `device_id` 作主键，登录后服务端可回填 `user_id` | 1. 迁移脚本幂等，含事件表 + 首日分区<br>2. 分区自动创建任务可补偿执行<br>3. 批量写入 ≥100 events/req 耗时 <200ms<br>4. 单个事件 properties JSON 限长 8KB，超出截断并记日志<br>5. 未登录请求 user_id 为 null则允许，但 device_id 必填<br>6. JWT 中 user_id 与上报 user_id 不一致时日志告警，以 JWT 为准 | Todo | 6h | Plan |
+| **T-00023** | App Server | Analytics | WS `ReportEvent` 信令 + 写入服务 | T-00022, T-00016 | WS 新增 `ReportEvent { events: [...] }` 收到后复用 T-00022 的写入服务；被动 ACK `EventReportAck { received, failed }`；服务端 user_id 以当前 WS 连接 JWT 为准覆盖客户端来的可选 user_id；创建 `core::analytics::EventWriter` 供 HTTP 与 WS 两条通道复用 | 1. 单次 WS 最多接受 100 events，超过返回 `BATCH_TOO_LARGE` 并仍写前 100 条<br>2. WS 上报时服务端时间戳一律用 server_ts 覆盖<br>3. ACK 返回 received 与 failed 索引列表<br>4. 客户端上报 user_id 与 JWT 不一致时服务端日志告警<br>5. 与 HTTP 通道共享写入层，无重复代码 | Todo | 4h | Plan |
+
+#### Admin Server
+
+| Task ID | 归属端 | 模块 | 任务名称 | 前置依赖 | 核心描述 | TDD 验收标准 | 状态 | 预估工时 | 负责人 |
+|---------|--------|------|----------|----------|----------|-------------|------|----------|--------|
+| **T-10015** | Admin Server | Analytics | 用户行为查询 API | T-00022, T-10012 | `GET /api/v1/admin/users/:id/events?event_name=&from=&to=&page=&limit=` ；默认返回按 server_ts 倒序的事件流；只查最近 30 天（分区时窗命中）；返回格式与上报结构一致；操作入 admin_logs | 1. 时间窗超过 30 天返回 400<br>2. event_name 可多值（逗号分隔）<br>3. 分页 max limit=100<br>4. 超级管理员才能查询后台事件（`admin_*`）<br>5. 命中分区表时响应 <300ms | Todo | 4h | Plan |
+
+#### Web Admin
+
+| Task ID | 归属端 | 模块 | 任务名称 | 前置依赖 | 核心描述 | TDD 验收标准 | 状态 | 预估工时 | 负责人 | UI设计文档 |
+|---------|--------|------|----------|----------|----------|-------------|------|----------|--------|------------|
+| **T-20013** | Web | User | 用户详情页"行为流"Tab | T-10015, T-20007 | 用户详情页新增 `EventStreamTab`：时间筛选（最近 1h/24h/7d/30d/自定义）+ event_name 多选下拉 + 时间线列表（事件名 + properties 折叠 JSON + 设备信息）；支持导出 CSV（当前筛选下前 1000 条） | 1. 默认加载最近 24h<br>2. event_name 下拉从后台枚举<br>3. 无数据空状态占位<br>4. CSV 下载文件名带 user_id 与时间戳<br>5. properties JSON 支持关键字高亮 | Todo | 5h | Plan | （Plan 阶段产出 TDS 后补） |
+
+#### Android
+
+| Task ID | 归属端 | 模块 | 任务名称 | 前置依赖 | 核心描述 | TDD 验收标准 | 状态 | 预估工时 | 负责人 | UI设计文档 |
+|---------|--------|------|----------|----------|----------|-------------|------|----------|--------|------------|
+| **T-30034** | Android | Analytics | Analytics 防腐层 + Sentry 集成 | T-0000D | 新建 `core/analytics/`：`AnalyticsPort` 接口（`track(event, properties)` / `setUser(id)` / `captureException(e)`）；`impl/SentryAnalytics.kt` 包装 Sentry SDK（Self-Hosted 或 EU 区 DSN 从 BuildConfig 注入）；业务层一律通过 Hilt 注入 `AnalyticsPort`，严禁 import `io.sentry.*`；ANR/Native Crash 自动捕获；敏感字段 (手机号/JWT) 过滤器 | 1. 业务层代码中 `grep io.sentry` = 0<br>2. 模拟崩溃 Sentry Dashboard 能收到<br>3. DSN 由 `BuildConfig.SENTRY_DSN` 注入（dev/prod 区分）<br>4. 用户未同意时 Sentry 仍可用（合规豁免）<br>5. `captureException` 自动脱敏手机号 / token | Todo | 6h | Plan | 无（纯基建） |
+| **T-30035** | Android | Analytics | EventReportClient + 核心事件埋点 + 隐私弹窗 | T-30034, T-00022, T-00023, T-30002 | 新建 `core/analytics/EventReportClient`：本地 Room 队列（`event_queue`）+ 节流器（≥8 条 或 ≥2min flush）+ 优先 WS `ReportEvent`、离线时走 HTTP `POST /events/batch`；Splash 后弹出 `PrivacyConsentDialog`（同意/仅 Crash 二选一，仅 Crash 时非 Crash 事件不上报）；依照 [business_flows.md §2.9](../product/business_flows.md) 事件字典在现有 20+ 页面埋点；session_id/device_id/app_version/os_version/locale/network_type 公共字段自动注入 | 1. 队列 ≥1000 条时淘汰最旧事件<br>2. 断网 5min 后恢复，缓存事件全部上报成功<br>3. WS 在线时 WS 通道上报占比 >80%<br>4. 用户选"仅 Crash"后，Logcat 无 `track(` 实际上报日志<br>5. `Key('btn_privacy_agree')` / `Key('btn_privacy_crash_only')` 可点<br>6. 特殊字段 (手机号/JWT/精确地址) 绝不上报<br>7. 核心事件 (login_verify_success / gift_send_success / gift_send_fail / insufficient_balance_dialog_shown) 集成测试全覆盖 | Todo | 10h | Plan | [T-30035.md](./design/android/T-30035.md) |
+
+---
+
+## Phase 1.5 Epic：E-10 房间主权与管理员体系
+
+> **说明**：房主 + 管理员权限体系、观众席、创建房间升级（封面/分类/密码/公告）、踢人/禁麦/禁言/抱麦。**突破 MENA 合规下限**（女性房主保护）。详见 [phase1_room_governance.md](./product/phase1_room_governance.md)。
+> **产品流程规范**: [business_flows.md §2.8](./product/business_flows.md)
+
+### 模块 8: 房间主权与管理员体系 (E-10)
+
+> **依赖关系图**:
+> ```
+> T-00024 (rooms扩字段+治理表+迁移) ─┬─► T-00025 (创建房间升级)
+>                                   ├─► T-00026 (密码房校验)
+>                                   ├─► T-00027 (观众席列表)
+>                                   ├─► T-00028 (KickUser 信令+冷却)
+>                                   ├─► T-00029 (MuteUser 信令+双重拦截)
+>                                   └─► T-00030 (TransferAdmin/强制抱麦)
+> T-00028 + T-00029 ─► T-10016 (Admin 治理日志查询) ─► T-20014 (Web 治理日志页)
+> T-00025 ─► T-30036/T-30037 (创建房间/封面选择器)
+> T-00026 ─► T-30038 (密码房进房弹窗)
+> T-00027 ─► T-30039 (观众席) ─► T-30040 (用户操作菜单) ─► T-30041 (踢人原因弹窗)
+> T-00028 + T-00029 ─► T-30042 (被踢/被禁弹窗)
+> T-00025 + T-00030 ─► T-30043 (公告栏 + 管理员徽章)
+> T-00029 + T-00030 ─► T-30044 (禁麦/禁言 UI 反馈 + 抱麦集成)
+> ```
+
+#### App Server
+
+| Task ID | 归属端 | 模块 | 任务名称 | 前置依赖 | 核心描述 | TDD 验收标准 | 状态 | 预估工时 | 负责人 |
+|---------|--------|------|----------|----------|----------|-------------|------|----------|--------|
+| **T-00024** | App Server | Room | rooms 表扩字段 + 治理审计表迁移 | T-0000B | 迁移脚本：rooms 增 `cover_url TEXT DEFAULT ''`, `category VARCHAR(32) DEFAULT 'chat'`, `password_hash VARCHAR(60) NULL`, `announcement TEXT NULL`, `admin_user_id UUID NULL REFERENCES users(id)`；新建 `room_kick_records(id, room_id, target_user_id, operator_user_id, reason, created_at)` + `room_mute_records(id, room_id, target_user_id, operator_user_id, type, duration_sec, reason, created_at)`；平译迁移保证线上存量房间自动默认值 | 1. 迁移幂等，允许回滚<br>2. category 种子数据含 6 类 (chat/emotion/music/game/matchmaking/other)<br>3. 两张治理表均有 (room_id, created_at) 索引<br>4. 存量房间 cover_url 缺省为空不影响旧逻辑 | Todo | 4h | Plan |
+| **T-00025** | App Server | Room | 创建房间 API 升级（封面/分类/密码/公告） | T-00024 | POST `/api/v1/rooms` 请求体新增 `cover_url, category, announcement, password`（可选）；密码 6 位数字 bcrypt hash 写入 `password_hash`；封面 URL 白名单校验（MVP 仅允许 8 张预设）；公告 ≤200 字；分类枚举校验；复用现有 unique 约束（用户限一个活跃房间）；新建 PATCH `/api/v1/rooms/:id` 仅房主可改 name/announcement/category；变更后广播 `RoomInfoUpdated` | 1. 密码非 6 位数字返回 400<br>2. 非白名单封面返回 400<br>3. 公告 >200 字返回 400<br>4. 已有活跃房返回 409<br>5. PATCH 非房主返回 403<br>6. RoomInfoUpdated 广播成功 | Todo | 6h | Plan |
+| **T-00026** | App Server | Room | 密码房进房校验 + 锁定机制 | T-00025 | POST `/api/v1/rooms/:id/verify-password { password }`：bcrypt 验证，正确签发 short-live token（JWT，TTL 60s，claim `room_access`）；错误计数写 Redis `pwd_fail:{user_id}:{room_id}` INCR，=5 时 SET 锁定 Key `pwd_lock:{user_id}:{room_id}` TTL 1800；WS JoinRoom 增读 password_token 逻辑：密码房必传 token，无 token 返回 `PASSWORD_REQUIRED` | 1. 正确密码返回 token 且能通过 WS JoinRoom<br>2. 错误 5 次后任何结果直接 401 + 锁定剩余秒数<br>3. 60s 后 token 失效返回 `TOKEN_EXPIRED`<br>4. 非密码房返回 400<br>5. 并发 5 次错误尝试仅触发一次锁定 | Todo | 5h | Plan |
+| **T-00027** | App Server | Room | 观众席列表 API（含角色标签） | T-00024, T-00016 | GET `/api/v1/rooms/:id/members?page=1&limit=20`：从 `RoomManager` 内存读成员 → 批量查 users 补头像/昵称 → 复合 `role` 字段（owner/admin/member）+ `mic_slot`（如在麦）+ `joined_at`；麦上用户置顶，观众按 joined_at 倒序 | 1. 100 人房间耗时 <150ms<br>2. 分页边界（page=0/超界）返回空数组<br>3. 角色优先级 owner > admin > member<br>4. 麦上用户始终置顶无论进房时间<br>5. role='admin' 仅在 admin_user_id 匹配时返回 | Todo | 5h | Plan |
+| **T-00028** | App Server | Governance | WS `KickUser` 信令 + 10min 冷却 | T-00024, T-00027 | WS 新增 `KickUser { room_id, target_user_id, reason }` 信令：强事务（1) 权限校验（操作者=owner或admin 且 target≠owner） 2) Redis SETEX `kicked:{room_id}:{user_id}` 600 reason 3) INSERT room_kick_records 4) RoomManager 移除 + 若在麦自动下麦 5) 广播 UserKicked仅给目标 + UserLeft 给房间 6) 广播 MicLeft 如在麦则额外）；JoinRoom 处先查冷却 Key返回 `KICKED_COOLDOWN { remaining_sec }` | 1. 非权限返回 `PERMISSION_DENIED`<br>2. 管理员踢房主返回 `CANNOT_KICK_OWNER`<br>3. 10min 内重进返回 `KICKED_COOLDOWN`<br>4. 踢麦上用户同步广播 MicLeft<br>5. room_kick_records 每次踢人均有一行<br>6. 并发 3 个管理员同时踢同一人仅成功一次 | Todo | 7h | Plan |
+| **T-00029** | App Server | Governance | WS `MuteUser`/`UnmuteUser` 信令 + 双重拦截 | T-00024, T-00027 | `MuteUser { room_id, target_user_id, type: 'mic'\|'chat', duration_sec }`：权限校验 + SETEX `{mic|chat}_muted:{room_id}:{user_id}` + INSERT room_mute_records + 若 type=mic 且在麦强制下麦；广播 UserMuted；`UnmuteUser` 对应删除键 + 广播 `UserMuted { duration_sec: 0 }`；**SendMessage 前置校验** chat_muted:*—命中则返回 CHAT_MUTED；**TakeMic 前置校验** mic_muted:* | 1. type=mic 时在麦用户自动下麦 + MicLeft 广播<br>2. 禁言用户 SendMessage 返回 CHAT_MUTED<br>3. 禁麦用户 TakeMic 返回 MIC_MUTED<br>4. duration_sec 到期后 Redis Key 自动过期（TTL 验证）<br>5. UnmuteUser 仅 owner/admin 可发<br>6. 送礼物不受禁麦/禁言影响（见权限矩阵） | Todo | 6h | Plan |
+| **T-00030** | App Server | Governance | WS `TransferAdmin` + `ForceTakeMic`/`ForceLeaveMic` | T-00024, T-00027 | `TransferAdmin { room_id, target_user_id, action: 'assign'\|'revoke' }`：仅房主可发，assign 时若已有管理员先隐式 revoke 旧管理员；UPDATE rooms.admin_user_id；广播 AdminChanged。`ForceTakeMic { room_id, target_user_id, slot_index }`：owner/admin 可发，校验目标非禁麦 + 麦位空闲 + 广播 MicTaken { forced_by }。`ForceLeaveMic { room_id, target_user_id }`：owner/admin 可发，广播 MicLeft { forced_by } | 1. 管理员试图 TransferAdmin 返回 PERMISSION_DENIED<br>2. TransferAdmin assign 新管理员时旧管理员自动卸任<br>3. ForceTakeMic 目标拒绝麦元权限后自动发 MicLeave（客户端负责）<br>4. ForceLeaveMic 非麦上返回 MIC_NOT_FOUND<br>5. AdminChanged 广播所有房间成员<br>6. 管理员不能卸任房主 | Todo | 7h | Plan |
+
+#### Admin Server
+
+| Task ID | 归属端 | 模块 | 任务名称 | 前置依赖 | 核心描述 | TDD 验收标准 | 状态 | 预估工时 | 负责人 |
+|---------|--------|------|----------|----------|----------|-------------|------|----------|--------|
+| **T-10016** | Admin Server | Governance | 房间治理日志查询 API | T-00028, T-00029, T-10012 | `GET /api/v1/admin/governance/logs?room_id=&target_user_id=&operator_user_id=&type=kick\|mute&from=&to=&page=&limit=`：UNION 查询 room_kick_records + room_mute_records，补齐用户昵称 / 房间名 / 类型标签返回；支持申诉导出 CSV | 1. 多条件索引命中耗时 <300ms<br>2. type=kick 返回不包含 mute 记录<br>3. operator 登记 admin_logs<br>4. max limit=100<br>5. CSV 导出正确编码 UTF-8 BOM | Todo | 4h | Plan |
+
+#### Web Admin
+
+| Task ID | 归属端 | 模块 | 任务名称 | 前置依赖 | 核心描述 | TDD 验收标准 | 状态 | 预估工时 | 负责人 | UI设计文档 |
+|---------|--------|------|----------|----------|----------|-------------|------|----------|--------|------------|
+| **T-20014** | Web | Governance | 房间治理日志查询页 | T-10016, T-20007 | 新菜单 `/governance/logs`：筛选栏（房间/操作者/目标/类型/时间区间）+ 表格（时间/类型/房间/操作者/目标/原因/时长）+ CSV 导出 + 分页；用户详情页可跳转到此页预填目标 user_id | 1. 默认查最近 7 天<br>2. type 下拉 [全部/踢出/禁麦/禁言]<br>3. 操作者点击可跳转该管理员详情页<br>4. CSV 导出当前筛选结果<br>5. 空数据空状态占位 | Todo | 5h | Plan | （Plan 阶段产出 TDS 后补） |
+
+#### Android
+
+| Task ID | 归属端 | 模块 | 任务名称 | 前置依赖 | 核心描述 | TDD 验收标准 | 状态 | 预估工时 | 负责人 | UI设计文档 |
+|---------|--------|------|----------|----------|----------|-------------|------|----------|--------|------------|
+| **T-30036** | Android | Room | 创建房间表单升级（分类/公告/密码） | T-00025, T-30007 | `CreateRoomScreen` 重构：房名 + 封面选择器（嵌入 T-30037） + 分类下拉（6 项） + 公告 TextField（200 字计数） + 密码 Switch + 6 位数字密码输入框（Switch 开启时显示）；提交前本地校验 | 1. 未填房名按钮置灰<br>2. 密码 开关关闭时密码框隐藏且不提交 password<br>3. 密码非 6 位数字时提交按钮置灰<br>4. 公告计数 ≥200 置红<br>5. `Key('btn_submit_create_room')` 可测<br>6. 创建成功后自动 JoinRoom 进入 | Todo | 7h | Plan | [T-30036.md](./design/android/T-30036.md) |
+| **T-30037** | Android | Room | 房间封面选择器（8 张预设） | T-30036 | `CoverPickerBottomSheet`：3列网格展示 8 张中东风预设封面（沙漠/清真寺/烛灯/鹰/玫瑰/游艇/太阳/书法）；选中金色边框；首次进入默认第一张 | 1. 8 张预设归在内置 drawable<br>2. 选中状态有金色 2dp 边框<br>3. `Key('cover_option_0')`~`cover_option_7'` 可测<br>4. 确认后返回 cover_url 给父页 | Todo | 3h | Plan | [T-30037.md](./design/android/T-30037.md) |
+| **T-30038** | Android | Room | 密码房进房弹窗 | T-00026, T-30007 | 大厅房间卡片点击时如果 `has_password=true` 则弹 `PasswordInputDialog`（标题 + 6 位分格输入框 + 错误提示剧本）；验证成功拿 token 发 JoinRoom | 1. 6 位输完自动提交<br>2. 错误显示剩余次数红字剧本<br>3. 锁定时显示"30 分钟后重试"<br>4. `Key('password_input')` + `Key('btn_submit_password')`<br>5. 返回键关闭弹窗不进房 | Todo | 3h | Plan | [T-30038.md](./design/android/T-30038.md) |
+| **T-30039** | Android | Room | 观众席 Bottom Sheet | T-00027, T-30018 | `AudienceBottomSheet`：下拉展开占屏 70%；上方显示总人数；列表：头像 + 昵称 + 角色徽章 + 在线时长；麦上用户置顶分组标头"麦上"，观众组标头"观众 (N)"；LazyColumn 分页加载（每次 20）；点击用户弹出 T-30040 | 1. 空记录双空状态文案<br>2. 100 人房间滚动不卡顿（目测/帧率）<br>3. WS `UserJoined`/`UserLeft` 实时刷新列表<br>4. `Key('audience_sheet')` + `Key('audience_item_$userId')`<br>5. 麦上用户始终置顶 | Todo | 8h | Plan | [T-30039.md](./design/android/T-30039.md) |
+| **T-30040** | Android | Room | 用户操作菜单 BottomSheet（动态权限） | T-30039 | `UserActionBottomSheet`：根据（我角色, 目标角色）组合添减菜单项【抱上麦 / 禁麦 / 禁言 / 踢出 / 任命管理员 / 卸任 / 查看资料(占位) / 举报】；不可用项不渲染；权限矩阵严格对齐 [phase1_room_governance.md §2.3](../product/phase1_room_governance.md) | 1. 普通用户看到的仅 [查看资料 举报]<br>2. 房主看另一普通用户时有 5 项操作<br>3. 管理员看房主时仅显示 [查看资料 举报]<br>4. 什任管理员项点击后弹确认 Dialog<br>5. `Key('user_action_$actionType')` 可测 | Todo | 6h | Plan | [T-30040.md](./design/android/T-30040.md) |
+| **T-30041** | Android | Governance | 踢人原因选择弹窗 | T-30040, T-00028 | `KickReasonDialog`：4 预设原因单选按钮 [骚扰/刷屏/辱骂/其他] + 自定义 TextField（其他为必填）；确认后 WS KickUser；不可外部点击关闭 | 1. 默认选中"骚扰"<br>2. 选"其他"未填自定义确认按钮置灰<br>3. 成功后关闭 + Toast "已踢出"<br>4. 失败弹错误原因<br>5. `Key('kick_reason_$index')` + `Key('btn_confirm_kick')` | Todo | 3h | Plan | [T-30041.md](./design/android/T-30041.md) |
+| **T-30042** | Android | Governance | 被踢/被禁提示弹窗 | T-00028, T-00029 | 顶层 `UserKickedDialog`：收到 `UserKicked` 时全屏弹窗显示"你已被移出房间，原因：XXX，10 分钟后可再次进入" + [知道了] → 自动回大厅。`UserMutedDialog`：收到 `UserMuted` 时 Toast "你已被禁{麦\|言} N 分钟" + 底部 Chip 倒计时显示直到解除 | 1. UserKicked 弹窗 `Key('dialog_kicked')` 可见<br>2. 确认后大厅进房按钮灰色 10min（本地 countdown）<br>3. UserMuted Chip `Key('mute_countdown')` 倒计时准确<br>4. 解除广播后 Chip 自动消失<br>5. 多条 UserMuted 按最新一条覆盖倒计时 | Todo | 4h | Plan | [T-30042.md](./design/android/T-30042.md) |
+| **T-30043** | Android | Room | 公告栏 + 管理员徽章 + RoomInfoUpdated | T-00025, T-00030, T-30018 | 进房后首次弹 `AnnouncementPopup`（有公告时）；房间顶部其它位置持续显示 📄 图标点击再弹；麦位/观众席/弹幕昵称旁渲染角色徽章 👑房主 / 🛡️管理员；WS `AdminChanged` / `RoomInfoUpdated` 实时刷新 | 1. 首次弹后 24h 内同一用户再进房不再自动弹<br>2. 公告为空时顶部无图标<br>3. 房主徽章金色王冠<br>4. 管理员徽章金色盾牌<br>5. AdminChanged 到达 500ms 内全局徽章刷新<br>6. `Key('announcement_popup')` + `Key('btn_show_announcement')` | Todo | 5h | Plan | [T-30043.md](./design/android/T-30043.md) |
+| **T-30044** | Android | Governance | 禁麦/禁言 UI 反馈 + 抱麦集成 | T-00029, T-00030, T-30042 | 自身被禁麦时麦位"+"按钮置灰且点击 Toast；自身被禁言时聊天输入框 enabled=false + 占位文本 "你已被禁言 N 分钟"；被 `ForceTakeMic` 时自动请求麦克风权限，成功则进麦，拒绝则自动发 MicLeave；被 `ForceLeaveMic` 时自动停止推流显示 Toast "你已被抱下麦" | 1. 禁麦用户点麦位"+" 无网络请求<br>2. 禁言用户输入框 disabled 且提交按钮置灰<br>3. 被抱上麦后如未授权麦克风，自动完成 MicLeave<br>4. 抱下麦后本地麦元状态同步为离线<br>5. `Key('chat_input')` disabled 可测 | Todo | 6h | Plan | [T-30044.md](./design/android/T-30044.md) |
+
+---

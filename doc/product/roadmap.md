@@ -56,34 +56,45 @@
 
 ## Phase 1: 核心营收闭环 (预计 2 个月)
 
-**Android 端**:
-- [ ] 虚拟礼物系统 (10+ 款礼物，动画特效)
-- [ ] 虚拟货币充值 (Google Play 支付)
-- [ ] 贵族体系购买 (3 级: 骑士/子爵/伯爵)
-- [ ] 魅力值/财富值排行榜
-- [ ] 主播收益查看
+> **执行顺序**：E-07 礼物闭环 + E-07.5 埋点基建 并行→ E-10 房间治理 → E-08 真支付 → E-09 贵族
 
-**App Server 端**:
-- [ ] 礼物配置与赠送逻辑（强事务）
-- [ ] 充值订单处理（Google Play 回调验证）
-- [ ] 虚拟货币钱包系统（钻石/金币）
-- [ ] 贵族权限系统
-- [ ] 排行榜计算与缓存（Redis）
+### E-07 虚拟礼物与钱包闭环 MVP 🟡进行中
+详见 [phase1_gift_economy.md](./phase1_gift_economy.md)
 
-**Admin Server 端**:
-- [ ] 礼物素材管理 API（CRUD + 上传）
-- [ ] 充值订单查询与对账 API
-- [ ] 手动充值/扣减 API（运营补偿）
-- [ ] 贵族配置管理 API
-- [ ] 提现审核与打款 API
+**Android**: 钱包页 / 礼物面板 / 接收者选择 / 赠礼客户端 / 三层特效 / 余额不足引导 / 榜单页
+**App Server**: 钱包 schema + WS / 礼物配置 + 列表 API / SendGift 强事务 / 榜单
+S
+**Admin Server**: 手动调整余额 / 礼物 CRUD
+**Web**: 余额调整弹窗 + 礼物管理页
 
-**Web 端**:
-- [ ] 礼物素材管理页面
-- [ ] 充值订单查询与对账
-- [ ] 金币/钻石后台充值/扣减
-- [ ] 贵族配置管理
-- [ ] 提现审核与打款
-- [ ] 财务报表展示
+### E-07.5 埋点与观测性基建 🟡设计中
+详见 [phase1_observability.md](./phase1_observability.md)
+
+**Android**: Sentry 防腐层 + Analytics SDK + 核心事件埋点 + 隐私弹窗
+**App Server**: 事件接收 API + WS ReportEvent 信令 + PostgreSQL 分区表
+**Admin Server**: 用户行为查询 API
+**Web**: 用户详情页“行为流” Tab
+
+> ⚠️ **关键**：E-07 上线前 E-07.5 必须完成，否则营收无数据验证。
+
+### E-10 房间主权与管理员体系 🟡设计中
+详见 [phase1_room_governance.md](./phase1_room_governance.md)
+
+**Android**: 创建房间升级 / 密码房进房 / 观众席 BottomSheet / 用户操作菜商 / 打踢禁麦禁言 / 管理员徽章 / 被踢/被禁弹窗 / 公告栏
+**App Server**: rooms 表扩字段 + KickUser/MuteUser/TransferAdmin/ForceTakeMic WS 信令 + 审计表
+**Admin Server**: 房间治理日志查询
+**Web**: 房间治理日志查询页
+
+### E-08 Google Play 真支付 🔴 待开发
+**Android**: Billing Library 接入 / 充值页 / 订单状态
+**App Server**: 订单表 / 回调验签 / 充值入账
+**Admin Server**: 订单查询与对账 / 手动补单
+**Web**: 订单查询页 / 财务报表
+
+### E-09 贵族体系 🔴 待开发
+**Android**: 贵族购买页 / 特权说明 / 进场特效
+**App Server**: 贵族级别配置 / 权限校验 / 过期推送
+**Web**: 贵族配置管理
 
 ---
 
