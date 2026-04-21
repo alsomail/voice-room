@@ -102,7 +102,7 @@ fun RoomBottomBar(
             modifier = Modifier
                 .weight(1f)
                 .testTag("chat_input_field"),
-            placeholder = { Text("说点什么...") },
+            placeholder = "说点什么...",
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
             keyboardActions = KeyboardActions(
                 onSend = { if (canSend) onSendMessage(inputText) }
