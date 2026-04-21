@@ -1,7 +1,7 @@
 # Voice Room 产品文档总索引
 
-> **版本**: v0.7  
-> **更新日期**: 2026-04-21  
+> **版本**: v0.8  
+> **更新日期**: 2025-06-27  
 > **负责人**: PM Agent  
 > **目标市场**: MENA (Middle East & North Africa) 中东北非
 
@@ -45,7 +45,7 @@
 | E-04: 房间内核心功能 | Phase 0 | ✅ 已完成 | T-00011~T-00016, T-00011B~T-00011C, T-10007~T-10012, T-20006~T-20009, T-30008~T-30017 |
 | **E-05: 中东黑金主题与 App 壳体** | **Phase 0.5** | ✅ 已完成 (9/9) | T-30018~T-30026 (Android 9 Tasks) |
 | **E-06: Web 管理端增强** | **Phase 0.5** | ✅ 已完成 (2/2) | T-20010 ✅, T-20011 ✅ |
-| **E-07: 虚拟礼物与钱包闭环 MVP** | **Phase 1** | 🟡 **进行中 (3/15)** | T-00017 ✅（钱包 Schema）, T-00018 ✅（余额 API + WS 推送）, T-00019 ✅（礼物配置表+列表API）, T-00020~T-00021, T-10013~T-10014, T-20012, T-30027~T-30033 |
+| **E-07: 虚拟礼物与钱包闭环 MVP** | **Phase 1** | 🟡 **进行中 (4/15)** | T-00017 ✅（钱包 Schema）, T-00018 ✅（余额 API + WS 推送）, T-00019 ✅（礼物配置表+列表API）, T-00020 ✅（SendGift 事务+广播）, T-00021, T-10013~T-10014, T-20012, T-30027~T-30033 |
 | **E-07.5: 埋点与观测性基建** | **Phase 1 并行** | 🟡 **设计中 (0/~6)** | T-00022~T-00023, T-10015, T-20013, T-30034~T-30035 （待拆解） |
 | **E-10: 房间主权与管理员体系** | **Phase 1.5** | 🟡 **设计中 (0/~18)** | 待拆解，预计 Server 7 + AdminServer 1 + Web 1 + Android 9 |
 | E-08: Google Play 真支付 | Phase 1 | 🔴 待开发 | 待拆解（依赖 E-07） |
@@ -63,8 +63,8 @@
 ---
 
 **文档变更历史**:
-- 2025-07-15: v0.8，T-00018 DoD 完成，E-07 Epic 进度更新为 2/15（T-00017 ✅ + T-00018 ✅）；Server 架构文档新增 wallet.md 子模块，Protocol 协议文档 websocket_signals.md §6.4.1 BalanceUpdated 已完整同步 msg_id 字段
-- 2026-04-21: v0.7，新增 E-07.5 埋点与观测性基建（与 E-07 并行）、E-10 房间主权与管理员体系（Phase 1.5）；新增方向总纲文档 `phase1_observability.md` / `phase1_room_governance.md`；`competitors.md` 追加附录 B（房间治理竞品）；`business_flows.md` 追加 §2.8（房间治理流程）/§2.9（埋点事件字典）
+- 2025-06-27: v0.8，T-00020 DoD 完成，E-07 Epic 进度更新为 4/15（T-00017 ✅ + T-00018 ✅ + T-00019 ✅ + T-00020 ✅）；Server 架构文档新增 gift.md 子模块（T-00019 + T-00020），Protocol 协议文档 websocket_signals.md §6.4.2 SendGift 错误码与 §6.4.3 GiftReceived payload 已同步
+- 2025-07-15: v0.7，T-00018 DoD 完成，E-07 Epic 进度更新为 2/15（T-00017 ✅ + T-00018 ✅）；Server 架构文档新增 wallet.md 子模块，Protocol 协议文档 websocket_signals.md §6.4.1 BalanceUpdated 已完整同步 msg_id 字段
 - 2026-04-21: v0.6，启动 E-07 虚拟礼物与钱包闭环 MVP；新增 `phase1_gift_economy.md` 方向总纲；`competitors.md` 追加附录 A（礼物UX/榜单/MENA文化）；`business_flows.md` 追加 §2.7 钱包礼物闭环细化流；Tasks.md 新增 15 个 Task（T-00017~T-00021 / T-10013~T-10014 / T-20012 / T-30027~T-30033）
 - 2026-05-16: v0.5，T-20011 活水房间监控增强完成，E-06 Epic 状态更新为 ✅ 已完成 (2/2)
 - 2026-04-20: v0.4，文档架构重构，将原 `product.md` 拆分为索引 + 9 个模块化子文件

@@ -23,7 +23,7 @@ Server 端基于 Rust + Axum 构建。启动骨架（配置、日志、健康检
 - 🔌 [WebSocket 模块架构](./websocket.md) - WS 握手鉴权（T-00011）、`ConnectionRegistry`、心跳检测、单连接生命周期与 `connection_id` 解耦设计。
 - 🏠 [房间运行时模块](./room_runtime.md) - `src/room/` 模块说明：`RoomManager`（DashMap 全局状态）、`RoomState`（成员表 + 麦位 + `banned_mics` + `muted_users` + `processed_msg_ids`）、`handle_join_room` WS 信令处理（T-00012）、`do_leave_room` / `handle_leave_room` 离开房间逻辑（T-00013）、`take_mic_slot` / `handle_take_mic` 上麦逻辑（T-00014）、`leave_mic_slot` / `handle_leave_mic` 下麦逻辑（T-00015）、`filter_content` 敏感词净化 / `handle_send_message` 文本消息广播（T-00016）。
 - 💰 [Wallet 模块架构](./wallet.md) - 余额查询 API（T-00018）、流水分页查询、`WalletService.apply_delta` 原子事务支持、`BalanceBroadcaster` Redis PubSub 跨进程推送、WS `BalanceUpdated` 信令设计。
-- 🎁 [礼物模块架构](./gift.md) - 礼物配置表与列表 API（T-00019）、国际化支持（Accept-Language）、缓存策略（60s 进程内存）、`GiftModel` 数据模型。
+- 🎁 [礼物模块架构](./gift.md) - 礼物配置表与列表 API（T-00019）、国际化支持（Accept-Language）、缓存策略（60s 进程内存）、`GiftModel` 数据模型；SendGift 事务编排（T-00020）、6 步强事务流程、msg_id 幂等、并发超扣防护、房间广播与发送者推送。
 
 ## 三、 当前能力全景与状态 (Capability Matrix)
 > 状态枚举：🟢 已完成 | 🟡 开发/调试中 | 🔴 待开发
@@ -138,6 +138,26 @@ Server 端基于 Rust + Axum 构建。启动骨架（配置、日志、健康检
     2. **[MEDIUM] G04 测试覆盖**：建议在 service 单元测试补充含 `is_active=false`/`is_deleted=true` 礼物的验证场景
     3. **[LOW] version 同步**：多语言各自 miss 缓存可能生成不同时间戳，建议基于数据最新 `updated_at` 统一生成
     4. **[LOW] UUID 稳定性**：FakeGiftService 每次生成新 UUID，与缓存命中后返回相同 id 的行为不一致
+- 🟢 **礼物模块 - SendGift 事务 + 广播**（T-00020）：`src/modules/gift/send_gift.rs` + `app/server/migrations/006_create_gift_records.sql`
+  - **数据库设计**：新建 `gift_records` 表（id, sender_id, receiver_id, room_id, gift_id, count, total_price, msg_id, created_at）；`users` 表新增 `charm_balance BIGINT DEFAULT 0 CHECK(>=0)` 字段；幂等约束 `UNIQUE (sender_id, msg_id)`
+  - **6 步强事务**：（1）幂等检查 SELECT FROM gift_records WHERE (sender_id, msg_id)；（2）数据查询（发送者房间、接收者麦位、礼物信息）；（3）BEGIN TX → 扣发送者余额（SELECT FOR UPDATE）→ 加接收者魅力值 → 写 gift_records → 更新流水 ref_id → COMMIT；（4）Redis ZINCRBY 日/周榜（非关键路径）；（5）房间广播 GiftReceived；（6）发送者推送 BalanceUpdated
+  - **WS 信令**：`SendGift { gift_id, receiver_id, count, msg_id }` (C→S) → `SendGiftResult { code, gift_record_id, total_price }` (S→C)；`GiftReceived { sender, receiver, gift, count, total_price }` 房间广播；`BalanceUpdated { delta, reason: gift_send, ref_id }` 发送者推送
+  - **幂等设计**：业务层先 SELECT 命中返回首次结果不重发；DB UNIQUE 约束兜底（并发同时到达）
+  - **并发超扣防护**：`WalletService::apply_delta` SELECT FOR UPDATE 行锁 + UNIQUE 约束双重防线；SG10 验证 20 QPS 无超扣
+  - **错误码**：40001 (INVALID_COUNT)、40002 (MISSING_PARAMS)、40290 (INSUFFICIENT_BALANCE)、40400 (SENDER_NOT_IN_ROOM)、40402 (GIFT_NOT_AVAILABLE)、40403 (RECEIVER_UNAVAILABLE)
+  - **GiftReceived 完整 payload**：sender/receiver 包含 user_id/nickname/avatar；gift 包含 id/code/name/icon_url/animation_url/effect_level
+  - **Rust 模型**：`GiftRecordModel` 从 `app/shared/models/gift_record.rs` 导出；`UserModel` 新增 `charm_balance: i64` 字段；`GiftSendService` 编排 6 步流程
+  - **架构设计**：`send_gift.rs` 包含 `GiftSendService::send()` 核心事务逻辑、`execute_transaction()` 原子操作、`build_gift_received_msg()` 广播构造；`ranking.rs` 提供 `increment_zscore()` ZINCRBY 封装（4 个榜单）
+  - **性能目标**：发送延迟 <500ms；Redis 失败不阻断主路径（仅记 warn）
+  - **测试覆盖**：集成测试 SG01~SG12（12 个），单元测试 SGU01~SGU08（8 个）+ ranking RK01~RK05（5 个）+ GiftRecord 模型（5 个）；共 258 单元 + 21 gift_list + 12 send_gift 集成 = 309 total，全部通过，Clippy 零警告
+  - **完成时间**：2025-06-25（TDD）→ 2025-06-26（Review Round 1 返工）→ 2025-06-27（Review Round 2 通过）
+  - **Review 修复记录**（Round 2 通过）：
+    1. **[C-1]** ranking.rs charm_day 双倍计数 Bug — 删除 zadd 改为纯 zincr；SG04 改精确断言
+    2. **[H-1]** GiftReceived 缺失字段 — 补全 sender/receiver nickname+avatar，gift code/name/icon_url/animation_url/effect_level
+    3. **[H-2]** Idempotent 死代码 — 删除 enum 变体及 handler match 臂
+    4. **[H-3]** protocol.md 错误码草稿值 — 更新为实现值（40001/40002/40290/40400/40402/40403）
+    5. **[M-1]** try_send 静默丢弃 — 改为 send().await，有背压，channel 关闭记 warn
+    6. **[L-1]** SG08 测试污染 — 用专用测试礼物隔离数据
 - 🔴 支付业务域
 
 ### 遗留技术债 (Tech Debt)
