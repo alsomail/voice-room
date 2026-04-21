@@ -8,6 +8,7 @@ use crate::{
     infrastructure::{logging::request_context_middleware, redis_store::SmsCodeStore, third_party::sms::SmsProvider},
     modules::{
         auth::{auth_routes, repository::UserRepository, service::AuthService},
+        gift::{gift_routes, service::GiftServicePort},
         room::{repository::RoomRepository, room_routes, RoomService},
         wallet::{service::WalletServicePort, wallet_routes},
     },
@@ -29,9 +30,12 @@ pub struct AppState {
     pub room_manager: Arc<RoomManager>,
     /// 钱包服务（余额查询、流水列表）
     pub wallet_service: Arc<dyn WalletServicePort>,
+    /// 礼物配置服务（列表查询 + 内存缓存）
+    pub gift_service: Arc<dyn GiftServicePort>,
 }
 
 impl AppState {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         user_repo: Arc<dyn UserRepository>,
         code_store: Arc<dyn SmsCodeStore>,
@@ -40,6 +44,7 @@ impl AppState {
         room_repo: Arc<dyn RoomRepository>,
         stats_service: Arc<dyn StatsPort>,
         wallet_service: Arc<dyn WalletServicePort>,
+        gift_service: Arc<dyn GiftServicePort>,
     ) -> Self {
         let auth_service = Arc::new(AuthService::new(
             user_repo,
@@ -56,6 +61,7 @@ impl AppState {
             stats_service,
             room_manager: Arc::new(RoomManager::new()),
             wallet_service,
+            gift_service,
         }
     }
 
@@ -65,6 +71,7 @@ impl AppState {
             redis_store::FakeCodeStore, third_party::sms::MockSmsProvider,
         };
         use crate::modules::auth::repository::FakeUserRepository;
+        use crate::modules::gift::service::FakeGiftService;
         use crate::modules::room::FakeRoomRepository;
         use crate::modules::wallet::service::FakeWalletService;
         use crate::stats::FakeStatsService;
@@ -76,6 +83,7 @@ impl AppState {
             Arc::new(FakeRoomRepository::default()),
             Arc::new(FakeStatsService::default()),
             Arc::new(FakeWalletService),
+            Arc::new(FakeGiftService),
         )
     }
 
@@ -86,6 +94,7 @@ impl AppState {
             redis_store::FakeCodeStore, third_party::sms::MockSmsProvider,
         };
         use crate::modules::auth::repository::FakeUserRepository;
+        use crate::modules::gift::service::FakeGiftService;
         use crate::modules::wallet::service::FakeWalletService;
         use crate::stats::FakeStatsService;
         Self::new(
@@ -96,6 +105,7 @@ impl AppState {
             room_repo,
             Arc::new(FakeStatsService::default()),
             Arc::new(FakeWalletService),
+            Arc::new(FakeGiftService),
         )
     }
 
@@ -109,6 +119,7 @@ impl AppState {
             redis_store::FakeCodeStore, third_party::sms::MockSmsProvider,
         };
         use crate::modules::auth::repository::FakeUserRepository;
+        use crate::modules::gift::service::FakeGiftService;
         use crate::modules::room::FakeRoomRepository;
         use crate::stats::FakeStatsService;
         Self::new(
@@ -119,6 +130,7 @@ impl AppState {
             Arc::new(FakeRoomRepository::default()),
             Arc::new(FakeStatsService::default()),
             wallet_service,
+            Arc::new(FakeGiftService),
         )
     }
 }
@@ -130,6 +142,7 @@ pub fn build_app(state: AppState) -> Router {
         .merge(auth_routes())
         .merge(room_routes())
         .merge(wallet_routes())
+        .merge(gift_routes())
         .layer(middleware::from_fn(request_context_middleware))
         .with_state(state)
 }

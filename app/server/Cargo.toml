@@ -32,3 +32,16 @@ futures-util = "0.3"
 
 [dev-dependencies]
 tower = "0.5"
+
+# 集成测试需要 test-utils feature（暴露 Fake 类型和 AppState::for_test*）
+[[test]]
+name = "gift_list_test"
+required-features = ["test-utils"]
+
+[[test]]
+name = "wallet_api_test"
+required-features = ["test-utils"]
+
+[[test]]
+name = "wallet_schema_test"
+required-features = ["test-utils"]

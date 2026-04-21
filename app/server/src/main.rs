@@ -12,6 +12,7 @@ use voice_room_server::{
     },
     modules::{
         auth::repository::PgUserRepository,
+        gift::service::GiftService,
         room::repository::PgRoomRepository,
         wallet::{broadcaster::BalanceBroadcaster, service::WalletService},
     },
@@ -70,6 +71,7 @@ async fn main() -> anyhow::Result<()> {
             256,
         );
     let wallet_service = Arc::new(WalletService::new(pool.clone(), balance_tx));
+    let gift_service = Arc::new(GiftService::new_with_pool(pool.clone()));
 
     let state = AppState::new(
         Arc::new(PgUserRepository::new(pool.clone())),
@@ -79,6 +81,7 @@ async fn main() -> anyhow::Result<()> {
         Arc::new(PgRoomRepository::new(pool)),
         stats_service,
         wallet_service,
+        gift_service,
     );
 
     // 启动 BalanceBroadcaster（HIGH-2：同时监听本进程 mpsc channel 和 Redis PubSub）
