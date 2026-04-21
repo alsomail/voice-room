@@ -19,6 +19,7 @@
 | 5 | [websocket_signals.md](websocket_signals.md) | WebSocket 信令格式（预留） | §六 |
 | 6 | [data_models.md](data_models.md) | users 表、Redis 验证码存储、admins 表、admin_logs 表 | §七 |
 | 7 | [providers.md](providers.md) | SMS Provider、RTC Provider 配置模型 | §八 |
+| 8 | [ranking_api.md](ranking_api.md) | 魅力/财富榜单查询、Top N + 当前用户排名、奖牌字段、时区切换 | §九 |
 
 ---
 
@@ -42,3 +43,4 @@
 - 2026-04-23: v0.8 — 新增 §4.5 Admin 房间详情接口（T-10005）
 - 2026-04-24: v0.9 — 新增 §4.6 Admin 强制关闭房间（T-10006）
 - 2026-04-20: 拆分为子文件结构
+- 2026-04-22: v1.0 — 新增 §九 ranking_api.md 榜单查询接口（T-00021），包含 GET /api/v1/ranking 完整协议、time zone 切换说明、Redis key 格式
