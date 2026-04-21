@@ -12,7 +12,7 @@
 ## 一、 架构概述
 当前 Web 端定位为 **B 端后台管理系统（Admin Web）**，面向运营人员和客服，通过 VPN 访问 Admin Server。
 技术栈：React + Vite + TypeScript + Ant Design + Zustand。
-已完成 Vite 工程脚手架与基础环境配置、管理员登录页 UI（T-20001）、登录逻辑与路由守卫（T-20002）、数据看板首页（T-20003）、房间管理页面（T-20004）、房间详情弹窗（T-20005）、用户管理页面（T-20006）、用户详情抽屉（T-20007）、封禁对话框（T-20008）、操作日志页面（T-20009）。
+已完成 Vite 工程脚手架与基础环境配置、管理员登录页 UI（T-20001）、登录逻辑与路由守卫（T-20002）、数据看板首页（T-20003）、房间管理页面（T-20004）、房间详情弹窗（T-20005）、用户管理页面（T-20006）、用户详情抽屉（T-20007）、封禁对话框（T-20008）、操作日志页面（T-20009）、解封弹窗（T-20010）。
 **重要**：Web 端只通过 HTTP 与 Admin Server 通信，不涉及 WebSocket、RTC、IM 等实时通信能力。
 
 ## 二、 子模块索引 (Module Router)
@@ -39,6 +39,7 @@
   - `src/pages/users/UserDetailDrawer.tsx` — `UserDetailDrawer` 组件：Ant Design Drawer（`destroyOnClose={true}`）展示用户详情（头像/手机号/昵称/金币余额/VIP等级/状态/注册时间）及 [封禁]/[解封] 操作按钮，点击 [封禁] 打开 `BanModal`（T-20007 · T-20008）
   - `src/pages/users/useUserDetail.ts` — `useUserDetail(userId)` Hook：监听 userId 变化，调用 `adminGetUserDetail`，含 AbortController 防竞态，返回 `{ detail, loading, error }`（T-20007）
   - `src/pages/users/BanModal.tsx` — `BanModal` 组件：Ant Design Modal 封禁对话框；表单含封禁时长 Select（1天/7天/30天/永久）、封禁原因 Select（违规言论/骚扰用户/欺诈行为/其他）、备注 TextArea（可选）；提交前 `Modal.confirm` 二次确认；`isConfirming` ref 并发防护，防止重复提交；成功后回调 `onSuccess` 触发详情刷新（T-20008）
+  - `src/pages/users/UnbanModal.tsx` — `UnbanModal` 组件：与 `BanModal` 对称的解封确认弹窗；表单含解封原因 Select（必填）、备注 TextArea（可选）；提交前 `Modal.confirm` 二次确认；`isConfirming` ref 并发防护，防止重复提交；成功后回调 `onSuccess` 触发用户列表刷新（T-20010）
   - `src/pages/users/useBanUser.ts` — `useBanUser` Hook：封装 `adminBanUser` API 调用；管理 `loading` / `error` 状态；返回 `{ banUser, loading, error }`；调用方无需关心请求细节（T-20008）
   - `src/core/network/apiClient.ts`（扩展）— `adminGetUsers(params, signal?): Promise<AdminUsersData>`；新增类型 `AdminUserItem` / `AdminUsersData` / `AdminGetUsersParams`；`adminGetUserDetail(userId, signal?): Promise<AdminUserDetail>`（T-20007）；`adminBanUser(userId, params): Promise<void>`；新增类型 `AdminBanUserParams`（T-20008）
 - 📋 **操作日志模块**（T-20009 ✅）- 路由 `/logs`（在 `AuthGuard` 内）；涉及以下文件：
@@ -65,6 +66,7 @@
 - 🟢 用户管理页面（`/users` 路由；UsersPage + useUsersPage + UsersTable + UserSearchForm + UserStatusTag；手机号/用户ID/昵称搜索/状态筛选/分页/URL双向同步；apiClient 新增 `adminGetUsers`）← **T-20006 ✅ Done**
 - 🟢 用户详情抽屉（`useUserDetail` Hook + `UserDetailDrawer` 组件；`destroyOnClose={true}` 切换用户清除旧数据；AbortController 防竞态；头像/手机号/资产信息展示；[封禁]/[解封] 按钮接入 T-20008 BanModal；apiClient 新增 `adminGetUserDetail`）← **T-20007 ✅ Done**
 - 🟢 封禁对话框（`BanModal` 组件：时长/原因/备注表单 + `Modal.confirm` 二次确认 + `isConfirming` 并发防护；`useBanUser` Hook：封装 `adminBanUser` API，loading/error 状态管理；apiClient 新增 `adminBanUser`）← **T-20008 ✅ Done**
+- 🟢 解封弹窗（`UnbanModal` 组件：解封原因必填 Select + 备注 TextArea + `Modal.confirm` 二次确认 + `isConfirming` 并发防护；与 `BanModal` 对称设计；成功后回调 `onSuccess` 刷新用户列表；apiClient 新增 `adminUnbanUser`）← **T-20010 ✅ Done**
 - 🟢 操作日志页面（`/logs` 路由；LogsPage + useLogsPage + LogsTable + LogSearchForm；操作人ID/操作类型/时间范围筛选/分页/URL双向同步；apiClient 新增 `adminGetLogs`）← **T-20009 ✅ Done**
 
 ### 遗留技术债 (Tech Debt)
