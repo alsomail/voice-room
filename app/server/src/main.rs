@@ -13,6 +13,7 @@ use voice_room_server::{
     modules::{
         auth::repository::PgUserRepository,
         room::repository::PgRoomRepository,
+        wallet::{broadcaster::BalanceBroadcaster, service::WalletService},
     },
     stats::{StatsService, snapshot_task::start_snapshot_task},
 };
@@ -63,6 +64,13 @@ async fn main() -> anyhow::Result<()> {
             Arc::new(MockSmsProvider)
         };
 
+    // 创建 BalanceBroadcaster channel
+    let (balance_tx, balance_rx) =
+        tokio::sync::mpsc::channel::<voice_room_server::modules::wallet::broadcaster::BalanceEvent>(
+            256,
+        );
+    let wallet_service = Arc::new(WalletService::new(pool.clone(), balance_tx));
+
     let state = AppState::new(
         Arc::new(PgUserRepository::new(pool.clone())),
         code_store,
@@ -70,7 +78,12 @@ async fn main() -> anyhow::Result<()> {
         settings.jwt_secret.clone(),
         Arc::new(PgRoomRepository::new(pool)),
         stats_service,
+        wallet_service,
     );
+
+    // 启动 BalanceBroadcaster（与 ws_registry 共享同一 ConnectionRegistry）
+    let broadcaster = BalanceBroadcaster::new(state.ws_registry.clone());
+    tokio::spawn(broadcaster.run(balance_rx));
 
     // 優雅停機 channel：axum 完成後向 snapshot_task 發送停止信號
     let (snapshot_shutdown_tx, snapshot_shutdown_rx) = tokio::sync::watch::channel(false);

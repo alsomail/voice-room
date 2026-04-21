@@ -3,6 +3,10 @@ name = "voice-room-server"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+# 测试辅助：暴露 Fake 类型和 AppState::for_test* 方法，供集成测试使用
+test-utils = []
+
 [dependencies]
 anyhow.workspace = true
 axum.workspace = true

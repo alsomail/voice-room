@@ -27,7 +27,7 @@ pub enum WalletTxnType {
 /// 对应数据库表 `wallet_transactions`，由迁移 `004_create_wallet.sql` 创建。
 /// - `amount` 正数表示加款，负数表示扣款
 /// - `balance_after >= 0` 由 DB CHECK 约束保证
-#[derive(Debug, FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct WalletTransactionModel {
     pub id: Uuid,
     pub user_id: Uuid,

@@ -9,6 +9,7 @@ use crate::{
     modules::{
         auth::{auth_routes, repository::UserRepository, service::AuthService},
         room::{repository::RoomRepository, room_routes, RoomService},
+        wallet::{service::WalletServicePort, wallet_routes},
     },
     room::RoomManager,
     stats::StatsPort,
@@ -26,6 +27,8 @@ pub struct AppState {
     pub stats_service: Arc<dyn StatsPort>,
     /// 房间运行时状态管理器（内存 DashMap）
     pub room_manager: Arc<RoomManager>,
+    /// 钱包服务（余额查询、流水列表）
+    pub wallet_service: Arc<dyn WalletServicePort>,
 }
 
 impl AppState {
@@ -36,6 +39,7 @@ impl AppState {
         jwt_secret: String,
         room_repo: Arc<dyn RoomRepository>,
         stats_service: Arc<dyn StatsPort>,
+        wallet_service: Arc<dyn WalletServicePort>,
     ) -> Self {
         let auth_service = Arc::new(AuthService::new(
             user_repo,
@@ -51,11 +55,55 @@ impl AppState {
             ws_registry: Arc::new(ConnectionRegistry::new()),
             stats_service,
             room_manager: Arc::new(RoomManager::new()),
+            wallet_service,
         }
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-utils"))]
     pub fn for_test() -> Self {
+        use crate::infrastructure::{
+            redis_store::FakeCodeStore, third_party::sms::MockSmsProvider,
+        };
+        use crate::modules::auth::repository::FakeUserRepository;
+        use crate::modules::room::FakeRoomRepository;
+        use crate::modules::wallet::service::FakeWalletService;
+        use crate::stats::FakeStatsService;
+        Self::new(
+            Arc::new(FakeUserRepository::default()),
+            Arc::new(FakeCodeStore::default()),
+            Arc::new(MockSmsProvider),
+            "test-secret".to_string(),
+            Arc::new(FakeRoomRepository::default()),
+            Arc::new(FakeStatsService::default()),
+            Arc::new(FakeWalletService),
+        )
+    }
+
+    /// 測試輔助：注入預置數據的 FakeRoomRepository（用于集成測試 T-00009）
+    #[cfg(any(test, feature = "test-utils"))]
+    pub fn for_test_with_room_repo(room_repo: Arc<crate::modules::room::FakeRoomRepository>) -> Self {
+        use crate::infrastructure::{
+            redis_store::FakeCodeStore, third_party::sms::MockSmsProvider,
+        };
+        use crate::modules::auth::repository::FakeUserRepository;
+        use crate::modules::wallet::service::FakeWalletService;
+        use crate::stats::FakeStatsService;
+        Self::new(
+            Arc::new(FakeUserRepository::default()),
+            Arc::new(FakeCodeStore::default()),
+            Arc::new(MockSmsProvider),
+            "test-secret".to_string(),
+            room_repo,
+            Arc::new(FakeStatsService::default()),
+            Arc::new(FakeWalletService),
+        )
+    }
+
+    /// 測試輔助：注入真實 WalletService（DB 集成測試 T-00018）
+    #[cfg(any(test, feature = "test-utils"))]
+    pub fn for_test_with_wallet(
+        wallet_service: Arc<crate::modules::wallet::service::WalletService>,
+    ) -> Self {
         use crate::infrastructure::{
             redis_store::FakeCodeStore, third_party::sms::MockSmsProvider,
         };
@@ -65,28 +113,11 @@ impl AppState {
         Self::new(
             Arc::new(FakeUserRepository::default()),
             Arc::new(FakeCodeStore::default()),
-            Arc::new(MockSmsProvider::default()),
+            Arc::new(MockSmsProvider),
             "test-secret".to_string(),
             Arc::new(FakeRoomRepository::default()),
             Arc::new(FakeStatsService::default()),
-        )
-    }
-
-    /// 測試輔助：注入預置數據的 FakeRoomRepository（用于集成測試 T-00009）
-    #[cfg(test)]
-    pub fn for_test_with_room_repo(room_repo: Arc<crate::modules::room::FakeRoomRepository>) -> Self {
-        use crate::infrastructure::{
-            redis_store::FakeCodeStore, third_party::sms::MockSmsProvider,
-        };
-        use crate::modules::auth::repository::FakeUserRepository;
-        use crate::stats::FakeStatsService;
-        Self::new(
-            Arc::new(FakeUserRepository::default()),
-            Arc::new(FakeCodeStore::default()),
-            Arc::new(MockSmsProvider::default()),
-            "test-secret".to_string(),
-            room_repo,
-            Arc::new(FakeStatsService::default()),
+            wallet_service as Arc<dyn WalletServicePort>,
         )
     }
 }
@@ -97,6 +128,7 @@ pub fn build_app(state: AppState) -> Router {
         .route("/ws", get(ws_handler))
         .merge(auth_routes())
         .merge(room_routes())
+        .merge(wallet_routes())
         .layer(middleware::from_fn(request_context_middleware))
         .with_state(state)
 }

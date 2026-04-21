@@ -1,7 +1,7 @@
 use async_trait::async_trait;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-utils"))]
 use chrono::Utc;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-utils"))]
 use std::{collections::HashMap, sync::Mutex};
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -33,7 +33,7 @@ impl PgUserRepository {
 impl UserRepository for PgUserRepository {
     async fn find_by_phone(&self, phone: &str) -> Result<Option<UserModel>, AppError> {
         let user = sqlx::query_as::<_, UserModel>(
-            "SELECT id, phone, nickname, avatar, coin_balance, vip_level, is_banned, \
+            "SELECT id, phone, nickname, avatar, coin_balance, diamond_balance, vip_level, is_banned, \
              created_at, updated_at, deleted_at \
              FROM users WHERE phone = $1 AND deleted_at IS NULL",
         )
@@ -45,7 +45,7 @@ impl UserRepository for PgUserRepository {
 
     async fn find_by_id(&self, id: Uuid) -> Result<Option<UserModel>, AppError> {
         let user = sqlx::query_as::<_, UserModel>(
-            "SELECT id, phone, nickname, avatar, coin_balance, vip_level, is_banned, \
+            "SELECT id, phone, nickname, avatar, coin_balance, diamond_balance, vip_level, is_banned, \
              created_at, updated_at, deleted_at \
              FROM users WHERE id = $1 AND deleted_at IS NULL",
         )
@@ -58,7 +58,7 @@ impl UserRepository for PgUserRepository {
     async fn create(&self, phone: &str, nickname: &str) -> Result<UserModel, AppError> {
         let user = sqlx::query_as::<_, UserModel>(
             "INSERT INTO users (phone, nickname) VALUES ($1, $2) \
-             RETURNING id, phone, nickname, avatar, coin_balance, vip_level, is_banned, \
+             RETURNING id, phone, nickname, avatar, coin_balance, diamond_balance, vip_level, is_banned, \
                        created_at, updated_at, deleted_at",
         )
         .bind(phone)
@@ -71,13 +71,13 @@ impl UserRepository for PgUserRepository {
 
 // ─── Fake 实现（内存，用于单元测试）─────────────────────────────────────────
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-utils"))]
 #[derive(Default)]
 pub struct FakeUserRepository {
     users: Mutex<HashMap<Uuid, UserModel>>,
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-utils"))]
 impl FakeUserRepository {
     /// 测试辅助：预置一个用户
     pub fn seed(&self, user: UserModel) {
@@ -85,7 +85,7 @@ impl FakeUserRepository {
     }
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-utils"))]
 #[async_trait]
 impl UserRepository for FakeUserRepository {
     async fn find_by_phone(&self, phone: &str) -> Result<Option<UserModel>, AppError> {
@@ -131,11 +131,11 @@ impl UserRepository for FakeUserRepository {
 // ─── Failing Fake 实现（测试辅助：模拟 DB 错误）────────────────────────────────
 
 /// 所有方法均返回 `AppError::Internal`，用于注入 DB 错误场景的单元测试。
-#[cfg(test)]
+#[cfg(any(test, feature = "test-utils"))]
 #[derive(Default)]
 pub struct FailingUserRepository;
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-utils"))]
 #[async_trait]
 impl UserRepository for FailingUserRepository {
     async fn find_by_phone(&self, _phone: &str) -> Result<Option<UserModel>, AppError> {
