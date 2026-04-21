@@ -117,8 +117,10 @@ private val AVATAR_SIZE_HOST_DP = 80.dp
  */
 @Composable
 private fun GoldGlowRing(size: androidx.compose.ui.unit.Dp) {
-    // 光圈比头像半径外扩 12dp（直径多 24dp）
-    val glowSize = size + 24.dp
+    // 光圈外扩：stroke 半径 = avatarRadius(40dp) + 12dp = 52dp
+    // stroke 宽 6dp → 外缘 = 52dp + 3dp(半宽) = 55dp
+    // Canvas 边界需 ≥ 55dp * 2 = 110dp → glowSize = size(80dp) + 30dp
+    val glowSize = size + 30.dp
 
     val infiniteTransition = rememberInfiniteTransition(label = "host_glow")
     val scale by infiniteTransition.animateFloat(
