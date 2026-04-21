@@ -23,6 +23,7 @@ Server 端基于 Rust + Axum 构建。启动骨架（配置、日志、健康检
 - 🔌 [WebSocket 模块架构](./websocket.md) - WS 握手鉴权（T-00011）、`ConnectionRegistry`、心跳检测、单连接生命周期与 `connection_id` 解耦设计。
 - 🏠 [房间运行时模块](./room_runtime.md) - `src/room/` 模块说明：`RoomManager`（DashMap 全局状态）、`RoomState`（成员表 + 麦位 + `banned_mics` + `muted_users` + `processed_msg_ids`）、`handle_join_room` WS 信令处理（T-00012）、`do_leave_room` / `handle_leave_room` 离开房间逻辑（T-00013）、`take_mic_slot` / `handle_take_mic` 上麦逻辑（T-00014）、`leave_mic_slot` / `handle_leave_mic` 下麦逻辑（T-00015）、`filter_content` 敏感词净化 / `handle_send_message` 文本消息广播（T-00016）。
 - 💰 [Wallet 模块架构](./wallet.md) - 余额查询 API（T-00018）、流水分页查询、`WalletService.apply_delta` 原子事务支持、`BalanceBroadcaster` Redis PubSub 跨进程推送、WS `BalanceUpdated` 信令设计。
+- 🎁 [礼物模块架构](./gift.md) - 礼物配置表与列表 API（T-00019）、国际化支持（Accept-Language）、缓存策略（60s 进程内存）、`GiftModel` 数据模型。
 
 ## 三、 当前能力全景与状态 (Capability Matrix)
 > 状态枚举：🟢 已完成 | 🟡 开发/调试中 | 🔴 待开发
@@ -115,6 +116,28 @@ Server 端基于 Rust + Axum 构建。启动骨架（配置、日志、健康检
   - **错误码**：401（未登录）、40003（参数非法）
   - **测试覆盖**：B01~B09 集成测试 9 个（含未登录 401、初始余额 0、分页、过滤、WS 推送延迟、多连接、Redis 事件、余额负数回滚、参数校验）；BR01~BR08 单元测试（broadcaster）；WS01~WS06 单元测试（service）；共 219 单元 + 9 集成，全部 ✅ 通过，clippy 零警告
   - **完成时间**：2025-07-15（Review Round 2 通过）
+- 🟢 **礼物模块 - 配置表与列表 API**（T-00019）：`src/modules/gift/` + `app/server/migrations/005_create_gifts.sql`
+  - **数据库设计**：新建 `gifts` 表（id, code, name_en, name_ar, icon_url, price, tier, effect_level, animation_url, sort_order, is_active, is_deleted, created_at, updated_at）
+    - **字段约束**：`code VARCHAR(32) UNIQUE NOT NULL`（稳定标识如 'rose_01'）；`price BIGINT CHECK (>= 1)`；`tier SMALLINT CHECK (BETWEEN 1 AND 5)`；`effect_level SMALLINT DEFAULT 1`（1=none, 2=slot, 3=bottom, 4=fullscreen, 5=fullscreen+border）；`is_active BOOLEAN DEFAULT true`；`is_deleted BOOLEAN DEFAULT false`
+    - **索引策略**：`idx_gifts_active_order ON gifts(tier, sort_order) WHERE is_active AND NOT is_deleted`（查询加速）
+    - **种子数据**：8 款 MVP 礼物（rose_01/coffee_01/kaaba_01/camel_01/falcon_01/moon_786/castle_01/diamond_ring），price 范围 1~1314，tier 1~5 分布，幂等插入（`ON CONFLICT (code) DO NOTHING`）
+  - **Rust 模型**：`GiftModel`（sqlx::FromRow，14 个字段）从 `app/shared/models/gift.rs` 导出；包含 `code` 字段支持稳定标识
+  - **HTTP 接口**：`GET /api/v1/gifts/list`（无鉴权，所有用户可访问）
+    - **请求**：Header `Accept-Language: ar|en`（默认 `ar`）
+    - **响应**：`{code: 0, data: {items: [{id, code, name, icon_url, price, tier, effect_level, animation_url, sort_order}], version: "timestamp"}}`
+    - **过滤与排序**：仅返回 `is_active=true AND is_deleted=false` 的礼物；`ORDER BY tier ASC, sort_order ASC`
+  - **国际化设计**：`parse_lang_header()` 大小写不敏感，`en/en-US/en-GB` 等映射到 `"en"`，其余默认 `"ar"`；响应中 `name` 字段根据语言选择 `name_en` 或 `name_ar`
+  - **缓存策略**：进程内存缓存（`tokio::sync::Mutex<HashMap<lang, (GiftListData, Instant)>>`），TTL 60s；每次 `list_active` 调用检查过期，过期则重新查库；T-10014 Admin CRUD 后调用 `invalidate_all()` 清除所有缓存
+  - **架构设计**：三层依赖注入（`PgGiftRepo` 数据层 + `GiftService` 服务层 + `GiftHandler` HTTP 层）；`FakeGiftRepo` / `FakeGiftService` 用于测试替身；`call_count()` 原子计数器验证缓存命中
+  - **性能目标**：响应时间 <50ms（缓存命中）
+  - **代码规范**：无 unsafe/unwrap 滥用；错误处理统一走 `AppError`；`#[cfg(any(test, feature = "test-utils"))]` 严格隔离测试代码
+  - **测试覆盖**：21 条集成测试（G01a~G07、G_db）验证迁移、过滤、排序、多语言、缓存命中、<50ms 响应时间；GiftModel 单元测试 10 个；repo/service/handler/shared 单元测试 33 个；共 284+ passed, 0 failed，clippy 零警告
+  - **完成时间**：2025-01（TDD Agent）；审查人 claude-sonnet-4-5（AI Review Agent）
+  - **已知改进方向**：
+    1. **[MEDIUM] 缓存实现**：当前使用进程内存，TDS 设计为 Redis；MVP 阶段单实例可接受，多实例部署时建议切换 Redis
+    2. **[MEDIUM] G04 测试覆盖**：建议在 service 单元测试补充含 `is_active=false`/`is_deleted=true` 礼物的验证场景
+    3. **[LOW] version 同步**：多语言各自 miss 缓存可能生成不同时间戳，建议基于数据最新 `updated_at` 统一生成
+    4. **[LOW] UUID 稳定性**：FakeGiftService 每次生成新 UUID，与缓存命中后返回相同 id 的行为不一致
 - 🔴 支付业务域
 
 ### 遗留技术债 (Tech Debt)
