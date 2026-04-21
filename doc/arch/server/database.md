@@ -13,6 +13,7 @@
 | 001 | `users` | `001_create_users.sql` | `UserModel` | T-00001 | 🟢 已完成 |
 | 002 | `rooms` | `002_create_rooms.sql` | `RoomModel` | T-00006 | 🟢 已完成 |
 | 003 | `rooms`（索引） | `003_add_unique_active_room_per_owner.sql` | — | T-00007 | 🟢 已完成 |
+| 004 | `users`（wallet 字段）+ `wallet_transactions` | `004_create_wallet.sql` | `WalletTransactionModel` + `WalletTxnType` | T-00017 | 🟢 已完成 |
 
 ---
 

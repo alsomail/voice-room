@@ -636,6 +636,7 @@ mod tests {
             nickname: nickname.to_string(),
             avatar: Some("https://example.com/avatar.jpg".to_string()),
             coin_balance: 0,
+            diamond_balance: 0,
             vip_level: 0,
             is_banned: false,
             created_at: now,

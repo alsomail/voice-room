@@ -116,6 +116,7 @@ impl UserRepository for FakeUserRepository {
             nickname: nickname.to_string(),
             avatar: None,
             coin_balance: 0,
+            diamond_balance: 0,
             vip_level: 0,
             is_banned: false,
             created_at: now,

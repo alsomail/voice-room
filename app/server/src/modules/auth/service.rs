@@ -226,6 +226,7 @@ mod tests {
             nickname: "TestUser".into(),
             avatar: None,
             coin_balance: 0,
+            diamond_balance: 0,
             vip_level: 0,
             is_banned: banned,
             created_at: now,
