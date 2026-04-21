@@ -192,3 +192,38 @@
 | 403 | 40301 | 当前用户不是房主 |
 | 404 | 40400 | 房间不存在或已软删除 |
 | 409 | 40901 | 房间已处于 closed 状态 |
+
+---
+
+## 3.5 Phase 1.5 (E-10) 新增接口索引
+
+> 详细契约参见各 TDS 文档。
+
+| 接口 | 方法与路径 | 关联 Task | 详细契约 |
+|------|-----------|-----------|---------|
+| 创建房间升级（封面/分类/公告/密码） | `POST /api/v1/rooms`（扩展字段） | T-00025 | [tds/server/T-00025.md](../tds/server/T-00025.md) |
+| 编辑房间信息 | `PATCH /api/v1/rooms/:id` | T-00025 | 同上 |
+| 密码房密码验证 | `POST /api/v1/rooms/:id/verify-password` | T-00026 | [tds/server/T-00026.md](../tds/server/T-00026.md) |
+| 房间成员列表（观众席） | `GET /api/v1/rooms/:id/members` | T-00027 | [tds/server/T-00027.md](../tds/server/T-00027.md) |
+
+### 3.5.1 POST /api/v1/rooms 扩展字段（向下兼容）
+```json
+{
+  "title": "...",
+  "room_type": "normal|password",
+  "cover_url": "/assets/covers/desert.webp",
+  "category": "chat|emotion|music|game|matchmaking|other",
+  "announcement": "≤200 字",
+  "password": "6 位数字（room_type=password 必填）"
+}
+```
+
+### 3.5.2 POST /api/v1/rooms/:id/verify-password
+- Body: `{ "password":"123456" }`
+- 成功返回短期 access_token（TTL 60s），供 WS JoinRoom 使用
+- 5 次错误后锁定 30min（`code=42910`）
+
+### 3.5.3 GET /api/v1/rooms/:id/members
+- Query: `page`, `limit` (max 100)
+- 麦上用户置顶；观众按 `joined_at DESC`
+- 返回 `role` (`owner|admin|member`) + `mic_slot`

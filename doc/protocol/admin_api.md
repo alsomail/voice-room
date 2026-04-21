@@ -240,3 +240,40 @@
 | 403 | 40301 | 角色无 RoomForceClose 权限（finance、cs 角色） |
 | 404 | 40400 | 房间不存在或已软删除 |
 | 409 | 40901 | 房间已处于 closed 状态 |
+
+---
+
+## 4.7 Phase 1 / 1.5 新增接口索引
+
+> 详细契约参见各 TDS 文档。
+
+### 4.7.1 E-07 钱包 / 礼物管理
+
+| 接口 | 方法与路径 | 关联 Task | 详细契约 |
+|------|-----------|-----------|---------|
+| 手动调整余额 | `POST /api/v1/admin/users/:id/wallet/adjust` | T-10013 | [tds/adminServer/T-10013.md](../tds/adminServer/T-10013.md) |
+| 礼物列表（含未上架） | `GET /api/v1/admin/gifts` | T-10014 | [tds/adminServer/T-10014.md](../tds/adminServer/T-10014.md) |
+| 新增礼物 | `POST /api/v1/admin/gifts` | T-10014 | 同上 |
+| 更新礼物 | `PUT /api/v1/admin/gifts/:id` | T-10014 | 同上 |
+| 删除礼物（软删） | `DELETE /api/v1/admin/gifts/:id` | T-10014 | 同上 |
+
+### 4.7.2 E-07.5 用户行为查询
+
+| 接口 | 方法与路径 | 关联 Task | 详细契约 |
+|------|-----------|-----------|---------|
+| 用户事件流查询 | `GET /api/v1/admin/users/:id/events` | T-10015 | [tds/adminServer/T-10015.md](../tds/adminServer/T-10015.md) |
+
+### 4.7.3 E-10 房间治理日志
+
+| 接口 | 方法与路径 | 关联 Task | 详细契约 |
+|------|-----------|-----------|---------|
+| 踢人记录查询 | `GET /api/v1/admin/governance/kicks` | T-10016 | [tds/adminServer/T-10016.md](../tds/adminServer/T-10016.md) |
+| 禁言/禁麦记录查询 | `GET /api/v1/admin/governance/mutes` | T-10016 | 同上 |
+
+### 4.7.4 跨服务事件总线（Redis PubSub `admin:events`）
+
+| 事件类型 | 来源 Task | 说明 |
+|----------|-----------|------|
+| `ban_user` / `close_room` / `broadcast_notice` | 已实现（T-10011） | 沿用现有格式 |
+| `balance_updated` | T-10013 | `{ type:"balance_updated", user_id, new_balance, reason }` 触发 App Server 推送 WS `BalanceUpdated` |
+| `gift_cache_invalidate` | T-10014 | `{ type:"gift_cache_invalidate" }` 触发 App Server 清空礼物列表缓存 |
