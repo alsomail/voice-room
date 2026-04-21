@@ -107,11 +107,29 @@
 | Domain 层 | `domain/wallet/IWalletRepository.kt` + `WalletTxn.kt` + `TxnsPage.kt` | T-30027 | 🟢 Repository 接口 + 领域模型；`IWalletRepository` 扩展 `getBalance()`/`listTxns()` 接口，保留 `walletPreviewLabel()` 向后兼容 |
 | 测试覆盖 | `test/WalletViewModelTest.kt` + `test/WalletTxnPagingSourceTest.kt` | T-30027 | 🟢 22 个单元测试全部通过（WalletViewModelTest 15 个：W27-01~08 + R1-CRITICAL-1/1b + R1-HIGH-3/3b；WalletTxnPagingSourceTest 7 个），Review R2 ✅ |
 
-### 待开发模块
+### Gift 礼物模块（🟢 已完成，T-30028，Review R2 通过）
 
-| 模块 | 当前状态 |
-| --- | --- |
-| Gift / Seat / Family / CP / VIP / Backpack / Game | 🔴 仅目录预留，尚无 UI 与逻辑 |
+| 模块 | 关键文件 | Task | 当前状态 |
+| --- | --- | --- | --- |
+| 礼物面板 | `feature/gift/GiftPanelBottomSheet.kt` | T-30028 | 🟢 ModalBottomSheet（高 55%）+ Tab Row（热门/全部）+ 4列 LazyVerticalGrid，选中项金色边框 |
+| 礼物卡片 | `feature/gift/components/GiftCard.kt` | T-30028 | 🟢 可点击的礼物项卡片，展示礼物图标+名称+价格，选中态金色边框 |
+| 余额条 | `feature/gift/components/BalanceBar.kt` | T-30028 | 🟢 顶部余额条（💎金额 + 充值按钮占位 Toast"即将上线"），复用 WalletScreen 余额显示，WS BalanceUpdated 实时更新 |
+| 数量选择器 | `feature/gift/components/CountSelector.kt` | T-30028 | 🟢 6 个档位 Chip Row（1/10/66/520/786/1314 吉祥数），选中高亮，总价计算 |
+| ViewModel | `feature/gift/GiftPanelViewModel.kt` | T-30028 | 🟢 Manual Factory + StateFlow + SharedFlow；loadGifts() 支持 locale 参数（Accept-Language）；selectGift/selectCount/selectRecipient/selectTab/updateRecipients/dismiss/retryLoad 完整业务方法；WS 监听 BalanceUpdated；计算属性：selectedGift/totalPrice/canSend/isBalanceInsufficient/displayGifts |
+| UiState 数据类 | `feature/gift/GiftPanelUiState.kt` | T-30028 | 🟢 gifts/loading/error/selectedGiftId/selectedCount/balance/recipients/selectedRecipientId/activeTab，包含 4 个计算属性（selectedGift/totalPrice/canSend/isBalanceInsufficient） |
+| 房间集成 | `feature/room/RoomScreen.kt` + `RoomBottomBar.kt` | T-30028 | 🟢 GiftButton 从灰禁 Toast 升级为真实功能；RoomScreen.showGiftPanel 本地状态控制 GiftPanelBottomSheet 显示；传入 onGiftRetry 回调绑定重试逻辑（R1-HIGH 修复） |
+| Data 层 | `data/gift/RetrofitGiftRepository.kt` + `data/remote/api/GiftApiService.kt` | T-30028 | 🟢 Repository 实现 60s Mutex 保护内存缓存（R1-MEDIUM 修复），防 TOCTOU 竞态；API 支持 Accept-Language Header；`cacheDurationMs` 作为构造参数方便测试注入 |
+| Domain 层 | `domain/gift/IGiftRepository.kt` + `GiftVO.kt` + `MicUserVO.kt` | T-30028 | 🟢 Repository 接口 + 礼物值对象（id/code/name/iconUrl/price/sortOrder/tier）+ 麦位用户值对象（接收者槽） |
+| 错误处理 | `feature/gift/GiftPanelBottomSheet.kt` | T-30028 | 🟢 网络失败展示骨架屏占位卡 + "点击重试"按钮，onClick 绑定 onRetry 回调调用 giftViewModel.retryLoad()（G28-09 完整支持） |
+| 测试覆盖 | `test/feature/gift/GiftPanelViewModelTest.kt` + `test/data/RetrofitGiftRepositoryTest.kt` | T-30028 | 🟢 GiftPanelViewModelTest 19 个单元测试（G28-02~G28-10 业务验收 + R1-01 重试状态机 + Extra-01~10 边界）；RetrofitGiftRepositoryTest 8 个单元测试（缓存命中/过期/HTTP错误/并发调用单次请求）；336+ tests 全部通过，Review R2 ✅ |
+
+> **包路径**：`com.voice.room.android.feature.gift` / `com.voice.room.android.data.gift`  
+> **HTTP API**：`GET /api/v1/gifts/list` + Accept-Language Header（locale 参数从 `LocalConfiguration.locale` 推导）  
+> **WS 事件**：订阅 `BalanceUpdated` 信令实时更新余额  
+> **集成入口**：`RoomBottomBar.GiftButton` → `onGiftClick { showGiftPanel = true }`  
+> **关键设计**：Mutex 缓存 + 错误重试按钮绑定 + 接收者槽占位（T-30029 待接入）
+
+
 
 ## 二、 当前测试覆盖
 
@@ -132,5 +150,6 @@
 ## 三、 对业务推进的含义
 
 - Android 端 Auth + Room 大厅 + WS 连接 + 房间核心 + 聊天消息全链路（T-30001 ~ T-30017）已全部落地；大厅页已完成黑金视觉升级（T-30022）；房间页已完成黑金视觉升级（T-30025，HostMicSlot 80dp 金色光圈 + MicSlotCard 副麦 60dp + EmptyMicSlot 虚线"+" + MicSlotsGrid 4列 + ChatMessageList 金色昵称/系统消息金黄，WS/上下麦逻辑不变）；房间底部操作栏已完成升级（T-30026，RoomBottomBar Row布局：GoldOutlinedTextField输入框 + MicButton三态（不在麦灰禁/在麦绿色/静音红色）+ GiftButton/EmoteButton灰禁Toast + ExitButton AlertDialog二次确认，RoomViewModel新增toggleMicMute()/isCurrentUserOnMic/isCurrentUserMuted）；`core/ui/PlaceholderScreen` 通用占位组件与消息Tab占位页（T-30023）已完成；钱包页完整链路（T-30027，Review R2 通过）已完成：WalletScreen 余额大卡片 + 下拉刷新 + Paging3 流水列表 + 空状态占位，WalletViewModel 初始化加载 + WS 实时更新（按 protocol §6.4.1 读取嵌套 `payload.diamond_balance`）+ 401 导航，Repository 层 HTTP API + Paging3 分页，22 个单元测试全部通过。
-- Gift / 榜单 等商业化模块与后续 Task（T-30028~T-30033）在进行中，依赖于钱包页 T-30027 的完成。
+- **礼物面板完整链路（T-30028，Review R2 通过）已完成**：GiftPanelBottomSheet ModalBottomSheet（高 55%）+ Tab Row（热门/全部）+ 4列 LazyVerticalGrid（GiftCard 组件，金色边框选中态）+ 顶部 BalanceBar（余额实时 WS 更新）+ CountSelector（6 个吉祥数档位 1/10/66/520/786/1314）+ 接收者槽占位，RetrofitGiftRepository 60s Mutex 缓存防 TOCTOU，支持 Accept-Language 多语言，onRetry 重试按钮绑定 giftViewModel.retryLoad()（R1-HIGH 修复），RoomBottomBar.GiftButton 升级为真实功能，GiftPanelViewModelTest 19+RetrofitGiftRepositoryTest 8 共 27 个新单元测试全部通过，Review R2 ✅。
+- **接收者选择器（T-30029）** 与 **SendGift 客户端+幂等（T-30030）** 与 **余额不足引导弹窗（T-30032）** 与 **送礼特效+弹幕（T-30031）** 与 **魅力/财富榜单（T-30033）** 等商业化模块在进行中，依赖礼物面板 T-30028 的完成。
 - 后续开发必须继续对齐 `doc/protocol/` 目录下的对应子文件与服务端广播模型，避免客户端自行推断核心状态。
