@@ -18,6 +18,7 @@ use uuid::Uuid;
 
 use super::registry::{ConnectionHandle, ConnectionRegistry};
 use crate::modules::auth::service::AuthService;
+use crate::modules::gift::send_gift::{SendGiftDeps, SendGiftServicePort, handle_send_gift};
 use crate::modules::room::service::RoomService;
 use crate::room::handler::{JoinRoomDeps, LeaveRoomDeps};
 use crate::room::handler::do_leave_room;
@@ -92,10 +93,22 @@ pub fn handle_text_message(
 
 // ─── 连接生命周期 task ────────────────────────────────────────────────────────
 
+/// handle_socket 所需的全部服务依赖，降低参数数量
+pub struct SocketDeps {
+    pub registry: Arc<ConnectionRegistry>,
+    pub stats: Arc<dyn StatsPort>,
+    pub room_manager: Arc<RoomManager>,
+    pub room_service: Arc<RoomService>,
+    pub auth_service: Arc<AuthService>,
+    pub send_gift_service: Arc<dyn SendGiftServicePort>,
+}
+
 /// 在成功升级的 WebSocket 上运行完整的读/写生命周期。
 ///
 /// 每次调用生成独立的 `connection_id`（与 user_id 解耦），
 /// 注销时仅删除自己的条目，不影响同一用户的其他连接。
+/// 参数数量超过 7 个：系统边界层函数，聚合全部 WS 服务依赖，抑制 Clippy 警告。
+#[allow(clippy::too_many_arguments)]
 pub async fn handle_socket(
     socket: WebSocket,
     user_id: Uuid,
@@ -104,6 +117,7 @@ pub async fn handle_socket(
     room_manager: Arc<RoomManager>,
     room_service: Arc<RoomService>,
     auth_service: Arc<AuthService>,
+    send_gift_service: Arc<dyn SendGiftServicePort>,
 ) {
     let connection_id = Uuid::new_v4(); // 每次連接生成唯一 ID，與 user_id 解耦
     let (tx, mut rx) = mpsc::unbounded_channel::<String>();
@@ -219,6 +233,21 @@ pub async fn handle_socket(
                                 ).await;
                                 if !registry.send_to(connection_id, &response) {
                                     tracing::warn!(%connection_id, "failed to send SendMessageResult");
+                                }
+                            } else if incoming.msg_type == "SendGift" {
+                                let deps = SendGiftDeps {
+                                    send_gift_service: send_gift_service.clone(),
+                                    registry: registry.clone(),
+                                };
+                                let response = handle_send_gift(
+                                    incoming.payload,
+                                    incoming.msg_id,
+                                    connection_id,
+                                    user_id,
+                                    &deps,
+                                ).await;
+                                if !registry.send_to(connection_id, &response) {
+                                    tracing::warn!(%connection_id, "failed to send SendGiftResult");
                                 }
                             } else {
                                 // 其他消息类型（ping 等）走纯函数路径

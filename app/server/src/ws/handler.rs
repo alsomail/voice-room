@@ -66,8 +66,9 @@ pub async fn ws_handler(
     let room_manager = state.room_manager.clone();
     let room_service = state.room_service.clone();
     let auth_service = state.auth_service.clone();
+    let send_gift_service = state.send_gift_service.clone();
     tracing::info!(%user_id, "websocket upgrade accepted");
     ws.on_upgrade(move |socket| {
-        handle_socket(socket, user_id, registry, stats, room_manager, room_service, auth_service)
+        handle_socket(socket, user_id, registry, stats, room_manager, room_service, auth_service, send_gift_service)
     })
 }

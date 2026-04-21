@@ -12,7 +12,7 @@ use voice_room_server::{
     },
     modules::{
         auth::repository::PgUserRepository,
-        gift::service::GiftService,
+        gift::{send_gift::GiftSendService, service::GiftService},
         room::repository::PgRoomRepository,
         wallet::{broadcaster::BalanceBroadcaster, service::WalletService},
     },
@@ -70,10 +70,21 @@ async fn main() -> anyhow::Result<()> {
         tokio::sync::mpsc::channel::<voice_room_server::modules::wallet::broadcaster::BalanceEvent>(
             256,
         );
-    let wallet_service = Arc::new(WalletService::new(pool.clone(), balance_tx));
+    let wallet_service = Arc::new(WalletService::new(pool.clone(), balance_tx.clone()));
     let gift_service = Arc::new(GiftService::new_with_pool(pool.clone()));
 
-    let state = AppState::new(
+    // 创建 GiftSendService（T-00020）
+    let room_manager = Arc::new(voice_room_server::room::RoomManager::new());
+    let ws_registry = Arc::new(voice_room_server::ws::ConnectionRegistry::new());
+    let send_gift_service = Arc::new(GiftSendService::new(
+        pool.clone(),
+        ws_registry.clone(),
+        room_manager.clone(),
+        balance_tx,
+        redis_url.to_string(),
+    ));
+
+    let state = AppState::new_with_managers(
         Arc::new(PgUserRepository::new(pool.clone())),
         code_store,
         sms,
@@ -82,6 +93,9 @@ async fn main() -> anyhow::Result<()> {
         stats_service,
         wallet_service,
         gift_service,
+        send_gift_service,
+        ws_registry,
+        room_manager,
     );
 
     // 启动 BalanceBroadcaster（HIGH-2：同时监听本进程 mpsc channel 和 Redis PubSub）

@@ -8,7 +8,7 @@ use crate::{
     infrastructure::{logging::request_context_middleware, redis_store::SmsCodeStore, third_party::sms::SmsProvider},
     modules::{
         auth::{auth_routes, repository::UserRepository, service::AuthService},
-        gift::{gift_routes, service::GiftServicePort},
+        gift::{gift_routes, send_gift::SendGiftServicePort, service::GiftServicePort},
         room::{repository::RoomRepository, room_routes, RoomService},
         wallet::{service::WalletServicePort, wallet_routes},
     },
@@ -32,6 +32,8 @@ pub struct AppState {
     pub wallet_service: Arc<dyn WalletServicePort>,
     /// 礼物配置服务（列表查询 + 内存缓存）
     pub gift_service: Arc<dyn GiftServicePort>,
+    /// 送礼服务（T-00020 SendGift 事务 + 广播）
+    pub send_gift_service: Arc<dyn SendGiftServicePort>,
 }
 
 impl AppState {
@@ -45,6 +47,7 @@ impl AppState {
         stats_service: Arc<dyn StatsPort>,
         wallet_service: Arc<dyn WalletServicePort>,
         gift_service: Arc<dyn GiftServicePort>,
+        send_gift_service: Arc<dyn SendGiftServicePort>,
     ) -> Self {
         let auth_service = Arc::new(AuthService::new(
             user_repo,
@@ -62,6 +65,43 @@ impl AppState {
             room_manager: Arc::new(RoomManager::new()),
             wallet_service,
             gift_service,
+            send_gift_service,
+        }
+    }
+
+    /// 生产环境专用：接受外部预创建的 ws_registry 和 room_manager
+    /// （GiftSendService 需要与 AppState 共享同一实例）
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_with_managers(
+        user_repo: Arc<dyn UserRepository>,
+        code_store: Arc<dyn SmsCodeStore>,
+        sms: Arc<dyn SmsProvider>,
+        jwt_secret: String,
+        room_repo: Arc<dyn RoomRepository>,
+        stats_service: Arc<dyn StatsPort>,
+        wallet_service: Arc<dyn WalletServicePort>,
+        gift_service: Arc<dyn GiftServicePort>,
+        send_gift_service: Arc<dyn SendGiftServicePort>,
+        ws_registry: Arc<ConnectionRegistry>,
+        room_manager: Arc<RoomManager>,
+    ) -> Self {
+        let auth_service = Arc::new(AuthService::new(
+            user_repo,
+            code_store,
+            sms,
+            jwt_secret.clone(),
+        ));
+        let room_service = Arc::new(RoomService::new(room_repo));
+        Self {
+            auth_service,
+            room_service,
+            jwt_secret,
+            ws_registry,
+            stats_service,
+            room_manager,
+            wallet_service,
+            gift_service,
+            send_gift_service,
         }
     }
 
@@ -71,6 +111,7 @@ impl AppState {
             redis_store::FakeCodeStore, third_party::sms::MockSmsProvider,
         };
         use crate::modules::auth::repository::FakeUserRepository;
+        use crate::modules::gift::send_gift::FakeSendGiftService;
         use crate::modules::gift::service::FakeGiftService;
         use crate::modules::room::FakeRoomRepository;
         use crate::modules::wallet::service::FakeWalletService;
@@ -84,6 +125,7 @@ impl AppState {
             Arc::new(FakeStatsService::default()),
             Arc::new(FakeWalletService),
             Arc::new(FakeGiftService),
+            Arc::new(FakeSendGiftService),
         )
     }
 
@@ -94,6 +136,7 @@ impl AppState {
             redis_store::FakeCodeStore, third_party::sms::MockSmsProvider,
         };
         use crate::modules::auth::repository::FakeUserRepository;
+        use crate::modules::gift::send_gift::FakeSendGiftService;
         use crate::modules::gift::service::FakeGiftService;
         use crate::modules::wallet::service::FakeWalletService;
         use crate::stats::FakeStatsService;
@@ -106,6 +149,7 @@ impl AppState {
             Arc::new(FakeStatsService::default()),
             Arc::new(FakeWalletService),
             Arc::new(FakeGiftService),
+            Arc::new(FakeSendGiftService),
         )
     }
 
@@ -119,6 +163,7 @@ impl AppState {
             redis_store::FakeCodeStore, third_party::sms::MockSmsProvider,
         };
         use crate::modules::auth::repository::FakeUserRepository;
+        use crate::modules::gift::send_gift::FakeSendGiftService;
         use crate::modules::gift::service::FakeGiftService;
         use crate::modules::room::FakeRoomRepository;
         use crate::stats::FakeStatsService;
@@ -131,6 +176,7 @@ impl AppState {
             Arc::new(FakeStatsService::default()),
             wallet_service,
             Arc::new(FakeGiftService),
+            Arc::new(FakeSendGiftService),
         )
     }
 }

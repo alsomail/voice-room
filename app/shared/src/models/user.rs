@@ -12,6 +12,8 @@ pub struct UserModel {
     pub coin_balance: i64,
     /// 钻石余额（T-00017）；CHECK >= 0 由 DB 约束保证，默认 0
     pub diamond_balance: i64,
+    /// 魅力值（T-00020）；收礼时累加；CHECK >= 0 由 DB 约束保证，默认 0
+    pub charm_balance: i64,
     pub vip_level: i16,
     pub is_banned: bool,
     pub created_at: DateTime<Utc>,
