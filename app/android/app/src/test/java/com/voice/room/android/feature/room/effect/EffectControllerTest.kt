@@ -385,4 +385,46 @@ class EffectControllerTest {
             assertNotNull(controller.fullscreenEffect.value)
             assertEquals("https://second.json", controller.fullscreenEffect.value!!.animationUrl)
         }
+
+    // ─── E31-16: effectLevel 路由验证 L1/L2/L3 正确触发 ─────────────────────────
+
+    @Test
+    fun `E31-16 effectLevel=2 triggers L1 and L2 but no L3`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            val controller = GiftEffectController(backgroundScope)
+            advanceUntilIdle()
+
+            controller.onGiftReceived(makeEvent(effectLevel = 2, receiverUserId = "user-target"))
+            runCurrent()
+
+            assertEquals(1, controller.giftMessages.value.size)
+            assertEquals("user-target", controller.micGlowTargetUserId.value)
+            assertNull(controller.fullscreenEffect.value) // effectLevel < 4
+        }
+
+    @Test
+    fun `E31-17 effectLevel=4 triggers L3 with 5s duration`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            val controller = GiftEffectController(backgroundScope)
+            advanceUntilIdle()
+
+            controller.onGiftReceived(makeEvent(effectLevel = 4, giftAnimationUrl = "https://anim.json"))
+            runCurrent()
+
+            assertNotNull(controller.fullscreenEffect.value)
+            assertEquals(5_000L, controller.fullscreenEffect.value!!.durationMs)
+        }
+
+    @Test
+    fun `E31-18 effectLevel=5 triggers L3 with 8s duration`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            val controller = GiftEffectController(backgroundScope)
+            advanceUntilIdle()
+
+            controller.onGiftReceived(makeEvent(effectLevel = 5, giftAnimationUrl = "https://anim.json"))
+            runCurrent()
+
+            assertNotNull(controller.fullscreenEffect.value)
+            assertEquals(8_000L, controller.fullscreenEffect.value!!.durationMs)
+        }
 }

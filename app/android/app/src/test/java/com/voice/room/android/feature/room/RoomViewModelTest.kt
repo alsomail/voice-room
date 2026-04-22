@@ -1007,7 +1007,7 @@ class RoomViewModelTest {
                 """"sender":{"userId":"sender-1","nickname":"Alice","avatar":null},""" +
                 """"receiver":{"userId":"receiver-1","nickname":"Bob","avatar":null},""" +
                 """"gift":{"id":"gift-uuid-1","code":"castle_01","name":"城堡",""" +
-                """"iconUrl":"https://icon.png","animationUrl":null,"effectLevel":1},""" +
+                """"icon_url":"https://icon.png","animation_url":null,"effect_level":1},""" +
                 """"count":1,"totalPrice":10}"""
             )
             advanceUntilIdle()
@@ -1039,7 +1039,7 @@ class RoomViewModelTest {
                 """"sender":{"userId":"sender-1","nickname":"Alice","avatar":null},""" +
                 """"receiver":{"userId":"receiver-1","nickname":"Bob","avatar":null},""" +
                 """"gift":{"id":"gift-uuid-2","code":"bouquet_01","name":"花束",""" +
-                """"iconUrl":"https://icon2.png","animationUrl":null,"effectLevel":1},""" +
+                """"icon_url":"https://icon2.png","animation_url":null,"effect_level":1},""" +
                 """"count":2,"totalPrice":20}"""
             )
             advanceUntilIdle()
