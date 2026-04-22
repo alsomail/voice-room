@@ -385,6 +385,133 @@ Idle ──openPasswordDialog──► Idle (弹窗显示)
 
 
 
+### 观众席底部弹窗（🟢 已完成，T-30039，Review R2 通过）
+
+**最后更新：** 2026-05-25  
+**入口点：** `feature/room/components/AudienceBottomSheet.kt`、`feature/room/RoomViewModel.kt`
+
+#### 架构概览
+
+```
+RoomScreen（房间主页）
+  ↓ 点击"观众席"入口
+RoomViewModel.audienceState: StateFlow<AudienceUiState>
+  ↓
+AudienceBottomSheet（ModalBottomSheet，占屏 70%）
+  ├─ Header "观众席 ($total)"
+  └─ LazyColumn
+       ├─ Section "麦上 (N)"  → onMic 列表（testTag: audience_header_on_mic）
+       │    └─ MemberRow × N
+       └─ Section "观众 (N)"  → audience 列表（testTag: audience_header_observers）
+            └─ MemberRow × M
+  ↓ 滚到底触发 loadMoreMembers()
+RoomViewModel.loadMoreMembers()
+  ↓ hasMore=true 时
+IRoomMemberRepository.listMembers(roomId, page, limit=20)
+  ↓
+RetrofitRoomApi GET /api/v1/rooms/{roomId}/members?page=N&limit=20
+```
+
+#### 核心组件
+
+| 模块 | 关键文件 | 说明 |
+|------|----------|------|
+| 底部弹窗 | `feature/room/components/AudienceBottomSheet.kt` | `ModalBottomSheet` 70% 高；LazyColumn 分页；testTag 完整 |
+| 成员行 UI | `feature/room/components/MemberRow.kt` | 头像（Coil）+ 昵称 + 角色徽章（👑 owner / 🛡️ admin）+ 在线时长 |
+| UI 状态 | `feature/room/RoomUiState.kt` | 新增 `AudienceUiState` data class |
+| 数据 DTO | `data/model/RoomMember.kt` | `id/nickname/avatarUrl/role/slot/joinedAt/micMuted/chatMuted` |
+| 仓库接口 | `data/room/IRoomMemberRepository.kt` | `listMembers()` + `MemberListResult` + `NoOpRoomMemberRepository` |
+| Retrofit API | `data/api/RoomApi.kt` | `listMembers(roomId, page, limit)` GET 接口 |
+| ViewModel 扩展 | `feature/room/RoomViewModel.kt` | 新增 `audienceState`/`selectedMember` StateFlow + `loadMoreMembers()`/`onMemberClick()` + WS 事件处理 |
+| 测试 | `test/.../AudienceViewModelTest.kt` | A39-01~07 + extra-01~05 + A39-first-page，共 13 个全部通过 |
+| Fake 仓库 | `data/room/FakeRoomMemberRepository.kt` | 测试辅助，可注入 page 响应 |
+
+#### AudienceUiState 详解
+
+```kotlin
+// feature/room/RoomUiState.kt
+data class AudienceUiState(
+    val onMic: List<RoomMember> = emptyList(),
+    val audience: List<RoomMember> = emptyList(),
+    val total: Int = 0,
+    val loading: Boolean = false,
+    val currentPage: Int = 0,  // 初始值为 0，表示"尚未加载任何页"；
+                                // 首次 loadMoreMembers() 计算 nextPage = 0+1 = 1，
+                                // 正确请求 API 第 1 页（API 1-indexed）。
+                                // Review R1 HIGH-01 修复：原始值 1 → 0。
+    val hasMore: Boolean = true
+)
+```
+
+> **`currentPage` 初始值为 0 的原因**：API 使用 1-indexed 页码，`loadMoreMembers()` 每次以 `nextPage = currentPage + 1` 发起请求。若初始值为 1，首次调用会跳过第 1 页直接请求第 2 页，导致进入房间时所有现有成员不可见（静默数据缺失 Bug，Review R1 HIGH-01）。初始值 0 确保首次请求 `page=1`，用回归测试 `A39-first-page` 锁定。
+
+#### IRoomMemberRepository + listMembers API
+
+```kotlin
+// data/room/IRoomMemberRepository.kt
+interface IRoomMemberRepository {
+    /**
+     * 获取房间成员分页列表。
+     * @param roomId  目标房间 ID
+     * @param page    1-indexed 页码；首页传 1
+     * @param limit   每页条数，默认 20
+     */
+    suspend fun listMembers(
+        roomId: String,
+        page: Int,
+        limit: Int = 20
+    ): MemberListResult
+}
+
+data class MemberListResult(
+    val onMic: List<RoomMember>,
+    val audience: List<RoomMember>,
+    val total: Int,
+    val hasMore: Boolean   // false 时 loadMoreMembers() 停止继续加载
+)
+
+/** NoOp 实现供未接 DI 的构造场景使用，hasMore=false 防止无界分页（R1 HIGH-02 修复） */
+class NoOpRoomMemberRepository : IRoomMemberRepository {
+    override suspend fun listMembers(roomId: String, page: Int, limit: Int) =
+        MemberListResult(emptyList(), emptyList(), 0, hasMore = false)
+}
+```
+
+#### 分页规则
+
+| 条件 | 行为 |
+|------|------|
+| `hasMore = true` | 滚到底时触发 `loadMoreMembers()`，请求 `page = currentPage + 1` |
+| `hasMore = false` | **停止加载**，不再发起网络请求；`NoOpRoomMemberRepository` 固定返回 `false` 防无界分页 |
+| `loading = true` | 防重复请求（`loadMoreMembers()` 进入时检查） |
+
+#### WS 事件映射
+
+| WS 事件 | 处理逻辑 |
+|---------|---------|
+| `UserJoined` | 将新用户追加到 `audience` 列表尾部；`total + 1` |
+| `UserLeft` | 从 `onMic` 或 `audience` 中移除对应 `userId`；`total - 1` |
+| `MicTaken` | 将用户从 `audience` 移入 `onMic`（填充 `slot` 字段）；兜底：用户未经 `UserJoined` 直接上麦时仅含 `id+nickname`（FIXME：缺 `role`/`avatarUrl`，MEDIUM-01 遗留）|
+| `MicLeft` | 将用户从 `onMic` 移回 `audience`，清除 `slot` |
+| `AdminChanged` | 更新对应用户的 `role` 字段（`admin` ↔ `member`），含 `previous_admin_id` 恢复前任角色 |
+
+#### testTag 清单
+
+| testTag | 组件 | 用途 |
+|---------|------|------|
+| `audience_sheet` | `AudienceBottomSheet` 根容器（`Key('audience_sheet')`） | 断言弹窗已显示 |
+| `audience_item_${userId}` | 每行 `MemberRow`（`Key('audience_item_$userId')`） | 点击触发 `onMemberClick`；断言成员存在 |
+| `audience_header_on_mic` | "麦上 (N)" 分组标头 | 断言麦上分区渲染 |
+| `audience_header_observers` | "观众 (N)" 分组标头 | 断言观众分区渲染 |
+
+> **包路径**：`com.voice.room.android.feature.room.components`（AudienceBottomSheet、MemberRow）、`com.voice.room.android.data.room`（IRoomMemberRepository、FakeRoomMemberRepository）  
+> **点击回调**：`MemberRow` 点击 → `RoomViewModel.onMemberClick(member)` → `selectedMember` 更新 → `RoomScreen` 弹出 `UserActionBottomSheet`（T-30040）  
+> **性能**：LazyColumn 使用稳定 key（`userId`），100 人房间滚动不卡顿；头像由 Coil 缓存  
+> **服务端协议**：对齐 `doc/arch/server/room.md` §十三~§十五（GET `/api/v1/rooms/:id/members`，角色优先级 owner>admin>member，1 次批量 SQL）  
+> **遗留项**：[MEDIUM-01] `MicTaken` 兜底 `RoomMember` 缺 `role`/`avatarUrl`，已加 FIXME；[MEDIUM-02] A39-01「双空状态文案」Compose UI 层断言待补充；[LOW-01] `RoomViewModel` KDoc WS 映射表待补全
+
+---
+
 ## 二、 当前测试覆盖
 
 - **测试文件**：30 个（含 `test/` 和 `androidTest/` 目录）
