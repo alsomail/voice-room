@@ -20,11 +20,13 @@ import androidx.compose.ui.tooling.preview.Preview
  * - 返回按钮（`testTag("room_back_button")`）
  * - 房间名（`testTag("room_name")`）
  * - 在线人数（`testTag("room_online_count")`）
+ * - [extraActions]：可选额外操作区（如溢出菜单，T-30033 MEDIUM-02）
  *
- * @param roomName    房间名称
- * @param onlineCount 在线人数
- * @param onBack      点击返回按钮的回调
- * @param modifier    可选 Modifier
+ * @param roomName      房间名称
+ * @param onlineCount   在线人数
+ * @param onBack        点击返回按钮的回调
+ * @param extraActions  topBar actions 区域的额外 Composable 内容（默认空）
+ * @param modifier      可选 Modifier
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -32,6 +34,7 @@ fun RoomTopBar(
     roomName: String,
     onlineCount: Int,
     onBack: () -> Unit = {},
+    extraActions: @Composable () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     TopAppBar(
@@ -60,6 +63,7 @@ fun RoomTopBar(
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.testTag("room_online_count"),
             )
+            extraActions()
         },
     )
 }

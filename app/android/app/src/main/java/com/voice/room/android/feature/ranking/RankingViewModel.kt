@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.voice.room.android.data.auth.ApiException
 import com.voice.room.android.domain.ranking.IRankingRepository
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -39,6 +40,12 @@ class RankingViewModel(
     private val _events = MutableSharedFlow<RankingEvent>()
     val events: SharedFlow<RankingEvent> = _events.asSharedFlow()
 
+    /**
+     * HIGH-01 修复：追踪当前加载 Job，切换 Tab 时先取消旧协程，
+     * 避免慢网络下旧响应覆盖当前 Tab 数据（竞态条件）。
+     */
+    private var loadingJob: Job? = null
+
     // ─── Init ─────────────────────────────────────────────────────────────────
 
     init {
@@ -69,7 +76,8 @@ class RankingViewModel(
      * 下拉刷新：重新请求当前 type+period 的榜单
      */
     fun refresh() {
-        viewModelScope.launch {
+        loadingJob?.cancel()
+        loadingJob = viewModelScope.launch {
             _uiState.update { it.copy(refreshing = true, error = null) }
             fetchRanking(
                 type = _uiState.value.type.apiValue,
@@ -81,7 +89,8 @@ class RankingViewModel(
     // ─── Private ─────────────────────────────────────────────────────────────
 
     private fun loadRanking() {
-        viewModelScope.launch {
+        loadingJob?.cancel()
+        loadingJob = viewModelScope.launch {
             _uiState.update { it.copy(loading = true, error = null) }
             fetchRanking(
                 type = _uiState.value.type.apiValue,

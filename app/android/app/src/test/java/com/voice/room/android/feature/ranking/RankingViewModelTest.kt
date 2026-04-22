@@ -8,9 +8,11 @@ import com.voice.room.android.domain.ranking.RankingPage
 import com.voice.room.android.utils.MainDispatcherRule
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -294,6 +296,121 @@ class RankingViewModelTest {
             job.cancel()
 
             assertNull("Switching period should clear error", vm.uiState.value.error)
+        }
+
+    // ─── HIGH-01: 竞态条件 — Tab 切换必须取消旧协程 ─────────────────────────
+
+    /**
+     * HIGH-01-a: 快速切换 Tab 时，前一个加载协程被取消，不会覆盖新 Tab 数据。
+     *
+     * 模拟：init 启动第一个 loadRanking（慢，10 秒延迟），
+     *       此时立即调用 selectType(Wealth)（应取消第一个并启动第二个），
+     *       最终 items 应来自第二个调用（Wealth）而不是第一个（Charm）。
+     */
+    @Test
+    fun `HIGH-01-a rapid selectType cancels previous loading job`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            var firstCallCompleted = false
+            var callCount = 0
+
+            val repo = object : IRankingRepository {
+                override suspend fun getRanking(type: String, period: String): Result<RankingPage> {
+                    callCount++
+                    return if (callCount == 1) {
+                        // First call (charm/day from init) is very slow
+                        delay(10_000L)
+                        firstCallCompleted = true
+                        Result.success(defaultPage().copy(type = "charm"))
+                    } else {
+                        // Second call (wealth) returns immediately
+                        Result.success(
+                            defaultPage().copy(
+                                type = "wealth",
+                                items = listOf(
+                                    RankEntry(rank = 1, userId = "w1", nickname = "Wealthy", avatar = "", score = 99999, medal = "gold"),
+                                )
+                            )
+                        )
+                    }
+                }
+            }
+
+            val vm = RankingViewModel(repo)
+            // Start init coroutine but don't complete it (it's stuck at delay(10_000L))
+            runCurrent()
+
+            // While init is in-flight, switch type → must cancel init's job
+            vm.selectType(RankingType.Wealth)
+            advanceUntilIdle()
+
+            // The first call (Charm) was cancelled before completing
+            assertFalse(
+                "First loadRanking job must have been cancelled, not allowed to complete",
+                firstCallCompleted
+            )
+            // Final state reflects Wealth (second call), not Charm
+            assertEquals(
+                "UI should reflect Wealth type after selectType",
+                RankingType.Wealth,
+                vm.uiState.value.type
+            )
+        }
+
+    /**
+     * HIGH-01-b: 快速切换 Period 后再切回时，中间的慢请求被取消，
+     * 不会用"旧 Tab"数据覆盖"新 Tab"的 UI。
+     *
+     * 关键断言：Week 调用耗时 10 秒，Day 调用即时返回；若没有取消，
+     * Week 会在 Day 之后写入 state，导致 items 内容来自 Week。
+     * 修复后 Week 被取消，最终 items 来自 Day 调用。
+     */
+    @Test
+    fun `HIGH-01-b in-flight week request cancelled when switching back to day`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            val dayItems = listOf(
+                RankEntry(rank = 1, userId = "d1", nickname = "DayUser", avatar = "", score = 111, medal = "gold")
+            )
+            val weekItems = listOf(
+                RankEntry(rank = 1, userId = "w1", nickname = "WeekUser", avatar = "", score = 999, medal = "gold")
+            )
+            var callCount = 0
+
+            val repo = object : IRankingRepository {
+                override suspend fun getRanking(type: String, period: String): Result<RankingPage> {
+                    callCount++
+                    return when (callCount) {
+                        1 -> Result.success(defaultPage().copy(items = dayItems, period = "day"))
+                        2 -> {
+                            // Week request — very slow, should get cancelled
+                            delay(10_000L)
+                            Result.success(defaultPage().copy(items = weekItems, period = "week"))
+                        }
+                        else -> {
+                            // Day again after switching back — immediate
+                            Result.success(defaultPage().copy(items = dayItems, period = "day"))
+                        }
+                    }
+                }
+            }
+
+            val vm = RankingViewModel(repo)
+            advanceUntilIdle() // init (Day) completes, items = dayItems
+
+            // Switch to Week (slow)
+            vm.selectPeriod(Period.Week)
+            runCurrent() // Week coroutine starts but stalls at delay(10_000)
+
+            // Before Week completes, switch back to Day — must CANCEL Week coroutine
+            vm.selectPeriod(Period.Day)
+            advanceUntilIdle()
+
+            // Without fix: Week completes after Day → items == weekItems (WRONG)
+            // With fix:    Week is cancelled     → items == dayItems  (CORRECT)
+            assertEquals(
+                "Week request must be cancelled; items should come from Day call",
+                "DayUser",
+                vm.uiState.value.items.firstOrNull()?.nickname
+            )
         }
 
     companion object {

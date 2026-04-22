@@ -7,7 +7,15 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -15,6 +23,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -55,6 +64,7 @@ import com.voice.room.android.feature.gift.GiftPanelUiState
  * @param onGiftPanelDismiss     关闭礼物面板回调（T-30028）
  * @param onGoToWalletClick      余额不足弹窗"去充值"按钮点击回调 → 触发 vm.onGoToWallet()（T-30032）
  * @param onNavigateToWallet     收到 NavigateToWallet 事件后的实际导航回调（T-30032）
+ * @param onNavigateToRanking    点击房间菜单"榜单"入口后的导航回调（T-30033 MEDIUM-02）
  * @param modifier               可选 Modifier
  */
 @Composable
@@ -78,6 +88,7 @@ fun RoomScreen(
     onGiftPanelDismiss: () -> Unit = {},
     onGoToWalletClick: () -> Unit = {},
     onNavigateToWallet: () -> Unit = {},
+    onNavigateToRanking: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     // T-30016: 输入框本地状态，由 ClearInput 事件驱动清空
@@ -85,6 +96,9 @@ fun RoomScreen(
 
     // T-30028: 礼物面板显示状态（本地）
     var showGiftPanel by remember { mutableStateOf(false) }
+
+    // T-30033 MEDIUM-02: 溢出菜单展开状态（本地）
+    var showOverflowMenu by remember { mutableStateOf(false) }
 
     // 监听 ViewModel 事件：成功发送后清空输入框
     LaunchedEffect(Unit) {
@@ -102,6 +116,38 @@ fun RoomScreen(
                 roomName = uiState.roomName,
                 onlineCount = uiState.onlineCount,
                 onBack = onBack,
+                extraActions = {
+                    // T-30033 MEDIUM-02: 溢出菜单 — "榜单"入口
+                    IconButton(
+                        onClick = { showOverflowMenu = true },
+                        modifier = Modifier.testTag("room_overflow_menu_button"),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.MoreVert,
+                            contentDescription = "更多",
+                            tint = MenaColors.OnBackground,
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = showOverflowMenu,
+                        onDismissRequest = { showOverflowMenu = false },
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("榜单") },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Filled.EmojiEvents,
+                                    contentDescription = "榜单",
+                                )
+                            },
+                            onClick = {
+                                showOverflowMenu = false
+                                onNavigateToRanking()
+                            },
+                            modifier = Modifier.testTag("room_menu_ranking"),
+                        )
+                    }
+                },
             )
         },
         bottomBar = {

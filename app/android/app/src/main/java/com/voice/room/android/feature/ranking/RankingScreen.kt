@@ -1,7 +1,6 @@
 package com.voice.room.android.feature.ranking
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -10,7 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -72,7 +71,7 @@ fun RankingScreen(
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(
-                            imageVector = Icons.Filled.ArrowBack,
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "返回",
                             tint = MenaColors.OnBackground,
                         )
@@ -93,7 +92,7 @@ fun RankingScreen(
                 .padding(innerPadding),
         ) {
             // ── 一级 Tab：魅力榜 / 财富榜 ─────────────────────────
-            val typeValues = RankingType.values()
+            val typeValues = RankingType.entries
             TabRow(
                 selectedTabIndex = typeValues.indexOf(uiState.type),
                 containerColor = MenaColors.Surface,
@@ -119,7 +118,7 @@ fun RankingScreen(
             }
 
             // ── 二级 Tab：日榜 / 周榜 ──────────────────────────────
-            val periodValues = Period.values()
+            val periodValues = Period.entries
             TabRow(
                 selectedTabIndex = periodValues.indexOf(uiState.period),
                 containerColor = MenaColors.SurfaceVariant,
