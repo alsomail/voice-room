@@ -49,23 +49,22 @@ fn default_limit() -> u32 {
 
 /// 将 `AuthService` 适配为 `MembersUserRepo`。
 ///
-/// 通过 `auth_service.get_user_by_id()` 逐一查询（MVP，100 人房间 1 次/人，
-/// 可接受；后续可优化为批量 SQL）。
+/// 通过 `auth_service.get_users_by_ids()` 单次批量查询 DB（T-00027 N+1 修复）：
+/// 使用 `WHERE id = ANY($1)` 一次 SQL 取回所有用户，100 人房间仅需 1 次查询。
 struct AuthServiceUserAdapter(Arc<crate::modules::auth::service::AuthService>);
 
 #[async_trait]
 impl MembersUserRepo for AuthServiceUserAdapter {
     async fn find_users_by_ids(&self, ids: &[Uuid]) -> Result<Vec<UserInfo>, AppError> {
-        let mut result = Vec::with_capacity(ids.len());
-        for id in ids {
-            if let Some(user) = self.0.get_user_by_id(*id).await? {
-                result.push(UserInfo {
-                    id: user.id,
-                    nickname: user.nickname,
-                    avatar: user.avatar,
-                });
-            }
-        }
+        let users = self.0.get_users_by_ids(ids).await?;
+        let result = users
+            .into_iter()
+            .map(|user| UserInfo {
+                id: user.id,
+                nickname: user.nickname,
+                avatar: user.avatar,
+            })
+            .collect();
         Ok(result)
     }
 }

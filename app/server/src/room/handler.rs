@@ -138,13 +138,10 @@ pub async fn handle_join_room(
     let room_state = room_manager.get_or_create_room(room_id);
 
     // ── 6. 加入成员表 ──────────────────────────────────────────────────────────
-    let now = chrono::Utc::now();
     room_state.members.insert(
         user_id,
         MemberInfo::new(user_id, nickname.clone(), avatar.clone()),
     );
-    // 记录进房时间（T-00027 列表排序用）
-    room_state.member_join_times.insert(user_id, now);
 
     // ── 7. 标记连接所属房间 ─────────────────────────────────────────────────────
     registry.set_room_id(connection_id, room_id);
@@ -235,8 +232,6 @@ pub async fn do_leave_room(
 
     // 3. 移除成员
     room_state.members.remove(&user_id);
-    // 同步清理进房时间（T-00027）
-    room_state.member_join_times.remove(&user_id);
 
     // 4. 自动下麦（若在麦上），暂存麦位索引，广播延迟到 clear_room_id 之后
     let left_mic_index = room_state.leave_mic_slot(user_id);

@@ -114,6 +114,14 @@ impl AuthService {
     ) -> Result<Option<voice_room_shared::models::user::UserModel>, AppError> {
         self.user_repo.find_by_id(user_id).await
     }
+
+    /// T-00027: 批量按 user_id 查询用户信息（单次 SQL，避免 N+1）
+    pub async fn get_users_by_ids(
+        &self,
+        ids: &[Uuid],
+    ) -> Result<Vec<voice_room_shared::models::user::UserModel>, AppError> {
+        self.user_repo.find_by_ids(ids).await
+    }
 }
 
 impl From<UserModel> for UserResponse {
@@ -436,5 +444,47 @@ mod tests {
             matches!(err, AppError::VerificationCodeExpired),
             "same OTP must not be reused; got: {err:?}"
         );
+    }
+
+    // ── T-00027: get_users_by_ids 批量查询 ───────────────────────────────────
+
+    /// S01: get_users_by_ids 空切片 → 返回空 Vec
+    #[tokio::test]
+    async fn get_users_by_ids_empty_returns_empty() {
+        let (svc, _, _) = test_service();
+        let result = svc.get_users_by_ids(&[]).await.unwrap();
+        assert!(result.is_empty(), "S01: empty ids must return empty Vec");
+    }
+
+    /// S02: get_users_by_ids 批量返回所有存在的用户
+    #[tokio::test]
+    async fn get_users_by_ids_returns_all_matching_users() {
+        let (svc, _, user_repo) = test_service();
+        let u1 = dummy_user("+8611000000001", false);
+        let u2 = dummy_user("+8611000000002", false);
+        let id1 = u1.id;
+        let id2 = u2.id;
+        user_repo.seed(u1);
+        user_repo.seed(u2);
+
+        let result = svc.get_users_by_ids(&[id1, id2]).await.unwrap();
+        assert_eq!(result.len(), 2, "S02: must return 2 users");
+        let ids: Vec<Uuid> = result.iter().map(|u| u.id).collect();
+        assert!(ids.contains(&id1));
+        assert!(ids.contains(&id2));
+    }
+
+    /// S03: get_users_by_ids 不存在的 ID 不在返回结果中
+    #[tokio::test]
+    async fn get_users_by_ids_skips_nonexistent() {
+        let (svc, _, user_repo) = test_service();
+        let u1 = dummy_user("+8611000000003", false);
+        let id1 = u1.id;
+        user_repo.seed(u1);
+
+        let ghost = Uuid::new_v4();
+        let result = svc.get_users_by_ids(&[id1, ghost]).await.unwrap();
+        assert_eq!(result.len(), 1, "S03: ghost id must not appear");
+        assert_eq!(result[0].id, id1);
     }
 }

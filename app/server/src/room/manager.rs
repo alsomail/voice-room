@@ -77,6 +77,7 @@ impl RoomManager {
     ///
     /// 返回 `None` 表示房间不存在（未在内存中激活）。
     /// 返回的快照包含麦位信息、muted 状态，供上层 service 排序和分页。
+    /// `joined_at` 直接读自 `MemberInfo.joined_at`（单一数据源，T-00027 Review 修复）。
     pub fn list_members(&self, room_id: Uuid) -> Option<Vec<MemberSnapshot>> {
         let state = self.get_room(room_id)?;
         let slots = state.mic_slots_snapshot();
@@ -88,12 +89,8 @@ impl RoomManager {
                 let user_id = *entry.key();
                 // 从 mic_slots 中找出该用户占用的槽位索引
                 let mic_slot = slots.iter().position(|s| *s == Some(user_id));
-                // 进房时间：优先从 member_join_times 读，fallback 到 MemberInfo.joined_at
-                let joined_at = state
-                    .member_join_times
-                    .get(&user_id)
-                    .map(|t| *t)
-                    .unwrap_or(entry.value().joined_at);
+                // 进房时间：直接读 MemberInfo.joined_at（单一数据源）
+                let joined_at = entry.value().joined_at;
                 let muted_mic = state.banned_mics.contains(&user_id);
                 let muted_chat = state.muted_users.contains(&user_id);
                 MemberSnapshot {

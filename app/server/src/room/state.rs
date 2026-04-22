@@ -48,8 +48,6 @@ pub struct RoomState {
     pub room_id: Uuid,
     /// 当前成员表（key = user_id）
     pub members: DashMap<Uuid, MemberInfo>,
-    /// 成员进房时间表（key = user_id，T-00027 列表排序用）
-    pub member_join_times: DashMap<Uuid, chrono::DateTime<chrono::Utc>>,
     /// 麦位列表（9 个槽，None 表示空闲，Some(user_id) 表示占用）
     pub mic_slots: RwLock<Vec<Option<Uuid>>>,
     /// 禁麦用户集合（在此集合中的用户不允许上麦）
@@ -66,7 +64,6 @@ impl RoomState {
         Self {
             room_id,
             members: DashMap::new(),
-            member_join_times: DashMap::new(),
             mic_slots: RwLock::new(vec![None; 9]),
             banned_mics: DashSet::new(),
             muted_users: DashSet::new(),

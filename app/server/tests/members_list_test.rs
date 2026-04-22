@@ -111,7 +111,6 @@ fn seed_members(
         // 第 i 个用户进房时间：count-i 秒前（索引越大进房越晚=时间越新）
         info.joined_at = Utc::now() - Duration::seconds((count - i) as i64);
         state.members.insert(uid, info);
-        state.member_join_times.insert(uid, Utc::now() - Duration::seconds((count - i) as i64));
         ids.push(uid);
     }
     ids
@@ -179,7 +178,6 @@ async fn m27_02_page_zero_returns_validation_error() {
     state
         .members
         .insert(caller_id, MemberInfo::new(caller_id, "Owner".to_string(), None));
-    state.member_join_times.insert(caller_id, Utc::now());
 
     let mut room_repo = FakeRoomsRepo::new();
     room_repo.add(room_id, owner_id, None);
@@ -244,7 +242,6 @@ async fn m27_04_mic_users_always_on_top() {
         let mut info = MemberInfo::new(*uid, format!("audience_{i}"), None);
         info.joined_at = Utc::now() - Duration::seconds((10 - i) as i64);
         state.members.insert(*uid, info);
-        state.member_join_times.insert(*uid, Utc::now() - Duration::seconds((10 - i) as i64));
     }
 
     // 添加 2 名麦上用户，占 slot 2 和 slot 5
@@ -256,8 +253,6 @@ async fn m27_04_mic_users_always_on_top() {
     state
         .members
         .insert(mic_user_2, MemberInfo::new(mic_user_2, "OnMic2".to_string(), None));
-    state.member_join_times.insert(mic_user_1, Utc::now());
-    state.member_join_times.insert(mic_user_2, Utc::now());
     state.take_mic_slot(2, mic_user_1).unwrap();
     state.take_mic_slot(5, mic_user_2).unwrap();
 
@@ -317,9 +312,6 @@ async fn m27_05_sorting_slot_asc_then_joined_at_desc() {
     state.members.insert(early_uid, early_info);
     state.members.insert(mid_uid, mid_info);
     state.members.insert(late_uid, late_info);
-    state.member_join_times.insert(early_uid, now - Duration::seconds(30));
-    state.member_join_times.insert(mid_uid, now - Duration::seconds(20));
-    state.member_join_times.insert(late_uid, now - Duration::seconds(10));
 
     // 添加麦上用户：slot=1 和 slot=0
     let slot0_uid = Uuid::new_v4();
@@ -330,8 +322,6 @@ async fn m27_05_sorting_slot_asc_then_joined_at_desc() {
     state
         .members
         .insert(slot1_uid, MemberInfo::new(slot1_uid, "Slot1".to_string(), None));
-    state.member_join_times.insert(slot0_uid, now);
-    state.member_join_times.insert(slot1_uid, now);
     state.take_mic_slot(0, slot0_uid).unwrap();
     state.take_mic_slot(1, slot1_uid).unwrap();
 
@@ -387,14 +377,12 @@ async fn m27_06_role_calculation_correct() {
 
     let state = manager.get_or_create_room(room_id);
 
-    let now = Utc::now();
     for (uid, name) in [
         (owner_id, "Owner"),
         (admin_id, "Admin"),
         (member_id, "Member"),
     ] {
         state.members.insert(uid, MemberInfo::new(uid, name.to_string(), None));
-        state.member_join_times.insert(uid, now);
     }
 
     let mut room_repo = FakeRoomsRepo::new();
@@ -437,7 +425,6 @@ async fn m27_07_non_member_returns_403() {
         owner_id,
         MemberInfo::new(owner_id, "Owner".to_string(), None),
     );
-    state.member_join_times.insert(owner_id, Utc::now());
 
     let mut room_repo = FakeRoomsRepo::new();
     room_repo.add(room_id, owner_id, None);
@@ -468,7 +455,6 @@ async fn m27_08_muted_mic_and_chat_fields_correct() {
     let manager = Arc::new(RoomManager::new());
 
     let state = manager.get_or_create_room(room_id);
-    let now = Utc::now();
 
     for (uid, name) in [
         (owner_id, "Owner"),
@@ -477,7 +463,6 @@ async fn m27_08_muted_mic_and_chat_fields_correct() {
         (normal_id, "Normal"),
     ] {
         state.members.insert(uid, MemberInfo::new(uid, name.to_string(), None));
-        state.member_join_times.insert(uid, now);
     }
 
     // 设置禁麦/禁言
