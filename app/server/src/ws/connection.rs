@@ -21,8 +21,14 @@ use crate::core::analytics::writer::EventWriterPort;
 use crate::modules::auth::service::AuthService;
 use crate::modules::events::ws::{ReportEventDeps, handle_report_event};
 use crate::modules::gift::send_gift::{SendGiftDeps, SendGiftServicePort, handle_send_gift};
+use crate::modules::governance::force_mic::{
+    ForceLeaveMicDeps, ForceTakeMicDeps, handle_force_leave_mic, handle_force_take_mic,
+};
 use crate::modules::governance::kick::{KickAuditDb, KickDeps, KickRedis, handle_kick};
 use crate::modules::governance::mute::{MuteDb, MuteDeps, MuteRedis, handle_mute, handle_unmute};
+use crate::modules::governance::transfer::{
+    TransferAdminDeps, TransferAdminRepo, handle_transfer_admin,
+};
 use crate::modules::room::service::RoomService;
 use crate::room::handler::{JoinRoomDeps, LeaveRoomDeps};
 use crate::room::handler::do_leave_room;
@@ -116,6 +122,8 @@ pub struct SocketDeps {
     pub mute_redis: Arc<dyn MuteRedis>,
     /// 禁麦/禁言审计 DB（T-00029 MuteUser 信令）
     pub mute_db: Arc<dyn MuteDb>,
+    /// 管理员任命 DB（T-00030 TransferAdmin 信令）
+    pub transfer_admin_repo: Arc<dyn TransferAdminRepo>,
 }
 
 /// 在成功升级的 WebSocket 上运行完整的读/写生命周期。
@@ -139,6 +147,7 @@ pub async fn handle_socket(
     kick_audit_db: Arc<dyn KickAuditDb>,
     mute_redis: Arc<dyn MuteRedis>,
     mute_db: Arc<dyn MuteDb>,
+    transfer_admin_repo: Arc<dyn TransferAdminRepo>,
 ) {
     let connection_id = Uuid::new_v4(); // 每次連接生成唯一 ID，與 user_id 解耦
     let (tx, mut rx) = mpsc::unbounded_channel::<String>();
@@ -340,6 +349,56 @@ pub async fn handle_socket(
                                 ).await;
                                 if !registry.send_to(connection_id, &response) {
                                     tracing::warn!(%connection_id, "failed to send UnmuteUserResult");
+                                }
+                            } else if incoming.msg_type == "TransferAdmin" {
+                                // T-00030: TransferAdmin 信令处理
+                                let deps = TransferAdminDeps {
+                                    room_manager: room_manager.clone(),
+                                    room_service: room_service.clone(),
+                                    room_repo: transfer_admin_repo.clone(),
+                                    registry: registry.clone(),
+                                };
+                                let response = handle_transfer_admin(
+                                    incoming.payload,
+                                    incoming.msg_id,
+                                    user_id,
+                                    &deps,
+                                ).await;
+                                if !registry.send_to(connection_id, &response) {
+                                    tracing::warn!(%connection_id, "failed to send TransferAdminResult");
+                                }
+                            } else if incoming.msg_type == "ForceTakeMic" {
+                                // T-00030: ForceTakeMic 信令处理
+                                let deps = ForceTakeMicDeps {
+                                    room_manager: room_manager.clone(),
+                                    room_service: room_service.clone(),
+                                    mute_redis: mute_redis.clone(),
+                                    registry: registry.clone(),
+                                };
+                                let response = handle_force_take_mic(
+                                    incoming.payload,
+                                    incoming.msg_id,
+                                    user_id,
+                                    &deps,
+                                ).await;
+                                if !registry.send_to(connection_id, &response) {
+                                    tracing::warn!(%connection_id, "failed to send ForceTakeMicResult");
+                                }
+                            } else if incoming.msg_type == "ForceLeaveMic" {
+                                // T-00030: ForceLeaveMic 信令处理
+                                let deps = ForceLeaveMicDeps {
+                                    room_manager: room_manager.clone(),
+                                    room_service: room_service.clone(),
+                                    registry: registry.clone(),
+                                };
+                                let response = handle_force_leave_mic(
+                                    incoming.payload,
+                                    incoming.msg_id,
+                                    user_id,
+                                    &deps,
+                                ).await;
+                                if !registry.send_to(connection_id, &response) {
+                                    tracing::warn!(%connection_id, "failed to send ForceLeaveMicResult");
                                 }
                             } else {
                                 // 其他消息类型（ping 等）走纯函数路径

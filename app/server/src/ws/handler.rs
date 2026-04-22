@@ -73,8 +73,9 @@ pub async fn ws_handler(
     let kick_audit_db = state.kick_audit_db.clone();
     let mute_redis = state.mute_redis.clone();
     let mute_db = state.mute_db.clone();
+    let transfer_admin_repo = state.transfer_admin_repo.clone();
     tracing::info!(%user_id, "websocket upgrade accepted");
     ws.on_upgrade(move |socket| {
-        handle_socket(socket, user_id, registry, stats, room_manager, room_service, auth_service, send_gift_service, event_writer, jwt_secret, kick_redis, kick_audit_db, mute_redis, mute_db)
+        handle_socket(socket, user_id, registry, stats, room_manager, room_service, auth_service, send_gift_service, event_writer, jwt_secret, kick_redis, kick_audit_db, mute_redis, mute_db, transfer_admin_repo)
     })
 }
