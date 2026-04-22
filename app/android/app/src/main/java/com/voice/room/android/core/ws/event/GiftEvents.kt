@@ -44,6 +44,7 @@ data class GiftReceivedEvent(
     val senderAvatar: String?,
     val receiverUserId: String,
     val receiverNickname: String,
+    val receiverAvatar: String?,   // 协议 §6.4.3 receiver.avatar，nullable 兼容旧协议
     val giftId: String,
     val giftCode: String,
     val giftName: String,

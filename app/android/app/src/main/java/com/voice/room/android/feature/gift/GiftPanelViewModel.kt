@@ -282,13 +282,27 @@ class GiftPanelViewModel(
     /**
      * 构造 SendGift WS JSON 字符串（§6.4.2 协议格式）。
      *
+     * 使用 Gson [JsonObject] API 构建，避免字符串插值造成的 JSON 注入风险
+     * （giftId / recipientId / roomId 含 `"` 或 `\` 时字符串模板会破坏格式）。
+     *
      * ```json
      * { "type":"SendGift", "msg_id":"uuid",
      *   "payload":{ "room_id":"uuid","gift_id":"uuid","receiver_id":"uuid","count":1 } }
      * ```
      */
-    private fun buildSendGiftJson(job: SendGiftJob): String =
-        """{"type":"SendGift","msg_id":"${job.msgId}","payload":{"room_id":"${job.roomId}","gift_id":"${job.giftId}","receiver_id":"${job.recipientId}","count":${job.count}}}"""
+    private fun buildSendGiftJson(job: SendGiftJob): String {
+        val payload = com.google.gson.JsonObject().apply {
+            addProperty("room_id", job.roomId)
+            addProperty("gift_id", job.giftId)
+            addProperty("receiver_id", job.recipientId)
+            addProperty("count", job.count)
+        }
+        return com.google.gson.JsonObject().apply {
+            addProperty("type", "SendGift")
+            addProperty("msg_id", job.msgId)
+            add("payload", payload)
+        }.toString()
+    }
 
     /**
      * 根据 [SendGiftResultEvent.code] 处理响应。

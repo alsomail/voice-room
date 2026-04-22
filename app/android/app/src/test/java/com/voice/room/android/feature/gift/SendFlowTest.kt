@@ -2,6 +2,7 @@ package com.voice.room.android.feature.gift
 
 import com.google.gson.JsonParser
 import com.voice.room.android.core.ws.FakeWebSocketClient
+import com.voice.room.android.core.ws.event.GiftReceivedEvent
 import com.voice.room.android.domain.gift.GiftVO
 import com.voice.room.android.domain.gift.IGiftRepository
 import com.voice.room.android.domain.gift.MicUserVO
@@ -515,4 +516,125 @@ class SendFlowTest {
         assertNotEquals("超出时间窗口后应生成新 msg_id", combo1.msgId, combo2.msgId)
         assertEquals("超出时间窗口后 count 应重置为 1", 1, combo2.count)
     }
+
+    // ─── HIGH-1：GiftReceivedEvent 含 receiverAvatar 字段 ─────────────────────
+
+    /**
+     * HIGH-1（Review R1）：协议 §6.4.3 的 receiver 对象包含 avatar 字段，
+     * GiftReceivedEvent 必须有对应的 receiverAvatar: String? 字段。
+     *
+     * RED 阶段：GiftReceivedEvent 目前缺少 receiverAvatar，编译即失败。
+     */
+    @Test
+    fun `HIGH-1 GiftReceivedEvent has receiverAvatar field matching protocol section 6_4_3`() {
+        // 构造时传入 receiverAvatar=null（可 null 以兼容旧协议）
+        val eventWithNullAvatar = GiftReceivedEvent(
+            msgId = "msg-high1",
+            giftRecordId = "record-1",
+            senderUserId = "sender-1",
+            senderNickname = "Alice",
+            senderAvatar = "https://cdn.example.com/alice.png",
+            receiverUserId = "receiver-1",
+            receiverNickname = "Bob",
+            receiverAvatar = null,          // ← 协议 receiver.avatar 可为 null
+            giftId = "gift-1",
+            giftCode = "castle_01",
+            giftName = "قصر",
+            giftIconUrl = "https://cdn.example.com/castle.png",
+            giftAnimationUrl = "https://cdn.example.com/castle.svga",
+            effectLevel = 4,
+            count = 1,
+            totalPrice = 520L,
+        )
+        assertEquals(
+            "receiverAvatar 为 null 时应正确存储",
+            null,
+            eventWithNullAvatar.receiverAvatar,
+        )
+
+        // 构造时传入非 null 的 receiverAvatar
+        val eventWithAvatar = GiftReceivedEvent(
+            msgId = "msg-high1b",
+            giftRecordId = "record-2",
+            senderUserId = "sender-1",
+            senderNickname = "Alice",
+            senderAvatar = null,
+            receiverUserId = "receiver-1",
+            receiverNickname = "Bob",
+            receiverAvatar = "https://cdn.example.com/bob.png",  // ← 非 null
+            giftId = "gift-1",
+            giftCode = "castle_01",
+            giftName = "قصر",
+            giftIconUrl = "https://cdn.example.com/castle.png",
+            giftAnimationUrl = null,
+            effectLevel = 4,
+            count = 2,
+            totalPrice = 1040L,
+        )
+        assertEquals(
+            "receiverAvatar 非 null 时应正确存储",
+            "https://cdn.example.com/bob.png",
+            eventWithAvatar.receiverAvatar,
+        )
+    }
+
+    // ─── MEDIUM-1：buildSendGiftJson 特殊字符 JSON 注入防护 ────────────────────
+
+    /**
+     * MEDIUM-1（Review R1）：buildSendGiftJson 使用字符串插值时，
+     * giftId/recipientId 中含 `"` 或 `\` 会破坏 JSON 格式。
+     *
+     * RED 阶段：当前字符串插值实现遇到 `"` 字符时 JSON 解析将抛出异常。
+     */
+    @Test
+    fun `MEDIUM-1 buildSendGiftJson with special characters in giftId produces valid parseable JSON`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            // giftId 含双引号（最常见注入场景）
+            val specialGiftId = "gift\"with\"quotes"
+            val wsClient = FakeWebSocketClient()
+            val gift = makeGift(id = specialGiftId, price = 10L)
+            val repo = FakeGiftRepository(listGiftsResult = Result.success(listOf(gift)))
+            val vm = GiftPanelViewModel(
+                giftRepository = repo,
+                wsClient = wsClient,
+                roomId = "room-123",
+            )
+            advanceUntilIdle()
+
+            vm.updateRecipients(listOf(makeMicUser("user-1")))
+            vm.selectGift(specialGiftId)
+            vm.selectCount(1)
+            wsClient.simulateMessage(
+                """{"type":"BalanceUpdated","msg_id":"b1","payload":{"diamond_balance":100,"delta":100,"reason":"recharge","ref_id":null},"timestamp":1720000000000}"""
+            )
+            advanceUntilIdle()
+            wsClient.simulateConnect()
+
+            assertTrue("含特殊字符的 giftId，canSend 仍应为 true", vm.uiState.value.canSend)
+
+            vm.sendGift()
+            runCurrent()
+
+            assertTrue("应有 WS 消息发送", wsClient.sentMessages.isNotEmpty())
+            val rawJson = wsClient.sentMessages.last()
+
+            // 核心断言：JSON 必须可解析（字符串插值会在此处抛出异常）
+            val parsed = try {
+                JsonParser.parseString(rawJson).asJsonObject
+            } catch (e: Exception) {
+                throw AssertionError(
+                    "含特殊字符的 giftId 导致 JSON 格式错误。\n原始 JSON: $rawJson",
+                    e,
+                )
+            }
+
+            val payload = parsed.getAsJsonObject("payload")
+            assertNotNull("payload 不应为 null", payload)
+            // gift_id 应被正确转义，原始值完整保留
+            assertEquals(
+                "gift_id 特殊字符应被正确转义并还原",
+                specialGiftId,
+                payload.get("gift_id").asString,
+            )
+        }
 }

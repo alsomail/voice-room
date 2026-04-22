@@ -25,7 +25,7 @@ class ComboAggregator(
     private var current: Combo? = null
 
     /**
-     * 连击聚合数据
+     * 连击聚合数据（不可变）
      *
      * @param giftId      礼物 ID
      * @param recipientId 接收者 ID
@@ -37,8 +37,8 @@ class ComboAggregator(
         val giftId: String,
         val recipientId: String,
         val msgId: String,
-        var count: Int,
-        var lastTs: Long,
+        val count: Int,    // val：不可变，更新通过 copy() 实现
+        val lastTs: Long,  // val：不可变，更新通过 copy() 实现
     )
 
     /**
@@ -61,9 +61,8 @@ class ComboAggregator(
             && c.recipientId == recipientId
             && (now - c.lastTs) < windowMs
         ) {
-            c.count += unitCount
-            c.lastTs = now
-            c
+            // 不可变更新：通过 copy() 生成新 Combo，保持 equals()/hashCode() 稳定
+            c.copy(count = c.count + unitCount, lastTs = now).also { current = it }
         } else {
             Combo(
                 giftId = giftId,
