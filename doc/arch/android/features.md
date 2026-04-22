@@ -72,6 +72,75 @@
 > **布局**：`RoomScreen` 的 `Scaffold.bottomBar` 替换为 `RoomBottomBar`，`imePadding()` 保留  
 > **状态驱动**：`MicButton` 颜色/可用性完全由 ViewModel 的 `isCurrentUserOnMic`/`isCurrentUserMuted` 驱动，严禁客户端自行推断
 
+### 创建房间表单升级模块（🟢 已完成，T-30036，Review R2 通过）
+
+| 组件 | 关键文件 | Task | 当前状态 |
+| --- | --- | --- | --- |
+| 主表单页 | `feature/room/CreateRoomScreen.kt` | T-30036 | 🟢 全屏 Scaffold + TopAppBar + 封面预览区 `CoverPreview`（testTag: `cover_preview`，点击触发 `onSelectCover()`）+ 房名输入框 + `CategoryDropdown` + `AnnouncementField` + 密码开关 + `PasswordInputRow`（开关开时显示）+ `GoldButton` 提交按钮（testTag: `btn_submit_create_room`）+ Snackbar 错误提示 |
+| 分类下拉 | `feature/room/create/components/CategoryDropdown.kt` | T-30036 | 🟢 `ExposedDropdownMenu` 6 项分类（CHAT/EMOTION/MUSIC/GAME/MATCHMAKING/OTHER），绑定 `RoomCategory` 枚举 |
+| 公告输入框 | `feature/room/create/components/AnnouncementField.kt` | T-30036 | 🟢 多行 `TextField` + 字数计数器（当前字数 / 200），超限时计数器文字变红（`MenaColors.Error`）|
+| 密码输入行 | `feature/room/create/components/PasswordInputRow.kt` | T-30036 | 🟢 6 位分格输入框，仅接受纯数字，密码 Switch 开启时显示，关闭时隐藏且不传 `password` 字段 |
+| 分类枚举 | `feature/room/RoomCategory.kt` | T-30036 | 🟢 `enum class RoomCategory(val key: String, val label: String)` 6 项枚举（CHAT / EMOTION / MUSIC / GAME / MATCHMAKING / OTHER） |
+| 表单状态 | `feature/room/CreateRoomFormState.kt` | T-30036 | 🟢 新版 `data class` 含 `canSubmit` 计算属性（基于 `codePointCount` 修复 Unicode 一致性，Review R1 MEDIUM-01 修复）|
+| ViewModel 扩展 | `feature/room/create/CreateRoomViewModel.kt` | T-30036 | 🟢 新增 `formState: StateFlow<CreateRoomFormState>` + `updateTitle/updateCoverUrl/updateCategory/updateAnnouncement/togglePasswordEnabled/updatePassword/submit/clearNavigation` 方法；旧版 `uiState` + `createRoom(title,type,password)` 保持不变（向后兼容） |
+| Repository 接口升级 | `domain/room/IRoomRepository.kt` | T-30036 | 🟢 `createRoom()` 新增 `coverUrl/category/announcement` 参数（含默认值），修复 Review R1 HIGH-01；`FakeRoomRepository` / `RetrofitRoomRepository` / `HallViewModel.NoOpRoomRepository` 同步更新签名 |
+| 请求体 DTO 升级 | `data/remote/model/CreateRoomRequest.kt` | T-30036 | 🟢 新增 `cover_url`、`category`、`announcement` 可选字段，`room_type` 由 `passwordEnabled` 推导（`"password"` or `"normal"`） |
+| 测试覆盖 | `test/.../CreateRoomViewModelTest.kt` | T-30036 | 🟢 追加 C36-01~C36-08c 及边界测试共 **38 个测试全部通过**（C36-07c 验证 coverUrl/category/announcement 三字段均传入仓库层）|
+
+#### CreateRoomUiState 字段说明
+
+```kotlin
+data class CreateRoomFormState(
+    val title: String = "",
+    val coverUrl: String = "",           // 从 CoverPickerBottomSheet (T-30037) 回传
+    val category: RoomCategory = RoomCategory.CHAT,
+    val announcement: String = "",
+    val passwordEnabled: Boolean = false,
+    val password: String = "",           // 6 位纯数字
+    val submitting: Boolean = false,
+    val error: String? = null
+) {
+    val canSubmit: Boolean
+        get() = title.codePointCount(0, title.length) in 1..30  // Unicode 字符计数（修复 emoji 边界）
+             && announcement.length <= 200
+             && (!passwordEnabled || password.matches(Regex("\\d{6}")))
+             && coverUrl.isNotEmpty()                            // 封面必选
+             && !submitting
+}
+```
+
+#### canSubmit 校验规则
+
+| 条件 | 规则 | 错误表现 |
+|------|------|----------|
+| 房间名 | `codePointCount` 在 1~30 字（Unicode 字符，含 emoji 正确计数） | 为空或超限时提交按钮置灰 |
+| 封面 | `coverUrl.isNotEmpty()` 必选 | 未选封面时提交按钮永久置灰；封面区 `OutlinedCard` 显示错误色边框 |
+| 公告 | ≤200 字（UTF-16 `length`） | 超限时字数计数器变红；提交按钮置灰 |
+| 密码 | `passwordEnabled=true` 时 `Regex("\\d{6}")` 6 位纯数字 | 未满足时提交按钮置灰 |
+| 密码开关关闭 | 不传 `password` 字段（`ifBlank { null }`） | 密码输入行隐藏，请求体无 `password` |
+
+#### IRoomRepository.createRoom() 新接口
+
+```kotlin
+// domain/room/IRoomRepository.kt
+interface IRoomRepository {
+    suspend fun createRoom(
+        title: String,
+        type: String,
+        password: String? = null,
+        coverUrl: String = "",         // 新增 (T-30036)
+        category: String = "chat",     // 新增 (T-30036)
+        announcement: String? = null   // 新增 (T-30036)
+    ): Result<String>  // 返回 roomId
+}
+```
+
+> **包路径**：`com.voice.room.android.feature.room.create` / `com.voice.room.android.feature.room.create.components`  
+> **封面集成**：`CreateRoomScreen` 通过 `onSelectCover` 回调弹出 `CoverPickerBottomSheet`（T-30037），选中后回传 `coverUrl` 调用 `viewModel.updateCoverUrl()`  
+> **提交流程**：`submit()` → `CreateRoomRequest` 组装（`room_type` 由 `passwordEnabled` 推导）→ `roomApi.createRoom(req)` → 成功 `navigateToRoom(roomId)` / 失败 `handleError()`（409 活跃房 → Snackbar）  
+> **向后兼容**：旧版 `CreateRoomBottomSheet` (T-30007) 与 `CreateRoomViewModel.createRoom(title, type, password)` 接口保持不变，新版通过 `CreateRoomScreen` + `CreateRoomFormState` 并行运行  
+> **遗留项**（下一迭代）：`CreateRoomScreen` 标题计数器显示与 `isError` 判断仍用 `title.length`（UTF-16），与 `canSubmit` 的 `codePointCount` 不一致（Review R2 MEDIUM-NEW-01）；`RoomCategory.label` 硬编码中文，待改为 `@StringRes` 支持 i18n（Review R1 LOW-01）
+
 ### Chat 模块（🟢 已完成，T-30014 ~ T-30017）
 
 | 模块 | 关键文件 | Task | 当前状态 |
