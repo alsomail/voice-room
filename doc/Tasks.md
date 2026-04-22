@@ -328,7 +328,7 @@
 
 | Task ID | 归属端 | 模块 | 任务名称 | 前置依赖 | 核心描述 | TDD 验收标准 | 状态 | 预估工时 | 负责人 |
 |---------|--------|------|----------|----------|----------|-------------|------|----------|--------|
-| **T-10015** | Admin Server | Analytics | 用户行为查询 API [TDS](./tds/adminServer/T-10015.md) | T-00022, T-10012 | `GET /api/v1/admin/users/:id/events?event_name=&from=&to=&page=&limit=` ；默认返回按 server_ts 倒序的事件流；只查最近 30 天（分区时窗命中）；返回格式与上报结构一致；操作入 admin_logs | 1. 时间窗超过 30 天返回 400<br>2. event_name 可多值（逗号分隔）<br>3. 分页 max limit=100<br>4. 超级管理员才能查询后台事件（`admin_*`）<br>5. 命中分区表时响应 <300ms | In Progress | 4h | Review |
+| **T-10015** | Admin Server | Analytics | 用户行为查询 API [TDS](./tds/adminServer/T-10015.md) | T-00022, T-10012 | `GET /api/v1/admin/users/:id/events?event_name=&from=&to=&page=&limit=` ；默认返回按 server_ts 倒序的事件流；只查最近 30 天（分区时窗命中）；返回格式与上报结构一致；操作入 admin_logs | 1. 时间窗超过 30 天返回 400<br>2. event_name 可多值（逗号分隔）<br>3. 分页 max limit=100<br>4. 超级管理员才能查询后台事件（`admin_*`）<br>5. 命中分区表时响应 <300ms | In Progress | 4h | TDD |
 
 #### Web Admin
 
