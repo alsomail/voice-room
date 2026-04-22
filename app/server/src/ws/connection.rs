@@ -22,6 +22,7 @@ use crate::modules::auth::service::AuthService;
 use crate::modules::events::ws::{ReportEventDeps, handle_report_event};
 use crate::modules::gift::send_gift::{SendGiftDeps, SendGiftServicePort, handle_send_gift};
 use crate::modules::governance::kick::{KickAuditDb, KickDeps, KickRedis, handle_kick};
+use crate::modules::governance::mute::{MuteDb, MuteDeps, MuteRedis, handle_mute, handle_unmute};
 use crate::modules::room::service::RoomService;
 use crate::room::handler::{JoinRoomDeps, LeaveRoomDeps};
 use crate::room::handler::do_leave_room;
@@ -111,6 +112,10 @@ pub struct SocketDeps {
     pub kick_redis: Arc<dyn KickRedis>,
     /// 踢人审计 DB（T-00028 KickUser 信令）
     pub kick_audit_db: Arc<dyn KickAuditDb>,
+    /// 禁麦/禁言 Redis（T-00029 MuteUser/UnmuteUser 信令 + 前置拦截）
+    pub mute_redis: Arc<dyn MuteRedis>,
+    /// 禁麦/禁言审计 DB（T-00029 MuteUser 信令）
+    pub mute_db: Arc<dyn MuteDb>,
 }
 
 /// 在成功升级的 WebSocket 上运行完整的读/写生命周期。
@@ -132,6 +137,8 @@ pub async fn handle_socket(
     jwt_secret: String,
     kick_redis: Arc<dyn KickRedis>,
     kick_audit_db: Arc<dyn KickAuditDb>,
+    mute_redis: Arc<dyn MuteRedis>,
+    mute_db: Arc<dyn MuteDb>,
 ) {
     let connection_id = Uuid::new_v4(); // 每次連接生成唯一 ID，與 user_id 解耦
     let (tx, mut rx) = mpsc::unbounded_channel::<String>();
@@ -210,6 +217,7 @@ pub async fn handle_socket(
                                 let deps = crate::room::handler::TakeMicDeps {
                                     room_manager: room_manager.clone(),
                                     registry: registry.clone(),
+                                    mute_redis: Some(mute_redis.clone()),
                                 };
                                 let response = crate::room::handler::handle_take_mic(
                                     incoming.payload,
@@ -239,6 +247,7 @@ pub async fn handle_socket(
                                 let deps = crate::room::handler::SendMessageDeps {
                                     room_manager: room_manager.clone(),
                                     registry: registry.clone(),
+                                    mute_redis: Some(mute_redis.clone()),
                                 };
                                 let response = crate::room::handler::handle_send_message(
                                     incoming.payload,
@@ -295,6 +304,42 @@ pub async fn handle_socket(
                                 ).await;
                                 if !registry.send_to(connection_id, &response) {
                                     tracing::warn!(%connection_id, "failed to send KickUserResult");
+                                }
+                            } else if incoming.msg_type == "MuteUser" {
+                                // T-00029: MuteUser 信令处理
+                                let deps = MuteDeps {
+                                    room_manager: room_manager.clone(),
+                                    room_service: room_service.clone(),
+                                    mute_redis: mute_redis.clone(),
+                                    mute_db: mute_db.clone(),
+                                    registry: registry.clone(),
+                                };
+                                let response = handle_mute(
+                                    incoming.payload,
+                                    incoming.msg_id,
+                                    user_id,
+                                    &deps,
+                                ).await;
+                                if !registry.send_to(connection_id, &response) {
+                                    tracing::warn!(%connection_id, "failed to send MuteUserResult");
+                                }
+                            } else if incoming.msg_type == "UnmuteUser" {
+                                // T-00029: UnmuteUser 信令处理
+                                let deps = MuteDeps {
+                                    room_manager: room_manager.clone(),
+                                    room_service: room_service.clone(),
+                                    mute_redis: mute_redis.clone(),
+                                    mute_db: mute_db.clone(),
+                                    registry: registry.clone(),
+                                };
+                                let response = handle_unmute(
+                                    incoming.payload,
+                                    incoming.msg_id,
+                                    user_id,
+                                    &deps,
+                                ).await;
+                                if !registry.send_to(connection_id, &response) {
+                                    tracing::warn!(%connection_id, "failed to send UnmuteUserResult");
                                 }
                             } else {
                                 // 其他消息类型（ping 等）走纯函数路径

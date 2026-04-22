@@ -23,6 +23,7 @@ use voice_room_shared::auth::room_access::decode_room_access_token;
 
 use crate::modules::auth::service::AuthService;
 use crate::modules::governance::kick::KickRedis;
+use crate::modules::governance::mute::MuteRedis;
 use crate::modules::room::service::RoomService;
 use crate::stats::StatsPort;
 use crate::ws::registry::ConnectionRegistry;
@@ -336,12 +337,14 @@ fn join_room_kick_cooldown_response(msg_id: Option<String>, remaining_sec: i64) 
 
 // ─── TakeMicDeps ─────────────────────────────────────────────────────────────
 
-/// `handle_take_mic` 所需的 2 个服务依赖。
+/// `handle_take_mic` 所需的依赖。
 ///
 /// 上麦无需验证房间 active 状态，也不需要用户详情，比 `JoinRoomDeps` 更轻量。
 pub struct TakeMicDeps {
     pub room_manager: Arc<RoomManager>,
     pub registry: Arc<ConnectionRegistry>,
+    /// 禁麦 Redis（T-00029 前置拦截）；None = 跳过拦截
+    pub mute_redis: Option<Arc<dyn MuteRedis>>,
 }
 
 // ─── handle_take_mic ─────────────────────────────────────────────────────────
@@ -379,6 +382,21 @@ pub async fn handle_take_mic(
             return take_mic_error_response(msg_id, 40400, "user not in room");
         }
     };
+
+    // ── 2.5 禁麦 Redis 前置拦截（T-00029）────────────────────────────────────
+    // MU29-03: 被禁麦用户 TakeMic → 40306 MIC_MUTED
+    if let Some(ref mr) = deps.mute_redis {
+        match mr.get_mute_ttl("mic", room_id, user_id).await {
+            Ok(Some(_)) => {
+                return take_mic_error_response(msg_id, 40306, "user is mic-muted");
+            }
+            Ok(None) => {} // 未被禁麦，继续
+            Err(e) => {
+                tracing::warn!("mic_muted check failed: {e}");
+                // 非阻断性，继续
+            }
+        }
+    }
 
     // ── 3. 获取房间状态（防御性检查）─────────────────────────────────────────
     let room_state = match deps.room_manager.get_room(room_id) {
@@ -538,12 +556,14 @@ pub(crate) fn broadcast_mic_left(
 
 // ─── SendMessageDeps ──────────────────────────────────────────────────────────
 
-/// `handle_send_message` 所需的 2 个服务依赖。
+/// `handle_send_message` 所需的服务依赖。
 ///
 /// 发送消息只需要 room_manager 和 registry，与 TakeMicDeps / LeaveMicDeps 同构。
 pub struct SendMessageDeps {
     pub room_manager: Arc<RoomManager>,
     pub registry: Arc<ConnectionRegistry>,
+    /// 禁言 Redis（T-00029 前置拦截）；None = 跳过拦截
+    pub mute_redis: Option<Arc<dyn MuteRedis>>,
 }
 
 // ─── handle_send_message ──────────────────────────────────────────────────────
@@ -587,6 +607,21 @@ pub async fn handle_send_message(
             return send_message_error_response(msg_id, 40400, "user not in room");
         }
     };
+
+    // ── 3.5 禁言 Redis 前置拦截（T-00029）────────────────────────────────────
+    // MU29-04: 被禁言用户 SendMessage → 40305 CHAT_MUTED
+    if let Some(ref mr) = deps.mute_redis {
+        match mr.get_mute_ttl("chat", room_id, user_id).await {
+            Ok(Some(_)) => {
+                return send_message_error_response(msg_id, 40305, "user is chat-muted");
+            }
+            Ok(None) => {} // 未被禁言，继续
+            Err(e) => {
+                tracing::warn!("chat_muted check failed: {e}");
+                // 非阻断性，继续
+            }
+        }
+    }
 
     // ── 4. 获取房间状态（防御性检查）─────────────────────────────────────────
     let room_state = match deps.room_manager.get_room(room_id) {
@@ -1399,6 +1434,7 @@ mod tests {
         TakeMicDeps {
             room_manager: room_manager.clone(),
             registry: registry.clone(),
+            mute_redis: None,
         }
     }
 
@@ -1874,6 +1910,7 @@ mod tests {
         SendMessageDeps {
             room_manager: room_manager.clone(),
             registry: registry.clone(),
+            mute_redis: None,
         }
     }
 

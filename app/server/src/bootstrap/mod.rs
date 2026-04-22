@@ -12,6 +12,7 @@ use crate::{
         events::events_routes,
         gift::{gift_routes, send_gift::SendGiftServicePort, service::GiftServicePort},
         governance::kick::{KickAuditDb, KickRedis},
+        governance::mute::{MuteDb, MuteRedis},
         ranking::{ranking_routes, RankingServicePort},
         room::{password::RoomPasswordRedis, repository::RoomRepository, room_routes, RoomService},
         wallet::{service::WalletServicePort, wallet_routes},
@@ -48,6 +49,10 @@ pub struct AppState {
     pub kick_redis: Arc<dyn KickRedis>,
     /// 踢人审计 DB（T-00028）
     pub kick_audit_db: Arc<dyn KickAuditDb>,
+    /// 禁麦/禁言 Redis（T-00029）
+    pub mute_redis: Arc<dyn MuteRedis>,
+    /// 禁麦/禁言审计 DB（T-00029）
+    pub mute_db: Arc<dyn MuteDb>,
 }
 
 impl AppState {
@@ -87,6 +92,8 @@ impl AppState {
             room_password_redis: Arc::new(crate::modules::room::FakeRoomPasswordRedis::default()),
             kick_redis: Arc::new(crate::modules::governance::kick::FakeKickRedis::default()),
             kick_audit_db: Arc::new(crate::modules::governance::kick::FakeKickAuditDb::default()),
+            mute_redis: Arc::new(crate::modules::governance::mute::FakeMuteRedis::default()),
+            mute_db: Arc::new(crate::modules::governance::mute::FakeMuteDb::default()),
         }
     }
 
@@ -130,6 +137,8 @@ impl AppState {
             room_password_redis: Arc::new(crate::modules::room::FakeRoomPasswordRedis::default()),
             kick_redis: Arc::new(crate::modules::governance::kick::FakeKickRedis::default()),
             kick_audit_db: Arc::new(crate::modules::governance::kick::FakeKickAuditDb::default()),
+            mute_redis: Arc::new(crate::modules::governance::mute::FakeMuteRedis::default()),
+            mute_db: Arc::new(crate::modules::governance::mute::FakeMuteDb::default()),
         }
     }
 
@@ -150,6 +159,18 @@ impl AppState {
     /// 设置生产环境真实 KickAuditDb（T-00028），替换默认的 FakeKickAuditDb。
     pub fn with_kick_audit_db(mut self, db: Arc<dyn KickAuditDb>) -> Self {
         self.kick_audit_db = db;
+        self
+    }
+
+    /// 设置生产环境真实 MuteRedis（T-00029），替换默认的 FakeMuteRedis。
+    pub fn with_mute_redis(mut self, redis: Arc<dyn MuteRedis>) -> Self {
+        self.mute_redis = redis;
+        self
+    }
+
+    /// 设置生产环境真实 MuteDb（T-00029），替换默认的 FakeMuteDb。
+    pub fn with_mute_db(mut self, db: Arc<dyn MuteDb>) -> Self {
+        self.mute_db = db;
         self
     }
 
