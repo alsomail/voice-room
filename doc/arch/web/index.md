@@ -12,7 +12,7 @@
 ## 一、 架构概述
 当前 Web 端定位为 **B 端后台管理系统（Admin Web）**，面向运营人员和客服，通过 VPN 访问 Admin Server。
 技术栈：React + Vite + TypeScript + Ant Design + Zustand。
-已完成 Vite 工程脚手架与基础环境配置、管理员登录页 UI（T-20001）、登录逻辑与路由守卫（T-20002）、数据看板首页（T-20003）、房间管理页面（T-20004）、房间详情弹窗（T-20005）、用户管理页面（T-20006）、用户详情抽屉（T-20007）、封禁对话框（T-20008）、操作日志页面（T-20009）、解封弹窗（T-20010）、活水房间监控增强（T-20011）。
+已完成 Vite 工程脚手架与基础环境配置、管理员登录页 UI（T-20001）、登录逻辑与路由守卫（T-20002）、数据看板首页（T-20003）、房间管理页面（T-20004）、房间详情弹窗（T-20005）、用户管理页面（T-20006）、用户详情抽屉（T-20007）、封禁对话框（T-20008）、操作日志页面（T-20009）、解封弹窗（T-20010）、活水房间监控增强（T-20011）、治理日志查询页（T-20014）。
 **重要**：Web 端只通过 HTTP 与 Admin Server 通信，不涉及 WebSocket、RTC、IM 等实时通信能力。
 
 ## 二、 子模块索引 (Module Router)
@@ -46,6 +46,13 @@
    - `GiftsTable` — Ant Design Table，列：icon/code/name/price/tier/is_active (Switch)/actions，Switch 乐观更新 + 失败回滚
    - `GiftEditModal`（T-20012 新增）— 新增/编辑礼物弹窗，Form: code/name_cn/name_ar/price/tier/icon_url/animation_url，图片上传校验、实时预览、price=0 时禁用
    - `src/core/network/apiClient.ts`（扩展）— 新增 `adminListGifts`、`adminCreateGift`、`adminUpdateGift`、`adminDeleteGift`、`adminUploadGiftAsset`（T-20012）
+- ⚖️ [**治理日志查询模块**](./governance.md)（**T-20014 ✅**）- 路由 `/rooms/governance`（在 `AuthGuard` → `RoleGuard` 内，super_admin/operator/cs 可访问，finance → 403）；详见 [governance.md](./governance.md)。核心组件：
+   - `GovernanceLogsPage` — 页面入口，持有筛选状态，协调 KickLogsTab / MuteLogsTab；默认时间窗 7 天
+   - `KickLogsTab` — 踢出记录表格（分页 pageSize=20），操作者点击跳转管理员详情，目标用户点击弹出 UserDetailDrawer
+   - `MuteLogsTab` — 禁麦/禁言记录表格（分页 pageSize=20），mute 专属类型筛选 `[全部/禁麦/禁言]`
+   - `FiltersBar` — 通用筛选栏：房间ID / 目标用户 / 操作者 / 时间区间（≤90天）；Tab 切换自动重置筛选与分页
+   - `RoleGuard` — 权限守卫：按 `useAuthStore().admin.role` 放行/重定向（finance → `/403`）
+   - `src/services/api/governance.ts` — `listKicks` / `listMutes` API re-export；对应 `GET /api/v1/admin/governance/logs?type=kick|mute&...`；i18n en/zh 各 32 key；testTag 清单见 [governance.md §六](./governance.md)
 - 📋 **操作日志模块**（T-20009 ✅）- 路由 `/logs`（在 `AuthGuard` 内）；涉及以下文件：
   - `src/pages/logs/index.tsx` — `LogsPage` 页面入口，组合 Hook + 组件
   - `src/pages/logs/useLogsPage.ts` — `useLogsPage` Hook：分页（pageSize=20）、操作人ID/操作类型/时间范围过滤、AbortController 防竞态、`useSearchParams` 双向同步 URL Query String
