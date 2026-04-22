@@ -82,4 +82,14 @@ class FakeWebSocketClient : IWebSocketClient {
     fun simulateError(throwable: Throwable) {
         _state.value = WebSocketState.Error(throwable)
     }
+
+    /**
+     * 直接将状态设置为 [WebSocketState.Connected]，无需真实握手。
+     *
+     * 用于 ViewModel 单元测试：跳过 [connect] suspend 函数，直接让
+     * [send] 方法正常工作（[send] 会检查 Connected 状态）。
+     */
+    fun simulateConnect() {
+        _state.value = WebSocketState.Connected
+    }
 }

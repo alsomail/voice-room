@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
@@ -99,6 +100,11 @@ fun GiftPanelBottomSheet(
                     Toast.makeText(context, "充值功能即将上线", Toast.LENGTH_SHORT).show()
                 is GiftPanelEvent.ShowToast ->
                     Toast.makeText(context, event.message, Toast.LENGTH_SHORT).show()
+                is GiftPanelEvent.ShowInsufficientDialog ->
+                    // T-30032: InsufficientBalanceDialog 占位（T-30032 接入后替换）
+                    Toast.makeText(context, "余额不足，请充值", Toast.LENGTH_SHORT).show()
+                is GiftPanelEvent.DismissPanel ->
+                    onDismiss()
             }
         }
     }
@@ -227,6 +233,7 @@ fun GiftPanelBottomSheet(
 
             // ── 送出按钮 ──────────────────────────────────────────────────────
             val sendButtonText = when {
+                uiState.sending                -> "发送中..."
                 uiState.recipients.isEmpty()   -> "当前无人在麦"
                 uiState.isBalanceInsufficient  -> "余额不足"
                 uiState.selectedGift != null   -> "送出 ${uiState.totalPrice} 💎"
@@ -245,12 +252,20 @@ fun GiftPanelBottomSheet(
                     disabledContainerColor = MenaColors.SurfaceVariant,
                 ),
             ) {
-                Text(
-                    text = sendButtonText,
-                    style = MenaTypography.labelLarge,
-                    color = if (uiState.canSend) MenaColors.Background
-                    else MenaColors.OnBackgroundTertiary,
-                )
+                if (uiState.sending) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        color = MenaColors.Background,
+                        strokeWidth = 2.dp,
+                    )
+                } else {
+                    Text(
+                        text = sendButtonText,
+                        style = MenaTypography.labelLarge,
+                        color = if (uiState.canSend) MenaColors.Background
+                        else MenaColors.OnBackgroundTertiary,
+                    )
+                }
             }
         }
     }

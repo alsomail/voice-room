@@ -51,6 +51,16 @@ data class GiftPanelUiState(
 
     /** 当前激活 Tab */
     val activeTab: GiftTab = GiftTab.Hot,
+
+    /**
+     * 是否正在发送礼物（等待 SendGiftResult 中）。
+     *
+     * - `true`：WS 已发出，等待服务端响应（按钮 disabled + 显示 CircularProgress）
+     * - `false`：空闲状态（默认）
+     *
+     * [canSend] 包含 `!sending` 条件，确保发送期间按钮自动禁用（T-30030 S30-02）。
+     */
+    val sending: Boolean = false,
 ) {
     /** 根据 selectedGiftId 查找选中礼物 */
     val selectedGift: GiftVO? get() = gifts.firstOrNull { it.id == selectedGiftId }
@@ -64,12 +74,14 @@ data class GiftPanelUiState(
      * - 有选中接收者
      * - 余额 ≥ 总价
      * - 麦上有人（recipients 非空）
+     * - **未正在发送中**（sending=false，防止重复发送，T-30030 S30-02）
      */
     val canSend: Boolean
         get() = selectedGift != null
             && selectedRecipientId != null
             && balance >= totalPrice
             && recipients.isNotEmpty()
+            && !sending
 
     /**
      * 余额是否不足（用于 UI 显示"余额不足"文字）
