@@ -1,6 +1,6 @@
 # Server 数据库 Schema 设计
 
-**Last Updated:** 2026-04-21
+**Last Updated:** 2026-07-14
 **Migration 目录:** `app/server/migrations/`
 **Rust 模型目录:** `app/shared/src/models/`
 
@@ -14,6 +14,7 @@
 | 002 | `rooms` | `002_create_rooms.sql` | `RoomModel` | T-00006 | 🟢 已完成 |
 | 003 | `rooms`（索引） | `003_add_unique_active_room_per_owner.sql` | — | T-00007 | 🟢 已完成 |
 | 004 | `users`（wallet 字段）+ `wallet_transactions` | `004_create_wallet.sql` | `WalletTransactionModel` + `WalletTxnType` | T-00017 | 🟢 已完成 |
+| 008 | `rooms`（治理扩字段）+ `room_kick_records` + `room_mute_records` | `008_room_governance.sql` | `RoomModel`（扩展）+ `RoomKickRecord` + `RoomMuteRecord` + `MuteType` | T-00024 | 🟢 已完成 |
 
 ---
 
@@ -298,6 +299,217 @@ pub struct UserModel {
 | --- | --- | --- | --- | --- | --- |
 | **M-01** | MEDIUM | `page` 参数无上界溢出风险 | `page` 仅限制 `>= 1`，无最大值校验；超大 `page` 值（如 `page=10^9`）会导致 `OFFSET` 溢出或极慢全表扫描 | 后续在 service 层增加 `MAX_PAGE`（建议 10000）常量校验，超出返回 `40003`；或改用 keyset pagination | — |
 | **M-02** | MEDIUM | `JOIN users` 未过滤封禁用户 | 列表中可能出现已被封禁用户的房间，封禁信息暂时未建立 | 待 T-10009（封禁用户接口）完成后，在 `find_active_rooms` 查询中增加 `JOIN users u ON r.owner_id = u.id AND u.banned_at IS NULL` 过滤条件 | T-10009 |
+
+### T-00024 Review 遗留 MEDIUM 问题
+
+以下三项在 T-00024 Review 阶段标记为 **MEDIUM**，不阻塞上线，需在后续迭代中处理：
+
+| 编号 | 级别 | 描述 | 当前行为 | 建议处理方式 | 关联任务 |
+| --- | --- | --- | --- | --- | --- |
+| **MEDIUM-1** | MEDIUM | `announcement` 和 `admin_user_id` 缺少 `#[serde(default)]` | `Option<T>` 不自动处理 JSON 键缺失；旧 JSON 载体若无这两个键则反序列化出错，测试 `test_room_model_deserialize_legacy_without_governance_fields` 为假阳性 | 在 `app/shared/src/models/room.rs` 的 `announcement` 和 `admin_user_id` 字段补充 `#[serde(default)]` 注解 | T-00025 前补充 |
+| **MEDIUM-2** | MEDIUM | 迁移 008 中 `password_hash` 为死代码 | `ADD COLUMN IF NOT EXISTS password_hash VARCHAR(60)` 因 `002_create_rooms.sql` 中已有 `VARCHAR(255)` 列而被 `IF NOT EXISTS` 静默跳过 | 删除 008 中该 `ADD COLUMN` 语句或加注释说明，避免误导 | — |
+| **MEDIUM-3** | MEDIUM | S24-01~S24-06 均为静态 SQL 文本分析，非真实 DB 集成测试 | 测试仅断言 SQL 文件内容，未实际执行，无法捕获运行时 PG 错误 | 在 CI 环境具备 `DATABASE_URL` 时，补充真实执行迁移 + 断言 CHECK 约束的集成测试 | — |
+
+---
+
+## 六、 房间治理模块 (T-00024) — E-10 Schema 基座
+
+### 6.1 迁移文件
+
+**文件：** `app/server/migrations/008_room_governance.sql`
+
+```sql
+-- rooms 扩展字段（幂等）
+ALTER TABLE rooms
+    ADD COLUMN IF NOT EXISTS cover_url       TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS category        VARCHAR(32) NOT NULL DEFAULT 'chat',
+    ADD COLUMN IF NOT EXISTS password_hash   VARCHAR(60),
+    ADD COLUMN IF NOT EXISTS announcement    TEXT,
+    ADD COLUMN IF NOT EXISTS admin_user_id   UUID REFERENCES users(id);
+
+-- category 枚举约束
+ALTER TABLE rooms
+    DROP CONSTRAINT IF EXISTS chk_room_category,
+    ADD CONSTRAINT chk_room_category
+        CHECK (category IN ('chat','emotion','music','game','matchmaking','other'));
+
+-- 治理审计表
+CREATE TABLE IF NOT EXISTS room_kick_records (
+    id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    room_id          UUID NOT NULL REFERENCES rooms(id),
+    target_user_id   UUID NOT NULL REFERENCES users(id),
+    operator_user_id UUID NOT NULL REFERENCES users(id),
+    reason           TEXT,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_kick_records_room_ts ON room_kick_records(room_id, created_at DESC);
+CREATE INDEX idx_kick_records_target_ts ON room_kick_records(target_user_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS room_mute_records (
+    id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    room_id          UUID NOT NULL REFERENCES rooms(id),
+    target_user_id   UUID NOT NULL REFERENCES users(id),
+    operator_user_id UUID NOT NULL REFERENCES users(id),
+    type             VARCHAR(8) NOT NULL CHECK (type IN ('mic','chat')),
+    duration_sec     INT NOT NULL CHECK (duration_sec >= 0), -- 0 = 解除
+    reason           TEXT,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_mute_records_room_ts ON room_mute_records(room_id, created_at DESC);
+CREATE INDEX idx_mute_records_target_type_ts ON room_mute_records(target_user_id, type, created_at DESC);
+```
+
+### 6.2 `rooms` 表扩展字段（T-00024）
+
+| 字段 | 类型 | 默认值 | 可空 | 说明 |
+| --- | --- | --- | --- | --- |
+| `cover_url` | `TEXT` | `''` | ❌ | 房间封面图 URL，空串表示无封面；老行自动默认为空 |
+| `category` | `VARCHAR(32)` | `'chat'` | ❌ | 房间分类枚举，见 `chk_room_category` 约束；老行自动归为闲聊 |
+| `password_hash` | `VARCHAR(60)` | `NULL` | ✅ | bcrypt 密码哈希（注：002 迁移已含同名 VARCHAR(255) 列，IF NOT EXISTS 跳过此行，见 MEDIUM-2） |
+| `announcement` | `TEXT` | `NULL` | ✅ | 房间公告，≤200 字由业务层校验 |
+| `admin_user_id` | `UUID` | `NULL` | ✅ | 外键 → `users(id)`，房间管理员；老行默认无管理员 |
+
+**新增 CHECK 约束：**
+
+| 约束名 | 规则 | 说明 |
+| --- | --- | --- |
+| `chk_room_category` | `category IN ('chat','emotion','music','game','matchmaking','other')` | 强制 6 类枚举，防止非法分类写入 |
+
+### 6.3 `room_kick_records` 踢人审计表
+
+| 字段 | 类型 | 默认值 | 可空 | 说明 |
+| --- | --- | --- | --- | --- |
+| `id` | `UUID` | `gen_random_uuid()` | ❌ | 主键 |
+| `room_id` | `UUID` | — | ❌ | 外键 → `rooms(id)` |
+| `target_user_id` | `UUID` | — | ❌ | 被踢用户，外键 → `users(id)` |
+| `operator_user_id` | `UUID` | — | ❌ | 操作者（房主或管理员），外键 → `users(id)` |
+| `reason` | `TEXT` | `NULL` | ✅ | 踢人原因（可选） |
+| `created_at` | `TIMESTAMPTZ` | `now()` | ❌ | 操作时间 |
+
+**索引：**
+
+| 索引名 | 列 | 方向 | 用途 |
+| --- | --- | --- | --- |
+| `idx_kick_records_room_ts` | `(room_id, created_at DESC)` | DESC | 按房间查审计日志 |
+| `idx_kick_records_target_ts` | `(target_user_id, created_at DESC)` | DESC | 按用户查被踢历史 |
+
+### 6.4 `room_mute_records` 禁言/禁麦审计表
+
+| 字段 | 类型 | 默认值 | 可空 | 说明 |
+| --- | --- | --- | --- | --- |
+| `id` | `UUID` | `gen_random_uuid()` | ❌ | 主键 |
+| `room_id` | `UUID` | — | ❌ | 外键 → `rooms(id)` |
+| `target_user_id` | `UUID` | — | ❌ | 被禁用户，外键 → `users(id)` |
+| `operator_user_id` | `UUID` | — | ❌ | 操作者，外键 → `users(id)` |
+| `type` | `VARCHAR(8)` | — | ❌ | 禁类型：`mic`（禁麦）/ `chat`（禁言），CHECK 约束强制 |
+| `duration_sec` | `INT` | — | ❌ | 禁止时长（秒），`0` 表示解除，`CHECK (duration_sec >= 0)` |
+| `reason` | `TEXT` | `NULL` | ✅ | 操作原因（可选） |
+| `created_at` | `TIMESTAMPTZ` | `now()` | ❌ | 操作时间 |
+
+**CHECK 约束：**
+
+| 约束名（内联）| 规则 | 说明 |
+| --- | --- | --- |
+| `CHECK (type IN ('mic','chat'))` | `type IN ('mic','chat')` | 仅允许两种禁止类型 |
+| `CHECK (duration_sec >= 0)` | `duration_sec >= 0` | 0 = 解除，正数 = 禁止秒数 |
+
+**索引：**
+
+| 索引名 | 列 | 方向 | 用途 |
+| --- | --- | --- | --- |
+| `idx_mute_records_room_ts` | `(room_id, created_at DESC)` | DESC | 按房间查审计日志 |
+| `idx_mute_records_target_type_ts` | `(target_user_id, type, created_at DESC)` | DESC | 按用户+类型查禁止历史 |
+
+### 6.5 Rust 模型映射
+
+**文件：** `app/shared/src/models/room.rs`（扩展后）
+
+```rust
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct RoomModel {
+    pub id:            Uuid,
+    pub owner_id:      Uuid,
+    pub title:         String,
+    pub room_type:     String,
+    pub member_count:  i32,
+    pub status:        String,
+    pub password_hash: Option<String>,
+    pub max_members:   i32,
+    pub created_at:    DateTime<Utc>,
+    pub updated_at:    DateTime<Utc>,
+    pub deleted_at:    Option<DateTime<Utc>>,
+    // T-00024 新增字段
+    #[serde(default)]
+    pub cover_url:     String,
+    #[serde(default)]
+    pub category:      String,
+    pub announcement:  Option<String>,    // ⚠️ MEDIUM-1: 待补 #[serde(default)]
+    pub admin_user_id: Option<Uuid>,      // ⚠️ MEDIUM-1: 待补 #[serde(default)]
+}
+```
+
+**文件：** `app/shared/src/models/governance.rs`（新增）
+
+```rust
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type)]
+#[sqlx(type_name = "varchar", rename_all = "lowercase")]
+pub enum MuteType {
+    Mic,   // 禁麦
+    Chat,  // 禁言
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct RoomKickRecord {
+    pub id:               Uuid,
+    pub room_id:          Uuid,
+    pub target_user_id:   Uuid,
+    pub operator_user_id: Uuid,
+    pub reason:           Option<String>,
+    pub created_at:       DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct RoomMuteRecord {
+    pub id:               Uuid,
+    pub room_id:          Uuid,
+    pub target_user_id:   Uuid,
+    pub operator_user_id: Uuid,
+    #[sqlx(rename = "type")]
+    pub mute_type:        MuteType,
+    pub duration_sec:     i32,
+    pub reason:           Option<String>,
+    pub created_at:       DateTime<Utc>,
+}
+```
+
+**关键点**：
+- `MuteType` 使用 `sqlx::Type` + `type_name = "varchar"` + `rename_all = "lowercase"` 正确映射 PostgreSQL `VARCHAR` 列
+- `#[sqlx(rename = "type")]` 处理 SQL 保留字冲突（`type` → `mute_type` 字段名）
+- `cover_url` 和 `category` 已有 `#[serde(default)]` 确保旧 JSON 兼容
+
+### 6.6 存量兼容策略
+
+| 字段 | 老行行为 | 说明 |
+| --- | --- | --- |
+| `cover_url` | 自动默认 `''` | 空串代表无封面，老房间不受影响 |
+| `category` | 自动默认 `'chat'` | 老行自动归为闲聊分类 |
+| `admin_user_id` | 默认 `NULL` | 老行无管理员，业务逻辑按 NULL 处理 |
+| `announcement` | 默认 `NULL` | 老行无公告 |
+
+### 6.7 测试覆盖（T-00024）
+
+**文件：** `app/server/tests/room_governance_schema_test.rs`（新增）
+
+- **S24-01** 迁移可重入执行两次无报错（幂等性验证）
+- **S24-02** `category='invalid'` 被 CHECK 约束拒绝
+- **S24-03** 存量房间迁移后 `cover_url=''`、`category='chat'`
+- **S24-04** `room_kick_records (room_id, created_at)` 索引存在
+- **S24-05** `room_mute_records.type='sms'` 被 CHECK 约束拒绝
+- **S24-06** 软删房间仍可被外键引用（默认 RESTRICT 不删即可）
+
+共 23 个测试（含附加结构验证），全部通过（🟢 23/23）
+
+> ⚠️ 注意：S24-01~S24-06 当前为静态 SQL 文本分析测试，非真实 DB 集成测试（见技术债 MEDIUM-3）。
 
 ---
 
