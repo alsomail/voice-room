@@ -9,8 +9,11 @@ import com.voice.room.android.core.media.NoOpMediaService
 import com.voice.room.android.core.ws.IWebSocketClient
 import com.voice.room.android.core.ws.WebSocketState
 import com.voice.room.android.core.ws.event.GiftReceivedEvent
+import com.voice.room.android.data.model.RoomMember
+import com.voice.room.android.data.room.IRoomMemberRepository
 import com.voice.room.android.data.room.IRoomSnapshotRepository
 import com.voice.room.android.data.room.MicSlotData
+import com.voice.room.android.data.room.NoOpRoomMemberRepository
 import com.voice.room.android.data.room.RoomSnapshot
 import com.voice.room.android.feature.room.effect.FullscreenAnim
 import com.voice.room.android.feature.room.effect.GiftEffectController
@@ -53,7 +56,13 @@ class RoomViewModel(
     private val wsClient: IWebSocketClient,
     private val roomSnapshotRepository: IRoomSnapshotRepository,
     private val mediaService: IMediaService = NoOpMediaService(),
+    private val memberRepository: IRoomMemberRepository = NoOpRoomMemberRepository(),
 ) : ViewModel() {
+
+    companion object {
+        /** 每页加载成员数 */
+        private const val PAGE_SIZE = 20
+    }
 
     // ─── 对外暴露的状态 ────────────────────────────────────────────────────────
 
@@ -61,6 +70,14 @@ class RoomViewModel(
 
     /** 当前房间 UI 状态流，初始值为 [RoomViewState.Loading] */
     val uiState: StateFlow<RoomViewState> = _uiState.asStateFlow()
+
+    /** 观众席 UI 状态（T-30039）：麦上列表 + 观众列表 + 分页信息 */
+    private val _audienceState = MutableStateFlow(AudienceUiState())
+    val audienceState: StateFlow<AudienceUiState> = _audienceState.asStateFlow()
+
+    /** 当前被点击的成员（T-30039），供 UserActionBottomSheet 使用（T-30040 联动） */
+    private val _selectedMember = MutableStateFlow<RoomMember?>(null)
+    val selectedMember: StateFlow<RoomMember?> = _selectedMember.asStateFlow()
 
     /** 礼物特效调度控制器（T-30031）*/
     private val giftEffectController = GiftEffectController(viewModelScope)
@@ -260,6 +277,54 @@ class RoomViewModel(
     }
 
     /**
+     * 加载更多成员（分页，T-30039）。
+     *
+     * - 当 [AudienceUiState.hasMore] 为 false 或 [AudienceUiState.loading] 为 true 时静默忽略。
+     * - 每次调用将 [AudienceUiState.currentPage] +1，然后通过 [IRoomMemberRepository.listMembers]
+     *   获取该页成员并追加到 [AudienceUiState.audience]，同时更新 [AudienceUiState.hasMore]。
+     * - API 错误时发出 [RoomEvent.ShowToast]，不改变分页状态。
+     */
+    fun loadMoreMembers() {
+        val current = _audienceState.value
+        if (!current.hasMore || current.loading) return
+
+        val roomId = currentRoomId ?: return
+        val nextPage = current.currentPage + 1
+
+        viewModelScope.launch {
+            _audienceState.value = current.copy(loading = true)
+            try {
+                val result = memberRepository.listMembers(roomId, nextPage, PAGE_SIZE)
+                val existingIds = _audienceState.value.audience.map { it.id }.toSet()
+                val newMembers = result.members.filter { it.id !in existingIds }
+                _audienceState.value = _audienceState.value.copy(
+                    audience = _audienceState.value.audience + newMembers,
+                    total = result.total,
+                    currentPage = nextPage,
+                    hasMore = result.hasMore,
+                    loading = false,
+                )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _audienceState.value = _audienceState.value.copy(loading = false)
+                _events.trySend(RoomEvent.ShowToast("加载成员失败：${e.message}"))
+            }
+        }
+    }
+
+    /**
+     * 点击成员行回调（T-30039）。
+     *
+     * 更新 [selectedMember]，由 UI 层监听后打开 UserActionBottomSheet（T-30040）。
+     *
+     * @param member 被点击的成员
+     */
+    fun onMemberClick(member: RoomMember) {
+        _selectedMember.value = member
+    }
+
+    /**
      * 仅供单元测试调用，代理 [onCleared] 以绕过 `protected` 可见性限制。
      *
      * 不在生产代码中使用。
@@ -330,12 +395,39 @@ class RoomViewModel(
                 _uiState.value = RoomViewState.Success(
                     state.copy(onlineCount = state.onlineCount + 1)
                 )
+                // T-30039: 将新加入的用户追加到观众席尾部
+                val userId = json.get("userId")?.asString
+                val nickname = json.get("nickname")?.asString ?: ""
+                val role = json.get("role")?.asString ?: "member"
+                val avatarUrl = json.get("avatarUrl")?.takeIf { !it.isJsonNull }?.asString
+                if (userId != null) {
+                    val newMember = RoomMember(
+                        id = userId,
+                        nickname = nickname,
+                        avatarUrl = avatarUrl,
+                        role = role,
+                    )
+                    val aud = _audienceState.value
+                    // 去重：如果已存在则不追加
+                    if (aud.onMic.none { it.id == userId } && aud.audience.none { it.id == userId }) {
+                        _audienceState.value = aud.copy(audience = aud.audience + newMember)
+                    }
+                }
             }
 
             "UserLeft" -> {
                 _uiState.value = RoomViewState.Success(
                     state.copy(onlineCount = (state.onlineCount - 1).coerceAtLeast(0))
                 )
+                // T-30039: 从 onMic 或 audience 中移除该用户
+                val leftUserId = json.get("userId")?.asString
+                if (leftUserId != null) {
+                    val aud = _audienceState.value
+                    _audienceState.value = aud.copy(
+                        onMic = aud.onMic.filter { it.id != leftUserId },
+                        audience = aud.audience.filter { it.id != leftUserId },
+                    )
+                }
             }
 
             "MicTaken" -> {
@@ -354,6 +446,18 @@ class RoomViewModel(
                         isCurrentUserMuted = if (isSelf) false else state.isCurrentUserMuted,
                     )
                 )
+                // T-30039: 将用户从 audience 移入 onMic
+                if (userId != null) {
+                    val aud = _audienceState.value
+                    val existing = aud.audience.find { it.id == userId }
+                        ?: aud.onMic.find { it.id == userId }
+                        ?: RoomMember(id = userId, nickname = nickname ?: "")
+                    val updated = existing.copy(slot = slotIndex)
+                    _audienceState.value = aud.copy(
+                        onMic = aud.onMic.filter { it.id != userId } + updated,
+                        audience = aud.audience.filter { it.id != userId },
+                    )
+                }
 
                 // 若是当前用户上麦成功，调用 RTC mediaService
                 if (userId != null && userId == currentUserId && currentUserId.isNotEmpty()) {
@@ -389,7 +493,8 @@ class RoomViewModel(
             "MicLeft" -> {
                 val slotIndex = json.get("slotIndex")?.asInt ?: return
                 // 在清空前记录该槽位原有 userId，用于判断是否需要调用 mediaService
-                val leavingUserId = state.micSlots.getOrNull(slotIndex)?.userId
+                val leavingUserId = json.get("userId")?.asString
+                    ?: state.micSlots.getOrNull(slotIndex)?.userId
 
                 val newSlots = state.micSlots.map { slot ->
                     if (slot.index == slotIndex) slot.copy(userId = null, nickname = null)
@@ -405,6 +510,17 @@ class RoomViewModel(
                         isCurrentUserMuted = if (isSelfLeaving) false else state.isCurrentUserMuted,
                     )
                 )
+                // T-30039: 将用户从 onMic 移回 audience
+                if (leavingUserId != null) {
+                    val aud = _audienceState.value
+                    val leaving = aud.onMic.find { it.id == leavingUserId }
+                        ?: RoomMember(id = leavingUserId, nickname = "")
+                    val backToAudience = leaving.copy(slot = null)
+                    _audienceState.value = aud.copy(
+                        onMic = aud.onMic.filter { it.id != leavingUserId },
+                        audience = aud.audience + backToAudience,
+                    )
+                }
 
                 // 若是当前用户下麦，停止推流并离开频道
                 if (leavingUserId != null
@@ -422,6 +538,21 @@ class RoomViewModel(
                         }
                     }
                 }
+            }
+
+            "AdminChanged" -> {
+                // T-30039: 更新 role 字段
+                val targetUserId = json.get("userId")?.asString ?: return
+                val newRole = json.get("role")?.asString ?: return
+                val aud = _audienceState.value
+                _audienceState.value = aud.copy(
+                    onMic = aud.onMic.map { m ->
+                        if (m.id == targetUserId) m.copy(role = newRole) else m
+                    },
+                    audience = aud.audience.map { m ->
+                        if (m.id == targetUserId) m.copy(role = newRole) else m
+                    },
+                )
             }
 
             "MessageReceived" -> {

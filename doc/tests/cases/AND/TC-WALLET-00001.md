@@ -7,7 +7,7 @@
 
 ---
 
-## TC-WALLET-00002：WalletScreen 展示 + 下拉刷新
+## TC-WALLET-00001：WalletScreen 展示 + 下拉刷新
 **【元数据】**
 - **归属模块**：`WALLET`
 - **测试类型**：`Functional`
@@ -30,7 +30,7 @@
 
 ---
 
-## TC-WALLET-00003：BalanceUpdated 实时更新
+## TC-WALLET-00002：BalanceUpdated 实时更新
 **【元数据】**
 - **归属模块**：`WALLET`
 - **测试类型**：`Integration`
@@ -50,7 +50,7 @@
 
 ---
 
-## TC-WALLET-00004：充值入口 Phase 1 占位
+## TC-WALLET-00003：充值入口 Phase 1 占位
 **【元数据】**
 - **归属模块**：`WALLET`
 - **测试类型**：`Functional`
@@ -69,7 +69,7 @@
 
 ---
 
-## TC-WALLET-00005：InsufficientBalanceDialog (T-30032)
+## TC-WALLET-00004：InsufficientBalanceDialog (T-30032)
 **【元数据】**
 - **归属模块**：`WALLET`
 - **测试类型**：`Functional`

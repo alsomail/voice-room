@@ -7,7 +7,7 @@
 
 ---
 
-## TC-RANKING-00002：双 Tab 切换 + Top3 奖牌
+## TC-RANKING-00001：双 Tab 切换 + Top3 奖牌
 **【元数据】**
 - **归属模块**：`RANKING`
 - **测试类型**：`Functional`
@@ -33,7 +33,7 @@
 
 ---
 
-## TC-RANKING-00003：未上榜提示
+## TC-RANKING-00002：未上榜提示
 **【元数据】**
 - **归属模块**：`RANKING`
 - **测试类型**：`Functional`
@@ -53,7 +53,7 @@
 
 ---
 
-## TC-RANKING-00004：入口 - 大厅 🏆 + 房间菜单
+## TC-RANKING-00003：入口 - 大厅 🏆 + 房间菜单
 **【元数据】**
 - **归属模块**：`RANKING`
 - **测试类型**：`Functional`

@@ -7,7 +7,7 @@
 
 ---
 
-## TC-GIFT-00002：礼物面板 Bottom Sheet - 布局 + 交互
+## TC-GIFT-00001：礼物面板 Bottom Sheet - 布局 + 交互
 **【元数据】**
 - **归属模块**：`GIFT`
 - **测试类型**：`Functional`
@@ -33,7 +33,7 @@
 
 ---
 
-## TC-GIFT-00003：接收者选择 - 默认主播麦 + 切换
+## TC-GIFT-00002：接收者选择 - 默认主播麦 + 切换
 **【元数据】**
 - **归属模块**：`GIFT`
 - **测试类型**：`Functional`
@@ -55,7 +55,7 @@
 
 ---
 
-## TC-GIFT-00004：SendGift 客户端 - UUID msg_id + 连送 + 超时
+## TC-GIFT-00003：SendGift 客户端 - UUID msg_id + 连送 + 超时
 **【元数据】**
 - **归属模块**：`GIFT`
 - **测试类型**：`Integration`
@@ -78,7 +78,7 @@
 
 ---
 
-## TC-GIFT-00005：礼物特效 L1/L2/L3 + 连击 + 补偿不回放
+## TC-GIFT-00004：礼物特效 L1/L2/L3 + 连击 + 补偿不回放
 **【元数据】**
 - **归属模块**：`GIFT`
 - **测试类型**：`Functional`
@@ -101,7 +101,7 @@
 
 ---
 
-## TC-GIFT-00006：余额不足按钮置灰 + BalanceUpdated 自动恢复
+## TC-GIFT-00005：余额不足按钮置灰 + BalanceUpdated 自动恢复
 **【元数据】**
 - **归属模块**：`GIFT`
 - **测试类型**：`Functional`

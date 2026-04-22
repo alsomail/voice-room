@@ -1,5 +1,26 @@
 package com.voice.room.android.feature.room
 
+import com.voice.room.android.data.model.RoomMember
+
+/**
+ * 观众席 UI 状态（T-30039）
+ *
+ * @param onMic       当前麦上用户列表（始终置顶显示）
+ * @param audience    观众列表（麦下）
+ * @param total       服务端成员总数
+ * @param loading     是否正在加载下一页
+ * @param currentPage 当前已加载的最大页码
+ * @param hasMore     是否还有更多页可加载
+ */
+data class AudienceUiState(
+    val onMic: List<RoomMember> = emptyList(),
+    val audience: List<RoomMember> = emptyList(),
+    val total: Int = 0,
+    val loading: Boolean = false,
+    val currentPage: Int = 1,
+    val hasMore: Boolean = true,
+)
+
 /**
  * 房间页整体 UI 状态（T-30009）
  *

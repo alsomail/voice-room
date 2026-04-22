@@ -7,7 +7,7 @@
 
 ---
 
-## TC-WS-00002：WS 自动重连 + JoinRoom 回放
+## TC-CHAT-00001：WS 自动重连 + JoinRoom 回放
 **【元数据】**
 - **归属模块**：`WS`
 - **测试类型**：`Integration`
