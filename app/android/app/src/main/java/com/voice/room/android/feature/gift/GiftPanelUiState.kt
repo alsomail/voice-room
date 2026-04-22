@@ -61,6 +61,16 @@ data class GiftPanelUiState(
      * [canSend] 包含 `!sending` 条件，确保发送期间按钮自动禁用（T-30030 S30-02）。
      */
     val sending: Boolean = false,
+
+    /**
+     * 是否显示余额不足引导弹窗（T-30032）。
+     *
+     * - `true`：服务端返回 40290（INSUFFICIENT_BALANCE），弹出 InsufficientBalanceDialog
+     * - `false`：默认状态；用户点击"取消"或"去充值"后重置为 false
+     *
+     * Dialog 读取 [balance] 与 [totalPrice] 来展示当前余额、所需余额和差额。
+     */
+    val showInsufficientDialog: Boolean = false,
 ) {
     /** 根据 selectedGiftId 查找选中礼物 */
     val selectedGift: GiftVO? get() = gifts.firstOrNull { it.id == selectedGiftId }

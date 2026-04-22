@@ -208,6 +208,29 @@ class GiftPanelViewModel(
         }
     }
 
+    /**
+     * 关闭余额不足弹窗（点击"取消"），礼物面板保留选中态（T-30032）。
+     *
+     * 仅清除 [GiftPanelUiState.showInsufficientDialog]，不清除 [GiftPanelUiState.selectedGiftId]。
+     */
+    fun dismissInsufficientDialog() {
+        _uiState.update { it.copy(showInsufficientDialog = false) }
+    }
+
+    /**
+     * 点击"去充值"（T-30032）。
+     *
+     * 1. 发射 [GiftPanelEvent.NavigateToWallet] → UI 层执行 navController.navigate("wallet")
+     * 2. 关闭弹窗（showInsufficientDialog = false）
+     * 3. 关闭礼物面板（selectedGiftId = null，等效于 dismiss()）
+     */
+    fun onGoToWallet() {
+        _uiState.update { it.copy(showInsufficientDialog = false, selectedGiftId = null) }
+        viewModelScope.launch {
+            _events.emit(GiftPanelEvent.NavigateToWallet)
+        }
+    }
+
     // ─── SendGift (T-30030) ───────────────────────────────────────────────────
 
     /**
@@ -317,8 +340,10 @@ class GiftPanelViewModel(
             result.code == 0 ->
                 _events.emit(GiftPanelEvent.ShowToast("赠送成功"))
 
-            result.code == 40290 ->
+            result.code == 40290 -> {
+                _uiState.update { it.copy(showInsufficientDialog = true) }
                 _events.emit(GiftPanelEvent.ShowInsufficientDialog)
+            }
 
             result.code == 40403 ->
                 _events.emit(GiftPanelEvent.ShowToast("接收者已下麦或离开"))

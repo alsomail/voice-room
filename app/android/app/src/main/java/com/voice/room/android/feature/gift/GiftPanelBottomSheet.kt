@@ -40,6 +40,7 @@ import com.voice.room.android.feature.gift.components.BalanceBar
 import com.voice.room.android.feature.gift.components.CountSelector
 import com.voice.room.android.feature.gift.components.GiftCard
 import com.voice.room.android.feature.gift.components.RecipientSelector
+import com.voice.room.android.feature.wallet.InsufficientBalanceDialog
 import kotlinx.coroutines.flow.SharedFlow
 
 /**
@@ -72,6 +73,9 @@ import kotlinx.coroutines.flow.SharedFlow
  * @param onRetry      网络失败后"点击重试"按钮回调（修复 G28-09）
  * @param onSendGift   送出按钮点击回调（T-30030 接入）
  * @param onRechargeClick 充值按钮回调
+ * @param onSelectRecipient 选择接收者回调
+ * @param onDismissInsufficientDialog 余额不足弹窗"取消"回调（T-30032）
+ * @param onGoToWallet 余额不足弹窗"去充值"回调（T-30032）
  * @param modifier     可选 Modifier
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -87,6 +91,8 @@ fun GiftPanelBottomSheet(
     onSendGift: () -> Unit = {},
     onRechargeClick: () -> Unit = {},
     onSelectRecipient: (String) -> Unit = {},
+    onDismissInsufficientDialog: () -> Unit = {},
+    onGoToWallet: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -101,12 +107,27 @@ fun GiftPanelBottomSheet(
                 is GiftPanelEvent.ShowToast ->
                     Toast.makeText(context, event.message, Toast.LENGTH_SHORT).show()
                 is GiftPanelEvent.ShowInsufficientDialog ->
-                    // T-30032: InsufficientBalanceDialog 占位（T-30032 接入后替换）
-                    Toast.makeText(context, "余额不足，请充值", Toast.LENGTH_SHORT).show()
+                    // T-30032: showInsufficientDialog 状态已在 ViewModel 设置，此处无需额外处理
+                    Unit
+                is GiftPanelEvent.NavigateToWallet -> {
+                    // T-30032: 导航到钱包页 + 关闭礼物面板
+                    onGoToWallet()
+                    onDismiss()
+                }
                 is GiftPanelEvent.DismissPanel ->
                     onDismiss()
             }
         }
+    }
+
+    // T-30032: 余额不足引导弹窗
+    if (uiState.showInsufficientDialog) {
+        InsufficientBalanceDialog(
+            currentBalance = uiState.balance,
+            required = uiState.totalPrice,
+            onGoToWallet = onGoToWallet,
+            onDismiss = onDismissInsufficientDialog,
+        )
     }
 
     ModalBottomSheet(

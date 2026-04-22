@@ -27,4 +27,12 @@ sealed class GiftPanelEvent {
      * UI 层调用 `onDismiss()` 关闭 BottomSheet。
      */
     object DismissPanel : GiftPanelEvent()
+
+    /**
+     * 跳转钱包页（T-30032）
+     *
+     * 触发时机：InsufficientBalanceDialog 点击"去充值"。
+     * UI 层调用 `navController.navigate("wallet")` + 关闭礼物面板。
+     */
+    object NavigateToWallet : GiftPanelEvent()
 }
