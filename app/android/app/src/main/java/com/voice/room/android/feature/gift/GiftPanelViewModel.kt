@@ -130,20 +130,24 @@ class GiftPanelViewModel(
     }
 
     /**
-     * 更新当前在麦用户列表（由 RoomViewModel/RoomScreen 传入）。
+     * 更新当前在麦用户列表（由 RoomViewModel/RoomScreen 传入，仅包含 on-mic 用户）。
      *
-     * 若尚未选中接收者，自动选中第一个用户（默认主麦）。
+     * - 按 [MicUserVO.micIndex] 升序排序（slot=0 主麦置首，T-30029）
+     * - 若已选中接收者仍在麦上，保持当前选中
+     * - 若已选中接收者已下麦，自动切换到第一个（主麦，slot=0）
+     * - 若列表为空，清除选中（selectedRecipientId = null）
      */
     fun updateRecipients(recipients: List<MicUserVO>) {
+        val sorted = recipients.sortedBy { it.micIndex }
         _uiState.update { state ->
             val newSelectedId = when {
                 state.selectedRecipientId != null &&
-                    recipients.any { it.userId == state.selectedRecipientId } ->
+                    sorted.any { it.userId == state.selectedRecipientId } ->
                     state.selectedRecipientId
-                recipients.isNotEmpty() -> recipients.first().userId
+                sorted.isNotEmpty() -> sorted.first().userId
                 else -> null
             }
-            state.copy(recipients = recipients, selectedRecipientId = newSelectedId)
+            state.copy(recipients = sorted, selectedRecipientId = newSelectedId)
         }
     }
 

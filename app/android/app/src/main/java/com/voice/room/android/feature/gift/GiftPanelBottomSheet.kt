@@ -38,6 +38,7 @@ import com.voice.room.android.core.theme.MenaTypography
 import com.voice.room.android.feature.gift.components.BalanceBar
 import com.voice.room.android.feature.gift.components.CountSelector
 import com.voice.room.android.feature.gift.components.GiftCard
+import com.voice.room.android.feature.gift.components.RecipientSelector
 import kotlinx.coroutines.flow.SharedFlow
 
 /**
@@ -66,6 +67,7 @@ import kotlinx.coroutines.flow.SharedFlow
  * @param onDismiss    关闭回调（外部点击 / × / 返回键）
  * @param onSelectGift 选中礼物回调
  * @param onSelectCount 数量档位选择回调
+ * @param onSelectRecipient 选择接收者回调，参数为选中用户 userId（T-30029）
  * @param onRetry      网络失败后"点击重试"按钮回调（修复 G28-09）
  * @param onSendGift   送出按钮点击回调（T-30030 接入）
  * @param onRechargeClick 充值按钮回调
@@ -83,6 +85,7 @@ fun GiftPanelBottomSheet(
     onRetry: () -> Unit = {},
     onSendGift: () -> Unit = {},
     onRechargeClick: () -> Unit = {},
+    onSelectRecipient: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -215,27 +218,12 @@ fun GiftPanelBottomSheet(
                 onCountSelected = onSelectCount,
             )
 
-            // ── 接收者槽（T-30029 占位） ──────────────────────────────────────
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("recipient_selector")
-                    .padding(horizontal = 16.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = "送给：",
-                    style = MenaTypography.labelMedium,
-                    color = MenaColors.OnBackground,
-                )
-                Text(
-                    text = uiState.recipients.firstOrNull { it.userId == uiState.selectedRecipientId }
-                        ?.nickname ?: "请选择接收者",
-                    style = MenaTypography.bodyMedium,
-                    color = if (uiState.selectedRecipientId != null) MenaColors.Primary
-                    else MenaColors.OnBackgroundTertiary,
-                )
-            }
+            // ── 接收者选择器（T-30029）────────────────────────────────────
+            RecipientSelector(
+                recipients = uiState.recipients,
+                selectedId = uiState.selectedRecipientId,
+                onSelect = onSelectRecipient,
+            )
 
             // ── 送出按钮 ──────────────────────────────────────────────────────
             val sendButtonText = when {
