@@ -26,6 +26,9 @@ use uuid::Uuid;
 use voice_room_server::modules::governance::mute::{
     FakeMuteDb, FakeMuteRedis, MuteDeps, MuteRedis, handle_mute, handle_unmute,
 };
+use voice_room_server::modules::gift::send_gift::{
+    FakeSendGiftService, SendGiftDeps, handle_send_gift,
+};
 use voice_room_server::modules::room::FakeRoomRepository;
 use voice_room_server::room::handler::{
     SendMessageDeps, TakeMicDeps, handle_send_message, handle_take_mic,
@@ -361,38 +364,42 @@ async fn mu29_04_chat_muted_user_send_message_blocked() {
 
 // ─── MU29-05: 送礼不受禁麦影响 ────────────────────────────────────────────────
 
-/// MU29-05: 被禁麦的用户仍然可以成功 TakeMic（只有 chat 不影响）—— 
-/// 改为验证禁言（chat）不影响 TakeMic（上麦），符合"送礼不受影响"类似逻辑
-/// 即 mic_muted 不影响 chat 操作，chat_muted 不影响 mic 操作
+/// MU29-05: 被禁麦的用户仍然可以成功送礼（SendGift 不检查 mute key，符合 TDS §二 "送礼不受影响"）
 #[tokio::test]
 async fn mu29_05_gift_not_affected_by_mic_mute() {
     let room_id = Uuid::new_v4();
     let user_id = Uuid::new_v4();
+    let receiver_id = Uuid::new_v4();
+    let gift_id = Uuid::new_v4();
 
-    let room_manager = Arc::new(RoomManager::new());
     let registry = Arc::new(ConnectionRegistry::new());
     let mute_redis = Arc::new(FakeMuteRedis::default());
 
-    // 只设置 mic_muted（禁麦），不禁言
+    // 设置 mic_muted（禁麦）
     mute_redis
         .set_mute("mic", room_id, user_id, 300, "test")
         .await
         .unwrap();
+    assert!(
+        mute_redis.key_exists("mic", room_id, user_id),
+        "MU29-05 precondition: mic_muted key should exist"
+    );
 
-    room_manager.get_or_create_room(room_id);
+    // 注册连接，绑定到房间（handle_send_gift 通过 registry 查 room_id）
     let (conn_id, _rx) = register_connection(&registry, user_id, Some(room_id));
 
-    // chat 操作不受 mic mute 影响（使用 chat mute_redis = None 模拟）
-    let deps = SendMessageDeps {
-        room_manager: room_manager.clone(),
+    // SendGiftDeps 不含 mute_redis——T-00020 设计上不检查禁麦状态
+    let deps = SendGiftDeps {
+        send_gift_service: Arc::new(FakeSendGiftService),
         registry: registry.clone(),
-        // 没有 chat_muted key，mute_redis 中只有 mic_muted，不影响 chat
-        mute_redis: Some(mute_redis.clone() as Arc<dyn MuteRedis>),
     };
 
-    // chat_muted key 不存在，SendMessage 应正常通过（被禁麦不影响发言）
-    let response = handle_send_message(
-        Some(serde_json::json!({ "content": "hello from muted mic user" })),
+    let response = handle_send_gift(
+        Some(serde_json::json!({
+            "gift_id":     gift_id.to_string(),
+            "receiver_id": receiver_id.to_string(),
+            "count":       1
+        })),
         Some("msg-mu29-05".to_string()),
         conn_id,
         user_id,
@@ -401,10 +408,10 @@ async fn mu29_05_gift_not_affected_by_mic_mute() {
     .await;
 
     let json: serde_json::Value = serde_json::from_str(&response).unwrap();
-    // mic_muted 不影响 SendMessage
+    // 禁麦状态下送礼仍应成功：code=0
     assert_eq!(
         json["code"], 0,
-        "MU29-05: mic-muted user should still be able to send message (gift analogy: mute doesn't affect gift)"
+        "MU29-05: mic-muted user should still be able to send gift (SendGift does not check mute key)"
     );
 }
 
@@ -630,35 +637,95 @@ async fn mu29_10_normal_user_cannot_unmute() {
     );
 }
 
-// ─── MU29-11: duration > 86400 → 40002 ───────────────────────────────────────
+// ─── MU29-11: duration ∉ [60, 86400] → 40002 ─────────────────────────────────
 
-/// MU29-11: duration_sec 超过 86400 → 40002 payload 非法
+/// MU29-11: duration_sec 超过上界（86401）或低于下界（1/59）→ 40002 payload 非法
+///
+/// 合法区间：[60, 86400]（duration=0 为特殊解除路径，不在此测试）
 #[tokio::test]
 async fn mu29_11_duration_exceeds_max_returns_40002() {
-    let room_id = Uuid::new_v4();
+    let room_id  = Uuid::new_v4();
     let owner_id = Uuid::new_v4();
     let target_id = Uuid::new_v4();
 
     let room_manager = Arc::new(RoomManager::new());
-    let registry = Arc::new(ConnectionRegistry::new());
-    let mute_redis = Arc::new(FakeMuteRedis::default());
-    let mute_db = Arc::new(FakeMuteDb::default());
+    let registry     = Arc::new(ConnectionRegistry::new());
+    let mute_redis   = Arc::new(FakeMuteRedis::default());
+    let mute_db      = Arc::new(FakeMuteDb::default());
 
     let room_service = make_room_service(make_room(room_id, owner_id, None));
     let deps = make_mute_deps(&room_manager, &room_service, &mute_redis, &mute_db, &registry);
 
-    let response = handle_mute(
-        mute_payload(room_id, target_id, "mic", 86401), // 超过最大值
-        Some("msg-mu29-11".to_string()),
+    // ── 上界违规：duration=86401 → 40002 ──────────────────────────────────────
+    let resp_above = handle_mute(
+        mute_payload(room_id, target_id, "mic", 86401),
+        Some("msg-mu29-11-above".to_string()),
         owner_id,
         &deps,
     )
     .await;
-
-    let json: serde_json::Value = serde_json::from_str(&response).unwrap();
+    let json_above: serde_json::Value = serde_json::from_str(&resp_above).unwrap();
     assert_eq!(
-        json["code"], 40002,
-        "MU29-11: duration > 86400 should return 40002"
+        json_above["code"], 40002,
+        "MU29-11: duration=86401 (> max 86400) should return 40002"
+    );
+
+    // ── 下界违规：duration=59 → 40002 ─────────────────────────────────────────
+    let resp_59 = handle_mute(
+        mute_payload(room_id, target_id, "mic", 59),
+        Some("msg-mu29-11-59".to_string()),
+        owner_id,
+        &deps,
+    )
+    .await;
+    let json_59: serde_json::Value = serde_json::from_str(&resp_59).unwrap();
+    assert_eq!(
+        json_59["code"], 40002,
+        "MU29-11: duration=59 (< min 60) should return 40002"
+    );
+
+    // ── 下界违规：duration=1 → 40002 ──────────────────────────────────────────
+    let resp_1 = handle_mute(
+        mute_payload(room_id, target_id, "mic", 1),
+        Some("msg-mu29-11-1".to_string()),
+        owner_id,
+        &deps,
+    )
+    .await;
+    let json_1: serde_json::Value = serde_json::from_str(&resp_1).unwrap();
+    assert_eq!(
+        json_1["code"], 40002,
+        "MU29-11: duration=1 (< min 60) should return 40002"
+    );
+
+    // ── 合法下界：duration=60 → 成功（code=0） ────────────────────────────────
+    add_member(&room_manager, room_id, owner_id, "Owner");
+    add_member(&room_manager, room_id, target_id, "Target");
+    let resp_60 = handle_mute(
+        mute_payload(room_id, target_id, "mic", 60),
+        Some("msg-mu29-11-60".to_string()),
+        owner_id,
+        &deps,
+    )
+    .await;
+    let json_60: serde_json::Value = serde_json::from_str(&resp_60).unwrap();
+    assert_eq!(
+        json_60["code"], 0,
+        "MU29-11: duration=60 (== min 60) should succeed with code=0"
+    );
+
+    // ── 合法上界：duration=86400 → 成功（code=0） ─────────────────────────────
+    let resp_max = handle_mute(
+        mute_payload(room_id, target_id, "mic", 86400),
+        Some("msg-mu29-11-max".to_string()),
+        owner_id,
+        &deps,
+    )
+    .await;
+    let json_max: serde_json::Value = serde_json::from_str(&resp_max).unwrap();
+    assert_eq!(
+        json_max["code"], 0,
+        "MU29-11: duration=86400 (== max 86400) should succeed with code=0"
     );
 }
 
