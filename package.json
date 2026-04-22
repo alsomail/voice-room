@@ -1,0 +1,27 @@
+{
+  "name": "voice-room",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "directories": {
+    "doc": "doc"
+  },
+  "scripts": {},
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alsomail/voice-room.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/alsomail/voice-room/issues"
+  },
+  "homepage": "https://github.com/alsomail/voice-room#readme",
+  "devDependencies": {
+    "@midscene/web": "^1.7.5",
+    "@playwright/test": "^1.59.1",
+    "@types/node": "^25.6.0",
+    "dotenv": "^17.4.2"
+  }
+}

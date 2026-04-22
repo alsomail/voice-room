@@ -120,11 +120,15 @@ const en = {
       assetInfo: 'Asset Info',
       coinBalance: 'Coin Balance',
       behaviorData: 'Behavior Data',
-      behaviorPlaceholder: 'Behavior data will be implemented in future versions',
+      behaviorPlaceholder: 'Behavior data is available in the "Event Stream" tab',
       ban: 'Ban',
       unban: 'Unban',
       close: 'Close',
       errorTitle: 'Failed to load user detail',
+      tabs: {
+        basicInfo: 'Basic Info',
+        eventStream: 'Event Stream',
+      },
     },
     ban: {
       title: 'Ban User',
@@ -213,6 +217,21 @@ const en = {
       successMsg: 'Balance adjusted successfully',
       errorMsg: 'Failed to adjust balance',
       adjustBalance: 'Adjust Balance',
+    },
+  },
+  events: {
+    exportCsv: 'Export CSV',
+    custom: 'Custom',
+    selectEvents: 'Filter by event name',
+    rangeError: 'Time range must not exceed 30 days',
+    empty: 'No events found',
+    loadError: 'Failed to load events',
+    total: 'Total',
+    csvTruncated: 'Result exceeds 1000 records, only first 1000 exported',
+    csvError: 'Failed to export CSV',
+    props: {
+      expand: 'Show properties',
+      collapse: 'Hide properties',
     },
   },
   gift: {

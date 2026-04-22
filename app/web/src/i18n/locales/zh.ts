@@ -120,11 +120,15 @@ const zh = {
       assetInfo: '资产信息',
       coinBalance: '金币余额',
       behaviorData: '行为数据',
-      behaviorPlaceholder: '行为数据将在后续版本实现',
+      behaviorPlaceholder: '行为数据已在"行为流"Tab 中展示',
       ban: '封禁',
       unban: '解封',
       close: '关闭',
       errorTitle: '加载用户详情失败',
+      tabs: {
+        basicInfo: '基本信息',
+        eventStream: '行为流',
+      },
     },
     ban: {
       title: '封禁用户',
@@ -193,6 +197,21 @@ const zh = {
     colDetail: '详情',
     colCreatedAt: '操作时间',
     errorTitle: '数据加载失败',
+  },
+  events: {
+    exportCsv: '导出 CSV',
+    custom: '自定义',
+    selectEvents: '按事件名过滤',
+    rangeError: '时间窗不能超过 30 天',
+    empty: '暂无事件记录',
+    loadError: '加载事件失败',
+    total: '共',
+    csvTruncated: '结果超过 1000 条，已导出前 1000 条',
+    csvError: '导出 CSV 失败',
+    props: {
+      expand: '展开属性',
+      collapse: '折叠属性',
+    },
   },
   wallet: {
     adjust: {

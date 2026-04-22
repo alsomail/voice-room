@@ -18,3 +18,17 @@ Thumbs.db
 
 # 日志
 *.log
+
+# Playwright
+node_modules/
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/
+
+# 测试脚本
+tests/scripts/
+# 历史报告
+tests/report-*/
+midscene_run/

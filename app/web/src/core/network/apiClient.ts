@@ -666,3 +666,62 @@ export async function adminUploadGiftAsset(
   return body.data;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Admin User Events（T-20013，对应 T-10015 analytics 接口）
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** 单条事件条目（T-10015 analytics.md §2.2） */
+export interface EventItem {
+  id: string;
+  event_name: string;
+  server_ts: string;        // ISO8601
+  client_ts: string | null; // ISO8601
+  session_id: string | null;
+  device_id: string | null;
+  properties: Record<string, unknown> | null;
+  app_version: string | null;
+  os_version: string | null;
+  locale: string | null;
+  network_type: string | null;
+}
+
+/** GET /admin/users/:id/events 查询参数（T-10015） */
+export interface EventListParams {
+  event_name?: string;  // 逗号分隔，如 "gift_send_success,coin_exchange"
+  from?: string;        // ISO8601，默认 24h 前
+  to?: string;          // ISO8601，默认现在
+  page?: number;        // 默认 1
+  limit?: number;       // 默认 20，max 100
+}
+
+/** GET /admin/users/:id/events 响应 data（T-10015） */
+export interface EventListResponse {
+  total: number;
+  page: number;
+  limit: number;
+  items: EventItem[];
+}
+
+/**
+ * GET /admin/users/:id/events — 查询用户埋点事件流（T-20013）
+ * 对应 T-10015 analytics 接口
+ */
+export async function listUserEvents(
+  userId: string,
+  params?: EventListParams,
+  signal?: AbortSignal,
+): Promise<EventListResponse> {
+  const query = params
+    ? '?' + new URLSearchParams(
+        Object.entries(params)
+          .filter(([, v]) => v !== undefined)
+          .map(([k, v]) => [k, String(v)]),
+      ).toString()
+    : '';
+  const res = await adminFetch<EventListResponse>(
+    `/users/${encodeURIComponent(userId)}/events${query}`,
+    { signal },
+  );
+  return res.data;
+}
+

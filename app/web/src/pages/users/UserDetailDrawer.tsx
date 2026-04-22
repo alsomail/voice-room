@@ -22,11 +22,12 @@
  */
 
 import { useState } from 'react';
-import { Drawer, Skeleton, Alert, Descriptions, Statistic, Button, Space, Avatar } from 'antd';
+import { Drawer, Skeleton, Alert, Descriptions, Statistic, Button, Space, Avatar, Tabs } from 'antd';
 import { useTranslation } from 'react-i18next';
 import { useUserDetail } from './useUserDetail';
 import { UserStatusTag } from './UserStatusTag';
 import { AdjustBalanceModal } from '../../features/user/AdjustBalanceModal';
+import { EventStreamTab } from '../../features/user/EventStreamTab';
 import { useAuthStore } from '../../stores/useAuthStore';
 
 /** 有权限调整余额的角色（对应 T-10013 RBAC WalletAdjust 权限） */
@@ -91,81 +92,101 @@ export function UserDetailDrawer({
           />
         )}
 
-        {/* 成功态：基础信息 + 资产信息 + 操作区 */}
+        {/* 成功态：Tabs 包裹（基本信息 + 行为流） */}
         {detail && !loading && (
-          <>
-            {/* 基础信息 */}
-            <Descriptions
-              title={t('users.drawer.basicInfo')}
-              column={1}
-              size="small"
-              style={{ marginBottom: 24 }}
-            >
-              <Descriptions.Item label={t('users.drawer.avatar')}>
-                <Avatar src={detail.avatar_url ?? undefined} size={40} />
-              </Descriptions.Item>
-              <Descriptions.Item label={t('users.drawer.phone')}>
-                {detail.phone}
-              </Descriptions.Item>
-              <Descriptions.Item label={t('users.drawer.nickname')}>
-                {detail.nickname}
-              </Descriptions.Item>
-              <Descriptions.Item label={t('users.drawer.status')}>
-                <UserStatusTag status={detail.status} />
-              </Descriptions.Item>
-              <Descriptions.Item label={t('users.drawer.createdAt')}>
-                {new Date(detail.created_at).toLocaleString()}
-              </Descriptions.Item>
-            </Descriptions>
+          <Tabs
+            defaultActiveKey="basic"
+            items={[
+              {
+                key: 'basic',
+                label: t('users.drawer.tabs.basicInfo'),
+                children: (
+                  <>
+                    {/* 基础信息 */}
+                    <Descriptions
+                      title={t('users.drawer.basicInfo')}
+                      column={1}
+                      size="small"
+                      style={{ marginBottom: 24 }}
+                    >
+                      <Descriptions.Item label={t('users.drawer.avatar')}>
+                        <Avatar src={detail.avatar_url ?? undefined} size={40} />
+                      </Descriptions.Item>
+                      <Descriptions.Item label={t('users.drawer.phone')}>
+                        {detail.phone}
+                      </Descriptions.Item>
+                      <Descriptions.Item label={t('users.drawer.nickname')}>
+                        {detail.nickname}
+                      </Descriptions.Item>
+                      <Descriptions.Item label={t('users.drawer.status')}>
+                        <UserStatusTag status={detail.status} />
+                      </Descriptions.Item>
+                      <Descriptions.Item label={t('users.drawer.createdAt')}>
+                        {new Date(detail.created_at).toLocaleString()}
+                      </Descriptions.Item>
+                    </Descriptions>
 
-            {/* 资产信息 */}
-            <div style={{ marginBottom: 24 }}>
-              <Statistic
-                data-testid="coin-balance-stat"
-                title={t('users.drawer.coinBalance')}
-                value={detail.coin_balance}
-              />
-            </div>
+                    {/* 资产信息 */}
+                    <div style={{ marginBottom: 24 }}>
+                      <Statistic
+                        data-testid="coin-balance-stat"
+                        title={t('users.drawer.coinBalance')}
+                        value={detail.coin_balance}
+                      />
+                    </div>
 
-            {/* 行为数据占位 */}
-            <div data-testid="behavior-placeholder" style={{ marginBottom: 24 }}>
-              <strong>{t('users.drawer.behaviorData')}</strong>
-              <p style={{ color: '#999', marginTop: 4 }}>
-                {t('users.drawer.behaviorPlaceholder')}
-              </p>
-            </div>
+                    {/* 行为数据占位（T-20013 已在"行为流"Tab 实现） */}
+                    <div data-testid="behavior-placeholder" style={{ marginBottom: 24 }}>
+                      <strong>{t('users.drawer.behaviorData')}</strong>
+                      <p style={{ color: '#999', marginTop: 4 }}>
+                        {t('users.drawer.behaviorPlaceholder')}
+                      </p>
+                    </div>
 
-            {/* 操作区 */}
-            <Space>
-              {detail.status === 'banned' ? (
-                <Button
-                  data-testid="unban-btn"
-                  type="primary"
-                  onClick={() => onUnbanClick?.(detail.id)}
-                >
-                  {t('users.drawer.unban')}
-                </Button>
-              ) : (
-                <Button
-                  data-testid="ban-btn"
-                  danger
-                  onClick={() => onBanClick?.(detail.id)}
-                >
-                  {t('users.drawer.ban')}
-                </Button>
-              )}
+                    {/* 操作区 */}
+                    <Space>
+                      {detail.status === 'banned' ? (
+                        <Button
+                          data-testid="unban-btn"
+                          type="primary"
+                          onClick={() => onUnbanClick?.(detail.id)}
+                        >
+                          {t('users.drawer.unban')}
+                        </Button>
+                      ) : (
+                        <Button
+                          data-testid="ban-btn"
+                          danger
+                          onClick={() => onBanClick?.(detail.id)}
+                        >
+                          {t('users.drawer.ban')}
+                        </Button>
+                      )}
 
-              {/* T-20012: 调整余额按钮（仅 super_admin/operator/finance 可见） */}
-              {canAdjustBalance && (
-                <Button
-                  data-testid="adjust-balance-btn"
-                  onClick={() => setAdjustOpen(true)}
-                >
-                  {t('wallet.adjust.adjustBalance')}
-                </Button>
-              )}
-            </Space>
-          </>
+                      {/* T-20012: 调整余额按钮（仅 super_admin/operator/finance 可见） */}
+                      {canAdjustBalance && (
+                        <Button
+                          data-testid="adjust-balance-btn"
+                          onClick={() => setAdjustOpen(true)}
+                        >
+                          {t('wallet.adjust.adjustBalance')}
+                        </Button>
+                      )}
+                    </Space>
+                  </>
+                ),
+              },
+              {
+                key: 'event-stream',
+                label: (
+                  <span data-testid="tab-event-stream">
+                    {t('users.drawer.tabs.eventStream')}
+                  </span>
+                ),
+                children: <EventStreamTab userId={detail.id} />,
+              },
+            ]}
+          />
         )}
       </Drawer>
 

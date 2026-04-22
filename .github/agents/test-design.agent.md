@@ -50,7 +50,7 @@ user-invocable: true
 # Output Format (强制输出格式)
 你必须且只能输出严格的 Markdown 格式，绝不允许使用 JSON 或纯文本段落。
 
-测试用例输出的文件夹为`doc/test/类型（如E2E/API/AND/WEB）/`
+测试用例输出的文件为`doc/cases/类型（如E2E/API/AND/WEB）/TC-[模块]-[5位编号].md`
 
 多个用例请按顺序平铺。每个用例必须遵循以下模板结构：
 
@@ -58,7 +58,7 @@ user-invocable: true
 > **需求模糊点 (Ambiguity Notes)**：
 > - [如果有不明确的地方列在这里，如果没有则写“无”]
 
-## TC-[模块]-[5位编号]：[【正常/异常】前置条件 + 执行动作 + 预期结果]
+## TC-[模块]-[5位编号]：[前置条件 + 执行动作 + 预期结果]
 **【元数据】**
 - **归属模块**：`[Android | AppServer | AdminServer | AdminWeb | DB | E2E]`
 - **测试类型**：`[Functional | Integration | Security | Performance | Compatibility]`
