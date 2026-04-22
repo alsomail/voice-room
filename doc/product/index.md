@@ -46,7 +46,7 @@
 | **E-05: 中东黑金主题与 App 壳体** | **Phase 0.5** | ✅ 已完成 (9/9) | T-30018~T-30026 (Android 9 Tasks) |
 | **E-06: Web 管理端增强** | **Phase 0.5** | ✅ 已完成 (2/2) | T-20010 ✅, T-20011 ✅ |
 | **E-07: 虚拟礼物与钱包闭环 MVP** | **Phase 1** | ✅ **已完成 (15/15)** | T-00017 ✅（钱包 Schema）, T-00018 ✅（余额 API + WS 推送）, T-00019 ✅（礼物配置表+列表API）, T-00020 ✅（SendGift 事务+广播）, T-00021 ✅（魅力/财富榜单 API）, T-10013 ✅（Admin 手动调整余额）, T-10014 ✅（Admin 礼物 CRUD）, T-20012 ✅（Web 余额调整弹窗+礼物管理页），T-30027 ✅（Android 钱包页），T-30028 ✅（Android 礼物面板），T-30029 ✅（Android 接收者选择器），T-30030 ✅（Android SendGift 客户端+幂等），T-30031 ✅（Android 送礼特效+弹幕），T-30032 ✅（Android 余额不足引导弹窗），**T-30033 ✅（Android 魅力/财富榜页）** |
-| **E-07.5: 埋点与观测性基建** | **Phase 1 并行** | 🟡 **进行中 (4/6)** | T-00022 ✅ (事件表+HTTP API) / T-00023 ✅ (WS 通道), T-10015 ✅ (Admin 查询 API), **T-20013 ✅ (Web 行为流 Tab)**, T-30034~T-30035 (Android) |
+| **E-07.5: 埋点与观测性基建** | **Phase 1 并行** | 🟡 **进行中 (5/6)** | T-00022 ✅ (事件表+HTTP API) / T-00023 ✅ (WS 通道), T-10015 ✅ (Admin 查询 API), **T-20013 ✅ (Web 行为流 Tab)**, **T-30034 ✅ (Android Analytics 防腐层+Sentry)**, T-30035 (Android EventReportClient) |
 | **E-10: 房间主权与管理员体系** | **Phase 1.5** | 🟡 **设计中 (0/~18)** | 待拆解，预计 Server 7 + AdminServer 1 + Web 1 + Android 9 |
 | E-08: Google Play 真支付 | Phase 1 | 🔴 待开发 | 待拆解（依赖 E-07） |
 | E-09: 贵族体系 | Phase 1 | 🔴 待开发 | 待拆解（依赖 E-07/E-08） |
@@ -63,6 +63,7 @@
 ---
 
 **文档变更历史**:
+- 2026-04-29: v1.5，T-30034 DoD 完成，E-07.5 Epic 进度更新为 5/6（新增 T-30034 ✅ Android Analytics 防腐层+Sentry，Review R1 通过，42 个单元测试全部通过）；doc/arch/android/analytics.md 新增完整的 Analytics 防腐层架构设计（AnalyticsPort 接口、SentryAnalytics/DefaultSentryHub MVP Stub、SensitiveFilter 脱敏策略、ConsentMode 枚举、NoopAnalytics、BuildConfig.SENTRY_DSN 注入、CI 静态检查脚本、HIGH-01/02 MVP 限制与激活路径、MEDIUM-01/02 待修复项），doc/arch/android/index.md 新增 analytics.md 子模块索引与能力状态描述，Tasks.md T-30034 标记为 ✅ Done（负责人: Dod），doc/product/index.md E-07.5 Epic 进度更新为 5/6
 - 2026-04-28: v1.4，T-20013 DoD 完成，E-07.5 Epic 进度更新为 4/6（新增 T-20013 ✅ Web 用户行为流 Tab，Review R2 通过，450 个测试全部通过）；doc/arch/web/user-management.md 新增第 3.4 节 EventStreamTab 组件详解（时间筛选、事件多选、时间线列表、关键字高亮防 XSS、CSV 导出、AbortSignal 防竞态）、第 4 节数据流补充行为流 Tab 链路、第 5 节 API 表格新增 `listUserEvents`、第 6 节国际化补充 `events.*` key 清单；doc/arch/web/index.md 用户管理模块行描述新增 T-20013 信息 + EventStreamTab 特性说明、能力全景部分新增 T-20013 条目，Tasks.md T-20013 标记为 ✅ Done（负责人: Dod），doc/product/index.md E-07.5 Epic 进度更新为 4/6
 - 2026-04-22: v1.3，T-10015 DoD 完成，E-07.5 Epic 进度更新为 3/6（新增 T-10015 ✅ Admin 用户行为查询 API，Review R2 通过，33 个测试全部通过）；doc/arch/adminServer/analytics.md 新增完整的 Analytics 查询模块架构设计（权限矩阵、分区时窗剪枝、event_name 多值过滤、分页、审计日志记录），doc/arch/adminServer/index.md 新增 analytics.md 子模块索引与能力状态描述，Tasks.md T-10015 标记为 ✅ Done（负责人: Dod），doc/product/index.md E-07.5 Epic 进度更新为 3/6
 - 2026-05-14: v1.2，T-00023 DoD 完成，E-07.5 Epic 进度更新为 2/6（新增 T-00023 ✅ WS ReportEvent 信令，Review R2 通过，318 个测试全部通过）；doc/arch/server/analytics.md §2.5 补充 WS 上报通道详细实现设计（handle_report_event 函数签名、BATCH_TOO_LARGE 错误处理、msg_id ACK 响应、user_id 强制覆盖、server_ts 统一覆盖、WS 连接集成点），§4.1 新增 RE01~RE08 验收用例清单，§7 代码清单补充 `events/ws.rs` 与 `ws/connection.rs` 修改项，Tasks.md T-00023 标记为 ✅ Done（负责人: Dod），doc/product/index.md E-07.5 Epic 进度更新为 2/6
