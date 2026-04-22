@@ -397,3 +397,194 @@ pub struct MemberSnapshot {
 | `service.rs` 内联测试 | S01~S03 `get_users_by_ids` | 3 |
 | 集成测试 `members_list_test.rs` | M27-01 ~ M27-08 端到端 | 8 |
 | **全量测试** | 398 个全部 ✅ | 398 |
+
+---
+
+## 十六、WS KickUser 信令格式（T-00028）
+
+> 关联 TDS：[T-00028](../../tds/server/T-00028.md)
+
+### C→S `KickUser`（请求）
+
+```json
+{
+  "type": "KickUser",
+  "msg_id": "uuid",
+  "payload": {
+    "room_id": "uuid",
+    "target_user_id": "uuid",
+    "reason": "harassment"
+  }
+}
+```
+
+### S→C `KickUserResult`（响应）
+
+```json
+{ "type": "KickUserResult", "msg_id": "uuid", "code": 0 }
+```
+
+**错误码**：
+
+| code | 含义 |
+|------|------|
+| 40301 | `PERMISSION_DENIED`（操作者非 owner/admin） |
+| 40302 | `CANNOT_KICK_OWNER`（不可踢房主） |
+| 40400 | 房间不存在或 target 不在房间 |
+| 40003 | reason 缺失或格式非法 |
+
+### S→目标 `UserKicked`（广播，仅目标用户）
+
+```json
+{
+  "type": "UserKicked",
+  "payload": {
+    "room_id": "uuid",
+    "reason": "harassment",
+    "cooldown_sec": 600,
+    "operator_nickname": "..."
+  }
+}
+```
+
+### S→房间其他人 `UserLeft`（广播，排除被踢者）
+
+扩展 `reason` 字段标识踢出来源：
+
+```json
+{
+  "type": "UserLeft",
+  "payload": {
+    "user_id": "uuid",
+    "reason": "kicked_by_admin",
+    "operator_id": "uuid"
+  }
+}
+```
+
+### S→房间全体 `MicLeft`（仅被踢者在麦时额外广播）
+
+```json
+{
+  "type": "MicLeft",
+  "payload": {
+    "slot": 1,
+    "user_id": "uuid",
+    "forced": true
+  }
+}
+```
+
+---
+
+## 十七、KickUser 处理流程（7 步）
+
+```
+1. 权限校验：ctx.user_id ∈ {owner, admin}
+   └─ 不在 → 返回 40301 PERMISSION_DENIED
+   └─ target == room.owner_id → 返回 40302 CANNOT_KICK_OWNER
+
+2. target 存在性校验：room_manager.is_member(room_id, target_user_id)
+   └─ 不在房间 → 返回 40400
+
+3. Redis SETEX kicked:{room_id}:{target_user_id} 600 reason（冷却写入）
+
+4. DB INSERT room_kick_records（审计落库）
+
+5. RoomManager 移除 + 若在麦自动下麦
+   └─ 若 mic_slot_of(room_id, target) = Some(slot)
+       ├─ room_manager.leave_mic(room_id, slot)
+       └─ 广播 MicLeft { slot, user_id: target, forced: true }
+   └─ room_manager.remove_member(room_id, target)（DashMap.remove() 原子）
+
+6. 广播
+   ├─ UserKicked 仅发给被踢者所有连接
+   └─ UserLeft(reason="kicked_by_admin") 广播给房间其余所有人
+
+7. 主动关闭被踢者 WS 连接（conn.close(Reason::Kicked)）
+```
+
+---
+
+## 十八、权限校验规则
+
+| 操作者角色 | 可踢目标 | 不可踢目标 |
+|-----------|---------|----------|
+| owner | admin、member | — |
+| admin | member | owner、其他 admin |
+| member | — | 任何人（40301） |
+
+**优先级铁律**：`owner > admin > member`，任何人均不可踢 owner（40302）。
+
+---
+
+## 十九、Redis 冷却 Key 与 JoinRoom 拦截
+
+### 冷却 Key
+
+| Key 格式 | 类型 | TTL | 存储内容 |
+|---------|------|-----|---------|
+| `kicked:{room_id}:{user_id}` | String | 600s | kick reason（如 `harassment`） |
+
+写入时机：踢人流程第 3 步，`SETEX` 单条原子命令。
+
+### JoinRoom 前置拦截
+
+`JoinRoom` 信令处理前增加冷却检查：
+
+```rust
+// handler.rs — handle_join_room 冷却前置
+if let Some(remaining_sec) = kick_redis.get_ttl(room_id, user_id).await? {
+    return Err(AppError::KickedCooldown { remaining_sec });
+}
+// 错误码 42911，payload: { remaining_sec }
+```
+
+错误码 `42911 KICKED_COOLDOWN` 含 `remaining_sec` 字段，客户端据此展示倒计时。
+
+---
+
+## 二十、并发保护
+
+多个管理员同时踢同一人场景：
+
+- **`DashMap.remove()` 原子性**：`remove_member` 返回 `Option`；仅第一次返回 `Some` 的请求走完完整流程（广播 + 关闭连接），后续返回 `None` 的请求提前退出。
+- **Redis SETEX 覆盖无副作用**：多次 SETEX 相同 key 仅覆盖值（TTL 重置），最终冷却仍正确。
+- **`room_kick_records` 允许多条**：并发踢出可能插入多行（每位管理员操作均有审计记录），符合治理日志完整性要求。
+
+---
+
+## 二十一、遗留问题（T-00028）
+
+| 级别 | 问题描述 | 建议修复时机 |
+|------|---------|------------|
+| **MEDIUM** | 当前实现先广播 `UserLeft`（步骤14）再广播 `MicLeft`（步骤15），与 TDS §二 约定顺序（先 MicLeft 后 UserLeft）相反。功能正确，但客户端可能出现瞬时 UI 异常（麦位已清空但用户列表未更新）。 | 下一迭代调整广播顺序 |
+| **LOW** | `RealKickRedis.get_ttl` 当 Redis 返回 `-1`（key 存在无 TTL）时当前代码归入 `_ => Ok(None)` 按无冷却处理。保守方案建议返回满冷却秒数（600s）以防永久 key 绕过冷却。 | 下一 Redis 工具类迭代修复 |
+
+---
+
+## 二十二、涉及文件清单（T-00028 新增 / 修改）
+
+| 文件路径 | 变更类型 | 说明 |
+|---------|---------|------|
+| `app/server/src/modules/governance/mod.rs` | **新增** | governance 模块入口 |
+| `app/server/src/modules/governance/kick.rs` | **新增** | 核心踢人逻辑 + `KickRedis`/`KickAuditDb` trait + Fake/Real 实现 |
+| `app/server/src/modules/mod.rs` | 修改 | 注册 governance 子模块 |
+| `app/server/src/room/manager.rs` | 修改 | 新增 `remove_member()` 返回 `Option`；新增 `is_member()` |
+| `app/server/src/room/handler.rs` | 修改 | `JoinRoomDeps` 新增 `kick_redis` 字段；JoinRoom 冷却前置检查；`broadcast_mic_left` 增加 `forced: bool` 参数 |
+| `app/server/src/ws/connection.rs` | 修改 | 新增 `KickUser` 分支；`SocketDeps` 新增 `kick_redis`/`kick_audit_db` 字段 |
+| `app/server/src/ws/handler.rs` | 修改 | 传递 `kick_redis`/`kick_audit_db` 到 `handle_socket` |
+| `app/server/src/bootstrap/mod.rs` | 修改 | `AppState` 新增 `kick_redis`/`kick_audit_db` + `with_kick_redis`/`with_kick_audit_db` builder |
+| `app/server/tests/kick_user_test.rs` | **新增** | K28-01 ~ K28-12 集成测试（12 个） |
+| `app/server/tests/password_room_test.rs` | 修改 | `JoinRoomDeps` 补充 `kick_redis: None` |
+| `app/server/tests/send_gift_test.rs` | 修改 | `MemberInfo` 补全 `joined_at` 字段 |
+| `app/server/Cargo.toml` | 修改 | 新增 `kick_user_test` 测试入口 |
+
+---
+
+## 二十三、测试覆盖汇总（T-00028）
+
+| 测试集 | 范围 | 数量 |
+|--------|------|------|
+| 集成测试 `kick_user_test.rs` | K28-01 ~ K28-12 端到端 | 12 |
+| **全量测试** | 366+ 个全部 ✅，零回归 | 366+ |

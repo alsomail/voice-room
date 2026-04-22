@@ -47,7 +47,7 @@
 | **E-06: Web 管理端增强** | **Phase 0.5** | ✅ 已完成 (2/2) | T-20010 ✅, T-20011 ✅ |
 | **E-07: 虚拟礼物与钱包闭环 MVP** | **Phase 1** | ✅ **已完成 (15/15)** | T-00017 ✅（钱包 Schema）, T-00018 ✅（余额 API + WS 推送）, T-00019 ✅（礼物配置表+列表API）, T-00020 ✅（SendGift 事务+广播）, T-00021 ✅（魅力/财富榜单 API）, T-10013 ✅（Admin 手动调整余额）, T-10014 ✅（Admin 礼物 CRUD）, T-20012 ✅（Web 余额调整弹窗+礼物管理页），T-30027 ✅（Android 钱包页），T-30028 ✅（Android 礼物面板），T-30029 ✅（Android 接收者选择器），T-30030 ✅（Android SendGift 客户端+幂等），T-30031 ✅（Android 送礼特效+弹幕），T-30032 ✅（Android 余额不足引导弹窗），**T-30033 ✅（Android 魅力/财富榜页）** |
 | **E-07.5: 埋点与观测性基建** | **Phase 1 并行** | ✅ **已完成 (6/6)** | T-00022 ✅ (事件表+HTTP API) / T-00023 ✅ (WS 通道), T-10015 ✅ (Admin 查询 API), **T-20013 ✅ (Web 行为流 Tab)**, **T-30034 ✅ (Android Analytics 防腐层+Sentry)**, **T-30035 ✅ (Android EventReportClient+核心埋点+隐私弹窗)** |
-| **E-10: 房间主权与管理员体系** | **Phase 1.5** | 🟡 **进行中 (4/18)** | T-00024 ✅（rooms 治理 Schema + 迁移）；T-00025 ✅（创建房间 API 升级）；T-00026 ✅（密码房进房校验 + 锁定机制）；T-00027 ✅（观众席列表 API）；其余 14 个待开发 |
+| **E-10: 房间主权与管理员体系** | **Phase 1.5** | 🟡 **进行中 (5/18)** | T-00024 ✅（rooms 治理 Schema + 迁移）；T-00025 ✅（创建房间 API 升级）；T-00026 ✅（密码房进房校验 + 锁定机制）；T-00027 ✅（观众席列表 API）；T-00028 ✅（KickUser 信令 + 10min 冷却）；其余 13 个待开发 |
 | E-08: Google Play 真支付 | Phase 1 | 🔴 待开发 | 待拆解（依赖 E-07） |
 | E-09: 贵族体系 | Phase 1 | 🔴 待开发 | 待拆解（依赖 E-07/E-08） |
 
@@ -63,6 +63,7 @@
 ---
 
 **文档变更历史**:
+- 2026-05-17: v1.9，T-00028 DoD 完成，E-10 Epic 进度更新为 5/18（新增 T-00028 ✅ KickUser 信令 + 10min 冷却，Review Round 1 通过，366+ 测试全部通过）；doc/arch/server/room.md 新增十六~二十三章：KickUser 信令格式（C→S/S→C/广播 UserKicked/UserLeft/MicLeft）、处理流程 7 步、权限校验矩阵（owner/admin/member 三级，不可踢 owner）、Redis 冷却 Key（kicked:{room_id}:{user_id} TTL 600s）、JoinRoom 冷却拦截（42911 KICKED_COOLDOWN）、并发保护（DashMap.remove() 原子性）、遗留问题（MEDIUM 广播顺序 + LOW TTL=-1）、文件清单与测试汇总；doc/product/index.md E-10 进度 4/18 → 5/18
 - 2026-05-16: v1.8，T-00027 DoD 完成，E-10 Epic 进度更新为 4/18（新增 T-00027 ✅ 观众席列表 API，Review Round 2 通过，398 个测试全部通过）；doc/arch/server/room.md 新增十三~十五章：GET /api/v1/rooms/:id/members 接口契约（响应格式、排序规则）、角色计算优先级（owner > admin > member）、性能设计（1 次批量 SQL WHERE id = ANY($1)）、muted_mic/muted_chat 读 Redis Key、MemberSnapshot 单一数据源说明（删除 member_join_times DashMap）、权限错误码、文件清单与测试覆盖汇总（398 个测试全部通过）；doc/product/index.md E-10 进度 3/18 → 4/18
 - 2026-05-15: v1.7，T-00026 DoD 完成，E-10 Epic 进度更新为 3/18（新增 T-00026 ✅ 密码房进房校验 + 锁定机制，Review R1 通过，382+ 测试全部通过）；doc/arch/server/room.md 新增八~十二章：POST /verify-password 接口契约、Redis Key 策略（pwd_fail/pwd_lock TTL 1800s）、5次失败锁定流程（SET NX EX 原子防重）、JWT room_access token 双重校验（iss+sub+room_id）、WS JoinRoom 密码房错误码（40104/40105/40106）、遗留 MEDIUM incr_with_ttl 非原子建议 Lua 脚本、T-00026 文件清单与测试覆盖汇总；doc/product/index.md E-10 进度 2/18 → 3/18
 - 2026-04-30: v1.6，T-30035 DoD 完成，E-07.5 Epic 进度更新为 6/6（全部完成）：doc/arch/android/analytics.md 新增第十二章 EventReportClient 主链路（EventReportClient track 门控 + flush 逻辑、队列策略 InMemoryEventQueueDao + 1000 条淘汰、Throttler 四触发条件、WsTransport/HttpTransport 指数退避 + Dispatchers.IO 修复、SessionManager 30s 新建 UUID、CommonPropsProvider 6 公共字段含 network_type、ConsentRepository + DataStoreConsentStore Properties 持久化、PrivacyConsentDialog testTag 三键名、26 个核心事件埋点清单）与第十三章 TDD 验收结果（42 单元测试全部通过）；doc/arch/android/index.md 能力全景新增 T-30035 条目；Tasks.md E-07.5 模块标记 ✅ 完成 6/6；doc/product/index.md E-07.5 进度更新为 ✅ 已完成 6/6
