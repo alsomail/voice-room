@@ -26,6 +26,20 @@ pub struct MemberInfo {
     pub user_id: Uuid,
     pub nickname: String,
     pub avatar: Option<String>,
+    /// 加入房间的时间（UTC）— T-00027
+    pub joined_at: chrono::DateTime<chrono::Utc>,
+}
+
+impl MemberInfo {
+    /// 构造新成员信息，joined_at 自动设为当前 UTC 时间。
+    pub fn new(user_id: Uuid, nickname: String, avatar: Option<String>) -> Self {
+        Self {
+            user_id,
+            nickname,
+            avatar,
+            joined_at: chrono::Utc::now(),
+        }
+    }
 }
 
 /// 单个房间的运行时状态
@@ -34,6 +48,8 @@ pub struct RoomState {
     pub room_id: Uuid,
     /// 当前成员表（key = user_id）
     pub members: DashMap<Uuid, MemberInfo>,
+    /// 成员进房时间表（key = user_id，T-00027 列表排序用）
+    pub member_join_times: DashMap<Uuid, chrono::DateTime<chrono::Utc>>,
     /// 麦位列表（9 个槽，None 表示空闲，Some(user_id) 表示占用）
     pub mic_slots: RwLock<Vec<Option<Uuid>>>,
     /// 禁麦用户集合（在此集合中的用户不允许上麦）
@@ -50,6 +66,7 @@ impl RoomState {
         Self {
             room_id,
             members: DashMap::new(),
+            member_join_times: DashMap::new(),
             mic_slots: RwLock::new(vec![None; 9]),
             banned_mics: DashSet::new(),
             muted_users: DashSet::new(),

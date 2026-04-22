@@ -138,14 +138,13 @@ pub async fn handle_join_room(
     let room_state = room_manager.get_or_create_room(room_id);
 
     // ── 6. 加入成员表 ──────────────────────────────────────────────────────────
+    let now = chrono::Utc::now();
     room_state.members.insert(
         user_id,
-        MemberInfo {
-            user_id,
-            nickname: nickname.clone(),
-            avatar: avatar.clone(),
-        },
+        MemberInfo::new(user_id, nickname.clone(), avatar.clone()),
     );
+    // 记录进房时间（T-00027 列表排序用）
+    room_state.member_join_times.insert(user_id, now);
 
     // ── 7. 标记连接所属房间 ─────────────────────────────────────────────────────
     registry.set_room_id(connection_id, room_id);
@@ -236,6 +235,8 @@ pub async fn do_leave_room(
 
     // 3. 移除成员
     room_state.members.remove(&user_id);
+    // 同步清理进房时间（T-00027）
+    room_state.member_join_times.remove(&user_id);
 
     // 4. 自动下麦（若在麦上），暂存麦位索引，广播延迟到 clear_room_id 之后
     let left_mic_index = room_state.leave_mic_slot(user_id);
@@ -1004,7 +1005,7 @@ mod tests {
         let room_state = room_manager.get_or_create_room(room_id);
         room_state.members.insert(
             user_id,
-            MemberInfo { user_id, nickname: "Alice".to_string(), avatar: None },
+            MemberInfo::new(user_id, "Alice".to_string(), None),
         );
 
         // 注册连接并设置 room_id
@@ -1050,7 +1051,7 @@ mod tests {
         let room_state = room_manager.get_or_create_room(room_id);
         room_state.members.insert(
             user_id,
-            MemberInfo { user_id, nickname: "Bob".to_string(), avatar: None },
+            MemberInfo::new(user_id, "Bob".to_string(), None),
         );
         // 将用户放到麦位 2
         {
@@ -1086,11 +1087,11 @@ mod tests {
         let room_state = room_manager.get_or_create_room(room_id);
         room_state.members.insert(
             leaver_id,
-            MemberInfo { user_id: leaver_id, nickname: "Leaver".to_string(), avatar: None },
+            MemberInfo::new(leaver_id, "Leaver".to_string(), None),
         );
         room_state.members.insert(
             stayer_id,
-            MemberInfo { user_id: stayer_id, nickname: "Stayer".to_string(), avatar: None },
+            MemberInfo::new(stayer_id, "Stayer".to_string(), None),
         );
 
         // leaver 的连接
@@ -1131,7 +1132,7 @@ mod tests {
         let room_state = room_manager.get_or_create_room(room_id);
         room_state.members.insert(
             leaver_id,
-            MemberInfo { user_id: leaver_id, nickname: "Solo".to_string(), avatar: None },
+            MemberInfo::new(leaver_id, "Solo".to_string(), None),
         );
 
         let (leaver_conn, mut rx_leaver) = register_connection(&registry, leaver_id, None);
@@ -1160,7 +1161,7 @@ mod tests {
         let room_state = room_manager.get_or_create_room(room_id);
         room_state.members.insert(
             user_id,
-            MemberInfo { user_id, nickname: "Last".to_string(), avatar: None },
+            MemberInfo::new(user_id, "Last".to_string(), None),
         );
 
         let (conn_id, _rx) = register_connection(&registry, user_id, None);
@@ -1194,7 +1195,7 @@ mod tests {
         let room_state = room_manager.get_or_create_room(room_id);
         room_state.members.insert(
             user_id,
-            MemberInfo { user_id, nickname: "Stat".to_string(), avatar: None },
+            MemberInfo::new(user_id, "Stat".to_string(), None),
         );
 
         let (conn_id, _rx) = register_connection(&registry, user_id, None);
@@ -1221,7 +1222,7 @@ mod tests {
         let room_state = room_manager.get_or_create_room(room_id);
         room_state.members.insert(
             user_id,
-            MemberInfo { user_id, nickname: "H8User".to_string(), avatar: None },
+            MemberInfo::new(user_id, "H8User".to_string(), None),
         );
 
         let (conn_id, _rx) = register_connection(&registry, user_id, None);
@@ -1254,7 +1255,7 @@ mod tests {
         let room_state = room_manager.get_or_create_room(room_id);
         room_state.members.insert(
             user_id,
-            MemberInfo { user_id, nickname: "NoMic".to_string(), avatar: None },
+            MemberInfo::new(user_id, "NoMic".to_string(), None),
         );
         // 不向任何麦位插入用户（初始全为 None）
 
@@ -1288,11 +1289,11 @@ mod tests {
         let room_state = room_manager.get_or_create_room(room_id);
         room_state.members.insert(
             user_a_id,
-            MemberInfo { user_id: user_a_id, nickname: "OnMic".to_string(), avatar: None },
+            MemberInfo::new(user_a_id, "OnMic".to_string(), None),
         );
         room_state.members.insert(
             user_b_id,
-            MemberInfo { user_id: user_b_id, nickname: "Listener".to_string(), avatar: None },
+            MemberInfo::new(user_b_id, "Listener".to_string(), None),
         );
         // user_a 在麦位 0
         {

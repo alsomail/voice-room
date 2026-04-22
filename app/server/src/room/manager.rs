@@ -10,6 +10,23 @@ use uuid::Uuid;
 
 use super::state::RoomState;
 
+// ─── MemberSnapshot ───────────────────────────────────────────────────────────
+
+/// 成员快照（T-00027 列表 API 用）
+#[derive(Debug, Clone)]
+pub struct MemberSnapshot {
+    /// 用户 ID
+    pub user_id: Uuid,
+    /// 进房时间（UTC）
+    pub joined_at: chrono::DateTime<chrono::Utc>,
+    /// 当前麦位索引（None 表示观众席）
+    pub mic_slot: Option<usize>,
+    /// 是否被禁麦（banned_mics）
+    pub muted_mic: bool,
+    /// 是否被禁言（muted_users）
+    pub muted_chat: bool,
+}
+
 // ─── RoomManager ──────────────────────────────────────────────────────────────
 
 /// 全局房间运行时状态管理器，线程安全，可跨 task 共享。
@@ -54,6 +71,42 @@ impl RoomManager {
     /// 当前活跃房间数
     pub fn room_count(&self) -> usize {
         self.rooms.len()
+    }
+
+    /// 获取指定房间所有成员的快照（T-00027 列表 API 用）。
+    ///
+    /// 返回 `None` 表示房间不存在（未在内存中激活）。
+    /// 返回的快照包含麦位信息、muted 状态，供上层 service 排序和分页。
+    pub fn list_members(&self, room_id: Uuid) -> Option<Vec<MemberSnapshot>> {
+        let state = self.get_room(room_id)?;
+        let slots = state.mic_slots_snapshot();
+
+        let snapshots: Vec<MemberSnapshot> = state
+            .members
+            .iter()
+            .map(|entry| {
+                let user_id = *entry.key();
+                // 从 mic_slots 中找出该用户占用的槽位索引
+                let mic_slot = slots.iter().position(|s| *s == Some(user_id));
+                // 进房时间：优先从 member_join_times 读，fallback 到 MemberInfo.joined_at
+                let joined_at = state
+                    .member_join_times
+                    .get(&user_id)
+                    .map(|t| *t)
+                    .unwrap_or(entry.value().joined_at);
+                let muted_mic = state.banned_mics.contains(&user_id);
+                let muted_chat = state.muted_users.contains(&user_id);
+                MemberSnapshot {
+                    user_id,
+                    joined_at,
+                    mic_slot,
+                    muted_mic,
+                    muted_chat,
+                }
+            })
+            .collect();
+
+        Some(snapshots)
     }
 }
 

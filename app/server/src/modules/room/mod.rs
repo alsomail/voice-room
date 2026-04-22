@@ -1,5 +1,7 @@
 pub mod controller;
 pub mod dto;
+pub mod members_handler;
+pub mod members_service;
 pub mod password;
 pub mod repository;
 pub mod routes;
