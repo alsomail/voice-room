@@ -622,6 +622,10 @@ mod tests {
             created_at: now,
             updated_at: now,
             deleted_at: None,
+            cover_url: String::new(),
+            category: "chat".to_string(),
+            announcement: None,
+            admin_user_id: None,
         });
         Arc::new(RoomService::new(repo))
     }

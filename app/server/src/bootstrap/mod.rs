@@ -537,6 +537,10 @@ mod tests {
             created_at: now,
             updated_at: now,
             deleted_at: None,
+            cover_url: String::new(),
+            category: "chat".to_string(),
+            announcement: None,
+            admin_user_id: None,
         });
 
         let app = build_app(AppState::for_test_with_room_repo(repo));
@@ -638,6 +642,10 @@ mod tests {
             created_at: now,
             updated_at: now,
             deleted_at: None,
+            cover_url: String::new(),
+            category: "chat".to_string(),
+            announcement: None,
+            admin_user_id: None,
         });
 
         let app = build_app(AppState::for_test_with_room_repo(repo));
@@ -683,6 +691,10 @@ mod tests {
             created_at: now,
             updated_at: now,
             deleted_at: Some(now), // 已软删除
+            cover_url: String::new(),
+            category: "chat".to_string(),
+            announcement: None,
+            admin_user_id: None,
         });
 
         let app = build_app(AppState::for_test_with_room_repo(repo));
@@ -836,6 +848,10 @@ mod tests {
             created_at: now,
             updated_at: now,
             deleted_at: None,
+            cover_url: String::new(),
+            category: "chat".to_string(),
+            announcement: None,
+            admin_user_id: None,
         });
 
         let app = build_app(AppState::for_test_with_room_repo(repo));
@@ -867,6 +883,10 @@ mod tests {
             created_at: now,
             updated_at: now,
             deleted_at: None,
+            cover_url: String::new(),
+            category: "chat".to_string(),
+            announcement: None,
+            admin_user_id: None,
         });
 
         let app = build_app(AppState::for_test_with_room_repo(repo));
@@ -1074,6 +1094,10 @@ mod tests {
             created_at: now,
             updated_at: now,
             deleted_at: None,
+            cover_url: String::new(),
+            category: "chat".to_string(),
+            announcement: None,
+            admin_user_id: None,
         });
 
         let token = make_token_for(owner_id);

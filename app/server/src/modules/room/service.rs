@@ -5,8 +5,13 @@ use uuid::Uuid;
 use crate::common::error::AppError;
 
 use super::{
-    dto::{CreateRoomRequest, CreateRoomResponse, NewRoom, OwnerInfo, RoomDetailResponse, RoomListItem, RoomListQuery, RoomListResponse},
+    dto::{
+        CreateRoomRequest, CreateRoomResponse, NewRoom, OwnerInfo, PatchRoomRequest,
+        PatchRoomResponse, RoomDetailResponse, RoomFieldsUpdate, RoomListItem, RoomListQuery,
+        RoomListResponse,
+    },
     repository::RoomRepository,
+    validator,
 };
 
 /// 测试环境使用低成本 bcrypt（避免每个测试等待 300ms）
@@ -27,12 +32,15 @@ impl RoomService {
         Self { room_repo }
     }
 
-    /// T-00007: 创建房间
+    /// T-00007 / T-00025: 创建房间
     ///
     /// 验证规则：
     /// - title：1–30 Unicode 字符（chars().count()）
     /// - room_type：必须是 normal / password / paid
-    /// - password：room_type=password 时必须提供
+    /// - password：room_type=password 时必须提供且为 6 位数字
+    /// - cover_url：若提供，必须匹配白名单前缀（T-00025）
+    /// - category：若提供，必须是 6 类枚举之一（T-00025）
+    /// - announcement：若提供，≤200 Unicode 字符（T-00025）
     /// - 同一 owner 同时只能有 1 个 active 房间
     pub async fn create_room(
         &self,
@@ -60,14 +68,34 @@ impl RoomService {
             )));
         }
 
-        // ── 3. 验证 password（password 类型时必须提供）────────────────────────
-        if req.room_type == "password" && req.password.is_none() {
-            return Err(AppError::ValidationError(
-                "password is required for password rooms".to_string(),
-            ));
+        // ── 3. 验证 cover_url（T-00025）──────────────────────────────────────
+        if let Some(ref url) = req.cover_url {
+            validator::validate_cover_url(url)?;
         }
 
-        // ── 4. 检查同 owner 是否已有 active 房间 ───────────────────────────
+        // ── 4. 验证 category（T-00025）──────────────────────────────────────
+        if let Some(ref cat) = req.category {
+            validator::validate_category(cat)?;
+        }
+
+        // ── 5. 验证 announcement（T-00025）──────────────────────────────────
+        if let Some(ref ann) = req.announcement {
+            validator::validate_announcement(ann)?;
+        }
+
+        // ── 6. 验证 password（password 类型时必须提供且为 6 位数字）──────────
+        // M-01: 非密码房间（normal/paid）即使请求携带 password 字段，也必须存 NULL，
+        // 防止数据污染和后续进入逻辑误判。
+        if req.room_type == "password" {
+            let pwd = req.password.as_deref().ok_or_else(|| {
+                AppError::ValidationError(
+                    "password is required for password rooms".to_string(),
+                )
+            })?;
+            validator::validate_password(pwd)?;
+        }
+
+        // ── 7. 检查同 owner 是否已有 active 房间 ───────────────────────────
         if self
             .room_repo
             .find_active_by_owner(owner_id)
@@ -77,11 +105,9 @@ impl RoomService {
             return Err(AppError::ActiveRoomExists);
         }
 
-        // ── 5. bcrypt 密码（仅 password 类型，spawn_blocking 避免阻塞运行时）────
-        // M-01: 非密码房间（normal/paid）即使请求携带 password 字段，也必须存 NULL，
-        // 防止数据污染和后续进入逻辑误判。
+        // ── 8. bcrypt 密码（仅 password 类型，spawn_blocking 避免阻塞运行时）────
         let password_hash = if req.room_type == "password" {
-            let pwd = req.password.clone().unwrap(); // 步骤3已确保不为 None
+            let pwd = req.password.clone().unwrap(); // 步骤6已确保不为 None
             let hash = tokio::task::spawn_blocking(move || bcrypt::hash(&pwd, BCRYPT_COST))
                 .await
                 .map_err(|e| AppError::Internal(format!("spawn_blocking error: {e}")))?
@@ -91,12 +117,15 @@ impl RoomService {
             None // normal / paid 房间，忽略 password 字段
         };
 
-        // ── 6. 创建房间 ─────────────────────────────────────────────────────
+        // ── 9. 创建房间（含 T-00025 新字段）──────────────────────────────────
         let new_room = NewRoom {
             owner_id,
             title: req.title,
             room_type: req.room_type,
             password_hash,
+            cover_url: req.cover_url.unwrap_or_default(),
+            category: req.category.unwrap_or_else(|| "chat".to_string()),
+            announcement: req.announcement,
         };
 
         let room = self.room_repo.create(new_room).await?;
@@ -239,6 +268,94 @@ impl RoomService {
 
         Ok(())
     }
+
+    /// T-00025: PATCH 房间信息（仅房主，房间 active 时可用）
+    ///
+    /// 验证规则：
+    /// 1. 至少提供一个字段（title / announcement / category），否则 40003
+    /// 2. title 若提供：1–30 Unicode 字符
+    /// 3. category 若提供：6 类枚举之一
+    /// 4. announcement 若提供：≤200 字符（空串 = 清空）
+    /// 5. 房间不存在（含软删除）→ 404
+    /// 6. current_user_id != owner_id → 403
+    /// 7. status == "closed" → 409
+    /// 8. 更新字段，返回 PatchRoomResponse（广播由 controller 发起）
+    pub async fn patch_room(
+        &self,
+        room_id: Uuid,
+        current_user_id: Uuid,
+        req: PatchRoomRequest,
+    ) -> Result<PatchRoomResponse, AppError> {
+        // ── 1. 至少一个字段 ──────────────────────────────────────────────────
+        if req.title.is_none() && req.announcement.is_none() && req.category.is_none() {
+            return Err(AppError::ValidationError(
+                "at least one field (title, announcement, category) must be provided".to_string(),
+            ));
+        }
+
+        // ── 2. 校验 title ────────────────────────────────────────────────────
+        if let Some(ref title) = req.title {
+            let len = title.chars().count();
+            if len == 0 {
+                return Err(AppError::ValidationError(
+                    "title must not be empty".to_string(),
+                ));
+            }
+            if len > 30 {
+                return Err(AppError::ValidationError(format!(
+                    "title must be at most 30 characters, got {len}"
+                )));
+            }
+        }
+
+        // ── 3. 校验 category ─────────────────────────────────────────────────
+        if let Some(ref cat) = req.category {
+            validator::validate_category(cat)?;
+        }
+
+        // ── 4. 校验 announcement ─────────────────────────────────────────────
+        if let Some(ref ann) = req.announcement {
+            validator::validate_announcement(ann)?;
+        }
+
+        // ── 5. 查询房间（不过滤 status，只排除软删除）──────────────────────
+        let room = self
+            .room_repo
+            .find_room_any_status(room_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("room {room_id}")))?;
+
+        // ── 6. 校验 owner ────────────────────────────────────────────────────
+        if room.owner_id != current_user_id {
+            return Err(AppError::Forbidden(
+                "only the owner can modify this room".to_string(),
+            ));
+        }
+
+        // ── 7. 校验状态 ──────────────────────────────────────────────────────
+        if room.status == "closed" {
+            return Err(AppError::RoomAlreadyClosed);
+        }
+
+        // ── 8. 执行 partial update ───────────────────────────────────────────
+        let updated = self
+            .room_repo
+            .update_room_fields(room_id, RoomFieldsUpdate {
+                title: req.title,
+                announcement: req.announcement,
+                category: req.category,
+            })
+            .await?;
+
+        Ok(PatchRoomResponse {
+            room_id: updated.id.to_string(),
+            title: updated.title,
+            announcement: updated.announcement,
+            category: updated.category,
+            cover_url: updated.cover_url,
+            has_password: updated.password_hash.is_some(),
+        })
+    }
 }
 
 // ─── 单元测试（T-00007 验收用例）─────────────────────────────────────────────
@@ -265,6 +382,9 @@ mod tests {
             title: title.to_string(),
             room_type: "normal".to_string(),
             password: None,
+            cover_url: None,
+            category: None,
+            announcement: None,
         }
     }
 
@@ -282,6 +402,10 @@ mod tests {
             created_at: now,
             updated_at: now,
             deleted_at: None,
+            cover_url: String::new(),
+            category: "chat".to_string(),
+            announcement: None,
+            admin_user_id: None,
         });
     }
 
@@ -389,6 +513,9 @@ mod tests {
             title: "Secret Room".to_string(),
             room_type: "password".to_string(),
             password: None,
+            cover_url: None,
+            category: None,
+            announcement: None,
         };
 
         let err = svc
@@ -411,7 +538,10 @@ mod tests {
         let req = CreateRoomRequest {
             title: "Locked Room".to_string(),
             room_type: "password".to_string(),
-            password: Some("super_secret_123".to_string()),
+            password: Some("123456".to_string()),
+            cover_url: None,
+            category: None,
+            announcement: None,
         };
 
         svc.create_room(owner_id, req).await.unwrap();
@@ -426,11 +556,11 @@ mod tests {
 
         // bcrypt::verify 应该返回 true
         let valid =
-            bcrypt::verify("super_secret_123", &hash).expect("bcrypt verify should not fail");
+            bcrypt::verify("123456", &hash).expect("bcrypt verify should not fail");
         assert!(valid, "bcrypt hash should verify against original password");
 
         // 确保明文没有被存储
-        assert_ne!(hash, "super_secret_123", "must not store plain text");
+        assert_ne!(hash, "123456", "must not store plain text");
     }
 
     // ── C-10: 非法 room_type ─────────────────────────────────────────────────
@@ -443,6 +573,9 @@ mod tests {
             title: "Test Room".to_string(),
             room_type: "vip_only".to_string(),
             password: None,
+            cover_url: None,
+            category: None,
+            announcement: None,
         };
 
         let err = svc
@@ -478,6 +611,9 @@ mod tests {
             title: "Paid Room".to_string(),
             room_type: "paid".to_string(),
             password: None,
+            cover_url: None,
+            category: None,
+            announcement: None,
         };
         let resp = svc.create_room(Uuid::new_v4(), req).await.unwrap();
         assert_eq!(resp.room_type, "paid");
@@ -521,6 +657,9 @@ mod tests {
             title: "Normal Room".to_string(),
             room_type: "normal".to_string(),
             password: Some("should_be_ignored".to_string()), // 客户端误传
+            cover_url: None,
+            category: None,
+            announcement: None,
         };
 
         svc.create_room(owner_id, req).await.unwrap();
@@ -547,6 +686,9 @@ mod tests {
             title: "Paid Room".to_string(),
             room_type: "paid".to_string(),
             password: Some("should_be_ignored".to_string()), // 客户端误传
+            cover_url: None,
+            category: None,
+            announcement: None,
         };
 
         svc.create_room(owner_id, req).await.unwrap();
@@ -597,6 +739,10 @@ mod tests {
             created_at: now,
             updated_at: now,
             deleted_at: None,
+            cover_url: String::new(),
+            category: "chat".to_string(),
+            announcement: None,
+            admin_user_id: None,
         });
         room_id
     }
@@ -651,6 +797,10 @@ mod tests {
                 created_at: Utc::now() + Duration::seconds(i as i64),
                 updated_at: Utc::now(),
                 deleted_at: None,
+                cover_url: String::new(),
+                category: "chat".to_string(),
+                announcement: None,
+                admin_user_id: None,
             });
         }
 
@@ -692,6 +842,10 @@ mod tests {
             created_at: Utc::now(),
             updated_at: Utc::now(),
             deleted_at: None,
+            cover_url: String::new(),
+            category: "chat".to_string(),
+            announcement: None,
+            admin_user_id: None,
         });
 
         let resp = svc
@@ -728,6 +882,10 @@ mod tests {
             created_at: Utc::now(),
             updated_at: Utc::now(),
             deleted_at: Some(Utc::now()),
+            cover_url: String::new(),
+            category: "chat".to_string(),
+            announcement: None,
+            admin_user_id: None,
         });
 
         let resp = svc
@@ -940,6 +1098,10 @@ mod tests {
             created_at: now,
             updated_at: now,
             deleted_at,
+            cover_url: String::new(),
+            category: "chat".to_string(),
+            announcement: None,
+            admin_user_id: None,
         });
     }
 
@@ -1132,6 +1294,10 @@ mod tests {
             created_at: now,
             updated_at: now,
             deleted_at,
+            cover_url: String::new(),
+            category: "chat".to_string(),
+            announcement: None,
+            admin_user_id: None,
         });
         room_id
     }
@@ -1234,6 +1400,320 @@ mod tests {
         assert!(
             after.is_none(),
             "find_room_by_id should return None after room is closed"
+        );
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // T-00025: 创建房间 API 升级单元测试（CR25-01 ~ CR25-07）
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /// CR25-01: 成功创建带所有新字段的房间 → 201
+    #[tokio::test]
+    async fn cr25_01_create_room_with_all_fields_succeeds() {
+        let (svc, _) = make_service();
+        let req = CreateRoomRequest {
+            title: "中东夜话".to_string(),
+            room_type: "normal".to_string(),
+            password: None,
+            cover_url: Some("/assets/covers/desert.png".to_string()),
+            category: Some("chat".to_string()),
+            announcement: Some("欢迎来到中东夜话~".to_string()),
+        };
+        let resp = svc.create_room(Uuid::new_v4(), req).await.unwrap();
+        assert!(!resp.room_id.is_empty(), "CR25-01: room_id should not be empty");
+        assert_eq!(resp.title, "中东夜话");
+    }
+
+    /// CR25-02: password="12345"（5 位）→ 40003
+    #[tokio::test]
+    async fn cr25_02_invalid_password_length_returns_validation_error() {
+        let (svc, _) = make_service();
+        let req = CreateRoomRequest {
+            title: "密码房".to_string(),
+            room_type: "password".to_string(),
+            password: Some("12345".to_string()), // 5 位
+            cover_url: None,
+            category: None,
+            announcement: None,
+        };
+        let err = svc.create_room(Uuid::new_v4(), req).await.unwrap_err();
+        assert!(
+            matches!(err, AppError::ValidationError(_)),
+            "CR25-02: 5-digit password should be ValidationError, got: {err:?}"
+        );
+    }
+
+    /// CR25-03: category="unknown" → 40003
+    #[tokio::test]
+    async fn cr25_03_invalid_category_returns_validation_error() {
+        let (svc, _) = make_service();
+        let req = CreateRoomRequest {
+            title: "分类房".to_string(),
+            room_type: "normal".to_string(),
+            password: None,
+            cover_url: None,
+            category: Some("unknown".to_string()),
+            announcement: None,
+        };
+        let err = svc.create_room(Uuid::new_v4(), req).await.unwrap_err();
+        assert!(
+            matches!(err, AppError::ValidationError(_)),
+            "CR25-03: invalid category should be ValidationError, got: {err:?}"
+        );
+    }
+
+    /// CR25-04: announcement 超 200 字符 → 40003
+    #[tokio::test]
+    async fn cr25_04_announcement_over_200_chars_returns_validation_error() {
+        let (svc, _) = make_service();
+        let req = CreateRoomRequest {
+            title: "公告房".to_string(),
+            room_type: "normal".to_string(),
+            password: None,
+            cover_url: None,
+            category: None,
+            announcement: Some("音".repeat(201)),
+        };
+        let err = svc.create_room(Uuid::new_v4(), req).await.unwrap_err();
+        assert!(
+            matches!(err, AppError::ValidationError(_)),
+            "CR25-04: 201-char announcement should be ValidationError, got: {err:?}"
+        );
+    }
+
+    /// CR25-05: cover_url 非白名单 → 40003
+    #[tokio::test]
+    async fn cr25_05_invalid_cover_url_returns_validation_error() {
+        let (svc, _) = make_service();
+        let req = CreateRoomRequest {
+            title: "封面房".to_string(),
+            room_type: "normal".to_string(),
+            password: None,
+            cover_url: Some("https://evil.com/hack.png".to_string()),
+            category: None,
+            announcement: None,
+        };
+        let err = svc.create_room(Uuid::new_v4(), req).await.unwrap_err();
+        assert!(
+            matches!(err, AppError::ValidationError(_)),
+            "CR25-05: non-whitelist cover_url should be ValidationError, got: {err:?}"
+        );
+    }
+
+    /// CR25-06: room_type=normal 时带 password 被忽略（password_hash NULL）
+    #[tokio::test]
+    async fn cr25_06_normal_room_password_ignored() {
+        let (svc, repo) = make_service();
+        let owner_id = Uuid::new_v4();
+        let req = CreateRoomRequest {
+            title: "普通房".to_string(),
+            room_type: "normal".to_string(),
+            password: Some("123456".to_string()), // 应被忽略
+            cover_url: None,
+            category: None,
+            announcement: None,
+        };
+        svc.create_room(owner_id, req).await.unwrap();
+        let room = repo
+            .find_active_by_owner(owner_id)
+            .await
+            .unwrap()
+            .expect("room should exist");
+        assert!(
+            room.password_hash.is_none(),
+            "CR25-06: normal room should NOT store password_hash"
+        );
+    }
+
+    /// CR25-07: 用户已有活跃房间 → 409
+    #[tokio::test]
+    async fn cr25_07_active_room_exists_returns_conflict() {
+        let (svc, repo) = make_service();
+        let owner_id = Uuid::new_v4();
+        seed_active_room(&repo, owner_id);
+        let req = CreateRoomRequest {
+            title: "Second Room".to_string(),
+            room_type: "normal".to_string(),
+            password: None,
+            cover_url: None,
+            category: None,
+            announcement: None,
+        };
+        let err = svc.create_room(owner_id, req).await.unwrap_err();
+        assert!(
+            matches!(err, AppError::ActiveRoomExists),
+            "CR25-07: should be ActiveRoomExists, got: {err:?}"
+        );
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // T-00025: PATCH /api/v1/rooms/:id 单元测试（PR25-08 ~ PR25-12）
+    // ═══════════════════════════════════════════════════════════════════════
+
+    fn make_patch_service() -> (RoomService, Arc<FakeRoomRepository>) {
+        let repo = Arc::new(FakeRoomRepository::default());
+        let svc = RoomService::new(repo.clone());
+        (svc, repo)
+    }
+
+    /// 辅助：植入 active 房间，返回 room_id
+    fn seed_active_room_for_patch(repo: &FakeRoomRepository, owner_id: Uuid) -> Uuid {
+        let now = Utc::now();
+        let room_id = Uuid::new_v4();
+        repo.seed(RoomModel {
+            id: room_id,
+            owner_id,
+            title: "Original Title".to_string(),
+            room_type: "normal".to_string(),
+            member_count: 0,
+            status: "active".to_string(),
+            password_hash: None,
+            max_members: 50,
+            created_at: now,
+            updated_at: now,
+            deleted_at: None,
+            cover_url: String::new(),
+            category: "chat".to_string(),
+            announcement: None,
+            admin_user_id: None,
+        });
+        room_id
+    }
+
+    /// 辅助：植入 closed 房间，返回 room_id
+    fn seed_closed_room_for_patch(repo: &FakeRoomRepository, owner_id: Uuid) -> Uuid {
+        let now = Utc::now();
+        let room_id = Uuid::new_v4();
+        repo.seed(RoomModel {
+            id: room_id,
+            owner_id,
+            title: "Closed Room".to_string(),
+            room_type: "normal".to_string(),
+            member_count: 0,
+            status: "closed".to_string(),
+            password_hash: None,
+            max_members: 50,
+            created_at: now,
+            updated_at: now,
+            deleted_at: None,
+            cover_url: String::new(),
+            category: "chat".to_string(),
+            announcement: None,
+            admin_user_id: None,
+        });
+        room_id
+    }
+
+    /// PR25-08: 房主 PATCH 成功 → title/category/announcement 被更新
+    #[tokio::test]
+    async fn pr25_08_owner_patch_succeeds() {
+        let (svc, repo) = make_patch_service();
+        let owner_id = Uuid::new_v4();
+        let room_id = seed_active_room_for_patch(&repo, owner_id);
+
+        let req = PatchRoomRequest {
+            title: Some("新标题".to_string()),
+            announcement: Some("欢迎来到新房间".to_string()),
+            category: Some("music".to_string()),
+        };
+
+        let resp = svc.patch_room(room_id, owner_id, req).await.unwrap();
+        assert_eq!(resp.room_id, room_id.to_string(), "PR25-08: room_id must match");
+        assert_eq!(resp.title, "新标题", "PR25-08: title should be updated");
+        assert_eq!(resp.category, "music", "PR25-08: category should be updated");
+        assert_eq!(
+            resp.announcement.as_deref(),
+            Some("欢迎来到新房间"),
+            "PR25-08: announcement should be updated"
+        );
+    }
+
+    /// PR25-09: 非房主 PATCH → 403
+    #[tokio::test]
+    async fn pr25_09_non_owner_patch_returns_forbidden() {
+        let (svc, repo) = make_patch_service();
+        let owner_id = Uuid::new_v4();
+        let other_user = Uuid::new_v4();
+        let room_id = seed_active_room_for_patch(&repo, owner_id);
+
+        let req = PatchRoomRequest {
+            title: Some("非法改名".to_string()),
+            announcement: None,
+            category: None,
+        };
+
+        let err = svc
+            .patch_room(room_id, other_user, req)
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(err, AppError::Forbidden(_)),
+            "PR25-09: non-owner should get Forbidden, got: {err:?}"
+        );
+    }
+
+    /// PR25-10: 房间 closed PATCH → 409
+    #[tokio::test]
+    async fn pr25_10_closed_room_patch_returns_conflict() {
+        let (svc, repo) = make_patch_service();
+        let owner_id = Uuid::new_v4();
+        let room_id = seed_closed_room_for_patch(&repo, owner_id);
+
+        let req = PatchRoomRequest {
+            title: Some("试图改名".to_string()),
+            announcement: None,
+            category: None,
+        };
+
+        let err = svc.patch_room(room_id, owner_id, req).await.unwrap_err();
+        assert!(
+            matches!(err, AppError::RoomAlreadyClosed),
+            "PR25-10: closed room PATCH should return RoomAlreadyClosed, got: {err:?}"
+        );
+    }
+
+    /// PR25-11: PATCH 空 body → 40003
+    #[tokio::test]
+    async fn pr25_11_empty_patch_body_returns_validation_error() {
+        let (svc, repo) = make_patch_service();
+        let owner_id = Uuid::new_v4();
+        let room_id = seed_active_room_for_patch(&repo, owner_id);
+
+        let req = PatchRoomRequest {
+            title: None,
+            announcement: None,
+            category: None,
+        };
+
+        let err = svc.patch_room(room_id, owner_id, req).await.unwrap_err();
+        assert!(
+            matches!(err, AppError::ValidationError(_)),
+            "PR25-11: empty PATCH body should be ValidationError, got: {err:?}"
+        );
+    }
+
+    /// PR25-12: announcement 空串清空 + has_password 布尔正确
+    #[tokio::test]
+    async fn pr25_12_clear_announcement_and_has_password_correct() {
+        let (svc, repo) = make_patch_service();
+        let owner_id = Uuid::new_v4();
+        let room_id = seed_active_room_for_patch(&repo, owner_id);
+
+        let req = PatchRoomRequest {
+            title: None,
+            announcement: Some("".to_string()), // 空串 = 清空
+            category: Some("chat".to_string()),
+        };
+
+        let resp = svc.patch_room(room_id, owner_id, req).await.unwrap();
+        assert!(
+            resp.announcement.is_none(),
+            "PR25-12: empty string announcement should clear it (None)"
+        );
+        assert_eq!(
+            resp.has_password,
+            false,
+            "PR25-12: normal room should have has_password=false"
         );
     }
 }

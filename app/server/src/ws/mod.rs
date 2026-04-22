@@ -10,6 +10,7 @@ pub mod connection;
 pub mod handler;
 pub mod heartbeat;
 pub mod registry;
+pub mod broadcaster;
 
 pub use handler::ws_handler;
 pub use registry::{ConnectionHandle, ConnectionRegistry};

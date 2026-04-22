@@ -8,7 +8,7 @@ use voice_room_shared::models::room::RoomModel;
 
 use crate::common::error::AppError;
 
-use super::dto::NewRoom;
+use super::dto::{NewRoom, RoomFieldsUpdate};
 
 // ─── RoomListRow：list 查询结果（JOIN rooms + users）────────────────────────
 
@@ -63,6 +63,14 @@ pub trait RoomRepository: Send + Sync {
     async fn find_room_any_status(&self, room_id: Uuid) -> Result<Option<RoomModel>, AppError>;
     /// 将指定房间状态设为 closed（只执行 UPDATE，不做 owner 校验）
     async fn set_room_closed(&self, room_id: Uuid) -> Result<bool, AppError>;
+
+    // ── T-00025 新增 ────────────────────────────────────────────────────
+    /// Partial update：更新 title / announcement / category（None = 不变）
+    async fn update_room_fields(
+        &self,
+        room_id: Uuid,
+        update: RoomFieldsUpdate,
+    ) -> Result<RoomModel, AppError>;
 }
 
 // ─── Postgres 实现 ────────────────────────────────────────────────────────────
@@ -94,15 +102,19 @@ impl RoomRepository for PgRoomRepository {
 
     async fn create(&self, room: NewRoom) -> Result<RoomModel, AppError> {
         let model = sqlx::query_as::<_, RoomModel>(
-            "INSERT INTO rooms (owner_id, title, room_type, password_hash) \
-             VALUES ($1, $2, $3, $4) \
+            "INSERT INTO rooms (owner_id, title, room_type, password_hash, cover_url, category, announcement) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7) \
              RETURNING id, owner_id, title, room_type, member_count, status, password_hash, \
-                       max_members, created_at, updated_at, deleted_at",
+                       max_members, created_at, updated_at, deleted_at, \
+                       cover_url, category, announcement, admin_user_id",
         )
         .bind(room.owner_id)
         .bind(room.title)
         .bind(room.room_type)
         .bind(room.password_hash)
+        .bind(room.cover_url)
+        .bind(room.category)
+        .bind(room.announcement)
         .fetch_one(&self.pool)
         .await?;
         Ok(model)
@@ -193,6 +205,39 @@ impl RoomRepository for PgRoomRepository {
         .await?;
         Ok(result.rows_affected() > 0)
     }
+
+    async fn update_room_fields(
+        &self,
+        room_id: Uuid,
+        update: RoomFieldsUpdate,
+    ) -> Result<RoomModel, AppError> {
+        // COALESCE：None = 不变；announcement 用 CASE 区分"不更新"和"清空（空串→NULL）"
+        let model = sqlx::query_as::<_, RoomModel>(
+            r#"
+            UPDATE rooms
+            SET title       = COALESCE($2, title),
+                category    = COALESCE($3, category),
+                announcement = CASE
+                                 WHEN $4::TEXT IS NOT NULL
+                                 THEN NULLIF($4, '')
+                                 ELSE announcement
+                               END,
+                updated_at  = NOW()
+            WHERE id = $1
+              AND deleted_at IS NULL
+            RETURNING id, owner_id, title, room_type, member_count, status, password_hash,
+                      max_members, created_at, updated_at, deleted_at,
+                      cover_url, category, announcement, admin_user_id
+            "#,
+        )
+        .bind(room_id)
+        .bind(update.title)
+        .bind(update.category)
+        .bind(update.announcement)
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(model)
+    }
 }
 
 // ─── Fake 实现（内存，用于单元测试）─────────────────────────────────────────
@@ -244,10 +289,10 @@ impl RoomRepository for FakeRoomRepository {
             created_at: now,
             updated_at: now,
             deleted_at: None,
-            // T-00024 governance fields: defaults for new rooms
-            cover_url: String::new(),
-            category: "chat".to_string(),
-            announcement: None,
+            // T-00025: 使用请求传入的新字段
+            cover_url: room.cover_url,
+            category: room.category,
+            announcement: room.announcement,
             admin_user_id: None,
         };
         self.rooms.lock().unwrap().insert(model.id, model.clone());
@@ -360,5 +405,31 @@ impl RoomRepository for FakeRoomRepository {
             }
         }
         Ok(false)
+    }
+
+    async fn update_room_fields(
+        &self,
+        room_id: Uuid,
+        update: RoomFieldsUpdate,
+    ) -> Result<RoomModel, AppError> {
+        let mut rooms = self.rooms.lock().unwrap();
+        let room = rooms
+            .get_mut(&room_id)
+            .filter(|r| r.deleted_at.is_none())
+            .ok_or_else(|| AppError::NotFound(format!("room {room_id}")))?;
+
+        if let Some(title) = update.title {
+            room.title = title;
+        }
+        if let Some(cat) = update.category {
+            room.category = cat;
+        }
+        if let Some(ann) = update.announcement {
+            // 空串 = 清空公告（设为 None）
+            room.announcement = if ann.is_empty() { None } else { Some(ann) };
+        }
+        room.updated_at = Utc::now();
+
+        Ok(room.clone())
     }
 }

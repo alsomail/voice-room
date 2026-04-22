@@ -1,11 +1,18 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-/// POST /api/v1/rooms 请求体
+/// POST /api/v1/rooms 请求体（T-00025 扩展：新增 cover_url/category/announcement）
 #[derive(Debug, Deserialize)]
 pub struct CreateRoomRequest {
     pub title: String,
     pub room_type: String,
+    /// 封面 URL（可选，必须满足白名单前缀）
+    pub cover_url: Option<String>,
+    /// 房间分类（可选，枚举值之一）
+    pub category: Option<String>,
+    /// 房间公告（可选，≤200 Unicode 字符）
+    pub announcement: Option<String>,
+    /// 密码（仅 room_type=password 时需提供，必须为 6 位数字）
     pub password: Option<String>,
 }
 
@@ -24,6 +31,43 @@ pub struct NewRoom {
     pub title: String,
     pub room_type: String,
     pub password_hash: Option<String>,
+    /// 封面 URL（空串 = 无封面）
+    pub cover_url: String,
+    /// 房间分类（默认 "chat"）
+    pub category: String,
+    /// 房间公告（可选）
+    pub announcement: Option<String>,
+}
+
+/// PATCH /api/v1/rooms/:id 请求体（T-00025 新增）
+///
+/// 至少一个字段非 None，否则 40003。
+/// `announcement: Some("")` 表示清空公告。
+#[derive(Debug, Deserialize)]
+pub struct PatchRoomRequest {
+    pub title: Option<String>,
+    /// `Some("")` = 清空公告，`Some("text")` = 设置，`None` = 不变
+    pub announcement: Option<String>,
+    pub category: Option<String>,
+}
+
+/// PATCH /api/v1/rooms/:id 成功响应 data（T-00025 新增）
+#[derive(Debug, Serialize, Clone)]
+pub struct PatchRoomResponse {
+    pub room_id: String,
+    pub title: String,
+    pub announcement: Option<String>,
+    pub category: String,
+    pub cover_url: String,
+    pub has_password: bool,
+}
+
+/// repository::update_room_fields 的 partial update 数据（T-00025 新增）
+pub struct RoomFieldsUpdate {
+    pub title: Option<String>,
+    /// `Some("")` = 清空到 NULL，`Some("text")` = 覆盖，`None` = 不变
+    pub announcement: Option<String>,
+    pub category: Option<String>,
 }
 
 // ─── T-00008: 房间列表 ────────────────────────────────────────────────────────
