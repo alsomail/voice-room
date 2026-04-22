@@ -14,6 +14,7 @@
 
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthGuard } from '../components/AuthGuard';
+import { RoleGuard } from '../components/RoleGuard';
 import { AppLayout } from '../app/AppLayout';
 import { LoginPage } from '../pages/login/index';
 import { DashboardPage } from '../pages/dashboard/index';
@@ -41,8 +42,14 @@ export function AppRoutes() {
           <Route path="/logs" element={<LogsPage />} />
           {/* T-20012: 礼物管理页 */}
           <Route path="/gifts" element={<GiftManagementPage />} />
-          {/* T-20014: 治理日志页 */}
-          <Route path="/rooms/governance" element={<GovernanceLogsPage />} />
+          {/* T-20014: 治理日志页（RoleGuard 限制 super_admin / operator / cs） */}
+          <Route
+            element={
+              <RoleGuard allowedRoles={['super_admin', 'operator', 'cs']} />
+            }
+          >
+            <Route path="/rooms/governance" element={<GovernanceLogsPage />} />
+          </Route>
         </Route>
       </Route>
     </Routes>

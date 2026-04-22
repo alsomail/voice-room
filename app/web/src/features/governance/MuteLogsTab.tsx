@@ -31,13 +31,22 @@ export function MuteLogsTab({ filters, onUserClick }: MuteLogsTabProps) {
   const [error, setError] = useState<string | null>(null);
 
   const abortRef = useRef<AbortController | null>(null);
+  /**
+   * [MEDIUM-2 修复] 合并双 useEffect 为单一 effect：
+   * filters 变化时先 setPage(1) + 立即 return，避免以旧 page 发出无效请求。
+   */
+  const prevFiltersRef = useRef(filters);
 
-  // 当 filters 变化时重置到第1页
   useEffect(() => {
-    setPage(1);
-  }, [filters]);
+    const filtersChanged = prevFiltersRef.current !== filters;
+    prevFiltersRef.current = filters;
 
-  useEffect(() => {
+    if (filtersChanged && page !== 1) {
+      // filters 变化：先重置 page，等 page 变为 1 再发请求
+      setPage(1);
+      return;
+    }
+
     abortRef.current?.abort();
     const ctrl = new AbortController();
     abortRef.current = ctrl;

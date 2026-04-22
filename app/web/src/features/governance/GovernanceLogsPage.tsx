@@ -41,6 +41,18 @@ function getDefaultFilters(): GovernanceFilters {
   };
 }
 
+/**
+ * 将 GovernanceFilters（含 mute_type 字段）映射为 MuteListParams（含 type 字段）
+ *
+ * [HIGH-1 修复] GovernanceFilters.mute_type 对应 MuteListParams.type，
+ * 直接强转 `filters as MuteListParams` 不会重命名字段，
+ * 运行时会向服务端发送 mute_type=mic（服务端期望 type=mic），导致筛选静默失效。
+ */
+export function toMuteListParams(filters: GovernanceFilters): MuteListParams {
+  const { mute_type, ...rest } = filters;
+  return { ...rest, type: mute_type };
+}
+
 type ActiveTab = 'kicks' | 'mutes';
 
 export function GovernanceLogsPage() {
@@ -98,7 +110,7 @@ export function GovernanceLogsPage() {
       ),
       children: (
         <MuteLogsTab
-          filters={filters as MuteListParams}
+          filters={toMuteListParams(filters)}
           onUserClick={handleUserClick}
         />
       ),
@@ -123,11 +135,12 @@ export function GovernanceLogsPage() {
         onReset={handleReset}
       />
 
-      {/* 双 Tab */}
+      {/* 双 Tab（MEDIUM-1：destroyOnHidden 避免非活跃 Tab 发起多余 API 请求） */}
       <Tabs
         activeKey={activeTab}
         onChange={handleTabChange}
         items={tabItems}
+        destroyOnHidden
       />
 
       {/* 用户详情 Drawer */}

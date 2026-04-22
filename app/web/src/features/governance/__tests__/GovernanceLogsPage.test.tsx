@@ -84,7 +84,8 @@ vi.mock('react-router-dom', async (importOriginal) => {
 import { listKicks, listMutes } from '../../../services/api/governance';
 import { GovernanceLogsPage } from '../GovernanceLogsPage';
 import { AppLayout } from '../../../app/AppLayout';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Routes, Route } from 'react-router-dom';
+import { RoleGuard } from '../../../components/RoleGuard';
 
 const mockListKicks = listKicks as ReturnType<typeof vi.fn>;
 const mockListMutes = listMutes as ReturnType<typeof vi.fn>;
@@ -490,5 +491,122 @@ describe('边界情况', () => {
     // 找到 mute type 筛选
     const muteTypeSelect = screen.getByTestId('governance-filter-mute-type');
     expect(muteTypeSelect).toBeInTheDocument();
+  });
+
+  it('[HIGH-1] listMutes 不含 mute_type 字段（应映射为 type）', async () => {
+    const user = userEvent.setup();
+    render(<GovernanceLogsPage />);
+
+    await user.click(screen.getByTestId('governance-tab-mutes'));
+    await waitFor(() => expect(mockListMutes).toHaveBeenCalled());
+
+    // 所有调用参数均不应含 mute_type 字段
+    mockListMutes.mock.calls.forEach((call) => {
+      const params = call[0] as Record<string, unknown>;
+      expect(params).not.toHaveProperty('mute_type');
+    });
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// G14-ROUTE: 路由访问控制（HIGH-2 + HIGH-3 R1 修复）
+// ─────────────────────────────────────────────────────────────────────────────
+describe('G14-ROUTE: 路由访问控制', () => {
+  it('[HIGH-3] finance 角色直接访问路由被重定向 403', () => {
+    mockAdmin.role = 'finance';
+
+    render(
+      <MemoryRouter initialEntries={['/rooms/governance']}>
+        <Routes>
+          <Route element={<RoleGuard allowedRoles={['super_admin', 'operator', 'cs']} />}>
+            <Route path="/rooms/governance" element={<GovernanceLogsPage />} />
+          </Route>
+          <Route path="/403" element={<div data-testid="page-403">Forbidden</div>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    // finance 角色：governance 页面不可访问，应渲染 /403 页面
+    expect(screen.queryByTestId('governance-page')).not.toBeInTheDocument();
+    expect(screen.getByTestId('page-403')).toBeInTheDocument();
+  });
+
+  it('[HIGH-2] super_admin 角色可访问 governance 路由（RoleGuard 放行）', () => {
+    mockAdmin.role = 'super_admin';
+
+    render(
+      <MemoryRouter initialEntries={['/rooms/governance']}>
+        <Routes>
+          <Route element={<RoleGuard allowedRoles={['super_admin', 'operator', 'cs']} />}>
+            <Route path="/rooms/governance" element={<GovernanceLogsPage />} />
+          </Route>
+          <Route path="/403" element={<div data-testid="page-403">Forbidden</div>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    // super_admin：RoleGuard 放行，Outlet 渲染（mocked 为 data-testid="outlet"）
+    expect(screen.queryByTestId('page-403')).not.toBeInTheDocument();
+    expect(screen.getByTestId('outlet')).toBeInTheDocument();
+  });
+
+  it('[HIGH-2] operator 角色可访问 governance 路由（RoleGuard 放行）', () => {
+    mockAdmin.role = 'operator';
+
+    render(
+      <MemoryRouter initialEntries={['/rooms/governance']}>
+        <Routes>
+          <Route element={<RoleGuard allowedRoles={['super_admin', 'operator', 'cs']} />}>
+            <Route path="/rooms/governance" element={<GovernanceLogsPage />} />
+          </Route>
+          <Route path="/403" element={<div data-testid="page-403">Forbidden</div>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByTestId('page-403')).not.toBeInTheDocument();
+    expect(screen.getByTestId('outlet')).toBeInTheDocument();
+  });
+
+  it('[HIGH-2] cs 角色可访问 governance 路由（RoleGuard 放行）', () => {
+    mockAdmin.role = 'cs';
+
+    render(
+      <MemoryRouter initialEntries={['/rooms/governance']}>
+        <Routes>
+          <Route element={<RoleGuard allowedRoles={['super_admin', 'operator', 'cs']} />}>
+            <Route path="/rooms/governance" element={<GovernanceLogsPage />} />
+          </Route>
+          <Route path="/403" element={<div data-testid="page-403">Forbidden</div>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByTestId('page-403')).not.toBeInTheDocument();
+    expect(screen.getByTestId('outlet')).toBeInTheDocument();
+  });
+
+  it('[HIGH-2] admin 为 null 时重定向 403', () => {
+    // admin 为 null 时（未登录但通过 AuthGuard 的极端情况）
+    const originalAdmin = mockAuthState.admin;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (mockAuthState as any).admin = null;
+
+    render(
+      <MemoryRouter initialEntries={['/rooms/governance']}>
+        <Routes>
+          <Route element={<RoleGuard allowedRoles={['super_admin', 'operator', 'cs']} />}>
+            <Route path="/rooms/governance" element={<GovernanceLogsPage />} />
+          </Route>
+          <Route path="/403" element={<div data-testid="page-403">Forbidden</div>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByTestId('page-403')).toBeInTheDocument();
+
+    // 恢复
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (mockAuthState as any).admin = originalAdmin;
   });
 });
