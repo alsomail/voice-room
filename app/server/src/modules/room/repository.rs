@@ -244,6 +244,11 @@ impl RoomRepository for FakeRoomRepository {
             created_at: now,
             updated_at: now,
             deleted_at: None,
+            // T-00024 governance fields: defaults for new rooms
+            cover_url: String::new(),
+            category: "chat".to_string(),
+            announcement: None,
+            admin_user_id: None,
         };
         self.rooms.lock().unwrap().insert(model.id, model.clone());
         Ok(model)

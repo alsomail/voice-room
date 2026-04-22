@@ -62,3 +62,6 @@ required-features = ["test-utils"]
 [[test]]
 name = "report_event_ws_test"
 required-features = ["test-utils"]
+
+[[test]]
+name = "room_governance_schema_test"
