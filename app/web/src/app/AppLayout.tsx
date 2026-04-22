@@ -24,6 +24,7 @@ import {
   HomeOutlined,
   FileTextOutlined,
   GiftOutlined,
+  SafetyOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -33,6 +34,9 @@ const { Sider, Content } = Layout;
 
 // 有权访问礼物管理菜单的角色
 const GIFT_MENU_ROLES = ['super_admin', 'operator'];
+
+// 有权访问治理日志菜单的角色（finance 隐藏）
+const GOVERNANCE_MENU_ROLES = ['super_admin', 'operator', 'cs'];
 
 export function AppLayout() {
   const { t } = useTranslation();
@@ -44,6 +48,7 @@ export function AppLayout() {
   const role = admin?.role ?? '';
 
   const canSeeGiftMenu = GIFT_MENU_ROLES.includes(role);
+  const canSeeGovernanceMenu = GOVERNANCE_MENU_ROLES.includes(role);
 
   // ── 菜单项
   const menuItems = [
@@ -79,6 +84,17 @@ export function AppLayout() {
             icon: <GiftOutlined />,
             label: t('gift.mgmt.title'),
             'data-testid': 'menu-item-gifts',
+          },
+        ]
+      : []),
+    // ── 治理日志：super_admin / operator / cs 可见；finance 隐藏（T-20014）
+    ...(canSeeGovernanceMenu
+      ? [
+          {
+            key: '/rooms/governance',
+            icon: <SafetyOutlined />,
+            label: t('governance.title'),
+            'data-testid': 'menu-item-governance',
           },
         ]
       : []),

@@ -725,3 +725,102 @@ export async function listUserEvents(
   return res.data;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Admin Governance（T-20014，对应 T-10016 后端接口）
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** 踢人记录条目（T-10016） */
+export interface KickLogItem {
+  id: string;
+  room_id: string;
+  room_title: string;
+  target_user_id: string;
+  target_nickname: string;
+  operator_user_id: string;
+  operator_nickname: string;
+  reason: string | null;
+  created_at: string;
+}
+
+/** 禁言记录条目（T-10016）*/
+export interface MuteLogItem {
+  id: string;
+  room_id: string;
+  room_title: string;
+  target_user_id: string;
+  target_nickname: string;
+  operator_user_id: string;
+  operator_nickname: string;
+  type: 'mic' | 'chat';
+  duration_sec: number | null;
+  reason: string | null;
+  created_at: string;
+}
+
+/** GET /admin/governance/kicks + /mutes 通用查询参数（T-10016） */
+export interface GovernanceListParams {
+  room_id?: string;
+  target_user_id?: string;
+  operator_user_id?: string;
+  from?: string;   // ISO8601，默认 7 天前
+  to?: string;     // ISO8601，默认现在
+  page?: number;
+  limit?: number;
+}
+
+/** GET /admin/governance/mutes 专属参数 */
+export interface MuteListParams extends GovernanceListParams {
+  type?: 'mic' | 'chat';
+}
+
+/** 通用治理日志分页响应 */
+export interface GovernanceListResponse<T> {
+  total: number;
+  page: number;
+  limit: number;
+  items: T[];
+}
+
+/**
+ * GET /admin/governance/kicks — 踢人记录查询（T-20014）
+ * 权限：super_admin / operator / cs；finance 禁止（403）
+ */
+export async function listKicks(
+  params?: GovernanceListParams,
+  signal?: AbortSignal,
+): Promise<GovernanceListResponse<KickLogItem>> {
+  const query = params
+    ? '?' + new URLSearchParams(
+        Object.entries(params)
+          .filter(([, v]) => v !== undefined)
+          .map(([k, v]) => [k, String(v)]),
+      ).toString()
+    : '';
+  const res = await adminFetch<GovernanceListResponse<KickLogItem>>(
+    `/governance/kicks${query}`,
+    { signal },
+  );
+  return res.data;
+}
+
+/**
+ * GET /admin/governance/mutes — 禁言记录查询（T-20014）
+ * 权限：super_admin / operator / cs；finance 禁止（403）
+ */
+export async function listMutes(
+  params?: MuteListParams,
+  signal?: AbortSignal,
+): Promise<GovernanceListResponse<MuteLogItem>> {
+  const query = params
+    ? '?' + new URLSearchParams(
+        Object.entries(params)
+          .filter(([, v]) => v !== undefined)
+          .map(([k, v]) => [k, String(v)]),
+      ).toString()
+    : '';
+  const res = await adminFetch<GovernanceListResponse<MuteLogItem>>(
+    `/governance/mutes${query}`,
+    { signal },
+  );
+  return res.data;
+}

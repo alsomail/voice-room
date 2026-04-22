@@ -9,6 +9,7 @@
  *   /users        → UsersPage（受 AuthGuard + AppLayout 保护，T-20006）
  *   /logs         → LogsPage（受 AuthGuard + AppLayout 保护，T-20009）
  *   /gifts        → GiftManagementPage（受 AuthGuard + AppLayout 保护，T-20012）
+ *   /rooms/governance → GovernanceLogsPage（受 AuthGuard + AppLayout 保护，T-20014）
  */
 
 import { Routes, Route, Navigate } from 'react-router-dom';
@@ -20,6 +21,7 @@ import { RoomsPage } from '../pages/rooms/index';
 import { UsersPage } from '../pages/users/index';
 import { LogsPage } from '../pages/logs/index';
 import { GiftManagementPage } from '../features/gift/GiftManagementPage';
+import { GovernanceLogsPage } from '../features/governance/GovernanceLogsPage';
 
 export function AppRoutes() {
   return (
@@ -39,9 +41,12 @@ export function AppRoutes() {
           <Route path="/logs" element={<LogsPage />} />
           {/* T-20012: 礼物管理页 */}
           <Route path="/gifts" element={<GiftManagementPage />} />
+          {/* T-20014: 治理日志页 */}
+          <Route path="/rooms/governance" element={<GovernanceLogsPage />} />
         </Route>
       </Route>
     </Routes>
   );
 }
+
 

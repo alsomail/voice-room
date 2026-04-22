@@ -75,6 +75,7 @@
 - 🟢 活水房间监控增强（`roomUtils.ts` 纯函数库：`getActivityStatus`/`formatDuration`/`filterByActivity`，注入 `now` 参数支持测试；`RoomActivityTag` 组件：4 种活跃等级颜色标签；`RoomsTable` 新增活跃状态列 + 持续时长列 + 活跃度筛选下拉 + 异常行高亮；`useRoomsPage` 新增 `filteredItems`/`activityFilter`/`setActivityFilter`；i18n 新增 8 个 `rooms.activity.*` 翻译键；全部为纯前端过滤，不影响 API 调用）← **T-20011 ✅ Done**
 - 🟢 余额调整弹窗 + 礼物管理页（`AdjustBalanceModal`：Form.useWatch 动态禁用、负数二次确认、isConfirming 防并发、成功后 refreshKey 刷新余额；`GiftManagementPage`：tier/状态筛选 + Switch 乐观更新回滚 + 软删除；`GiftEditModal`：图片上传校验 + price=0 禁用 + 预览；`AppLayout`：Ant Design 侧栏 + RBAC 礼物菜单（super_admin/operator）；apiClient 新增 6 个 wallet/gift API；i18n 新增 60+ key）← **T-20012 ✅ Done**
 - 🟢 用户行为流 Tab（`EventStreamTab`：时间筛选 [1h/24h/7d/30d/custom] + DatePicker.RangePicker (≤30天) + event_name 多选 Select + 事件时间线列表 (倒序，20/页) + CSV 导出 (limit=100，最多1000条，文件名user_{id}_events_{ts}.csv)；`EventTimelineItem`：event_name Tag + server_ts + 设备信息 + properties JSON 折叠；关键字高亮防 XSS (escapeHtml+<mark> 包裹)；独立 AbortController 管理 CSV 导出请求；apiClient 新增 `listUserEvents` API；测试覆盖率 EventTimelineItem 98.82%；Review R2 通过，450 个测试全部通过）← **T-20013 ✅ Done**
+- 🟢 治理日志查询页（`/rooms/governance` 路由；GovernanceLogsPage + KickLogsTab + MuteLogsTab + FiltersBar；默认 7 天时间窗；Tab 切换重置筛选和分页；房间ID/目标用户/操作者/时间范围筛选；mute 专属类型筛选；目标用户点击弹出 Drawer；RBAC 菜单控制（super_admin/operator/cs 可见，finance 隐藏）；apiClient 新增 listKicks/listMutes；services/api/governance.ts re-export；i18n en/zh 各 32 key；26 个测试用例全部通过）← **T-20014 ✅ Done**
 
 ### 遗留技术债 (Tech Debt)
 - 当前工程脚手架仍保留 C 端时期的 telemetry mock 和 WS helper，需要在后续重构中清理。
