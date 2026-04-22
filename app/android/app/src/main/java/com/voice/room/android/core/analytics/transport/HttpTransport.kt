@@ -2,6 +2,8 @@ package com.voice.room.android.core.analytics.transport
 
 import com.google.gson.Gson
 import com.voice.room.android.core.analytics.queue.EventQueueEntity
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -38,12 +40,14 @@ class HttpTransport(
                 .post(body)
                 .build()
 
-            val response = httpClient.newCall(request).execute()
-            response.use {
-                if (it.isSuccessful) {
-                    Result.success(SendOutcome(batch.map { e -> e.id }))
-                } else {
-                    Result.failure(HttpException(it.code, it.message))
+            withContext(Dispatchers.IO) {
+                val response = httpClient.newCall(request).execute()
+                response.use {
+                    if (it.isSuccessful) {
+                        Result.success(SendOutcome(batch.map { e -> e.id }))
+                    } else {
+                        Result.failure(HttpException(it.code, it.message))
+                    }
                 }
             }
         } catch (e: Exception) {

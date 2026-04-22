@@ -12,17 +12,19 @@ import com.voice.room.android.core.analytics.queue.EventQueueEntity
  *
  * 在 MVP 阶段：device_id 使用随机 UUID（DataStore 持久化留待后续迭代）。
  *
- * @param deviceId    设备唯一标识（安装时生成，DataStore 持久化）
- * @param appVersion  App 版本号（BuildConfig.VERSION_NAME）
- * @param osVersion   Android 版本（Build.VERSION.RELEASE）
- * @param locale      语言地区（Locale.getDefault().toString()）
- * @param filter      脱敏过滤器
+ * @param deviceId            设备唯一标识（安装时生成，DataStore 持久化）
+ * @param appVersion          App 版本号（BuildConfig.VERSION_NAME）
+ * @param osVersion           Android 版本（Build.VERSION.RELEASE）
+ * @param locale              语言地区（Locale.getDefault().toString()）
+ * @param networkTypeProvider 网络类型提供者（ConnectivityManager 获取 WIFI/MOBILE/NONE 等）
+ * @param filter              脱敏过滤器
  */
 class CommonPropsProvider(
     private val deviceId: String,
     private val appVersion: String,
     private val osVersion: String,
     private val locale: String,
+    private val networkTypeProvider: () -> String = { "UNKNOWN" },
     private val filter: SensitiveFilter = SensitiveFilter(),
     private val gson: Gson = Gson()
 ) {
@@ -47,7 +49,8 @@ class CommonPropsProvider(
             "device_id" to deviceId,
             "app_version" to appVersion,
             "os_version" to osVersion,
-            "locale" to locale
+            "locale" to locale,
+            "network_type" to networkTypeProvider()
         )
         merged.putAll(scrubbed)
 
