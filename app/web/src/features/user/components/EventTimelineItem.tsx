@@ -39,11 +39,34 @@ export function EventTimelineItem({ event, highlight }: EventTimelineItemProps) 
     ? JSON.stringify(event.properties, null, 2)
     : null;
 
-  /** 关键字高亮：将 highlight 词用 <mark> 包裹 */
+  /**
+   * HTML 转义：防止 XSS 注入（Review R1 HIGH-1 修复）
+   * 对 &、<、>、"、' 进行实体转义，确保原始内容不被浏览器解析为 HTML
+   */
+  const escapeHtml = (text: string): string =>
+    text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#x27;');
+
+  /**
+   * 关键字高亮：先对文本做 HTML 转义，再用 <mark> 包裹匹配词
+   * 对 highlight 关键字同样先 HTML 转义，确保正则能匹配转义后的文本
+   */
   const highlightText = (text: string): string => {
-    if (!highlight || !highlight.trim()) return text;
-    const escaped = highlight.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    return text.replace(new RegExp(`(${escaped})`, 'gi'), '<mark>$1</mark>');
+    if (!highlight || !highlight.trim()) return escapeHtml(text);
+    const escapedText = escapeHtml(text);
+    // 对关键字先 HTML 转义，再对正则特殊字符转义
+    const escapedKeyword = escapeHtml(highlight).replace(
+      /[.*+?^${}()|[\]\\]/g,
+      '\\$&',
+    );
+    return escapedText.replace(
+      new RegExp(`(${escapedKeyword})`, 'gi'),
+      '<mark>$1</mark>',
+    );
   };
 
   return (

@@ -89,8 +89,10 @@ export function EventStreamTab({ userId }: EventStreamTabProps) {
   const [apiError, setApiError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
 
-  // AbortController 防竞态
+  // AbortController 防竞态（主数据加载）
   const abortRef = useRef<AbortController | null>(null);
+  // MEDIUM-1（Review R1）：CSV 导出专用 AbortController，组件卸载或导出完成时取消
+  const exportAbortRef = useRef<AbortController | null>(null);
 
   // ── 范围错误（派生状态，不放在 effect deps 中避免无限循环）──────────────────
   const hasRangeError = useMemo(() => {
@@ -158,6 +160,8 @@ export function EventStreamTab({ userId }: EventStreamTabProps) {
 
     return () => {
       controller.abort();
+      // 组件卸载时同时取消进行中的 CSV 导出请求
+      exportAbortRef.current?.abort();
     };
   }, [userId, timeRange, customFrom, customTo, selectedEvents, page]); // 仅对业务依赖项响应
 
@@ -192,10 +196,16 @@ export function EventStreamTab({ userId }: EventStreamTabProps) {
       from = new Date(now.getTime() - hours * 60 * 60 * 1000).toISOString();
     }
 
-    const baseParams: EventListParams = { from, to, limit: 20 };
+    // HIGH-2（Review R1）：limit 从 20 改为 100，减少 API 调用次数（50次→10次）
+    const baseParams: EventListParams = { from, to, limit: 100 };
     if (selectedEvents.length > 0) {
       baseParams.event_name = selectedEvents.join(',');
     }
+
+    // MEDIUM-1（Review R1）：创建独立 AbortController，导出完成/组件卸载时取消请求
+    exportAbortRef.current?.abort();
+    const exportController = new AbortController();
+    exportAbortRef.current = exportController;
 
     setExporting(true);
     try {
@@ -203,11 +213,18 @@ export function EventStreamTab({ userId }: EventStreamTabProps) {
       let fetchPage = 1;
 
       while (allItems.length < 1000) {
-        const res = await listUserEvents(userId, { ...baseParams, page: fetchPage });
+        if (exportController.signal.aborted) break;
+        const res = await listUserEvents(
+          userId,
+          { ...baseParams, page: fetchPage },
+          exportController.signal,
+        );
         allItems.push(...res.items);
-        if (allItems.length >= res.total || res.items.length < (baseParams.limit ?? 20)) break;
+        if (allItems.length >= res.total || res.items.length < (baseParams.limit ?? 100)) break;
         fetchPage++;
       }
+
+      if (exportController.signal.aborted) return;
 
       const truncated = allItems.slice(0, 1000);
       if (allItems.length > 1000) {
@@ -231,10 +248,14 @@ export function EventStreamTab({ userId }: EventStreamTabProps) {
       const csv = objectsToCsv(rows);
       const filename = generateEventCsvFilename(userId, Date.now());
       downloadCsv(csv, filename);
-    } catch {
+    } catch (err) {
+      // AbortError 不提示用户（主动取消，非真实错误）
+      if (err instanceof Error && err.name === 'AbortError') return;
       void message.error(t('events.csvError'));
     } finally {
-      setExporting(false);
+      if (!exportController.signal.aborted) {
+        setExporting(false);
+      }
     }
   };
 

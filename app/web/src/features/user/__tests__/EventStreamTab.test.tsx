@@ -380,6 +380,99 @@ describe('EventStreamTab — E13-08: i18n', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// HIGH-1 XSS 安全测试（Review R1 修复验证）
+// ─────────────────────────────────────────────────────────────────────────────
+describe('EventTimelineItem — HIGH-1: XSS 防护', () => {
+  it('properties 含 <script> 时，highlight 激活后渲染内容不含原始 <script> 标签', async () => {
+    const { EventTimelineItem } = await import('../components/EventTimelineItem');
+
+    const xssEvent = {
+      id: 'xss-evt-001',
+      event_name: 'login_success',
+      server_ts: '2026-04-22T18:30:00Z',
+      properties: { payload: '<script>alert("xss")</script>' },
+      app_version: '1.0.0',
+      os_version: 'Android 14',
+      network_type: 'wifi',
+    };
+
+    const { container } = render(
+      <EventTimelineItem event={xssEvent} highlight="payload" />,
+    );
+
+    // 展开 properties
+    const toggle = screen.getByTestId('props-toggle-xss-evt-001');
+    await userEvent.setup().click(toggle);
+
+    await waitFor(() => {
+      const content = screen.getByTestId('props-content-xss-evt-001');
+      // 1. 内容区域存在
+      expect(content).toBeInTheDocument();
+      // 2. 不得存在真实的 <script> 元素（XSS 执行载体）
+      expect(container.querySelector('script')).toBeNull();
+      // 3. 原始 < 必须被转义为 &lt;
+      const html = content.innerHTML;
+      expect(html).not.toContain('<script>');
+      expect(html).toContain('&lt;script&gt;');
+    });
+  });
+
+  it('highlight 为空时，properties 含 HTML 特殊字符仍被转义', async () => {
+    const { EventTimelineItem } = await import('../components/EventTimelineItem');
+
+    const htmlEvent = {
+      id: 'html-evt-002',
+      event_name: 'room_enter',
+      server_ts: '2026-04-22T18:30:00Z',
+      properties: { msg: '<b>bold</b> & "quoted"' },
+      app_version: '1.0.0',
+      os_version: 'iOS 17',
+      network_type: 'lte',
+    };
+
+    render(<EventTimelineItem event={htmlEvent} highlight="bold" />);
+
+    const toggle = screen.getByTestId('props-toggle-html-evt-002');
+    await userEvent.setup().click(toggle);
+
+    await waitFor(() => {
+      const content = screen.getByTestId('props-content-html-evt-002');
+      const html = content.innerHTML;
+      // <b> 不应被渲染为真实 bold 元素
+      expect(content.querySelector('b')).toBeNull();
+      // & 应被转义
+      expect(html).toContain('&amp;');
+    });
+  });
+
+  it('highlight 关键字本身含 HTML 特殊字符时不产生 XSS', async () => {
+    const { EventTimelineItem } = await import('../components/EventTimelineItem');
+
+    const safeEvent = {
+      id: 'kw-evt-003',
+      event_name: 'wallet_view',
+      server_ts: '2026-04-22T18:30:00Z',
+      properties: { value: 'test<img>end' },
+      app_version: '2.0.0',
+      os_version: 'Android 13',
+      network_type: 'wifi',
+    };
+
+    const { container } = render(
+      <EventTimelineItem event={safeEvent} highlight="<img>" />,
+    );
+
+    const toggle = screen.getByTestId('props-toggle-kw-evt-003');
+    await userEvent.setup().click(toggle);
+
+    await waitFor(() => {
+      // 不应存在真实 <img> 元素（highlight 关键字含 < > 被转义后不匹配注入）
+      expect(container.querySelector('img')).toBeNull();
+    });
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // 额外边界用例
 // ─────────────────────────────────────────────────────────────────────────────
 describe('EventStreamTab — 边界用例', () => {
