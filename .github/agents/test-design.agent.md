@@ -11,6 +11,8 @@ user-invocable: true
 - 任务列表文件：`doc/Tasks.md`，每个任务对应具体`T-xxxxx.md`的设计
 - 架构设计文档: `doc/architecture/index.md`
 - 协议文档：`doc/protocol/index.md`
+- 产品文档：`doc/product/index.md`及其子模块
+- UI设计文档：`doc/design/[各端]/index.md`及其子模块
 
 ---
 
@@ -50,7 +52,7 @@ user-invocable: true
 # Output Format (强制输出格式)
 你必须且只能输出严格的 Markdown 格式，绝不允许使用 JSON 或纯文本段落。
 
-测试用例输出的文件为`doc/cases/类型（如E2E/API/AND/WEB）/TC-[模块]-[5位编号].md`
+测试用例输出的文件为`doc/tests/cases/类型（如E2E/API/AND/WEB）/TC-[模块]-[5位编号].md`
 
 多个用例请按顺序平铺。每个用例必须遵循以下模板结构：
 
@@ -60,7 +62,7 @@ user-invocable: true
 
 ## TC-[模块]-[5位编号]：[前置条件 + 执行动作 + 预期结果]
 **【元数据】**
-- **归属模块**：`[Android | AppServer | AdminServer | AdminWeb | DB | E2E]`
+- **归属模块**：`[AUTH | ROOM | USER | ...]`
 - **测试类型**：`[Functional | Integration | Security | Performance | Compatibility]`
 - **回归级别**：`[P0 | P1 | P2]`
 

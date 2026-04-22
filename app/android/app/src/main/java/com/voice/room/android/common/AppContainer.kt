@@ -1,6 +1,8 @@
 package com.voice.room.android.common
 
 import com.voice.room.android.BuildConfig
+import com.voice.room.android.core.analytics.AnalyticsPort
+import com.voice.room.android.core.analytics.impl.NoopAnalytics
 import com.voice.room.android.core.config.AppEnvironment
 import com.voice.room.android.core.config.IRemoteConfigService
 import com.voice.room.android.core.config.InMemoryRemoteConfigService
@@ -47,6 +49,7 @@ import retrofit2.converter.gson.GsonConverterFactory
 
 data class AppContainer(
     val environment: AppEnvironment,
+    val analyticsPort: AnalyticsPort,
     val analyticsService: IAnalyticsService,
     val crashReporter: ICrashReporter,
     val remoteConfigService: IRemoteConfigService,
@@ -123,6 +126,7 @@ data class AppContainer(
 
             return AppContainer(
                 environment = environment,
+                analyticsPort = NoopAnalytics(),
                 analyticsService = NoOpAnalyticsService(),
                 crashReporter = NoOpCrashReporter(),
                 remoteConfigService = InMemoryRemoteConfigService(),

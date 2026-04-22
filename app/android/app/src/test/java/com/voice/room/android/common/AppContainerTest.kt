@@ -23,5 +23,8 @@ class AppContainerTest {
         container.analyticsService.trackScreen("bootstrap")
         container.analyticsService.trackAction("select_room")
         container.crashReporter.recordNonFatal("placeholder")
+        // T-30034: AnalyticsPort 防腐层应可从 AppContainer 获取
+        container.analyticsPort.track("bootstrap_complete")
+        container.analyticsPort.captureException(RuntimeException("placeholder"))
     }
 }

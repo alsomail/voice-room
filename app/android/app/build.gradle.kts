@@ -60,6 +60,11 @@ android {
             "ANALYTICS_ENDPOINT",
             "\"${resolveConfigValue(localProperties, "voiceRoomAnalyticsEndpoint", "VOICE_ROOM_ANALYTICS_ENDPOINT", "https://analytics-dev.example.com/collect")}\""
         )
+        buildConfigField(
+            "String",
+            "SENTRY_DSN",
+            "\"${resolveConfigValue(localProperties, "SENTRY_DSN", "SENTRY_DSN", "")}\""
+        )
     }
 
     buildFeatures {
