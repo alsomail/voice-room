@@ -29,6 +29,8 @@ pub enum Permission {
     GiftWrite,
     // 礼物软删除（T-10014）：仅 super_admin
     GiftDelete,
+    // 治理日志查询（T-10016）：super_admin / operator / cs 可查；finance 禁止
+    GovernanceRead,
 }
 
 /// 已鉴权的管理员上下文，由 `AdminAuthContext::from_request_parts` 注入。
@@ -72,10 +74,11 @@ impl AdminAuthContext {
                     | Permission::LogRead
                     | Permission::WalletAdjust
                     | Permission::GiftWrite
+                    | Permission::GovernanceRead
             ),
             "cs" => matches!(
                 permission,
-                Permission::UserRead | Permission::RoomRead
+                Permission::UserRead | Permission::RoomRead | Permission::GovernanceRead
             ),
             "finance" => matches!(
                 permission,

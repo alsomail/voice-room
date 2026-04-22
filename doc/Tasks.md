@@ -391,7 +391,7 @@
 
 | Task ID | 归属端 | 模块 | 任务名称 | 前置依赖 | 核心描述 | TDD 验收标准 | 状态 | 预估工时 | 负责人 |
 |---------|--------|------|----------|----------|----------|-------------|------|----------|--------|
-| **T-10016** | Admin Server | Governance | 房间治理日志查询 API [TDS](./tds/adminServer/T-10016.md) | T-00028, T-00029, T-10012 | `GET /api/v1/admin/governance/logs?room_id=&target_user_id=&operator_user_id=&type=kick\|mute&from=&to=&page=&limit=`：UNION 查询 room_kick_records + room_mute_records，补齐用户昵称 / 房间名 / 类型标签返回；支持申诉导出 CSV | 1. 多条件索引命中耗时 <300ms<br>2. type=kick 返回不包含 mute 记录<br>3. operator 登记 admin_logs<br>4. max limit=100<br>5. CSV 导出正确编码 UTF-8 BOM | In Progress | 4h | TDD |
+| **T-10016** | Admin Server | Governance | 房间治理日志查询 API [TDS](./tds/adminServer/T-10016.md) | T-00028, T-00029, T-10012 | `GET /api/v1/admin/governance/logs?room_id=&target_user_id=&operator_user_id=&type=kick\|mute&from=&to=&page=&limit=`：UNION 查询 room_kick_records + room_mute_records，补齐用户昵称 / 房间名 / 类型标签返回；支持申诉导出 CSV | 1. 多条件索引命中耗时 <300ms<br>2. type=kick 返回不包含 mute 记录<br>3. operator 登记 admin_logs<br>4. max limit=100<br>5. CSV 导出正确编码 UTF-8 BOM | Review | 4h | TDD |
 
 #### Web Admin
 

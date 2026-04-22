@@ -11,6 +11,7 @@ use voice_room_admin_server::{
             PgEventQueryRepository,
         },
         gift::repo::PgGiftRepository,
+        governance::repo::PgGovernanceRepo,
         room::PgAdminRoomRepository,
         stats::PgAdminStatsRepository,
         user::PgAdminUserRepository,
@@ -78,7 +79,8 @@ async fn main() -> anyhow::Result<()> {
         Arc::new(PgAuditRepository::new(pool.clone())),
         Arc::new(PgWalletRepository::new(pool.clone())),
         Arc::new(PgGiftRepository::new(pool.clone())),
-        Arc::new(PgEventQueryRepository::new(pool)),
+        Arc::new(PgEventQueryRepository::new(pool.clone())),
+        Arc::new(PgGovernanceRepo::new(pool)),
     );
 
     let app = build_app(state);

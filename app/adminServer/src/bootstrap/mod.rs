@@ -25,6 +25,11 @@ use crate::{
         repo::GiftRepository,
         service::GiftService,
     },
+    modules::governance::{
+        handler::{list_kicks_handler, list_mutes_handler},
+        repo::GovernanceRepo,
+        service::GovernanceService,
+    },
     modules::room::{
         controller::{force_close_room_handler, get_room_detail_handler, list_rooms_handler},
         AdminRoomRepository, AdminRoomService,
@@ -66,6 +71,8 @@ pub struct AppState {
     pub gift_upload_dir: String,
     /// 用户事件查询服务（T-10015）
     pub event_query_service: Arc<EventQueryService>,
+    /// 治理日志查询服务（T-10016）
+    pub governance_service: Arc<GovernanceService>,
 }
 
 impl AppState {
@@ -82,6 +89,7 @@ impl AppState {
         wallet_repo: Arc<dyn WalletRepository>,
         gift_repo: Arc<dyn GiftRepository>,
         event_query_repo: Arc<dyn EventQueryRepository>,
+        governance_repo: Arc<dyn GovernanceRepo>,
     ) -> Self {
         let auth_service = Arc::new(AdminAuthService::new(
             admin_repo,
@@ -102,6 +110,10 @@ impl AppState {
             gift_upload_dir.clone(),
         ));
         let event_query_service = Arc::new(EventQueryService::new(event_query_repo));
+        let governance_service = Arc::new(GovernanceService::new(
+            governance_repo,
+            audit_logger.clone(),
+        ));
         Self {
             auth_service,
             room_service,
@@ -115,17 +127,18 @@ impl AppState {
             gift_service,
             gift_upload_dir,
             event_query_service,
+            governance_service,
         }
     }
 
     /// 用于单元/集成测试的空状态（无预置管理员、无预置房间、无预置用户）。
-    #[cfg(test)]
     pub fn for_test() -> Self {
         use crate::modules::audit::repository::FakeAuditRepository;
         use crate::modules::auth::repository::{FakeAdminLogRepository, FakeAdminRepository};
         use crate::modules::event::publisher::NoopEventPublisher;
         use crate::modules::event::query_repo::FakeEventQueryRepository;
         use crate::modules::gift::repo::FakeGiftRepository;
+        use crate::modules::governance::repo::FakeGovernanceRepo;
         use crate::modules::room::repository::FakeAdminRoomRepository;
         use crate::modules::stats::FakeAdminStatsRepository;
         use crate::modules::user::repository::FakeAdminUserRepository;
@@ -142,6 +155,7 @@ impl AppState {
             Arc::new(FakeWalletRepository::default()),
             Arc::new(FakeGiftRepository::default()),
             Arc::new(FakeEventQueryRepository::default()),
+            Arc::new(FakeGovernanceRepo::default()),
         )
     }
 }
@@ -181,6 +195,15 @@ pub fn build_app(state: AppState) -> Router {
             put(update_gift_handler).delete(delete_gift_handler),
         )
         .route("/api/v1/admin/gifts/upload", post(upload_gift_file_handler))
+        // ── T-10016: 治理日志查询 ──────────────────────────────────────────────
+        .route(
+            "/api/v1/admin/governance/kicks",
+            get(list_kicks_handler),
+        )
+        .route(
+            "/api/v1/admin/governance/mutes",
+            get(list_mutes_handler),
+        )
         .layer(middleware::from_fn(request_context_middleware))
         .with_state(state)
 }
@@ -308,6 +331,7 @@ mod tests {
             Arc::new(crate::modules::wallet::repository::FakeWalletRepository::default()),
             Arc::new(crate::modules::gift::repo::FakeGiftRepository::default()),
             Arc::new(FakeEventQueryRepository::default()),
+            Arc::new(crate::modules::governance::repo::FakeGovernanceRepo::default()),
         ))
     }
 
@@ -558,6 +582,7 @@ mod tests {
             Arc::new(crate::modules::wallet::repository::FakeWalletRepository::default()),
             Arc::new(crate::modules::gift::repo::FakeGiftRepository::default()),
             Arc::new(crate::modules::event::query_repo::FakeEventQueryRepository::default()),
+            Arc::new(crate::modules::governance::repo::FakeGovernanceRepo::default()),
         ));
 
         app.oneshot(
@@ -871,6 +896,7 @@ mod tests {
             Arc::new(crate::modules::wallet::repository::FakeWalletRepository::default()),
             Arc::new(crate::modules::gift::repo::FakeGiftRepository::default()),
             Arc::new(crate::modules::event::query_repo::FakeEventQueryRepository::default()),
+            Arc::new(crate::modules::governance::repo::FakeGovernanceRepo::default()),
         ))
     }
 
@@ -1222,6 +1248,7 @@ mod tests {
             Arc::new(crate::modules::wallet::repository::FakeWalletRepository::default()),
             Arc::new(crate::modules::gift::repo::FakeGiftRepository::default()),
             Arc::new(crate::modules::event::query_repo::FakeEventQueryRepository::default()),
+            Arc::new(crate::modules::governance::repo::FakeGovernanceRepo::default()),
         ))
     }
 
@@ -1243,6 +1270,7 @@ mod tests {
             Arc::new(crate::modules::wallet::repository::FakeWalletRepository::default()),
             Arc::new(crate::modules::gift::repo::FakeGiftRepository::default()),
             Arc::new(crate::modules::event::query_repo::FakeEventQueryRepository::default()),
+            Arc::new(crate::modules::governance::repo::FakeGovernanceRepo::default()),
         ))
     }
 
@@ -1440,6 +1468,7 @@ mod tests {
             Arc::new(crate::modules::wallet::repository::FakeWalletRepository::default()),
             Arc::new(crate::modules::gift::repo::FakeGiftRepository::default()),
             Arc::new(crate::modules::event::query_repo::FakeEventQueryRepository::default()),
+            Arc::new(crate::modules::governance::repo::FakeGovernanceRepo::default()),
         ));
         (router, room_repo)
     }
@@ -1467,6 +1496,7 @@ mod tests {
             Arc::new(crate::modules::wallet::repository::FakeWalletRepository::default()),
             Arc::new(crate::modules::gift::repo::FakeGiftRepository::default()),
             Arc::new(crate::modules::event::query_repo::FakeEventQueryRepository::default()),
+            Arc::new(crate::modules::governance::repo::FakeGovernanceRepo::default()),
         ));
         (router, room_repo, audit_repo)
     }
@@ -1722,6 +1752,7 @@ mod tests {
             Arc::new(crate::modules::wallet::repository::FakeWalletRepository::default()),
             Arc::new(crate::modules::gift::repo::FakeGiftRepository::default()),
             Arc::new(crate::modules::event::query_repo::FakeEventQueryRepository::default()),
+            Arc::new(crate::modules::governance::repo::FakeGovernanceRepo::default()),
         ))
     }
 
@@ -1984,6 +2015,7 @@ mod tests {
             Arc::new(crate::modules::wallet::repository::FakeWalletRepository::default()),
             Arc::new(crate::modules::gift::repo::FakeGiftRepository::default()),
             Arc::new(crate::modules::event::query_repo::FakeEventQueryRepository::default()),
+            Arc::new(crate::modules::governance::repo::FakeGovernanceRepo::default()),
         ))
     }
 
@@ -2163,6 +2195,7 @@ mod tests {
             Arc::new(crate::modules::wallet::repository::FakeWalletRepository::default()),
             Arc::new(crate::modules::gift::repo::FakeGiftRepository::default()),
             Arc::new(crate::modules::event::query_repo::FakeEventQueryRepository::default()),
+            Arc::new(crate::modules::governance::repo::FakeGovernanceRepo::default()),
         ));
         (router, user_repo)
     }
@@ -2191,6 +2224,7 @@ mod tests {
             Arc::new(crate::modules::wallet::repository::FakeWalletRepository::default()),
             Arc::new(crate::modules::gift::repo::FakeGiftRepository::default()),
             Arc::new(crate::modules::event::query_repo::FakeEventQueryRepository::default()),
+            Arc::new(crate::modules::governance::repo::FakeGovernanceRepo::default()),
         ));
         (router, user_repo, audit_repo)
     }
@@ -2386,6 +2420,7 @@ mod tests {
             Arc::new(crate::modules::wallet::repository::FakeWalletRepository::default()),
             Arc::new(crate::modules::gift::repo::FakeGiftRepository::default()),
             Arc::new(crate::modules::event::query_repo::FakeEventQueryRepository::default()),
+            Arc::new(crate::modules::governance::repo::FakeGovernanceRepo::default()),
         ))
     }
 
@@ -2853,6 +2888,7 @@ mod tests {
             fake_wallet.clone(),
             Arc::new(crate::modules::gift::repo::FakeGiftRepository::default()),
             Arc::new(crate::modules::event::query_repo::FakeEventQueryRepository::default()),
+            Arc::new(crate::modules::governance::repo::FakeGovernanceRepo::default()),
         );
         (build_app(state), fake_wallet, fake_pub)
     }
@@ -3148,6 +3184,7 @@ mod tests {
             fake_wallet.clone(),
             Arc::new(crate::modules::gift::repo::FakeGiftRepository::default()),
             Arc::new(crate::modules::event::query_repo::FakeEventQueryRepository::default()),
+            Arc::new(crate::modules::governance::repo::FakeGovernanceRepo::default()),
         );
         let app = build_app(state);
 
@@ -3238,6 +3275,7 @@ mod tests {
             Arc::new(crate::modules::wallet::repository::FakeWalletRepository::default()),
             gift_repo.clone(),
             Arc::new(crate::modules::event::query_repo::FakeEventQueryRepository::default()),
+            Arc::new(crate::modules::governance::repo::FakeGovernanceRepo::default()),
         );
         (build_app(state), gift_repo, audit_repo)
     }
@@ -3666,6 +3704,7 @@ mod tests {
             Arc::new(crate::modules::wallet::repository::FakeWalletRepository::default()),
             Arc::new(FakeGiftRepository::default()),
             Arc::new(crate::modules::event::query_repo::FakeEventQueryRepository::default()),
+            Arc::new(crate::modules::governance::repo::FakeGovernanceRepo::default()),
         );
         let app = build_app(state);
 
