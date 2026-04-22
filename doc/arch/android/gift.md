@@ -2,27 +2,27 @@
 
 **最后更新**：2026-04-24  
 **负责人**：Dod Agent  
-**关联 Task**：T-30028（礼物面板 BottomSheet 完整实现，Review Round 2 通过）
+**关联 Task**：T-30028（礼物面板 BottomSheet 完整实现），T-30029（接收者选择器 Review Round 1 通过）
 
 ---
 
 ## 一、模块概览
 
 ### 功能定义
-礼物模块提供虚拟礼物面板展示与选择功能，支持：
+礼物模块提供虚拟礼物面板展示、接收者选择与发送功能，支持：
 - 🎁 **礼物列表**：HTTP API 获取礼物列表（60s Mutex 防竞态缓存），4列网格展示
 - 🔖 **分类 Tab**：热门/全部礼物分类切换（按后端 tier 字段筛选）
 - 🔢 **数量选择**：6 档位吉祥数选择器（1/10/66/520/786/1314）
 - 💎 **余额实时更新**：WebSocket `BalanceUpdated` 事件推送余额变更
 - 🚨 **错误重试**：网络失败时展示重试按钮，绑定 `giftViewModel.retryLoad()`
-- 🎯 **接收者槽占位**：预留接收者选择组件位置（T-30029 接入）
+- 🎯 **接收者选择器**：LazyRow 横向滚动麦位头像条，支持选中高亮（T-30029 已完成）
 
 ### 核心设计决策
 1. **分层架构**：`domain/IGiftRepository` 接口 → `data/RetrofitGiftRepository` HTTP 实现 → `feature/GiftPanelViewModel` 状态管理 → `feature/GiftPanelBottomSheet` UI
 2. **Mutex 缓存**：`RetrofitGiftRepository` 采用 Kotlin Coroutines `Mutex.withLock` 保护整个"读缓存→判断过期→发请求→写缓存"复合操作，消除 TOCTOU 竞态（R1-MEDIUM 修复）
 3. **多语言支持**：`listGifts(locale)` 通过 `Accept-Language` Header 按 locale 参数请求多语言礼物名称
 4. **错误恢复**：UI 层展示错误状态 + 重试按钮，调用方传入 `onRetry = { giftViewModel.retryLoad() }` 绑定重试逻辑（R1-HIGH 修复）
-5. **接收者槽占位**：GiftPanelBottomSheet 预留 `recipients` 显示区间，T-30029 接入真实接收者选择器组件
+5. **接收者选择器**：GiftPanelBottomSheet 顶部嵌入 `RecipientSelector` 组件，支持 LazyRow 横向滚动、主麦默认选中、选中项金色边框高亮、空麦时按钮禁用（T-30029 完成）
 
 ---
 
@@ -101,7 +101,7 @@ feature/gift/
 └── components/
     ├── GiftCard.kt             # 礼物卡片组件
     ├── CountSelector.kt        # 数量选择器
-    ├── RecipientSelector.kt    # 接收者选择器（T-30029）
+    ├── RecipientSelector.kt    # 接收者选择器（T-30029 ✅）
     └── BalanceBar.kt           # 顶部余额条
 ```
 
@@ -178,8 +178,11 @@ ModalBottomSheet(height=55% screen)
 │       └── 金色边框（选中态）
 ├── CountSelector（数量选择器）
 │   └── Chip Row × 6 档位（1/10/66/520/786/1314）
-├── [RecipientSelector 占位] （T-30029 接入）
-│   └── 横向滚动麦位头像条
+├── RecipientSelector（接收者选择器 - T-30029 ✅）
+│   ├── LazyRow 横向滚动麦位头像条
+│   ├── 主麦（slot=0）置首，其他麦位按 micIndex 升序
+│   ├── 选中项金色 2dp 光圈边框 + 底部实心金色圆点
+│   └── 无人在麦时显示 "当前无人在麦"（居中灰字）
 └── Button("送出 {totalPrice}💎")
     ├── enabled = canSend
     ├── 禁用文案 = "余额不足" 或 "无人在麦"
@@ -298,7 +301,7 @@ GiftCard 显示 gift.name（自动适配语言）
 
 ## 六、测试覆盖
 
-### 单元测试：`GiftPanelViewModelTest.kt`（19 个测试）
+### 单元测试：`GiftPanelViewModelTest.kt`（20 个测试）
 
 | 用例 | 验证内容 |
 |-----|--------|
@@ -315,6 +318,20 @@ GiftCard 显示 gift.name（自动适配语言）
 | R1-01 | retryLoad() 状态机：Error → Loading → Success |
 | Extra-01~10 | 边界场景：空列表、zero balance、极大数量等 |
 
+### 单元测试：`RecipientSelectorViewModelTest.kt`（12 个测试，T-30029 新增）
+
+| 用例 | 验证内容 |
+|-----|--------|
+| R29-01 | 只显示在麦的用户（过滤 slot_index != null） |
+| R29-02 | 首次渲染默认选主麦（slot=0，位置第一） |
+| R29-03 | 点击切换选中项金色边框 + 底部实心金色圆点 |
+| R29-04 | 原选中用户下麦后自动切换到主麦 |
+| R29-05 | 全部下麦后显示空状态 + canSend=false |
+| R29-07 | 新用户上麦后列表立即更新（无 3s 延迟） |
+| Sort-01 | 多个用户时按 micIndex 升序排列 |
+| Sort-02 | 主麦（slot=0）置首，乱序传入仍能正确排序 |
+| Extra-01~04 | 边界：单用户、重复点击同一项、micIndex 冲突等 |
+
 ### 集成测试：`RetrofitGiftRepositoryTest.kt`（8 个测试）
 
 | 用例 | 验证内容 |
@@ -328,7 +345,7 @@ GiftCard 显示 gift.name（自动适配语言）
 | locale 传递 | Accept-Language Header 正确构造 |
 | 空列表 | 返回 `[]` 不产生异常 |
 
-**预期结果**：所有 27 个新单元测试通过，Review R2 ✅
+**预期结果**：总计 40 个新单元测试通过，Review Round 1 ✅
 
 ---
 
@@ -356,8 +373,8 @@ GiftCard 显示 gift.name（自动适配语言）
 | Task | 接入内容 |
 |-----|---------|
 | **T-30030** | SendGift 逻辑：实现"送出"按钮的 `onClick = { viewModel.sendGift() }` |
-| **T-30032** | 余额不足弹窗：ShowRechargeHint 事件处理 |
 | **T-30031** | 送礼特效：GiftReceived 事件驱动动画播放 |
+| **T-30032** | 余额不足弹窗：ShowRechargeHint 事件处理 |
 
 ---
 
@@ -431,12 +448,14 @@ app/android/app/src/main/java/com/voiceroom/
         └── components/
             ├── GiftCard.kt
             ├── CountSelector.kt
+            ├── RecipientSelector.kt        # T-30029 新增
             └── BalanceBar.kt
 
 app/android/app/src/test/java/com/voiceroom/
 ├── feature/
 │   └── gift/
-│       └── GiftPanelViewModelTest.kt (19 个测试)
+│       ├── GiftPanelViewModelTest.kt (20 个测试)
+│       └── RecipientSelectorViewModelTest.kt (12 个测试，T-30029 新增)
 └── data/
     └── gift/
         └── RetrofitGiftRepositoryTest.kt (8 个测试)
@@ -446,7 +465,7 @@ app/android/app/src/test/java/com/voiceroom/
 
 ## 十二、参考资源
 
-- **TDS 文档**：`doc/tds/android/T-30028.md`
+- **TDS 文档**：`doc/tds/android/T-30028.md`、`doc/tds/android/T-30029.md`
 - **Protocol 文档**：`doc/protocol/websocket_signals.md` §6.4.1 BalanceUpdated
-- **设计文档**：`doc/design/android/T-30028.md`
+- **设计文档**：`doc/design/android/T-30028.md`、`doc/design/android/T-30029.md`
 - **依赖库**：Coil 2.x（图片加载）/ Kotlin Coroutines（并发）/ Compose Material3（UI）
