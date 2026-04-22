@@ -1,6 +1,9 @@
 package com.voice.room.android.feature.room.create
 
 import androidx.annotation.DrawableRes
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import com.voice.room.android.R
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -69,8 +72,13 @@ class CoverPickerState(
     initialUrl: String = COVER_OPTIONS[0].url,
     private val onCoverSelected: (String) -> Unit,
 ) {
-    /** 当前选中封面 URL */
-    var selectedUrl: String = initialUrl
+    /**
+     * 当前选中封面 URL
+     *
+     * 使用 `mutableStateOf` 委托，确保 Compose 能感知值变化并触发 Recomposition，
+     * 从而使金色选中边框在用户点击后立即更新（R1 HIGH-01 修复）。
+     */
+    var selectedUrl: String by mutableStateOf(initialUrl)
         private set
 
     /** 当前选中封面在 [COVER_OPTIONS] 中的下标（-1 表示未找到） */

@@ -36,13 +36,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.voice.room.android.feature.room.create.components.AnnouncementField
 import com.voice.room.android.feature.room.create.components.CategoryDropdown
+import com.voice.room.android.feature.room.create.components.CoverPickerBottomSheet
 import com.voice.room.android.feature.room.create.components.PasswordInputRow
 
 /**
@@ -51,7 +54,7 @@ import com.voice.room.android.feature.room.create.components.PasswordInputRow
  * 包含：
  * - 顶部 TopAppBar（返回按钮）
  * - 房名输入（最多 30 字符）
- * - 封面选择（点击触发外部选图回调）
+ * - 封面选择（点击触发内置 [CoverPickerBottomSheet]，R1 HIGH-02 修复）
  * - 分类下拉选择器 [CategoryDropdown]
  * - 公告输入 [AnnouncementField]（最多 200 字符）
  * - 密码开关 + 6 位分格输入 [PasswordInputRow]
@@ -61,7 +64,7 @@ import com.voice.room.android.feature.room.create.components.PasswordInputRow
  * @param viewModel          [CreateRoomViewModel]
  * @param onNavigateUp       返回按钮回调
  * @param onNavigateToRoom   创建成功后导航到房间页
- * @param onSelectCover      点击封面区域时的外部选图回调
+ * @param onSelectCover      可选：外部选图回调（提供时替代内置 BottomSheet）
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -73,6 +76,9 @@ fun CreateRoomScreen(
 ) {
     val state by viewModel.formState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
+
+    // HIGH-02：内置封面选择器显隐状态（R1 修复：CoverPickerBottomSheet 直接集成在此）
+    var showCoverPicker by remember { mutableStateOf(false) }
 
     // 错误时弹 Snackbar（C36-08）
     LaunchedEffect(state.error) {
@@ -87,6 +93,17 @@ fun CreateRoomScreen(
             viewModel.clearNavigation()
             onNavigateToRoom(roomId)
         }
+    }
+
+    // HIGH-02: 封面选择器 BottomSheet（内置，无需调用方注入）
+    if (showCoverPicker) {
+        CoverPickerBottomSheet(
+            onCoverSelected = { url ->
+                viewModel.updateCoverUrl(url)
+                showCoverPicker = false
+            },
+            onDismiss = { showCoverPicker = false },
+        )
     }
 
     Scaffold(
@@ -118,7 +135,7 @@ fun CreateRoomScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
 
-            // ── 封面选择区域（HIGH-02 修复）────────────────
+            // ── 封面选择区域（HIGH-02 修复：点击触发内置 CoverPickerBottomSheet）──
             OutlinedCard(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -126,7 +143,10 @@ fun CreateRoomScreen(
                     .testTag("cover_preview")
                     .clickable(
                         enabled = !state.submitting,
-                        onClick = { onSelectCover?.invoke() }
+                        onClick = {
+                            // 优先使用外部回调（测试/自定义场景），否则使用内置选择器
+                            if (onSelectCover != null) onSelectCover() else showCoverPicker = true
+                        }
                     ),
                 shape = RoundedCornerShape(8.dp),
                 border = BorderStroke(
