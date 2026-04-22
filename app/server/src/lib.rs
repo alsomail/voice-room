@@ -1,5 +1,6 @@
 pub mod bootstrap;
 pub mod common;
+pub mod core;
 pub mod events;
 pub mod infrastructure;
 pub mod modules;

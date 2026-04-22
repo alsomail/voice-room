@@ -3,6 +3,10 @@ use std::sync::Arc;
 use tokio::{net::TcpListener, signal};
 use voice_room_server::{
     bootstrap::{build_app, AppState},
+    core::analytics::{
+        scheduler::start_partition_scheduler,
+        writer::EventWriter,
+    },
     infrastructure::{
         config::ServerSettings,
         database::create_pool,
@@ -88,12 +92,15 @@ async fn main() -> anyhow::Result<()> {
     // 创建 RankingService（T-00021）
     let ranking_service = Arc::new(RankingService::new(pool.clone(), redis_url.to_string()));
 
+    // 创建 EventWriter（T-00022）
+    let event_writer = Arc::new(EventWriter::new(pool.clone()));
+
     let state = AppState::new_with_managers(
         Arc::new(PgUserRepository::new(pool.clone())),
         code_store,
         sms,
         settings.jwt_secret.clone(),
-        Arc::new(PgRoomRepository::new(pool)),
+        Arc::new(PgRoomRepository::new(pool.clone())),
         stats_service,
         wallet_service,
         gift_service,
@@ -101,6 +108,7 @@ async fn main() -> anyhow::Result<()> {
         ranking_service,
         ws_registry,
         room_manager,
+        event_writer,
     );
 
     // 启动 BalanceBroadcaster（HIGH-2：同时监听本进程 mpsc channel 和 Redis PubSub）
@@ -123,6 +131,10 @@ async fn main() -> anyhow::Result<()> {
         redis_url.to_string(),
         ranking_shutdown,
     );
+
+    // 启动 Partition 定时创建任务（T-00022）
+    let partition_shutdown = snapshot_shutdown_tx.subscribe();
+    start_partition_scheduler(pool, partition_shutdown);
 
     let app = build_app(state);
     let bind_addr = settings.server.bind_addr()?;

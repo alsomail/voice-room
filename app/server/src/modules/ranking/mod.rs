@@ -17,7 +17,9 @@ pub mod handler;
 pub mod scheduler;
 pub mod service;
 
-pub use service::{FakeRankingService, RankingServicePort};
+pub use service::RankingServicePort;
+#[cfg(any(test, feature = "test-utils"))]
+pub use service::FakeRankingService;
 pub use routes::ranking_routes;
 
 mod routes {

@@ -12,6 +12,8 @@ pub enum AppError {
     // 400
     #[error("Invalid phone number format")]
     InvalidPhoneNumber,
+    #[error("Required parameter missing: {0}")]
+    ParameterMissing(String),
     #[error("Validation error: {0}")]
     ValidationError(String),
 
@@ -62,6 +64,7 @@ impl AppError {
     fn error_code(&self) -> ErrorCode {
         match self {
             AppError::InvalidPhoneNumber => ErrorCode::InvalidPhoneNumber,
+            AppError::ParameterMissing(_) => ErrorCode::ParameterMissing,
             AppError::ValidationError(_) => ErrorCode::ValidationError,
             AppError::Unauthorized => ErrorCode::Unauthorized,
             AppError::TokenExpired => ErrorCode::TokenExpired,
@@ -83,7 +86,9 @@ impl AppError {
 
     fn http_status(&self) -> StatusCode {
         match self {
-            AppError::InvalidPhoneNumber | AppError::ValidationError(_) => StatusCode::BAD_REQUEST,
+            AppError::InvalidPhoneNumber
+            | AppError::ParameterMissing(_)
+            | AppError::ValidationError(_) => StatusCode::BAD_REQUEST,
             AppError::Unauthorized
             | AppError::TokenExpired
             | AppError::InvalidVerificationCode

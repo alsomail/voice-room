@@ -5,9 +5,11 @@ use serde::Serialize;
 
 use crate::{
     common::RequestContext,
+    core::analytics::writer::EventWriterPort,
     infrastructure::{logging::request_context_middleware, redis_store::SmsCodeStore, third_party::sms::SmsProvider},
     modules::{
         auth::{auth_routes, repository::UserRepository, service::AuthService},
+        events::events_routes,
         gift::{gift_routes, send_gift::SendGiftServicePort, service::GiftServicePort},
         ranking::{ranking_routes, RankingServicePort},
         room::{repository::RoomRepository, room_routes, RoomService},
@@ -37,6 +39,8 @@ pub struct AppState {
     pub send_gift_service: Arc<dyn SendGiftServicePort>,
     /// 榜单服务（T-00021 魅力/财富榜单 API）
     pub ranking_service: Arc<dyn RankingServicePort>,
+    /// 事件写入服务（T-00022 埋点批量写入）
+    pub event_writer: Arc<dyn EventWriterPort>,
 }
 
 impl AppState {
@@ -52,6 +56,7 @@ impl AppState {
         gift_service: Arc<dyn GiftServicePort>,
         send_gift_service: Arc<dyn SendGiftServicePort>,
         ranking_service: Arc<dyn RankingServicePort>,
+        event_writer: Arc<dyn EventWriterPort>,
     ) -> Self {
         let auth_service = Arc::new(AuthService::new(
             user_repo,
@@ -71,6 +76,7 @@ impl AppState {
             gift_service,
             send_gift_service,
             ranking_service,
+            event_writer,
         }
     }
 
@@ -90,6 +96,7 @@ impl AppState {
         ranking_service: Arc<dyn RankingServicePort>,
         ws_registry: Arc<ConnectionRegistry>,
         room_manager: Arc<RoomManager>,
+        event_writer: Arc<dyn EventWriterPort>,
     ) -> Self {
         let auth_service = Arc::new(AuthService::new(
             user_repo,
@@ -109,11 +116,13 @@ impl AppState {
             gift_service,
             send_gift_service,
             ranking_service,
+            event_writer,
         }
     }
 
     #[cfg(any(test, feature = "test-utils"))]
     pub fn for_test() -> Self {
+        use crate::core::analytics::writer::FakeEventWriter;
         use crate::infrastructure::{
             redis_store::FakeCodeStore, third_party::sms::MockSmsProvider,
         };
@@ -135,12 +144,14 @@ impl AppState {
             Arc::new(FakeGiftService),
             Arc::new(FakeSendGiftService),
             Arc::new(FakeRankingService),
+            Arc::new(FakeEventWriter::default()),
         )
     }
 
     /// 測試輔助：注入預置數據的 FakeRoomRepository（用于集成測試 T-00009）
     #[cfg(any(test, feature = "test-utils"))]
     pub fn for_test_with_room_repo(room_repo: Arc<crate::modules::room::FakeRoomRepository>) -> Self {
+        use crate::core::analytics::writer::FakeEventWriter;
         use crate::infrastructure::{
             redis_store::FakeCodeStore, third_party::sms::MockSmsProvider,
         };
@@ -161,6 +172,7 @@ impl AppState {
             Arc::new(FakeGiftService),
             Arc::new(FakeSendGiftService),
             Arc::new(FakeRankingService),
+            Arc::new(FakeEventWriter::default()),
         )
     }
 
@@ -170,6 +182,7 @@ impl AppState {
     pub fn for_test_with_wallet(
         wallet_service: Arc<dyn WalletServicePort>,
     ) -> Self {
+        use crate::core::analytics::writer::FakeEventWriter;
         use crate::infrastructure::{
             redis_store::FakeCodeStore, third_party::sms::MockSmsProvider,
         };
@@ -190,6 +203,37 @@ impl AppState {
             Arc::new(FakeGiftService),
             Arc::new(FakeSendGiftService),
             Arc::new(FakeRankingService),
+            Arc::new(FakeEventWriter::default()),
+        )
+    }
+
+    /// 測試輔助：注入真實 EventWriter（DB 集成測試 T-00022）
+    #[cfg(any(test, feature = "test-utils"))]
+    pub fn for_test_with_event_writer(
+        event_writer: Arc<dyn EventWriterPort>,
+    ) -> Self {
+        use crate::infrastructure::{
+            redis_store::FakeCodeStore, third_party::sms::MockSmsProvider,
+        };
+        use crate::modules::auth::repository::FakeUserRepository;
+        use crate::modules::gift::send_gift::FakeSendGiftService;
+        use crate::modules::gift::service::FakeGiftService;
+        use crate::modules::ranking::FakeRankingService;
+        use crate::modules::room::FakeRoomRepository;
+        use crate::modules::wallet::service::FakeWalletService;
+        use crate::stats::FakeStatsService;
+        Self::new(
+            Arc::new(FakeUserRepository::default()),
+            Arc::new(FakeCodeStore::default()),
+            Arc::new(MockSmsProvider),
+            "test-secret".to_string(),
+            Arc::new(FakeRoomRepository::default()),
+            Arc::new(FakeStatsService::default()),
+            Arc::new(FakeWalletService),
+            Arc::new(FakeGiftService),
+            Arc::new(FakeSendGiftService),
+            Arc::new(FakeRankingService),
+            event_writer,
         )
     }
 }
@@ -203,6 +247,7 @@ pub fn build_app(state: AppState) -> Router {
         .merge(wallet_routes())
         .merge(gift_routes())
         .merge(ranking_routes())
+        .merge(events_routes())
         .layer(middleware::from_fn(request_context_middleware))
         .with_state(state)
 }
