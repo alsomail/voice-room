@@ -1,7 +1,7 @@
 # Web 用户管理模块架构
 
-**最后更新：** 2025-07-18  
-**涉及 Tasks：** T-20006 (用户列表) · T-20007 (用户详情) · T-20008 (封禁) · T-20010 (解封) · T-20012 (余额调整)
+**最后更新：** 2026-04-28  
+**涉及 Tasks：** T-20006 (用户列表) · T-20007 (用户详情) · T-20008 (封禁) · T-20010 (解封) · T-20012 (余额调整) · T-20013 (行为流 Tab)
 
 ---
 
@@ -28,19 +28,28 @@ UsersPage
 │   └── 点击"查看详情"打开 UserDetailDrawer
 └── UserDetailDrawer 组件
     ├── 用户基本信息展示（头像/phone/nickname/balance/VIP/status/regTime）
-    ├── AdjustBalanceModal（T-20012 新增）
-    │   ├── Form: amount (InputNumber，可负) + reason (TextArea)
-    │   ├── 负数二次确认 (Modal.confirm)
-    │   ├── RBAC 控制：仅 super_admin/operator/finance 可见按钮
-    │   └── 成功后 refreshKey 触发 balance 刷新
-    ├── BanModal（T-20008）
-    │   ├── Form: duration (Select) + reason (Select) + remark (TextArea)
-    │   ├── Modal.confirm 二次确认
-    │   └── isConfirming 防并发
-    └── UnbanModal（T-20010）
-        ├── Form: reason (Select，必填) + remark (TextArea)
-        ├── Modal.confirm 二次确认
-        └── isConfirming 防并发
+    ├── Tabs（T-20013 新增）
+    │   ├── 基本信息 Tab（原有内容）
+    │   │   ├── AdjustBalanceModal（T-20012）
+    │   │   ├── BanModal（T-20008）
+    │   │   └── UnbanModal（T-20010）
+    │   └── **行为流 Tab**（**T-20013 新增**）
+    │       ├── EventStreamTab 组件
+    │       │   ├── 时间筛选：Radio.Group [最近 1h / 24h / 7d / 30d / 自定义]
+    │       │   ├── 自定义时间：DatePicker.RangePicker（限 30 天）
+    │       │   ├── 事件名过滤：Select mode=multiple
+    │       │   ├── 时间线列表：倒序展示
+    │       │   │   └── EventTimelineItem（单条事件卡片）
+    │       │   │       ├── event_name (Tag 高亮色按类别)
+    │       │   │       ├── server_ts 格式化
+    │       │   │       ├── 设备/app_version/network_type（小字）
+    │       │   │       └── properties JSON 折叠展开（`<mark>` 关键字高亮+XSS防护）
+    │       │   ├── 分页：Ant Design Pagination，20/页
+    │       │   └── 导出 CSV 按钮
+    │       │       ├── limit=100，最多导出 1000 条
+    │       │       ├── 文件名：user_{id}_events_{ts}.csv
+    │       │       └── 独立 AbortController 防竞态
+    │       └── 常量字典：EVENT_CATEGORIES（auth/gift/wallet/room 等）
 ```
 
 ---
@@ -241,6 +250,111 @@ await adminUnbanUser(userId, {
 });
 ```
 
+### EventStreamTab 组件（T-20013）
+
+**文件**：
+- `src/features/user/EventStreamTab.tsx` — Tab 主体组件 + 时间筛选 + 事件多选 + 分页 + CSV 导出
+- `src/features/user/components/EventTimelineItem.tsx` — 单条事件卡片组件（包含关键字高亮）
+- `src/features/user/events.dict.ts` — 事件字典常量与颜色映射
+- `src/lib/csv.ts` — CSV 生成/下载工具
+- `src/pages/users/UserDetailDrawer.tsx` — 修改为 Tabs 容器
+
+**Props**（EventStreamTab）：
+```ts
+interface EventStreamTabProps {
+  userId: string;
+}
+```
+
+**主要功能**：
+
+1. **时间筛选**：
+   - Radio.Group 选项：[最近 1h | 24h | 7d | 30d | 自定义]
+   - 自定义模式：DatePicker.RangePicker（限 30 天）
+   - 验证函数：`validateCustomRange()` 纯函数（≤30 天返回 true，否则 false）
+
+2. **事件名过滤**：
+   - Select mode=multiple，选项来自 `EVENT_CATEGORIES` 常量
+   - 无需后端枚举，前端硬编码
+
+3. **时间线列表**：
+   - 倒序展示（newest first）
+   - 分页：Ant Design Pagination，pageSize=20
+   - 每项展示：
+     - event_name（Tag，颜色按事件类别）
+     - server_ts 格式化（"2026-04-28 14:30:45" 格式）
+     - 设备信息小字（app_version / network_type / os_version）
+     - properties JSON 折叠展开（EventTimelineItem 子组件）
+
+4. **关键字高亮**（XSS 防护）：
+   - `escapeHtml()` 纯函数：先对文本 HTML 转义（`<`→`&lt;` 等）
+   - `highlightText()` 函数：先转义文本再转义关键字后替换为 `<mark>` 包裹
+   - 渲染分支控制：有 highlight 才走 `dangerouslySetInnerHTML`，无 highlight 走安全的 React 文本节点
+   - 测试覆盖：properties 含 `<script>` 时不产生 XSS
+
+5. **CSV 导出**：
+   - **limit=100**：每次 API 调用最多拉 100 条，导出最多 1000 条需最多 10 次请求
+   - 文件名：`user_{userId}_events_{timestamp}.csv`，timestamp 格式 `YYYYMMDD_HHmmss`
+   - 独立 `exportAbortRef`：管理导出请求的 AbortController
+   - 流程：
+     1. 点击导出按钮 → `setExporting(true)`
+     2. 创建新 `AbortController`，取消前一次导出请求
+     3. 循环调用 `listUserEvents` 分页拉取（最多 10 次）
+     4. 合并所有事件数据，使用 `Papa.unparse` 或自实现轻量 CSV 序列化
+     5. 生成 Blob，触发浏览器下载
+     6. `AbortError` 静默处理（用户主动取消）；其他错误显示 toast
+
+6. **AbortSignal 防竞态**：
+   - 主查询（时间/事件过滤）：使用 `useEffect` 的 AbortController
+   - CSV 导出：独立的 `exportAbortRef.current`
+   - 组件卸载时：cleanup 函数中 `signal.abort()` + `exportAbortRef.current?.abort()`
+
+**API 调用**：
+```ts
+// 主查询
+listUserEvents(userId, {
+  event_name?: string;  // 多选用 ',' 分隔
+  from?: string;        // ISO 8601 或 Unix ms
+  to?: string;
+  page?: number;
+  limit?: number;       // 默认 20，CSV 导出时 100
+});
+```
+
+**EventTimelineItem Props**：
+```ts
+interface EventTimelineItemProps {
+  event: {
+    id: string;
+    event_name: string;
+    server_ts: number;      // Unix ms
+    app_version?: string;
+    network_type?: string;
+    os_version?: string;
+    properties?: Record<string, any>;
+  };
+  highlight?: string;  // 关键字高亮（暂未使用，XSS 修复已提前防御）
+}
+```
+
+**EventTimelineItem 内部**：
+- JSON.stringify(properties) 并转义 HTML
+- 若有 highlight，使用 `highlightText()` 包裹关键字为 `<mark>` 标签
+- 折叠/展开按钮：`props-toggle-{eventId}`
+- `dangerouslySetInnerHTML` 仅在有 highlight 且已转义后使用
+
+**测试覆盖**：
+- E13-01：Drawer 新 Tab 可见（`tab-event-stream` testid）
+- E13-02：默认加载最近 24h
+- E13-03：event_name 多选过滤生效
+- E13-04：自定义时间 >30 天显示错误提示
+- E13-05：无数据显示占位（`events-empty`）
+- E13-06：CSV 文件名含 user_id 和时间戳
+- E13-07：properties JSON 折叠/展开（`props-toggle-{id}` / `props-content-{id}`）
+- E13-08：i18n 切换（ar/en）文案正确
+- **XSS 防护**：properties 含 HTML 特殊字符时被正确转义
+- **AbortController**：组件卸载后 CSV 导出请求被取消
+
 ---
 
 ## 数据流
@@ -256,20 +370,47 @@ UsersPage (useUsersPage Hook)
         └─ 点击"查看详情" → setSelectedUserId()
             ↓
         UserDetailDrawer (open=true)
-            ├─ API: useUserDetail(userId)
-            │   └─ 返回: detail, loading, error
+            ├─ Tabs 容器
             │
-            ├─ "调整余额" 按钮点击 → AdjustBalanceModal open
-            │   ├─ API: adminAdjustBalance(userId, { amount, reason })
-            │   └─ 成功后 → onSuccess() → setRefreshKey() → useUserDetail 重新拉取
+            ├─ [基本信息 Tab]
+            │   ├─ API: useUserDetail(userId)
+            │   │   └─ 返回: detail, loading, error
+            │   │
+            │   ├─ "调整余额" 按钮点击 → AdjustBalanceModal open
+            │   │   ├─ API: adminAdjustBalance(userId, { amount, reason })
+            │   │   └─ 成功后 → onSuccess() → setRefreshKey() → useUserDetail 重新拉取
+            │   │
+            │   ├─ "[封禁]" 按钮点击 → BanModal open
+            │   │   ├─ API: adminBanUser(userId, { duration, reason, remark })
+            │   │   └─ 成功后 → onSuccess() → useUsersPage 列表刷新
+            │   │
+            │   └─ "[解封]" 按钮点击 → UnbanModal open
+            │       ├─ API: adminUnbanUser(userId, { reason, remark })
+            │       └─ 成功后 → onSuccess() → useUsersPage 列表刷新
             │
-            ├─ "[封禁]" 按钮点击 → BanModal open
-            │   ├─ API: adminBanUser(userId, { duration, reason, remark })
-            │   └─ 成功后 → onSuccess() → useUsersPage 列表刷新
-            │
-            └─ "[解封]" 按钮点击 → UnbanModal open
-                ├─ API: adminUnbanUser(userId, { reason, remark })
-                └─ 成功后 → onSuccess() → useUsersPage 列表刷新
+            └─ [**行为流 Tab**]（**T-20013**）
+                ├─ 时间筛选：Radio.Group 选择 [1h|24h|7d|30d|custom]
+                ├─ 自定义时间：DatePicker.RangePicker(from, to, ≤30天)
+                ├─ 事件名多选：Select mode=multiple (from EVENT_CATEGORIES)
+                ├─ 分页：Pagination pageNum/pageSize=20 变化
+                │
+                ├─ API: listUserEvents(userId, {
+                │         from, to, event_name?, page, limit: 20
+                │       }, signal)
+                │   └─ 返回：events[], total, loading, error
+                │       ↓
+                │   EventTimelineItem[] (倒序展示)
+                │       ├─ event_name (Tag)
+                │       ├─ server_ts (格式化)
+                │       ├─ 设备信息
+                │       └─ properties (JSON 折叠, 关键字高亮+XSS防护)
+                │
+                └─ 导出 CSV 按钮 → handleExportCsv()
+                    ├─ 创建独立 AbortController (exportAbortRef)
+                    ├─ 循环 API: listUserEvents(..., {limit: 100}) 最多 10 次
+                    ├─ 合并事件数据，Papa.unparse() 生成 CSV
+                    ├─ 生成 Blob，触发浏览器下载
+                    └─ AbortError 静默处理；其他错误 toast
 ```
 
 ---
@@ -285,6 +426,7 @@ UsersPage (useUsersPage Hook)
 | `adminBanUser(userId, params)` | POST | `/admin/users/:id/ban` | 封禁用户 | T-20008 |
 | `adminUnbanUser(userId, params)` | POST | `/admin/users/:id/unban` | 解封用户 | T-20010 |
 | `adminAdjustBalance(userId, params)` | POST | `/admin/users/:id/wallet/adjust` | 手动调整余额 | T-20012 |
+| **`listUserEvents(userId, params, signal?)`** | **GET** | **`/admin/users/:id/events`** | **用户行为流事件列表（时间/事件名过滤、分页）** | **T-20013** |
 
 ---
 
@@ -339,6 +481,34 @@ UsersPage (useUsersPage Hook)
 }
 ```
 
+**行为流 Tab 相关 key**（**T-20013 新增**）：
+```json
+{
+  "events.title": "Event Stream",
+  "events.timeRange": "Time Range",
+  "events.last1h": "Last 1 hour",
+  "events.last24h": "Last 24 hours",
+  "events.last7d": "Last 7 days",
+  "events.last30d": "Last 30 days",
+  "events.custom": "Custom Range",
+  "events.eventName": "Event Name",
+  "events.startDate": "Start Date",
+  "events.endDate": "End Date",
+  "events.invalidRange": "Range must be ≤ 30 days",
+  "events.noData": "No events found",
+  "events.loading": "Loading events...",
+  "events.error": "Failed to load events",
+  "events.exportCsv": "Export CSV",
+  "events.exporting": "Exporting...",
+  "events.exportSuccess": "CSV exported successfully",
+  "events.exportFailed": "Export failed",
+  "events.maxLimitReached": "Only exported the first 1000 records",
+  "events.timestamp": "Timestamp",
+  "events.properties": "Properties",
+  "events.deviceInfo": "Device Info"
+}
+```
+
 ---
 
 ## 测试覆盖
@@ -359,6 +529,11 @@ UsersPage (useUsersPage Hook)
 
 ## 相关文档
 
-- [T-20012 技术设计文档](../../tds/web/T-20012.md)
+- [T-20006 用户列表技术设计](../../tds/web/T-20006.md)
+- [T-20007 用户详情技术设计](../../tds/web/T-20007.md)
+- [T-20008 封禁对话框技术设计](../../tds/web/T-20008.md)
+- [T-20010 解封弹窗技术设计](../../tds/web/T-20010.md)
+- [T-20012 余额调整技术设计](../../tds/web/T-20012.md)
+- [T-20013 行为流 Tab 技术设计](../../tds/web/T-20013.md)
 - [Web 架构总索引](./index.md)
 - [礼物管理模块](./gift-management.md)

@@ -32,13 +32,14 @@
   - `src/pages/rooms/useRoomDetail.ts` — `useRoomDetail(roomId)` Hook：监听 roomId 变化，调用 `adminGetRoomDetail`，含 AbortController 防竞态，返回 `{ detail, loading, error }`（T-20005）
   - `src/pages/rooms/RoomDetailModal.tsx` — `RoomDetailModal` 组件：Ant Design Modal（`destroyOnHidden={true}`，切换房间时清除旧数据）展示房间详情（基本信息 + 占位成员列表 + 占位聊天记录）；[强制关闭] 按钮使用 `Modal.confirm` 二次确认，`closeRoom` re-throw 设计保证失败时 Modal 保持打开（T-20005）
   - `src/services/apiClient.ts`（扩展）— `adminCloseRoom(roomId: string): Promise<void>`（T-20004）；`adminGetRoomDetail(roomId: string, signal?: AbortSignal): Promise<RoomDetail>`（T-20005，GET `/admin/rooms/:id`）
-- 👤 [**用户管理模块**](./user-management.md)（T-20006 ✅ · T-20007 ✅ · T-20008 ✅ · T-20010 ✅ · **T-20012 ✅**）- 路由 `/users`（在 `AuthGuard` 内）；详见 [user-management.md](./user-management.md)。核心组件：
+- 👤 [**用户管理模块**](./user-management.md)（T-20006 ✅ · T-20007 ✅ · T-20008 ✅ · T-20010 ✅ · T-20012 ✅ · **T-20013 ✅**）- 路由 `/users`（在 `AuthGuard` 内）；详见 [user-management.md](./user-management.md)。核心组件：
    - `UsersPage` + `useUsersPage` Hook — 分页、状态筛选、关键词搜索、URL 双向同步、AbortController 防竞态
    - `UsersTable` — Ant Design Table 展示用户列表
-   - `UserDetailDrawer` — 用户信息展示 + **"调整余额"按钮**（T-20012 新增，RBAC）+ [封禁]/[解封] 按钮
+   - `UserDetailDrawer` — 用户信息展示 + **"调整余额"按钮**（T-20012 新增，RBAC）+ [封禁]/[解封] 按钮 + **Tabs 容器（T-20013 新增）**
+   - **`EventStreamTab`（T-20013 新增）** — 行为流 Tab：时间筛选 + event_name 多选 + 事件时间线 + CSV 导出（limit=100，文件名含 user_id+时间戳）+ XSS 防护（escapeHtml+<mark> 包裹）+ AbortController 防竞态
    - `AdjustBalanceModal`（T-20012 新增）— 余额调整弹窗，负数二次确认，刷新机制
    - `BanModal` / `UnbanModal` — 封禁/解封对话框
-   - `src/core/network/apiClient.ts`（扩展）— 新增 `adminAdjustBalance`（T-20012）等 API
+   - `src/core/network/apiClient.ts`（扩展）— 新增 `adminAdjustBalance`（T-20012）、`listUserEvents`（T-20013）等 API
 - 🎁 [**礼物管理模块**](./gift-management.md)（**T-20012 ✅**）- 路由 `/gifts`（在 `AuthGuard` → `AppLayout` 内）；详见 [gift-management.md](./gift-management.md)。RBAC 菜单控制（super_admin/operator 可见）。核心组件：
    - `AppLayout`（T-20012 扩展）— 侧栏新增"礼物管理"菜单项，RBAC 控制可见性
    - `GiftManagementPage` + `useGiftsPage` Hook — 分页、Tier 筛选、状态筛选（all/active/inactive/deleted，含客户端过滤）、AbortController 防竞态
@@ -73,6 +74,7 @@
 - 🟢 操作日志页面（`/logs` 路由；LogsPage + useLogsPage + LogsTable + LogSearchForm；操作人ID/操作类型/时间范围筛选/分页/URL双向同步；apiClient 新增 `adminGetLogs`）← **T-20009 ✅ Done**
 - 🟢 活水房间监控增强（`roomUtils.ts` 纯函数库：`getActivityStatus`/`formatDuration`/`filterByActivity`，注入 `now` 参数支持测试；`RoomActivityTag` 组件：4 种活跃等级颜色标签；`RoomsTable` 新增活跃状态列 + 持续时长列 + 活跃度筛选下拉 + 异常行高亮；`useRoomsPage` 新增 `filteredItems`/`activityFilter`/`setActivityFilter`；i18n 新增 8 个 `rooms.activity.*` 翻译键；全部为纯前端过滤，不影响 API 调用）← **T-20011 ✅ Done**
 - 🟢 余额调整弹窗 + 礼物管理页（`AdjustBalanceModal`：Form.useWatch 动态禁用、负数二次确认、isConfirming 防并发、成功后 refreshKey 刷新余额；`GiftManagementPage`：tier/状态筛选 + Switch 乐观更新回滚 + 软删除；`GiftEditModal`：图片上传校验 + price=0 禁用 + 预览；`AppLayout`：Ant Design 侧栏 + RBAC 礼物菜单（super_admin/operator）；apiClient 新增 6 个 wallet/gift API；i18n 新增 60+ key）← **T-20012 ✅ Done**
+- 🟢 用户行为流 Tab（`EventStreamTab`：时间筛选 [1h/24h/7d/30d/custom] + DatePicker.RangePicker (≤30天) + event_name 多选 Select + 事件时间线列表 (倒序，20/页) + CSV 导出 (limit=100，最多1000条，文件名user_{id}_events_{ts}.csv)；`EventTimelineItem`：event_name Tag + server_ts + 设备信息 + properties JSON 折叠；关键字高亮防 XSS (escapeHtml+<mark> 包裹)；独立 AbortController 管理 CSV 导出请求；apiClient 新增 `listUserEvents` API；测试覆盖率 EventTimelineItem 98.82%；Review R2 通过，450 个测试全部通过）← **T-20013 ✅ Done**
 
 ### 遗留技术债 (Tech Debt)
 - 当前工程脚手架仍保留 C 端时期的 telemetry mock 和 WS helper，需要在后续重构中清理。
