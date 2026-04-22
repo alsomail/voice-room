@@ -19,12 +19,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.painter.ColorPainter
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.voice.room.android.feature.room.effect.GiftMessageUi
 
 /**
@@ -35,15 +39,19 @@ import com.voice.room.android.feature.room.effect.GiftMessageUi
  *
  * effectLevel >= 3 时文字粗体展示（[GiftMessageUi.isBold]）。
  *
- * 注意：防腐层 — 不依赖任何 Lottie SDK，仅展示礼物图标 URL（生产时配合 Coil 加载）。
+ * - 头像 16dp：使用 Coil AsyncImage 加载 [GiftMessageUi.senderAvatar]，失败时显示半透明白色占位
+ * - 礼物图标 24dp：使用 Coil AsyncImage 加载 [GiftMessageUi.giftIconUrl]
+ * - testTag: `gift_msg_{msgId}` 供 UI 自动化测试定位
  */
 @Composable
 fun GiftChatMessage(
     msg: GiftMessageUi,
     modifier: Modifier = Modifier,
 ) {
+    // TDS testTag: gift_msg_{msgId}（HIGH-2）
     Box(
         modifier = modifier
+            .testTag("gift_msg_${msg.msgId}")
             .fillMaxWidth()
             .padding(horizontal = 8.dp, vertical = 2.dp)
             .background(
@@ -53,12 +61,18 @@ fun GiftChatMessage(
             .padding(horizontal = 12.dp, vertical = 6.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            // 头像占位（生产时用 Coil AsyncImage 替换）
-            Box(
+            // 头像 16dp（TDS spec），Coil AsyncImage 加载，失败时显示半透明白色占位（MEDIUM-3）
+            val avatarPlaceholder = ColorPainter(Color(0x80_FF_FF_FF))
+            AsyncImage(
+                model = msg.senderAvatar,
+                contentDescription = "sender avatar",
                 modifier = Modifier
-                    .size(24.dp)
-                    .clip(CircleShape)
-                    .background(Color(0x80_FF_FF_FF)),
+                    .size(16.dp)
+                    .clip(CircleShape),
+                contentScale = ContentScale.Crop,
+                placeholder = avatarPlaceholder,
+                error = avatarPlaceholder,
+                fallback = avatarPlaceholder,
             )
             Spacer(modifier = Modifier.width(6.dp))
             Column {
@@ -81,6 +95,18 @@ fun GiftChatMessage(
                     fontSize = 12.sp,
                 )
             }
+            // 礼物图标 24dp（TDS spec），MEDIUM-3
+            if (msg.giftIconUrl.isNotEmpty()) {
+                Spacer(modifier = Modifier.width(4.dp))
+                AsyncImage(
+                    model = msg.giftIconUrl,
+                    contentDescription = "gift icon",
+                    modifier = Modifier.size(24.dp),
+                    contentScale = ContentScale.Fit,
+                    placeholder = ColorPainter(Color(0x40_FF_D7_00)),
+                    error = ColorPainter(Color(0x40_FF_D7_00)),
+                )
+            }
         }
     }
 }
@@ -96,6 +122,10 @@ fun GiftChatMessage(
  * - MVP 用纯 Compose Box 做 fallback 演示；接入 Lottie 时
  *   仅替换此 Composable 的内部实现，外部调用点不变
  *
+ * ### testTag（HIGH-2）
+ * - 外层容器：`fullscreen_gift_overlay`
+ * - 跳过点击区：`btn_skip_fullscreen_gift`
+ *
  * @param animationUrl Lottie JSON URL（空字符串时展示 fallback 动画）
  * @param onSkip       用户点击屏幕跳过动画
  */
@@ -105,8 +135,10 @@ fun GiftFullscreenOverlay(
     onSkip: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // TDS testTag: fullscreen_gift_overlay（HIGH-2）
     Box(
         modifier = modifier
+            .testTag("fullscreen_gift_overlay")
             .fillMaxSize()
             .background(Color(0x99_00_00_00)), // 半透明黑色遮罩
         contentAlignment = Alignment.Center,
@@ -118,9 +150,10 @@ fun GiftFullscreenOverlay(
             fontSize = 16.sp,
             modifier = Modifier.padding(24.dp),
         )
-        // 点击任意区域跳过
+        // 点击任意区域跳过；TDS testTag: btn_skip_fullscreen_gift（HIGH-2）
         Box(
             modifier = Modifier
+                .testTag("btn_skip_fullscreen_gift")
                 .fillMaxSize()
                 .clickable(onClick = onSkip),
         )

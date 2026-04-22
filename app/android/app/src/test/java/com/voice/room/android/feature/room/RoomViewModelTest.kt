@@ -988,6 +988,74 @@ class RoomViewModelTest {
             assertFalse("isCurrentUserOnMic should be false after MicLeft", state.uiState.isCurrentUserOnMic)
             assertFalse("isCurrentUserMuted should be false after MicLeft", state.uiState.isCurrentUserMuted)
         }
+
+    // ─── VM-GR1: GiftReceived 协议字段 gift.id 能正确解析，触发 giftMessages ──
+    // [RED] 当前代码使用 giftObj.get("giftId") 而非 giftObj.get("id")，
+    //       收到协议正确的 JSON（含 "id" 字段）时 giftId 解析为 null → ?: return
+    //       → giftMessages.value 仍为空。测试断言 size==1 将 FAIL。
+    // 修复 RoomViewModel 改用 "id" / "code" 后，此测试变为 GREEN。
+
+    @Test
+    fun `VM-GR1 GiftReceived with protocol-correct gift dot id field triggers giftMessages`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            viewModel.joinRoom("room-1")
+            advanceUntilIdle()
+
+            // §6.4.3 协议：gift 对象字段名为 "id" 和 "code"（非 "giftId"/"giftCode"）
+            fakeWsClient.simulateMessage(
+                """{"type":"GiftReceived","msgId":"gr1-msg","giftRecordId":"rec-gr1",""" +
+                """"sender":{"userId":"sender-1","nickname":"Alice","avatar":null},""" +
+                """"receiver":{"userId":"receiver-1","nickname":"Bob","avatar":null},""" +
+                """"gift":{"id":"gift-uuid-1","code":"castle_01","name":"城堡",""" +
+                """"iconUrl":"https://icon.png","animationUrl":null,"effectLevel":1},""" +
+                """"count":1,"totalPrice":10}"""
+            )
+            advanceUntilIdle()
+
+            assertEquals(
+                "giftMessages 应有 1 条弹幕（gift.id 字段能被正确解析）",
+                1,
+                viewModel.giftMessages.value.size,
+            )
+            assertEquals(
+                "giftMessages[0].giftId 应等于协议中 gift.id 的值",
+                "gift-uuid-1",
+                viewModel.giftMessages.value[0].giftId,
+            )
+        }
+
+    // ─── VM-GR2: GiftReceived giftCode 字段正确解析 ──────────────────────────
+    // [RED] giftObj.get("giftCode") 返回 null → 降级为 ""；但 giftObj.get("code")
+    //       应能拿到正确值。修复后 giftCode 字段映射正确。
+
+    @Test
+    fun `VM-GR2 GiftReceived with protocol-correct gift dot code field parses giftCode correctly`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            viewModel.joinRoom("room-1")
+            advanceUntilIdle()
+
+            fakeWsClient.simulateMessage(
+                """{"type":"GiftReceived","msgId":"gr2-msg","giftRecordId":"rec-gr2",""" +
+                """"sender":{"userId":"sender-1","nickname":"Alice","avatar":null},""" +
+                """"receiver":{"userId":"receiver-1","nickname":"Bob","avatar":null},""" +
+                """"gift":{"id":"gift-uuid-2","code":"bouquet_01","name":"花束",""" +
+                """"iconUrl":"https://icon2.png","animationUrl":null,"effectLevel":1},""" +
+                """"count":2,"totalPrice":20}"""
+            )
+            advanceUntilIdle()
+
+            assertEquals(
+                "giftMessages 应有 1 条弹幕",
+                1,
+                viewModel.giftMessages.value.size,
+            )
+            // count 也应正确解析
+            assertEquals(
+                "count 应解析为 2",
+                2,
+                viewModel.giftMessages.value[0].count,
+            )
+        }
 }
 
 // ─── Test Doubles ─────────────────────────────────────────────────────────────

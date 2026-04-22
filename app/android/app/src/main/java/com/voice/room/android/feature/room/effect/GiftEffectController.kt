@@ -1,5 +1,7 @@
 package com.voice.room.android.feature.room.effect
 
+import com.voice.room.android.core.media.ILottiePlayer
+import com.voice.room.android.core.media.NoOpLottiePlayer
 import com.voice.room.android.core.ws.event.GiftReceivedEvent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -64,10 +66,12 @@ data class GiftMessageUi(
  *
  * 生产集成：RoomViewModel 解析 GiftReceived WS 消息后调用 [onGiftReceived]
  *
- * @param scope 协程作用域（生产 = viewModelScope，测试 = backgroundScope）
+ * @param scope        协程作用域（生产 = viewModelScope，测试 = backgroundScope）
+ * @param lottiePlayer Lottie 播放器防腐层接口（生产 = LottiePlayerAdapter，测试/MVP = [NoOpLottiePlayer]）
  */
 class GiftEffectController(
     private val scope: CoroutineScope,
+    private val lottiePlayer: ILottiePlayer = NoOpLottiePlayer(),
 ) {
     // ─── L1: 弹幕消息列表 ─────────────────────────────────────────────────────
 
@@ -202,6 +206,11 @@ class GiftEffectController(
     // ─── 内部：L3 全屏动画播放 ─────────────────────────────────────────────────
 
     private suspend fun playL3(evt: GiftReceivedEvent) {
+        val animUrl = evt.giftAnimationUrl ?: ""
+        // MEDIUM-2: 通过防腐层接口预加载 Lottie 动画，失败时使用 fallback（不阻塞播放流程）
+        if (animUrl.isNotEmpty()) {
+            lottiePlayer.preload(animUrl) // false = fallback，UI 层展示本地 fallback
+        }
         val durationMs = if (evt.effectLevel >= 5) L3_DURATION_LEVEL5_MS else L3_DURATION_DEFAULT_MS
         _fullscreenEffect.value = FullscreenAnim(
             animationUrl = evt.giftAnimationUrl ?: "",
