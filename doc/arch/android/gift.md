@@ -1,8 +1,8 @@
 # Android 礼物模块架构文档
 
-**最后更新**：2026-04-24  
+**最后更新**：2026-04-25  
 **负责人**：Dod Agent  
-**关联 Task**：T-30028（礼物面板 BottomSheet 完整实现），T-30029（接收者选择器 Review Round 1 通过）
+**关联 Task**：T-30028（礼物面板 BottomSheet 完整实现），T-30029（接收者选择器），T-30030（SendGift 客户端+幂等）
 
 ---
 
@@ -184,9 +184,10 @@ ModalBottomSheet(height=55% screen)
 │   ├── 选中项金色 2dp 光圈边框 + 底部实心金色圆点
 │   └── 无人在麦时显示 "当前无人在麦"（居中灰字）
 └── Button("送出 {totalPrice}💎")
-    ├── enabled = canSend
+    ├── enabled = canSend && !sending （T-30030 ✅）
+    ├── 发送中显示 CircularProgressIndicator （T-30030 ✅）
     ├── 禁用文案 = "余额不足" 或 "无人在麦"
-    └── onClick = { viewModel.sendGift() } （T-30030 接入）
+    └── onClick = { viewModel.sendGift() } （T-30030 接入 ✅）
 ```
 
 ### GiftCard（礼物卡片）
@@ -257,9 +258,44 @@ HTTP listGifts() 失败（IOException / HTTP 5xx / 解析异常）
   → 加载完成或再次失败 → 更新 UiState
 ```
 
-### 5. 关闭面板
+### 5. SendGift 发送流程（T-30030 ✅）
+
 ```
-用户点击外部 / × 按钮 / 返回键
+用户点击"送出"按钮
+  ↓
+viewModel.sendGift() 触发 {
+  1. 创建 SendGiftJob(msgId=UUID, giftId, recipientId, count, roomId)
+  2. _state.update { it.copy(sending=true) }  // 按钮变灰 + 显示 Loading
+  3. 构建 JSON：buildSendGiftJson(job) 用 Gson JsonObject API
+  4. wsClient.send(json, msgId=job.msgId)
+  5. withTimeoutOrNull(5_000L) 等待 SendGiftResultEvent
+  6. 根据错误码处理：
+     - code=0: 成功，toast"赠送成功"，面板保留
+     - code=40290: 余额不足，触发 ShowInsufficientDialog（T-30032）
+     - code=40403: 接收者离线，toast"接收者已下麦"，面板保留
+     - code=40400: 你已离房，触发 DismissPanel
+     - 超时/网络错: toast"请求超时，请重试"
+  7. _state.update { it.copy(sending=false) }  // 按钮还原
+}
+  ↓
+接收 GiftReceived 广播事件，驱动特效播放（T-30031）
+```
+
+**幂等设计**：
+- 每次点击生成唯一 UUID `msg_id`
+- Server 通过 `msg_id` 判重，重复请求返回首次结果
+- MVP 策略：按钮发送中禁用 (`canSend && !sending`)，防止用户多发
+
+**连击聚合**（ComboAggregator）：
+```kotlin
+// 3s 内同礼物+接收者累加 count，最后只发一次
+val combo = aggregator.press(giftId, recipientId, count=1)
+// 返回 Combo { giftId, recipientId, msgId, count: 累计数, lastTs }
+```
+
+### 6. 关闭面板
+```
+用户点击外部 / × 按钮 / 返回键 / DismissPanel 事件
   → RoomScreen.showGiftPanel = false
   → dismiss() 触发
   → UiState.selectedGiftId = null （清除选中态）
@@ -370,58 +406,146 @@ GiftCard 显示 gift.name（自动适配语言）
 
 ### 后续接入（T-30030~T-30033）
 
-| Task | 接入内容 |
-|-----|---------|
-| **T-30030** | SendGift 逻辑：实现"送出"按钮的 `onClick = { viewModel.sendGift() }` |
-| **T-30031** | 送礼特效：GiftReceived 事件驱动动画播放 |
-| **T-30032** | 余额不足弹窗：ShowRechargeHint 事件处理 |
-
----
-
-## 八、错误代码与处理
-
-| 错误类型 | HTTP 状态码 | 处理策略 |
-|--------|---------|---------|
-| 网络不可用 | IOException | 显示错误提示 + 重试按钮 |
-| 无效 Token | 401 | `AuthInterceptor` 拦截 → NavigateToLogin |
-| 服务器错误 | 5xx | 显示错误提示 + 重试按钮 |
-| 请求参数错误 | 4xx (≠401) | 显示错误提示 + 重试按钮 |
-| JSON 解析失败 | N/A | 捕获异常 → Result.failure |
-
----
-
-## 九、性能与优化
-
-### 缓存策略
-- **60s Mutex 缓存**：避免快速重复打开面板时多次 HTTP 请求
-- **并发安全**：Mutex.withLock 保证多协程环境下的一致性（vs. @Volatile 不足）
-- **构造参数注入**：支持测试注入 `cacheDurationMs=0L` 模拟立即过期
-
-### 列表渲染
-- **LazyVerticalGrid**：仅渲染可见区域卡片，避免全量组件初始化
-- **4 列布局**：根据设计稿规范，小屏幕无溢出（CountSelector 可增加横向滚动优化）
-
-### WebSocket 订阅
-- **单次 init 订阅**：ViewModel `init` 块中调用 `subscribeToWsEvents()`，不在每次 recompose 时重复订阅
-- **Flow 背压处理**：使用 `buffer(CONFLATE)` 避免事件堆积（非关键数据）
-
----
-
-## 十、testTag 协议
-
-| 组件 | testTag | 用途 |
+| Task | 接入内容 | 状态 |
 |-----|---------|------|
-| GiftPanelBottomSheet | `gift_panel_sheet` | E2E 测试定位整个面板 |
-| BalanceBar | `gift_balance_bar` | 验证余额显示正确 |
-| 关闭按钮 | `btn_gift_close` | 测试关闭交互 |
-| GiftCard | `gift_item_{giftId}` | 定位具体礼物卡片 |
-| CountSelector Chip | `count_option_{value}` | 验证档位选择 |
-| 发送按钮 | `btn_send_gift` | 验证按钮状态与点击 |
-| 接收者选择器 | `recipient_selector` | 预留 T-30029 接入 |
+| **T-30030** | SendGift 客户端实现：UUID msg_id + 幂等 + 3s 连击聚合 + 5s 超时 | ✅ 完成（DoD） |
+| **T-30031** | 送礼特效：GiftReceived 事件驱动动画播放 | 进行中 |
+| **T-30032** | 余额不足弹窗：ShowRechargeHint 事件处理 | 待开发 |
 
 ---
 
-## 十一、包路径与文件清单
+## 八、SendGift 实现详解（T-30030 ✅）
+
+### 新增类与组件
+
+#### 1. SendGiftJob（单次发送作业）
+```kotlin
+data class SendGiftJob(
+    val msgId: String,           // UUID，每次生成独立 msg_id
+    val giftId: String,          // 礼物 ID
+    val recipientId: String,     // 接收者用户 ID
+    val count: Int,              // 数量（连击聚合后）
+    val roomId: String = ""      // 房间 ID
+)
+```
+**职责**：承载单次 SendGift 请求的完整信息，支持超时等待与结果匹配。
+
+#### 2. ComboAggregator（连击聚合器）
+```kotlin
+class ComboAggregator(private val windowMs: Long = 3000) {
+    data class Combo(
+        val giftId: String,
+        val recipientId: String,
+        val msgId: String,
+        val count: Int,      // ✅ val，不可变
+        val lastTs: Long     // ✅ val，不可变
+    )
+    
+    fun press(giftId: String, recipientId: String, unitCount: Int = 1): Combo {
+        val now = System.currentTimeMillis()
+        val c = current
+        return if (c != null && c.giftId==giftId && c.recipientId==recipientId
+                   && now - c.lastTs < windowMs) {
+            // 3s 内同礼物+接收者，count 累加
+            c.copy(count = c.count + unitCount, lastTs = now).also { current = it }
+        } else {
+            // 新的聚合周期，生成新 UUID msg_id
+            Combo(giftId, recipientId, UUID.randomUUID().toString(), unitCount, now)
+                .also { current = it }
+        }
+    }
+    
+    fun flush() { current = null }  // 清空，通常在发送后调用
+}
+```
+**特性**：
+- **不可变设计**：Combo 数据类所有字段为 `val`，每次更新通过 `copy()` 生成新实例
+- **幂等 msg_id**：聚合周期内共用一个 msgId；超出窗口或 flush 后生成新 msgId
+- **线程安全**（Main 线程）：假设单线程调用；若需多线程，可加 Mutex
+
+#### 3. GiftEvents（事件定义）
+```kotlin
+// SendGift 结果事件
+data class SendGiftResultEvent(
+    val msgId: String,     // 与 SendGiftJob.msgId 关联
+    val code: Int          // 错误码：0=成功, 40290=余额不足, 40403=接收者不可用, ...
+)
+
+// 礼物接收广播事件（所有房间人员都可收到）
+data class GiftReceivedEvent(
+    val senderId: String,
+    val senderNickname: String,
+    val senderAvatar: String?,
+    val receiverUserId: String,
+    val receiverNickname: String,
+    val receiverAvatar: String?,    // ✅ R1-HIGH 修复：补充 avatar 字段
+    val giftId: String,
+    val giftName: String,
+    val giftIconUrl: String,
+    val count: Int,
+    val effectLevel: Int,           // 特效等级（用于 T-30031 分层特效）
+    val totalInRoom: Int            // 当前房间累计收到此礼物次数
+)
+```
+
+#### 4. buildSendGiftJson() 安全构造（R1-MEDIUM 修复）
+
+**原实现的问题**：字符串插值易被注入
+
+❌ 不安全（原实现）：
+```kotlin
+private fun buildSendGiftJson(job: SendGiftJob): String {
+    return """{
+        "type": "SendGift",
+        "msg_id": "${job.msgId}",
+        "payload": {
+            "gift_id": "${job.giftId}",
+            "receiver_id": "${job.recipientId}",
+            "count": ${job.count}
+        }
+    }"""
+    // 若 giftId = "abc\"def"，JSON 会被破坏！
+}
+```
+
+✅ 安全（修复后）：
+```kotlin
+private fun buildSendGiftJson(job: SendGiftJob): String {
+    val payload = com.google.gson.JsonObject().apply {
+        addProperty("room_id", job.roomId)
+        addProperty("gift_id", job.giftId)
+        addProperty("receiver_id", job.recipientId)
+        addProperty("count", job.count)
+    }
+    return com.google.gson.JsonObject().apply {
+        addProperty("type", "SendGift")
+        addProperty("msg_id", job.msgId)
+        add("payload", payload)
+    }.toString()
+    // Gson 自动转义 "、\、换行等特殊字符，安全可靠
+}
+```
+
+**为什么使用 Gson JsonObject？**
+- 自动转义特殊字符，避免 JSON 注入
+- 类型安全：数值字段用 `addProperty(String, Number)`，Gson 自动序列化为数字（非字符串）
+- 可读性好，对标 JSONBuilder 常见模式
+
+---
+
+## 九、错误代码与处理（完整映射）
+
+| 错误代码 | 含义 | 客户端动作 | 相关 Task |
+|---------|------|----------|---------|
+| 0 | 成功 | Toast"赠送成功"，面板保留 | T-30030 ✅ |
+| 40290 | 余额不足 | 触发 ShowInsufficientDialog（跳 T-30032） | T-30030 ✅ / T-30032 |
+| 40403 | 接收者已离线 | Toast"接收者已下麦或离开"，面板保留 | T-30030 ✅ |
+| 40402 | 礼物已下架 | Toast"该礼物已下架"，自动刷新列表 | T-30030 ✅ |
+| 40400 | 你已离房 | DismissPanel 事件，关闭面板 | T-30030 ✅ |
+
+---
+
+## 十五、包路径与文件清单（更新）
 
 ```
 app/android/app/src/main/java/com/voiceroom/
@@ -441,21 +565,27 @@ app/android/app/src/main/java/com/voiceroom/
 │       └── DebugGiftRepository.kt
 └── feature/
     └── gift/
-        ├── GiftPanelViewModel.kt
-        ├── GiftPanelUiState.kt
-        ├── GiftPanelEvent.kt
-        ├── GiftPanelBottomSheet.kt
+        ├── GiftPanelViewModel.kt       # T-30030 修改：新增 sendGift()、buildSendGiftJson()、handleSendGiftResult()
+        ├── GiftPanelUiState.kt         # T-30030 修改：新增 sending: Boolean 字段
+        ├── GiftPanelEvent.kt           # T-30030 修改：新增 ShowInsufficientDialog、DismissPanel
+        ├── GiftPanelBottomSheet.kt     # T-30030 修改：发送按钮 Loading、新事件处理
+        ├── SendGiftJob.kt              # ✅ T-30030 新增：发送作业描述对象
+        ├── ComboAggregator.kt          # ✅ T-30030 新增：3s 连击聚合器
         └── components/
             ├── GiftCard.kt
             ├── CountSelector.kt
             ├── RecipientSelector.kt        # T-30029 新增
             └── BalanceBar.kt
 
+app/android/app/src/main/java/com/voiceroom/core/ws/event/
+├── GiftEvents.kt                           # ✅ T-30030 新增：SendGiftResultEvent、GiftReceivedEvent（含 receiverAvatar）
+
 app/android/app/src/test/java/com/voiceroom/
 ├── feature/
 │   └── gift/
-│       ├── GiftPanelViewModelTest.kt (20 个测试)
-│       └── RecipientSelectorViewModelTest.kt (12 个测试，T-30029 新增)
+│       ├── GiftPanelViewModelTest.kt (20 个测试，T-30028)
+│       ├── RecipientSelectorViewModelTest.kt (12 个测试，T-30029)
+│       └── SendFlowTest.kt               # ✅ T-30030 新增：15 个测试用例（S30-01~S30-15）
 └── data/
     └── gift/
         └── RetrofitGiftRepositoryTest.kt (8 个测试)
@@ -463,9 +593,13 @@ app/android/app/src/test/java/com/voiceroom/
 
 ---
 
-## 十二、参考资源
+## 十六、参考资源
 
-- **TDS 文档**：`doc/tds/android/T-30028.md`、`doc/tds/android/T-30029.md`
-- **Protocol 文档**：`doc/protocol/websocket_signals.md` §6.4.1 BalanceUpdated
-- **设计文档**：`doc/design/android/T-30028.md`、`doc/design/android/T-30029.md`
-- **依赖库**：Coil 2.x（图片加载）/ Kotlin Coroutines（并发）/ Compose Material3（UI）
+- **TDS 文档**：`doc/tds/android/T-30028.md`、`doc/tds/android/T-30029.md`、`doc/tds/android/T-30030.md` （✅ T-30030 Complete）
+- **Design 文档**：`doc/design/android/T-30028.md`、`doc/design/android/T-30029.md`、`doc/design/android/T-30030.md`
+- **Protocol 文档**：`doc/protocol/websocket_signals.md` 
+  - §6.4.1 BalanceUpdated（余额推送）
+  - §6.4.2 SendGift（客户端请求信令）
+  - §6.4.3 GiftReceived（服务端广播）
+- **依赖库**：Coil 2.x（图片加载）/ Kotlin Coroutines（并发）/ Compose Material3（UI）/ Gson（JSON 安全构造）
+- **Server 实现**：`doc/arch/server/gift.md` T-00020 SendGift 事务处理与幂等机制
