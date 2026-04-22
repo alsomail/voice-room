@@ -53,18 +53,13 @@ pub async fn create_partition_if_not_exists(pool: &PgPool, date: NaiveDate) -> R
     }
 
     // 计算 Riyadh 时区的时间戳边界
-    // from: date 00:00:00 Riyadh (UTC+3) = date 00:00:00 - 03:00 UTC-shifted
-    let tomorrow = date + chrono::Duration::days(1);
-    let from_ts = format!(
-        "{} {:02}:00:00+00",
-        date.format("%Y-%m-%d"),
-        24 - RIYADH_OFFSET_HOURS
-    );
-    let to_ts = format!(
-        "{} {:02}:00:00+00",
-        tomorrow.format("%Y-%m-%d"),
-        24 - RIYADH_OFFSET_HOURS
-    );
+    // date = Riyadh 当日（例如 2026-04-21）
+    // Riyadh 00:00:00 = UTC 前一天 21:00:00（UTC+3，减去 3 小时跨越午夜）
+    // from_ts: prev_day 21:00:00+00 = date 00:00 Riyadh
+    // to_ts:   date     21:00:00+00 = (date+1) 00:00 Riyadh
+    let prev_day = date - chrono::Duration::days(1);
+    let from_ts = format!("{} 21:00:00+00", prev_day.format("%Y-%m-%d"));
+    let to_ts = format!("{} 21:00:00+00", date.format("%Y-%m-%d"));
 
     // partition_name 仅含 [a-z0-9_]，可安全插入 SQL（无 SQL 注入风险）
     // PostgreSQL 不支持 DDL 参数化，必须使用字符串插值
@@ -199,24 +194,21 @@ mod tests {
         assert_eq!(RIYADH_OFFSET_HOURS, 3);
     }
 
-    // S-04: 明日分区时间边界计算正确
+    // S-04: 分区时间边界计算正确
+    // events_20260421 对应 Riyadh 2026-04-21 整天
+    // Riyadh 2026-04-21 00:00 = UTC 2026-04-20 21:00（UTC+3 需减去 3 小时，跨越午夜）
+    // 故 from_ts = "2026-04-20 21:00:00+00"，to_ts = "2026-04-21 21:00:00+00"
     #[test]
     fn s04_partition_time_boundary() {
         let date = NaiveDate::from_ymd_opt(2026, 4, 21).unwrap();
-        let tomorrow = date + chrono::Duration::days(1);
+        let prev_day = date - chrono::Duration::days(1);
 
-        let from_ts = format!(
-            "{} {:02}:00:00+00",
-            date.format("%Y-%m-%d"),
-            24 - RIYADH_OFFSET_HOURS
-        );
-        let to_ts = format!(
-            "{} {:02}:00:00+00",
-            tomorrow.format("%Y-%m-%d"),
-            24 - RIYADH_OFFSET_HOURS
-        );
+        let from_ts = format!("{} 21:00:00+00", prev_day.format("%Y-%m-%d"));
+        let to_ts = format!("{} 21:00:00+00", date.format("%Y-%m-%d"));
 
-        assert_eq!(from_ts, "2026-04-21 21:00:00+00"); // UTC+3 → 00:00 Riyadh = 21:00 UTC
-        assert_eq!(to_ts, "2026-04-22 21:00:00+00");
+        // Riyadh 2026-04-21 00:00 = UTC 2026-04-20 21:00
+        assert_eq!(from_ts, "2026-04-20 21:00:00+00");
+        // Riyadh 2026-04-22 00:00 = UTC 2026-04-21 21:00
+        assert_eq!(to_ts, "2026-04-21 21:00:00+00");
     }
 }
