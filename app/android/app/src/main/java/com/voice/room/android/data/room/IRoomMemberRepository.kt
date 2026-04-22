@@ -41,8 +41,11 @@ data class MemberListResult(
 /**
  * 空实现，生产环境中由 [RetrofitRoomMemberRepository] 替换，
  * 测试中由 [FakeRoomMemberRepository] 替换。
+ *
+ * Review R1 HIGH-02 修复：`hasMore = false`（原为 true），避免在未接入 DI 场景下
+ * 每次 `loadMoreMembers()` 都成功返回并导致 `currentPage` 无限累积。
  */
 class NoOpRoomMemberRepository : IRoomMemberRepository {
     override suspend fun listMembers(roomId: String, page: Int, limit: Int): MemberListResult =
-        MemberListResult(members = emptyList(), total = 0, hasMore = true)
+        MemberListResult(members = emptyList(), total = 0, hasMore = false)
 }

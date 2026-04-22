@@ -321,6 +321,35 @@ class AudienceViewModelTest {
             assertEquals("role should be updated to admin", "admin", member?.role)
         }
 
+    // ─── A39-first-page: 首次 loadMoreMembers 请求 page=1 ───────────────────────
+
+    /**
+     * A39-first-page（Review R1 HIGH-01 回归测试）
+     *
+     * 验证：`currentPage` 初始值为 0，首次调用 `loadMoreMembers()` 时
+     * 实际向 repository 请求的是 page=1（而非 page=2）。
+     *
+     * FakeRoomMemberRepository.calls 记录所有请求参数，
+     * Triple.second 即为 page 参数。
+     */
+    @Test
+    fun `A39-first-page initial loadMoreMembers requests page 1`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            viewModel.joinRoom("room-1")
+            advanceUntilIdle()
+
+            viewModel.loadMoreMembers()
+            advanceUntilIdle()
+
+            val firstCall = fakeMemberRepo.calls.firstOrNull()
+            assertNotNull("loadMoreMembers should have called repository at least once", firstCall)
+            assertEquals(
+                "First loadMoreMembers call must request page=1, not page=2",
+                1,
+                firstCall!!.second   // Triple<roomId, page, limit>.second == page
+            )
+        }
+
     // ─── A39 额外: loadMoreMembers 加载结果追加到 audience ──────────────────────
 
     @Test

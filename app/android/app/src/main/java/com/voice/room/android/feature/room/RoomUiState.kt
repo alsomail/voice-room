@@ -17,7 +17,14 @@ data class AudienceUiState(
     val audience: List<RoomMember> = emptyList(),
     val total: Int = 0,
     val loading: Boolean = false,
-    val currentPage: Int = 1,
+    /**
+     * 已加载的最大页码。初始值为 0，表示"尚未加载任何页"。
+     * 首次 [RoomViewModel.loadMoreMembers] 调用时 nextPage = 0 + 1 = 1，
+     * 正确请求 API 第 1 页（API 1-indexed）。
+     *
+     * Review R1 HIGH-01 修复：原值 1 导致首次请求 page=2，跳过第 1 页数据。
+     */
+    val currentPage: Int = 0,
     val hasMore: Boolean = true,
 )
 
