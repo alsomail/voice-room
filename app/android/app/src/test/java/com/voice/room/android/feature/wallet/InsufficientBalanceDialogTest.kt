@@ -30,7 +30,9 @@ import org.junit.Test
  * I32-02: showInsufficientDialog=true 时 uiState 包含当前余额与所需金额
  * I32-03: dismissInsufficientDialog() → showInsufficientDialog=false，selectedGiftId 不变
  * I32-04: onGoToWallet() → 发射 NavigateToWallet 事件 + showInsufficientDialog=false
- * I32-05: dismissInsufficientDialog() 不清除 selectedGiftId（面板保留选中态）
+ * I32-05: dismissInsufficientDialog() 不清除 selectedGiftId（状态保留逻辑）
+ *          注意：TDS I32-05 UI 层"外部点击不关闭"（dismissOnClickOutside=false）
+ *          行为需通过 Instrumented UI 测试验证，此处仅覆盖 ViewModel 状态层面
  * I32-06: 差额计算正确（totalPrice - balance）
  * I32-07: showInsufficientDialog 初始值为 false
  * I32-08: 连续两次 40290 后 dismissInsufficientDialog()，状态恢复 false
@@ -239,7 +241,8 @@ class InsufficientBalanceDialogTest {
             vm.dismissInsufficientDialog()
 
             assertEquals(
-                "selectedGiftId must be preserved after dismissInsufficientDialog (dismissOnClickOutside=false equivalent)",
+                "selectedGiftId must be preserved after dismissInsufficientDialog " +
+                    "(ViewModel state retention; UI层 dismissOnClickOutside=false 行为需 Instrumented 测试验证)",
                 selectedGiftIdBeforeDismiss,
                 vm.uiState.value.selectedGiftId,
             )

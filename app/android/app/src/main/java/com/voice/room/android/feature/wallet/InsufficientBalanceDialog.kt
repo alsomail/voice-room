@@ -28,9 +28,9 @@ import com.voice.room.android.core.theme.MenaTypography
  * - `dismissOnClickOutside = false`（点外部不关闭，防止误操作）
  * - `dismissOnBackPress = true`（返回键可关闭）
  *
- * testTag 协议（与 TDS §testTag 对齐）：
+ * testTag 协议（与 Review 规格对齐）：
  *   - 弹窗容器：`dialog_insufficient_balance`
- *   - 去充值按钮：`btn_goto_wallet`
+ *   - 去充值按钮：`btn_go_to_wallet`
  *   - 取消按钮：`btn_insufficient_cancel`
  *
  * @param currentBalance 当前用户钻石余额（来自 GiftPanelUiState.balance）
@@ -102,7 +102,7 @@ fun InsufficientBalanceDialog(
             GoldButton(
                 text = "去充值",
                 onClick = onGoToWallet,
-                modifier = Modifier.testTag("btn_goto_wallet"),
+                modifier = Modifier.testTag("btn_go_to_wallet"),
             )
         },
         containerColor = MenaColors.Surface,

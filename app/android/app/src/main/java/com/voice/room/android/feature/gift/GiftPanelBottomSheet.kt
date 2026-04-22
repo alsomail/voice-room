@@ -73,9 +73,9 @@ import kotlinx.coroutines.flow.SharedFlow
  * @param onRetry      网络失败后"点击重试"按钮回调（修复 G28-09）
  * @param onSendGift   送出按钮点击回调（T-30030 接入）
  * @param onRechargeClick 充值按钮回调
- * @param onSelectRecipient 选择接收者回调
  * @param onDismissInsufficientDialog 余额不足弹窗"取消"回调（T-30032）
- * @param onGoToWallet 余额不足弹窗"去充值"回调（T-30032）
+ * @param onGoToWalletClick 余额不足弹窗"去充值"按钮点击回调 → 内部触发 vm.onGoToWallet()（T-30032）
+ * @param onNavigateToWallet LaunchedEffect 处理 NavigateToWallet 事件后的实际导航回调（T-30032）
  * @param modifier     可选 Modifier
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -92,7 +92,8 @@ fun GiftPanelBottomSheet(
     onRechargeClick: () -> Unit = {},
     onSelectRecipient: (String) -> Unit = {},
     onDismissInsufficientDialog: () -> Unit = {},
-    onGoToWallet: () -> Unit = {},
+    onGoToWalletClick: () -> Unit = {},
+    onNavigateToWallet: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -110,8 +111,10 @@ fun GiftPanelBottomSheet(
                     // T-30032: showInsufficientDialog 状态已在 ViewModel 设置，此处无需额外处理
                     Unit
                 is GiftPanelEvent.NavigateToWallet -> {
-                    // T-30032: 导航到钱包页 + 关闭礼物面板
-                    onGoToWallet()
+                    // T-30032: LaunchedEffect 处理导航事件 → 调用实际导航回调 + 关闭礼物面板
+                    // 注意：此处使用 onNavigateToWallet 而非 onGoToWalletClick，
+                    // 避免再次触发 vm.onGoToWallet() 导致无限循环
+                    onNavigateToWallet()
                     onDismiss()
                 }
                 is GiftPanelEvent.DismissPanel ->
@@ -125,7 +128,7 @@ fun GiftPanelBottomSheet(
         InsufficientBalanceDialog(
             currentBalance = uiState.balance,
             required = uiState.totalPrice,
-            onGoToWallet = onGoToWallet,
+            onGoToWallet = onGoToWalletClick,
             onDismiss = onDismissInsufficientDialog,
         )
     }

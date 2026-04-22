@@ -53,6 +53,8 @@ import com.voice.room.android.feature.gift.GiftPanelUiState
  * @param onGiftRechargeClick    充值按钮回调（T-30028）
  * @param onGiftRetry        网络失败后点击重试回调（T-30028 R1 修复）
  * @param onGiftPanelDismiss     关闭礼物面板回调（T-30028）
+ * @param onGoToWalletClick      余额不足弹窗"去充值"按钮点击回调 → 触发 vm.onGoToWallet()（T-30032）
+ * @param onNavigateToWallet     收到 NavigateToWallet 事件后的实际导航回调（T-30032）
  * @param modifier               可选 Modifier
  */
 @Composable
@@ -74,6 +76,8 @@ fun RoomScreen(
     onGiftRechargeClick: () -> Unit = {},
     onGiftRetry: () -> Unit = {},
     onGiftPanelDismiss: () -> Unit = {},
+    onGoToWalletClick: () -> Unit = {},
+    onNavigateToWallet: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     // T-30016: 输入框本地状态，由 ClearInput 事件驱动清空
@@ -157,6 +161,8 @@ fun RoomScreen(
             onRetry = onGiftRetry,
             onSendGift = onSendGift,
             onRechargeClick = onGiftRechargeClick,
+            onGoToWalletClick = onGoToWalletClick,
+            onNavigateToWallet = onNavigateToWallet,
         )
     }
 }
