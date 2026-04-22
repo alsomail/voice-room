@@ -210,6 +210,122 @@ fun CoverPickerBottomSheet(
 > **集成方式**：`CreateRoomScreen` 通过 `showCoverPicker: Boolean`（`rememberSaveable`）控制弹窗显隐；确认后调用 `viewModel.updateCoverUrl(url)` 写入 `CreateRoomFormState.coverUrl`；`canSubmit` 校验 `coverUrl.isNotEmpty()` 确保必选  
 > **内置资源**：8 张 drawable 内置于 `app/src/main/res/drawable/`，MVP 阶段不依赖网络加载
 
+### 密码房进房弹窗（🟢 已完成，T-30038，Review R1 通过）
+
+**最后更新：** 2026-05-24  
+**入口点：** `feature/hall/components/PasswordInputDialog.kt`、`feature/hall/HallViewModel.kt`
+
+#### 架构概览
+
+```
+HallScreen（房间卡片列表）
+  ↓ 点击 has_password=true 的卡片
+HallViewModel.openPasswordDialog(roomId)
+  ↓ passwordDialogState: StateFlow<PasswordDialogState>
+PasswordInputDialog（6 格分格输入 Composable）
+  ↓ 用户填完 6 位 → onSubmit(password)
+HallViewModel.verifyPassword(roomId, password)
+  ↓ HTTP POST /api/v1/rooms/{id}/verify-password
+RetrofitRoomRepository.verifyPassword()
+  ├─ 成功 → hallEvents.emit(NavigateToRoom(roomId, accessToken))
+  ├─ 40103 → PasswordDialogState.Error(remainingAttempts)
+  ├─ 42910 → PasswordDialogState.Locked(remainingMinutes)
+  └─ 40400 → hallEvents.emit(ShowToast("房间不存在"))
+RoomScreen(roomId, accessToken)
+  ↓
+RoomViewModel.joinRoom(accessToken = token)  // WS JoinRoom 携带 access_token
+```
+
+#### 核心组件
+
+| 模块 | 关键文件 | 说明 |
+|------|----------|------|
+| 弹窗 Composable | `feature/hall/components/PasswordInputDialog.kt` | 6 格 `OutlinedTextField` 分格输入；输满自动 submit；Locked 状态禁用输入框；Verifying 状态仅限输入框 + 提交按钮不可交互 |
+| 状态密封类 | `feature/room/PasswordDialogState.kt` | `sealed class PasswordDialogState { Idle / Verifying / Error(remainingAttempts: Int) / Locked(remainingMinutes: Int) }` |
+| 大厅事件 | `feature/room/HallEvent.kt` | `sealed class HallEvent { NavigateToRoom(roomId, accessToken) / ShowToast(message) }` |
+| ViewModel | `feature/hall/HallViewModel.kt` | `passwordDialogState: StateFlow<PasswordDialogState>`；`hallEvents: SharedFlow<HallEvent>`；方法：`openPasswordDialog` / `verifyPassword` / `dismissPasswordDialog` |
+| 领域异常 | `domain/room/PasswordExceptions.kt` | `PasswordWrongException(remainingAttempts)` / `PasswordLockedException(remainingMinutes)` / `RoomNotFoundException` |
+| DTO | `data/remote/model/VerifyPasswordModels.kt` | `VerifyPasswordRequest(password)` / `VerifyPasswordResponseData(accessToken)` |
+| Repository | `data/room/RetrofitRoomRepository.kt` | `verifyPassword()` 实现；错误码映射 40103→Error / 42910→Locked / 40400→Toast；安全默认值 `remaining_attempts ?: 1`、`remaining_minutes ?: 30` |
+| Fake | `data/room/FakeRoomRepository.kt` | `verifyPasswordResult: Result<String>` 可控属性，供单元测试注入 |
+| API | `data/remote/api/RoomApiService.kt` | 新增 `suspend fun verifyPassword(roomId: String, body: VerifyPasswordRequest): Response<...>` |
+| 接口扩展 | `domain/room/IRoomRepository.kt` | 新增 `suspend fun verifyPassword(roomId: String, password: String): String` |
+| RoomViewModel | `feature/room/RoomViewModel.kt` | `joinRoom` 新增 `accessToken: String? = null` 参数，有 token 时 JoinRoom payload 携带 `access_token` 字段 |
+
+#### PasswordDialogState 详解
+
+```kotlin
+sealed class PasswordDialogState {
+    object Idle : PasswordDialogState()
+    object Verifying : PasswordDialogState()
+    data class Error(val remainingAttempts: Int) : PasswordDialogState()
+    data class Locked(val remainingMinutes: Int) : PasswordDialogState()
+}
+```
+
+| 状态 | 输入框 | 提交按钮 | 底部文案 | 关闭按钮 |
+|------|--------|----------|----------|----------|
+| `Idle` | ✅ 可编辑 | ✅ 6位满则启用 | 无 | ✅ 可关闭 |
+| `Verifying` | ❌ 禁用 | ❌ 禁用 | 无 | ❌ 禁用 |
+| `Error(n)` | ✅ 已清空 | ✅ 重新输入 | 🔴 "密码错误，剩余 N 次" | ✅ 可关闭 |
+| `Locked(m)` | ❌ 禁用 | ❌ 禁用 | 🔴 "已被锁定，M 分钟后重试" | ✅ 可关闭 |
+
+> **R1 HIGH 修复**：Locked 状态 `onDismissRequest` 和取消按钮 **不受** `isReadOnly` 限制，仅 `Verifying` 时才屏蔽关闭。`isInputDisabled = state is Verifying || state is Locked` 控制输入框；`onDismissRequest` 独立于输入禁用状态。
+
+#### 错误码映射
+
+| HTTP 错误码 | 含义 | UI 反馈 |
+|------------|------|--------|
+| `40103` | 密码错误 | `PasswordDialogState.Error(remaining_attempts ?: 1)`；红字显示剩余次数；清空输入框 |
+| `42910` | 账号被锁定 | `PasswordDialogState.Locked(remaining_minutes ?: 30)`；输入框禁用；显示剩余分钟 |
+| `40400` | 房间不存在 | `HallEvent.ShowToast("房间不存在")`；弹窗关闭 |
+| 其他网络错误 | 未知故障 | `HallEvent.ShowToast("网络错误，请重试")` |
+
+**安全默认值**：`remaining_attempts ?: 1`、`remaining_minutes ?: 30`（防止服务端未传字段导致 NPE 或 0 次/0 分钟的错误提示）
+
+#### HallViewModel 密码弹窗状态流
+
+```kotlin
+// HallViewModel.kt
+val passwordDialogState: StateFlow<PasswordDialogState> =
+    _passwordDialogState.asStateFlow()        // 初始 Idle
+
+val hallEvents: SharedFlow<HallEvent> =
+    _hallEvents.asSharedFlow()                // 一次性导航/Toast 事件
+
+fun openPasswordDialog(roomId: String)        // has_password=true 卡片点击触发
+fun verifyPassword(roomId: String, password: String)   // 提交 6 位密码
+fun dismissPasswordDialog()                   // 返回键 / 取消按钮触发
+```
+
+状态流转路径：
+```
+Idle ──openPasswordDialog──► Idle (弹窗显示)
+         用户输完 6 位
+         ──verifyPassword──► Verifying
+                             ├─成功──► Idle + NavigateToRoom 事件
+                             ├─40103──► Error(n)  → 用户重新输入 → Verifying ...
+                             ├─42910──► Locked(m)
+                             └─40400──► Idle + ShowToast 事件
+任意状态 ──dismissPasswordDialog──► Idle
+```
+
+#### testTag 清单
+
+| testTag | 组件 | 用途 |
+|---------|------|------|
+| `password_dialog` | `PasswordInputDialog` 根容器 | 断言弹窗已显示 |
+| `password_input` | 6 格输入区域整体 | 查找整体输入区 |
+| `password_digit_0` ~ `password_digit_5` | 各格 `OutlinedTextField` | 断言焦点跳转 / 输入内容 |
+| `btn_submit_password` | 提交按钮 | 断言禁用/启用态，触发提交 |
+| `password_error_text` | 底部红色错误/锁定文案 | 断言错误次数文案 / 锁定提示文案 |
+
+> **包路径**：`com.voice.room.android.feature.hall.components`（PasswordInputDialog）、`com.voice.room.android.feature.room`（PasswordDialogState、HallEvent）  
+> **测试文件**：`test/.../HallPasswordDialogTest.kt`（P38-01~P38-06b）、`test/.../RetrofitRoomRepositoryTest.kt`（VP01/VP02 fallback 值）  
+> **服务端协议**：对齐 `doc/arch/server/room.md` §八~§十二（POST `/api/v1/rooms/:id/verify-password`，Redis `pwd_fail`/`pwd_lock` Key，5 次锁定流程）
+
+---
+
 ### Chat 模块（🟢 已完成，T-30014 ~ T-30017）
 
 | 模块 | 关键文件 | Task | 当前状态 |
