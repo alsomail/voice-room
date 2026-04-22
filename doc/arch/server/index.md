@@ -25,6 +25,7 @@ Server 端基于 Rust + Axum 构建。启动骨架（配置、日志、健康检
 - 💰 [Wallet 模块架构](./wallet.md) - 余额查询 API（T-00018）、流水分页查询、`WalletService.apply_delta` 原子事务支持、`BalanceBroadcaster` Redis PubSub 跨进程推送、WS `BalanceUpdated` 信令设计。
 - 🎁 [礼物模块架构](./gift.md) - 礼物配置表与列表 API（T-00019）、国际化支持（Accept-Language）、缓存策略（60s 进程内存）、`GiftModel` 数据模型；SendGift 事务编排（T-00020）、6 步强事务流程、msg_id 幂等、并发超扣防护、房间广播与发送者推送。
 - 📊 [Analytics 模块架构](./analytics.md) - 事件表 Schema + 分区设计（T-00022）、HTTP `POST /api/v1/events/batch` 批量接收接口、PartitionScheduler 定时分区创建 + 补偿逻辑；WebSocket `ReportEvent` 信令（T-00023）与 EventWriter 共享写入层、JWT user_id 覆盖逻辑、properties 8KB 截断机制。
+- 🏠 [Room HTTP API 架构](./room.md) - `POST /api/v1/rooms` 扩展字段（`cover_url`/`category`/`announcement`/`password`）与白名单校验（T-00025）；`PATCH /api/v1/rooms/:id` 房主更新接口；`RoomInfoUpdated` WS 广播格式（含 `has_password` 布尔）；`validator.rs` 四个验证函数设计；遗留 MEDIUM 项（`BroadcastEnvelope` 缺 `msg_id`）。
 
 ## 三、 当前能力全景与状态 (Capability Matrix)
 > 状态枚举：🟢 已完成 | 🟡 开发/调试中 | 🔴 待开发
@@ -42,6 +43,7 @@ Server 端基于 Rust + Axum 构建。启动骨架（配置、日志、健康检
 - 🟢 统一错误响应结构（含 `request_id`、`safe_message` 防信息泄露）
 - 🟢 **数据层 — rooms 表**（T-00006）：`002_create_rooms.sql` DDL（6 个 CHECK 约束、3 个索引含软删除偏滤）+ `RoomModel` struct（29 个单元测试全通过）
 - 🟢 **E-10 Schema 基座 — rooms 扩字段 + 治理审计表**（T-00024）：`008_room_governance.sql` 幂等迁移（`cover_url`/`category`/`announcement`/`admin_user_id` 扩字段 + `chk_room_category` 6类枚举约束）；新建 `room_kick_records`（踢人审计，2 索引）+ `room_mute_records`（禁言/禁麦审计，`type CHECK IN('mic','chat')` + 2 索引）；`RoomKickRecord`/`RoomMuteRecord`/`MuteType` 模型；23 个测试全通过
+- 🟢 **创建房间 API 升级**（T-00025）：`POST /api/v1/rooms` 新增 `cover_url`/`category`/`announcement`/`password` 字段；白名单封面校验（`validator.rs` `validate_cover_url`）；密码 bcrypt hash 写库明文不落地；新建 `PATCH /api/v1/rooms/:id`（仅房主，更新 title/announcement/category）；变更后广播 `RoomInfoUpdated` WS 信令（含 `has_password` 布尔）；369 个测试全通过 ✅；遗留 MEDIUM：`BroadcastEnvelope` 缺 `msg_id`（不阻塞上线）
 - 🟢 **房间创建接口**（T-00007）：`POST /api/v1/rooms`（JWT 鉴权、标题校验、唯一 active 房间约束、bcrypt 密码哈希、HTTP 201 响应）；`003_add_unique_active_room_per_owner.sql` 唯一偏滤索引 + 60 个单元测试全通过
 - 🟢 **房间列表接口**（T-00008）：`GET /api/v1/rooms`（公开无鉴权、分页、按 `member_count DESC, created_at DESC` 热度排序、过滤已关闭房间、含房主信息 JOIN）；78 个单元测试全通过
 - 🟢 **房间详情接口**（T-00009）：`GET /api/v1/rooms/:id`（公开无鉴权、返回房主信息 + 麦位列表 MVP 为空、UUID 格式校验、404 兜底）
