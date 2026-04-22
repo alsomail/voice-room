@@ -117,7 +117,10 @@ class HallViewModel(
         override suspend fun createRoom(
             title: String,
             type: String,
-            password: String?
+            password: String?,
+            coverUrl: String,
+            category: String,
+            announcement: String?
         ): Result<String> =
             Result.failure(
                 IllegalStateException("No IRoomRepository injected. Use HallViewModel.Factory.")

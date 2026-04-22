@@ -81,7 +81,7 @@ class FakeRoomRepository : IRoomRepository {
     }
 
     /**
-     * T-30007: 创建房间
+     * T-30007 + T-30036: 创建房间
      *
      * [shouldFail]=true 时返回 [Result.failure(IOException)]；
      * 否则返回 [Result.success(createdRoomId)]
@@ -89,7 +89,10 @@ class FakeRoomRepository : IRoomRepository {
     override suspend fun createRoom(
         title: String,
         type: String,
-        password: String?
+        password: String?,
+        coverUrl: String,
+        category: String,
+        announcement: String?
     ): Result<String> {
         if (shouldFail) return Result.failure(IOException("Network error"))
         return Result.success(createdRoomId)

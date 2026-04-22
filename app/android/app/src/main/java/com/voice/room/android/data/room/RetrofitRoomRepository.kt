@@ -63,7 +63,7 @@ class RetrofitRoomRepository(
         RoomPagingSource(this)
 
     /**
-     * T-30007: 创建房间
+     * T-30007 + T-30036: 创建房间
      *
      * POST /api/v1/rooms → 成功返回新房间 ID；
      * HTTP 4xx/5xx 或 code≠0 → [Result.failure(ApiException)]
@@ -71,10 +71,20 @@ class RetrofitRoomRepository(
     override suspend fun createRoom(
         title: String,
         type: String,
-        password: String?
+        password: String?,
+        coverUrl: String,
+        category: String,
+        announcement: String?
     ): Result<String> =
         runCatching {
-            val request = CreateRoomRequest(title = title, roomType = type, password = password)
+            val request = CreateRoomRequest(
+                title = title,
+                roomType = type,
+                password = password,
+                coverUrl = coverUrl.ifBlank { null },
+                category = category.ifBlank { null },
+                announcement = announcement?.ifBlank { null }
+            )
             val response = api.createRoom(request)
 
             if (!response.isSuccessful) {

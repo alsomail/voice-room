@@ -47,6 +47,9 @@ class CreateRoomViewModelTest {
         var lastTitle: String? = null
         var lastType: String? = null
         var lastPassword: String? = null
+        var lastCoverUrl: String? = null
+        var lastCategory: String? = null
+        var lastAnnouncement: String? = null
 
         override suspend fun getRooms(page: Int, size: Int): Result<RoomsPage> =
             Result.success(RoomsPage(total = 0, page = 1, items = emptyList()))
@@ -57,12 +60,18 @@ class CreateRoomViewModelTest {
         override suspend fun createRoom(
             title: String,
             type: String,
-            password: String?
+            password: String?,
+            coverUrl: String,
+            category: String,
+            announcement: String?
         ): Result<String> {
             createRoomCallCount++
             lastTitle = title
             lastType = type
             lastPassword = password
+            lastCoverUrl = coverUrl
+            lastCategory = category
+            lastAnnouncement = announcement
             return Result.success(returnedRoomId)
         }
     }
@@ -82,7 +91,10 @@ class CreateRoomViewModelTest {
         override suspend fun createRoom(
             title: String,
             type: String,
-            password: String?
+            password: String?,
+            coverUrl: String,
+            category: String,
+            announcement: String?
         ): Result<String> = Result.failure(Exception(errorMessage))
     }
 
@@ -99,7 +111,10 @@ class CreateRoomViewModelTest {
         override suspend fun createRoom(
             title: String,
             type: String,
-            password: String?
+            password: String?,
+            coverUrl: String,
+            category: String,
+            announcement: String?
         ): Result<String> = awaitCancellation()
     }
 
@@ -397,7 +412,10 @@ class CreateRoomViewModelTest {
                 override suspend fun createRoom(
                     title: String,
                     type: String,
-                    password: String?
+                    password: String?,
+                    coverUrl: String,
+                    category: String,
+                    announcement: String?
                 ): Result<String> = Result.failure(Exception()) // null message
             }
             val viewModel = CreateRoomViewModel(fakeRepo)
@@ -804,6 +822,40 @@ class CreateRoomViewModelTest {
                 "C36-08c: canSubmit=false → repository not called",
                 0,
                 fakeRepo.createRoomCallCount
+            )
+        }
+
+    // ─────────────────────────────────────────────
+    // C36-07c: [HIGH-01] submit 时 coverUrl/category/announcement 传给仓库
+    // ─────────────────────────────────────────────
+
+    @Test
+    fun `C36-07c submit passes coverUrl category announcement to repository`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            val fakeRepo = FakeSuccessRepository()
+            val viewModel = CreateRoomViewModel(fakeRepo)
+
+            viewModel.updateTitle("语音房 C36c")
+            viewModel.updateCoverUrl("https://img.example.com/cover.jpg")
+            viewModel.updateCategory(RoomCategory.MUSIC)
+            viewModel.updateAnnouncement("欢迎来到我的直播间！")
+            viewModel.submit()
+            advanceUntilIdle()
+
+            assertEquals(
+                "C36-07c: coverUrl should be passed to repository",
+                "https://img.example.com/cover.jpg",
+                fakeRepo.lastCoverUrl
+            )
+            assertEquals(
+                "C36-07c: category key should be passed to repository",
+                "music",
+                fakeRepo.lastCategory
+            )
+            assertEquals(
+                "C36-07c: announcement should be passed to repository",
+                "欢迎来到我的直播间！",
+                fakeRepo.lastAnnouncement
             )
         }
 }

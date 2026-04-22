@@ -1,6 +1,9 @@
 package com.voice.room.android.feature.room
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -8,7 +11,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -18,6 +23,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Snackbar
@@ -111,6 +117,47 @@ fun CreateRoomScreen(
                 .padding(horizontal = 24.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+
+            // ── 封面选择区域（HIGH-02 修复）────────────────
+            OutlinedCard(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(100.dp)
+                    .testTag("cover_preview")
+                    .clickable(
+                        enabled = !state.submitting,
+                        onClick = { onSelectCover?.invoke() }
+                    ),
+                shape = RoundedCornerShape(8.dp),
+                border = BorderStroke(
+                    width = 1.dp,
+                    color = if (state.coverUrl.isEmpty())
+                        MaterialTheme.colorScheme.error.copy(alpha = 0.5f)
+                    else
+                        MaterialTheme.colorScheme.primary
+                )
+            ) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (state.coverUrl.isEmpty()) {
+                        Text(
+                            text = "点击选择封面",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.testTag("cover_placeholder")
+                        )
+                    } else {
+                        Text(
+                            text = "✓ 封面已选择",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.testTag("cover_selected_hint")
+                        )
+                    }
+                }
+            }
 
             // ── 房间标题 ──────────────────────────────
             OutlinedTextField(

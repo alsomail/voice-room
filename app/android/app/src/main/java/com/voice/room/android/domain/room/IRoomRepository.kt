@@ -40,14 +40,24 @@ interface IRoomRepository {
     fun getRoomsPagingSource(): PagingSource<Int, RoomItem>
 
     /**
-     * 创建新房间（T-30007 新增）
+     * 创建新房间（T-30007 + T-30036）
      *
      * 对应 protocol.md §3.1 POST /api/v1/rooms
      *
-     * @param title    房间标题（1–30 Unicode 字符；服务端再校验）
-     * @param type     房间类型：`normal` / `password` / `paid`
-     * @param password 密码（`type=password` 时必填；其他类型传 null）
+     * @param title        房间标题（1–30 Unicode 字符；服务端再校验）
+     * @param type         房间类型：`normal` / `password` / `paid`
+     * @param password     密码（`type=password` 时必填；其他类型传 null）
+     * @param coverUrl     封面图 URL（T-30036 新增）
+     * @param category     房间分类 key（T-30036 新增）：chat / emotion / music / game / matchmaking / other
+     * @param announcement 公告（T-30036 新增，可选，最多 200 字符）
      * @return [Result.success] 包含新建房间 ID；校验失败或 API 错误返回 [Result.failure]
      */
-    suspend fun createRoom(title: String, type: String, password: String?): Result<String>
+    suspend fun createRoom(
+        title: String,
+        type: String,
+        password: String?,
+        coverUrl: String = "",
+        category: String = "",
+        announcement: String? = null
+    ): Result<String>
 }

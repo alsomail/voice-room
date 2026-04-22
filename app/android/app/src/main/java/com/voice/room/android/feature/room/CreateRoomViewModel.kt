@@ -163,7 +163,10 @@ class CreateRoomViewModel(
             repository.createRoom(
                 title = s.title.trim(),
                 type = roomType,
-                password = password
+                password = password,
+                coverUrl = s.coverUrl,
+                category = s.category.key,
+                announcement = s.announcement.ifBlank { null }
             ).onSuccess { roomId ->
                 _formState.update { it.copy(submitting = false, navigatedRoomId = roomId) }
             }.onFailure { error ->

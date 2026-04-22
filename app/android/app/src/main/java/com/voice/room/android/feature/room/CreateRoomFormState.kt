@@ -41,7 +41,7 @@ data class CreateRoomFormState(
      */
     val canSubmit: Boolean
         get() = title.isNotBlank()
-             && title.length <= 30
+             && title.codePointCount(0, title.length) <= 30
              && announcement.length <= 200
              && (!passwordEnabled || password.matches(Regex("\\d{6}")))
              && coverUrl.isNotEmpty()

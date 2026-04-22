@@ -90,7 +90,14 @@ class RoomListViewModelTest {
                     return RoomPagingSource(this)
                 }
 
-                override suspend fun createRoom(title: String, type: String, password: String?): Result<String> =
+                override suspend fun createRoom(
+                    title: String,
+                    type: String,
+                    password: String?,
+                    coverUrl: String,
+                    category: String,
+                    announcement: String?
+                ): Result<String> =
                     Result.failure(UnsupportedOperationException())
             }
 
@@ -147,7 +154,14 @@ class RoomListViewModelTest {
                     }
                 }
 
-                override suspend fun createRoom(title: String, type: String, password: String?): Result<String> =
+                override suspend fun createRoom(
+                    title: String,
+                    type: String,
+                    password: String?,
+                    coverUrl: String,
+                    category: String,
+                    announcement: String?
+                ): Result<String> =
                     Result.failure(UnsupportedOperationException())
             }
 

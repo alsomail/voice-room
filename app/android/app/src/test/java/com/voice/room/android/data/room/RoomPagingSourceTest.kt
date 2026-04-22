@@ -52,7 +52,7 @@ class RoomPagingSourceTest {
             override fun getRoomsPagingSource(): PagingSource<Int, RoomItem> =
                 RoomPagingSource(this)
 
-            override suspend fun createRoom(title: String, type: String, password: String?): Result<String> =
+            override suspend fun createRoom(title: String, type: String, password: String?, coverUrl: String, category: String, announcement: String?): Result<String> =
                 Result.failure(UnsupportedOperationException())
         }
 
@@ -130,7 +130,7 @@ class RoomPagingSourceTest {
             override fun getRoomsPagingSource(): PagingSource<Int, RoomItem> =
                 RoomPagingSource(this)
 
-            override suspend fun createRoom(title: String, type: String, password: String?): Result<String> =
+            override suspend fun createRoom(title: String, type: String, password: String?, coverUrl: String, category: String, announcement: String?): Result<String> =
                 Result.failure(UnsupportedOperationException())
         }
         val source = RoomPagingSource(failingRepo)
@@ -243,7 +243,7 @@ class RoomPagingSourceTest {
             override fun getRoomsPagingSource(): PagingSource<Int, RoomItem> =
                 RoomPagingSource(this)
 
-            override suspend fun createRoom(title: String, type: String, password: String?): Result<String> =
+            override suspend fun createRoom(title: String, type: String, password: String?, coverUrl: String, category: String, announcement: String?): Result<String> =
                 Result.failure(UnsupportedOperationException())
         }
         val source = RoomPagingSource(spyRepo)

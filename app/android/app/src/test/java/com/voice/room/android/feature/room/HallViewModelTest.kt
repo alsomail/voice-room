@@ -77,7 +77,10 @@ class HallViewModelTest {
                 override suspend fun createRoom(
                     title: String,
                     type: String,
-                    password: String?
+                    password: String?,
+                    coverUrl: String,
+                    category: String,
+                    announcement: String?
                 ): Result<String> = kotlinx.coroutines.awaitCancellation()
             }
             val viewModel = HallViewModel(blockingRepo)
