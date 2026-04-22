@@ -211,6 +211,40 @@ class HallPasswordDialogTest {
         }
 
     // ─────────────────────────────────────────────
+    // P38-06b: Locked 状态下仍可 dismiss（返回键/取消按钮不被屏蔽）
+    // ─────────────────────────────────────────────
+
+    @Test
+    fun `P38-06b dismissPasswordDialog in Locked state sets dialogState to null`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            // 先让 repo 返回 PasswordLockedException，使 state 变为 Locked
+            val fakeRepo = FakeRoomRepository().apply {
+                verifyPasswordResult =
+                    Result.failure(PasswordLockedException(remainingMinutes = 30))
+            }
+            val viewModel = HallViewModel(fakeRepo)
+            advanceUntilIdle()
+
+            viewModel.openPasswordDialog("room-locked")
+            viewModel.verifyPassword("wrongpwd")
+            advanceUntilIdle()
+
+            // 确认当前是 Locked 状态
+            assertTrue(
+                "Pre-condition: state should be Locked",
+                viewModel.passwordDialogState.value is PasswordDialogState.Locked
+            )
+
+            // 在 Locked 状态下调用 dismiss，应该能正常关闭（state 变 null）
+            viewModel.dismissPasswordDialog()
+
+            assertNull(
+                "Dialog state should be null after dismiss even in Locked state",
+                viewModel.passwordDialogState.value
+            )
+        }
+
+    // ─────────────────────────────────────────────
     // 边界：RoomNotFoundException → Toast + dialog 关闭
     // ─────────────────────────────────────────────
 

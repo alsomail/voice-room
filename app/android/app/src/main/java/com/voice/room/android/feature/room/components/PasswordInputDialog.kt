@@ -57,21 +57,23 @@ fun PasswordInputDialog(
     val digits = remember { mutableStateListOf(*Array(PASSWORD_LENGTH) { "" }) }
     val focusRequesters = remember { List(PASSWORD_LENGTH) { FocusRequester() } }
 
-    val isReadOnly = state is PasswordDialogState.Verifying || state is PasswordDialogState.Locked
+    // isReadOnly：仅 Verifying 时为 true（禁止输入 + 屏蔽 dismiss）
+    val isReadOnly = state is PasswordDialogState.Verifying
+    // isInputDisabled：Verifying 或 Locked 时输入框均禁用
+    val isInputDisabled = state is PasswordDialogState.Verifying || state is PasswordDialogState.Locked
 
-    // 每次弹窗出现（state 切换为 Idle）时清空输入并聚焦第 0 格
-    LaunchedEffect(state is PasswordDialogState.Idle) {
-        if (state is PasswordDialogState.Idle) {
-            digits.fill("")
-            focusRequesters[0].requestFocus()
-        }
-    }
-
-    // 密码错误后清空输入，重新聚焦
-    LaunchedEffect(state is PasswordDialogState.Error) {
-        if (state is PasswordDialogState.Error) {
-            digits.fill("")
-            focusRequesters[0].requestFocus()
+    // 用 state 本身作 key，合并两个 LaunchedEffect 为单个 when 分支
+    LaunchedEffect(state) {
+        when (state) {
+            is PasswordDialogState.Idle -> {
+                digits.fill("")
+                focusRequesters[0].requestFocus()
+            }
+            is PasswordDialogState.Error -> {
+                digits.fill("")
+                focusRequesters[0].requestFocus()
+            }
+            else -> { /* Verifying / Locked：无需清空操作 */ }
         }
     }
 
@@ -95,9 +97,8 @@ fun PasswordInputDialog(
                         OutlinedTextField(
                             value = value,
                             onValueChange = { newVal ->
-                                if (isReadOnly) return@OutlinedTextField
+                                if (isInputDisabled) return@OutlinedTextField
                                 val char = newVal.lastOrNull()?.toString() ?: ""
-                                if (char.length > 1) return@OutlinedTextField // 过滤粘贴多字符
                                 digits[index] = char
                                 when {
                                     char.isNotEmpty() && index < PASSWORD_LENGTH - 1 ->
@@ -118,7 +119,7 @@ fun PasswordInputDialog(
                                 .testTag("password_digit_$index")
                                 .focusRequester(focusRequesters[index]),
                             singleLine = true,
-                            enabled = !isReadOnly,
+                            enabled = !isInputDisabled,
                             visualTransformation = PasswordVisualTransformation(),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword)
                         )
@@ -153,7 +154,7 @@ fun PasswordInputDialog(
         confirmButton = {
             Button(
                 modifier = Modifier.testTag("btn_submit_password"),
-                enabled = !isReadOnly && digits.joinToString("").length == PASSWORD_LENGTH,
+                enabled = !isInputDisabled && digits.joinToString("").length == PASSWORD_LENGTH,
                 onClick = { onSubmit(digits.joinToString("")) }
             ) {
                 Text("确认")

@@ -3,8 +3,14 @@ package com.voice.room.android.data.room
 import com.voice.room.android.data.auth.ApiException
 import com.voice.room.android.data.remote.api.RoomApiService
 import com.voice.room.android.data.remote.model.ApiResponse
+import com.voice.room.android.data.remote.model.CreateRoomRequest
+import com.voice.room.android.data.remote.model.CreateRoomResponseData
 import com.voice.room.android.data.remote.model.RoomItemDto
 import com.voice.room.android.data.remote.model.RoomListResponseData
+import com.voice.room.android.data.remote.model.VerifyPasswordRequest
+import com.voice.room.android.data.remote.model.VerifyPasswordResponseData
+import com.voice.room.android.domain.room.PasswordLockedException
+import com.voice.room.android.domain.room.PasswordWrongException
 import kotlinx.coroutines.test.runTest
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
@@ -215,5 +221,71 @@ class RetrofitRoomRepositoryTest {
 
         assertTrue("Expected failure for null body", result.isFailure)
         assertNotNull(result.exceptionOrNull())
+    }
+
+    // ─────────────────────────────────────────────
+    // VP01: verifyPassword 40103 + remaining_attempts null → fallback 1
+    // ─────────────────────────────────────────────
+
+    @Test
+    fun `VP01 verifyPassword 40103 with null remaining_attempts falls back to 1`() = runTest {
+        // 构造 remaining_attempts 缺失的错误响应
+        val errorJson = """{"code":40103,"message":"wrong password","data":{},"request_id":"req-vp01"}"""
+        val service = object : RoomApiService {
+            override suspend fun getRooms(page: Int, size: Int) =
+                throw UnsupportedOperationException()
+            override suspend fun createRoom(request: CreateRoomRequest) =
+                throw UnsupportedOperationException()
+            override suspend fun verifyPassword(
+                roomId: String,
+                request: VerifyPasswordRequest
+            ): Response<ApiResponse<VerifyPasswordResponseData>> =
+                Response.error(400, errorJson.toResponseBody())
+        }
+        val repo = RetrofitRoomRepository(service)
+
+        val result = repo.verifyPassword("room-001", "wrongpwd")
+
+        assertTrue("Expected failure", result.isFailure)
+        val ex = result.exceptionOrNull()
+        assertTrue("Expected PasswordWrongException", ex is PasswordWrongException)
+        assertEquals(
+            "remaining_attempts null should fallback to 1",
+            1,
+            (ex as PasswordWrongException).remainingAttempts
+        )
+    }
+
+    // ─────────────────────────────────────────────
+    // VP02: verifyPassword 42910 + remaining_minutes null → fallback 30
+    // ─────────────────────────────────────────────
+
+    @Test
+    fun `VP02 verifyPassword 42910 with null remaining_minutes falls back to 30`() = runTest {
+        // 构造 remaining_minutes 缺失的错误响应
+        val errorJson = """{"code":42910,"message":"locked","data":{},"request_id":"req-vp02"}"""
+        val service = object : RoomApiService {
+            override suspend fun getRooms(page: Int, size: Int) =
+                throw UnsupportedOperationException()
+            override suspend fun createRoom(request: CreateRoomRequest) =
+                throw UnsupportedOperationException()
+            override suspend fun verifyPassword(
+                roomId: String,
+                request: VerifyPasswordRequest
+            ): Response<ApiResponse<VerifyPasswordResponseData>> =
+                Response.error(400, errorJson.toResponseBody())
+        }
+        val repo = RetrofitRoomRepository(service)
+
+        val result = repo.verifyPassword("room-001", "wrongpwd")
+
+        assertTrue("Expected failure", result.isFailure)
+        val ex = result.exceptionOrNull()
+        assertTrue("Expected PasswordLockedException", ex is PasswordLockedException)
+        assertEquals(
+            "remaining_minutes null should fallback to 30",
+            30,
+            (ex as PasswordLockedException).remainingMinutes
+        )
     }
 }

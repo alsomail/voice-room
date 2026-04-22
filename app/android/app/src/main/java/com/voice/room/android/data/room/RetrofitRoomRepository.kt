@@ -139,12 +139,12 @@ class RetrofitRoomRepository(
                         when (errBody.code) {
                             40103 -> {
                                 val remaining = (errBody.data?.get("remaining_attempts") as? Double)
-                                    ?.toInt() ?: 0
+                                    ?.toInt() ?: 1
                                 throw PasswordWrongException(remaining)
                             }
                             42910 -> {
                                 val minutes = (errBody.data?.get("remaining_minutes") as? Double)
-                                    ?.toInt() ?: 0
+                                    ?.toInt() ?: 30
                                 throw PasswordLockedException(minutes)
                             }
                             40400 -> throw RoomNotFoundException()
