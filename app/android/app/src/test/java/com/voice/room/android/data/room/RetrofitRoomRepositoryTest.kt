@@ -41,6 +41,12 @@ class RetrofitRoomRepositoryTest {
             request: com.voice.room.android.data.remote.model.CreateRoomRequest
         ): Response<ApiResponse<com.voice.room.android.data.remote.model.CreateRoomResponseData>> =
             throw UnsupportedOperationException("createRoom not tested in RetrofitRoomRepositoryTest")
+
+        override suspend fun verifyPassword(
+            roomId: String,
+            request: com.voice.room.android.data.remote.model.VerifyPasswordRequest
+        ): Response<ApiResponse<com.voice.room.android.data.remote.model.VerifyPasswordResponseData>> =
+            throw UnsupportedOperationException("verifyPassword not tested in RetrofitRoomRepositoryTest")
     }
 
     // ─────────────────────────────────────────────

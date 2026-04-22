@@ -4,10 +4,16 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.voice.room.android.domain.room.IRoomRepository
+import com.voice.room.android.domain.room.PasswordLockedException
+import com.voice.room.android.domain.room.PasswordWrongException
+import com.voice.room.android.domain.room.RoomNotFoundException
 import com.voice.room.android.domain.room.RoomsPage
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -31,6 +37,21 @@ class HallViewModel(
 
     private val _uiState = MutableStateFlow(HallUiState())
     val uiState: StateFlow<HallUiState> = _uiState.asStateFlow()
+
+    // ─────────────────────────────────────────────
+    // 密码弹窗状态 (T-30038)
+    // ─────────────────────────────────────────────
+
+    /** 密码弹窗状态；null 表示弹窗已关闭 */
+    private val _passwordDialogState = MutableStateFlow<PasswordDialogState?>(null)
+    val passwordDialogState: StateFlow<PasswordDialogState?> = _passwordDialogState.asStateFlow()
+
+    /** 一次性 UI 事件（导航、Toast），由 Channel 保证不丢失 */
+    private val _hallEvents = Channel<HallEvent>(Channel.UNLIMITED)
+    val hallEvents: Flow<HallEvent> = _hallEvents.receiveAsFlow()
+
+    /** 当前正在验证密码的房间 ID */
+    private var passwordDialogRoomId: String? = null
 
     init {
         loadRooms(page = 1)
@@ -74,6 +95,75 @@ class HallViewModel(
     fun refresh() {
         _uiState.update { it.copy(rooms = emptyList()) }
         loadRooms(page = 1)
+    }
+
+    // ─────────────────────────────────────────────
+    // 密码弹窗操作 (T-30038)
+    // ─────────────────────────────────────────────
+
+    /**
+     * 打开密码输入弹窗
+     *
+     * @param roomId 目标密码房 ID
+     */
+    fun openPasswordDialog(roomId: String) {
+        passwordDialogRoomId = roomId
+        _passwordDialogState.value = PasswordDialogState.Idle
+    }
+
+    /**
+     * 关闭密码弹窗（返回键 / 点击外部区域）
+     *
+     * 不进入房间，重置弹窗状态为 null。
+     */
+    fun dismissPasswordDialog() {
+        passwordDialogRoomId = null
+        _passwordDialogState.value = null
+    }
+
+    /**
+     * 提交密码验证（6 位输完自动调用）
+     *
+     * 流程：
+     * 1. 立即切换状态为 [PasswordDialogState.Verifying]
+     * 2. 调用 [IRoomRepository.verifyPassword]
+     * 3. 成功 → 发出 [HallEvent.NavigateToRoom]，关闭弹窗
+     * 4. 40103 → 切 [PasswordDialogState.Error]
+     * 5. 42910 → 切 [PasswordDialogState.Locked]
+     * 6. 40400 → Toast "房间不存在" + 关闭弹窗
+     * 7. 其它 → Toast "网络错误，请重试"
+     *
+     * @param password 用户输入的 6 位密码
+     */
+    fun verifyPassword(password: String) {
+        val roomId = passwordDialogRoomId ?: return
+        _passwordDialogState.value = PasswordDialogState.Verifying
+        viewModelScope.launch {
+            roomRepository.verifyPassword(roomId, password)
+                .onSuccess { accessToken ->
+                    _hallEvents.trySend(HallEvent.NavigateToRoom(roomId, accessToken))
+                    _passwordDialogState.value = null
+                }
+                .onFailure { error ->
+                    when (error) {
+                        is PasswordWrongException ->
+                            _passwordDialogState.value =
+                                PasswordDialogState.Error(error.remainingAttempts)
+
+                        is PasswordLockedException ->
+                            _passwordDialogState.value =
+                                PasswordDialogState.Locked(error.remainingMinutes)
+
+                        is RoomNotFoundException -> {
+                            _hallEvents.trySend(HallEvent.ShowToast("房间不存在"))
+                            _passwordDialogState.value = null
+                        }
+
+                        else ->
+                            _hallEvents.trySend(HallEvent.ShowToast("网络错误，请重试"))
+                    }
+                }
+        }
     }
 
     // ─────────────────────────────────────────────
@@ -122,6 +212,11 @@ class HallViewModel(
             category: String,
             announcement: String?
         ): Result<String> =
+            Result.failure(
+                IllegalStateException("No IRoomRepository injected. Use HallViewModel.Factory.")
+            )
+
+        override suspend fun verifyPassword(roomId: String, password: String): Result<String> =
             Result.failure(
                 IllegalStateException("No IRoomRepository injected. Use HallViewModel.Factory.")
             )

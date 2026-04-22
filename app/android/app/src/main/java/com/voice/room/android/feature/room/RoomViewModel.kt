@@ -105,10 +105,11 @@ class RoomViewModel(
     /**
      * 进入房间：获取 HTTP 快照 → 初始化 UI 状态 → 发送 JoinRoom WS 消息。
      *
-     * @param roomId 目标房间 ID
-     * @param userId 当前用户 ID（用于上麦/下麦身份判断，默认空字符串）
+     * @param roomId      目标房间 ID
+     * @param userId      当前用户 ID（用于上麦/下麦身份判断，默认空字符串）
+     * @param accessToken 密码房访问令牌（[HallViewModel.verifyPassword] 返回，普通房传 null）
      */
-    fun joinRoom(roomId: String, userId: String = "") {
+    fun joinRoom(roomId: String, userId: String = "", accessToken: String? = null) {
         currentRoomId = roomId
         currentUserId = userId
         viewModelScope.launch {
@@ -117,7 +118,11 @@ class RoomViewModel(
                 val snapshot = roomSnapshotRepository.getRoomSnapshot(roomId)
                 _uiState.value = RoomViewState.Success(snapshot.toRoomUiState())
                 val msgId = UUID.randomUUID().toString()
-                wsClient.send("""{"type":"JoinRoom","roomId":"$roomId","msgId":"$msgId"}""")
+                val accessTokenPart =
+                    if (accessToken != null) ""","access_token":"$accessToken"""" else ""
+                wsClient.send(
+                    """{"type":"JoinRoom","roomId":"$roomId","msgId":"$msgId"$accessTokenPart}"""
+                )
             } catch (e: CancellationException) {
                 throw e  // 必须 rethrow，保持协程取消语义
             } catch (e: Exception) {

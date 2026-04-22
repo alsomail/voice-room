@@ -4,10 +4,13 @@ import com.voice.room.android.data.remote.model.ApiResponse
 import com.voice.room.android.data.remote.model.CreateRoomRequest
 import com.voice.room.android.data.remote.model.CreateRoomResponseData
 import com.voice.room.android.data.remote.model.RoomListResponseData
+import com.voice.room.android.data.remote.model.VerifyPasswordRequest
+import com.voice.room.android.data.remote.model.VerifyPasswordResponseData
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.POST
+import retrofit2.http.Path
 import retrofit2.http.Query
 
 /**
@@ -44,4 +47,22 @@ interface RoomApiService {
     suspend fun createRoom(
         @Body request: CreateRoomRequest
     ): Response<ApiResponse<CreateRoomResponseData>>
+
+    /**
+     * 验证密码房密码 (T-30038)
+     *
+     * POST /api/v1/rooms/:id/verify-password
+     * 需要 JWT 鉴权（由 AuthInterceptor 注入 Authorization 头）
+     *
+     * 成功返回 HTTP 200 + access_token；
+     * 错误码：40103（密码错误）、42910（已锁定）、40400（房间不存在）
+     *
+     * @param roomId  目标房间 ID（路径参数）
+     * @param request 包含 password 的请求体
+     */
+    @POST("rooms/{id}/verify-password")
+    suspend fun verifyPassword(
+        @Path("id") roomId: String,
+        @Body request: VerifyPasswordRequest
+    ): Response<ApiResponse<VerifyPasswordResponseData>>
 }

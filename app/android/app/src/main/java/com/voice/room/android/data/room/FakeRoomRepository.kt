@@ -15,8 +15,9 @@ import java.io.IOException
  * - [rooms] 可替换为任意房间列表
  * - [total] 可覆盖 total 字段（用于测试 hasMore 逻辑）
  * - [createdRoomId] 控制 createRoom 成功时返回的 room ID（T-30007）
+ * - [verifyPasswordResult] 控制 verifyPassword 的返回结果（T-30038）
  */
-class FakeRoomRepository : IRoomRepository {
+open class FakeRoomRepository : IRoomRepository {
 
     var shouldFail = false
 
@@ -47,6 +48,14 @@ class FakeRoomRepository : IRoomRepository {
 
     /** T-30007: createRoom 成功时返回的 roomId */
     var createdRoomId: String = "fake-room-id"
+
+    /**
+     * T-30038: verifyPassword 的预设返回结果
+     *
+     * 默认成功返回 "fake-access-token"；
+     * 测试中可替换为具体错误 Result.failure(PasswordWrongException(N))
+     */
+    var verifyPasswordResult: Result<String> = Result.success("fake-access-token")
 
     override suspend fun getRooms(page: Int, size: Int): Result<RoomsPage> {
         if (shouldFail) return Result.failure(IOException("Network error"))
@@ -97,4 +106,13 @@ class FakeRoomRepository : IRoomRepository {
         if (shouldFail) return Result.failure(IOException("Network error"))
         return Result.success(createdRoomId)
     }
+
+    /**
+     * T-30038: 验证密码房密码
+     *
+     * 返回 [verifyPasswordResult] 预设值。
+     * 测试中可覆盖该方法以实现永久挂起（模拟 Verifying 状态）。
+     */
+    override suspend fun verifyPassword(roomId: String, password: String): Result<String> =
+        verifyPasswordResult
 }

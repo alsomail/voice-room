@@ -82,6 +82,11 @@ class HallViewModelTest {
                     category: String,
                     announcement: String?
                 ): Result<String> = kotlinx.coroutines.awaitCancellation()
+
+                override suspend fun verifyPassword(
+                    roomId: String,
+                    password: String
+                ): Result<String> = kotlinx.coroutines.awaitCancellation()
             }
             val viewModel = HallViewModel(blockingRepo)
 

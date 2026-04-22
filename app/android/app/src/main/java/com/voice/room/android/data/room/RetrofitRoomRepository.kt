@@ -7,7 +7,11 @@ import com.voice.room.android.data.remote.api.RoomApiService
 import com.voice.room.android.data.remote.model.ApiResponse
 import com.voice.room.android.data.remote.model.CreateRoomRequest
 import com.voice.room.android.data.remote.model.RoomItemDto
+import com.voice.room.android.data.remote.model.VerifyPasswordRequest
 import com.voice.room.android.domain.room.IRoomRepository
+import com.voice.room.android.domain.room.PasswordLockedException
+import com.voice.room.android.domain.room.PasswordWrongException
+import com.voice.room.android.domain.room.RoomNotFoundException
 import com.voice.room.android.domain.room.RoomItem
 import com.voice.room.android.domain.room.RoomsPage
 
@@ -21,6 +25,7 @@ import com.voice.room.android.domain.room.RoomsPage
  * - 网络异常 → 原样封装为 [Result.failure]
  * - T-30006: [getRoomsPagingSource] → 委托 [RoomPagingSource]
  * - T-30007: [createRoom] → POST /api/v1/rooms
+ * - T-30038: [verifyPassword] → POST /api/v1/rooms/:id/verify-password
  */
 class RetrofitRoomRepository(
     private val api: RoomApiService
@@ -107,6 +112,57 @@ class RetrofitRoomRepository(
                 ?: throw ApiException(50001, "Null data in response")
 
             data.roomId
+        }
+
+    /**
+     * T-30038: 验证密码房密码
+     *
+     * POST /api/v1/rooms/:id/verify-password
+     * - 成功 (code=0) → Result.success(access_token)
+     * - 40103 → [PasswordWrongException](remainingAttempts)
+     * - 42910 → [PasswordLockedException](remainingMinutes)
+     * - 40400 → [RoomNotFoundException]
+     * - 其它 → [ApiException]
+     */
+    override suspend fun verifyPassword(roomId: String, password: String): Result<String> =
+        runCatching {
+            val request = VerifyPasswordRequest(password = password)
+            val response = api.verifyPassword(roomId, request)
+
+            if (!response.isSuccessful) {
+                val errJson = response.errorBody()?.string()
+                if (!errJson.isNullOrBlank()) {
+                    runCatching {
+                        val errType = object : TypeToken<ApiResponse<Map<String, Any>>>() {}.type
+                        val errBody: ApiResponse<Map<String, Any>> =
+                            gson.fromJson(errJson, errType)
+                        when (errBody.code) {
+                            40103 -> {
+                                val remaining = (errBody.data?.get("remaining_attempts") as? Double)
+                                    ?.toInt() ?: 0
+                                throw PasswordWrongException(remaining)
+                            }
+                            42910 -> {
+                                val minutes = (errBody.data?.get("remaining_minutes") as? Double)
+                                    ?.toInt() ?: 0
+                                throw PasswordLockedException(minutes)
+                            }
+                            40400 -> throw RoomNotFoundException()
+                            else  -> throw ApiException(errBody.code, errBody.message)
+                        }
+                    }.onSuccess { /* unreachable */ }
+                        .onFailure { throw it }
+                }
+                throw ApiException(response.code(), "HTTP ${response.code()}: ${response.message()}")
+            }
+
+            val body = response.body()
+                ?: throw ApiException(50001, "Empty response body")
+            if (body.code != 0) throw ApiException(body.code, body.message)
+            val data = body.data
+                ?: throw ApiException(50001, "Null data in response")
+
+            data.accessToken
         }
 }
 

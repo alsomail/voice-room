@@ -74,6 +74,9 @@ class CreateRoomViewModelTest {
             lastAnnouncement = announcement
             return Result.success(returnedRoomId)
         }
+
+        override suspend fun verifyPassword(roomId: String, password: String): Result<String> =
+            Result.failure(UnsupportedOperationException())
     }
 
     /**
@@ -96,6 +99,9 @@ class CreateRoomViewModelTest {
             category: String,
             announcement: String?
         ): Result<String> = Result.failure(Exception(errorMessage))
+
+        override suspend fun verifyPassword(roomId: String, password: String): Result<String> =
+            Result.failure(UnsupportedOperationException())
     }
 
     /**
@@ -116,6 +122,9 @@ class CreateRoomViewModelTest {
             category: String,
             announcement: String?
         ): Result<String> = awaitCancellation()
+
+        override suspend fun verifyPassword(roomId: String, password: String): Result<String> =
+            awaitCancellation()
     }
 
     /** 空 PagingSource（测试中不需要分页功能） */
@@ -417,6 +426,9 @@ class CreateRoomViewModelTest {
                     category: String,
                     announcement: String?
                 ): Result<String> = Result.failure(Exception()) // null message
+
+                override suspend fun verifyPassword(roomId: String, password: String): Result<String> =
+                    Result.failure(UnsupportedOperationException())
             }
             val viewModel = CreateRoomViewModel(fakeRepo)
 

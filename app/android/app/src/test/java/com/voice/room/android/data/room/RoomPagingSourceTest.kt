@@ -54,6 +54,9 @@ class RoomPagingSourceTest {
 
             override suspend fun createRoom(title: String, type: String, password: String?, coverUrl: String, category: String, announcement: String?): Result<String> =
                 Result.failure(UnsupportedOperationException())
+
+            override suspend fun verifyPassword(roomId: String, password: String): Result<String> =
+                Result.failure(UnsupportedOperationException())
         }
 
     // ─────────────────────────────────────────────
@@ -131,6 +134,9 @@ class RoomPagingSourceTest {
                 RoomPagingSource(this)
 
             override suspend fun createRoom(title: String, type: String, password: String?, coverUrl: String, category: String, announcement: String?): Result<String> =
+                Result.failure(UnsupportedOperationException())
+
+            override suspend fun verifyPassword(roomId: String, password: String): Result<String> =
                 Result.failure(UnsupportedOperationException())
         }
         val source = RoomPagingSource(failingRepo)
@@ -244,6 +250,9 @@ class RoomPagingSourceTest {
                 RoomPagingSource(this)
 
             override suspend fun createRoom(title: String, type: String, password: String?, coverUrl: String, category: String, announcement: String?): Result<String> =
+                Result.failure(UnsupportedOperationException())
+
+            override suspend fun verifyPassword(roomId: String, password: String): Result<String> =
                 Result.failure(UnsupportedOperationException())
         }
         val source = RoomPagingSource(spyRepo)

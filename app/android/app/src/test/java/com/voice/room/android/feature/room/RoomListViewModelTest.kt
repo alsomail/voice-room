@@ -99,6 +99,12 @@ class RoomListViewModelTest {
                     announcement: String?
                 ): Result<String> =
                     Result.failure(UnsupportedOperationException())
+
+                override suspend fun verifyPassword(
+                    roomId: String,
+                    password: String
+                ): Result<String> =
+                    Result.failure(UnsupportedOperationException())
             }
 
             val viewModel = RoomListViewModel(trackingRepo)
@@ -161,6 +167,12 @@ class RoomListViewModelTest {
                     coverUrl: String,
                     category: String,
                     announcement: String?
+                ): Result<String> =
+                    Result.failure(UnsupportedOperationException())
+
+                override suspend fun verifyPassword(
+                    roomId: String,
+                    password: String
                 ): Result<String> =
                     Result.failure(UnsupportedOperationException())
             }

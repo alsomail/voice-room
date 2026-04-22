@@ -60,4 +60,18 @@ interface IRoomRepository {
         category: String = "",
         announcement: String? = null
     ): Result<String>
+
+    /**
+     * 验证密码房密码（T-30038）
+     *
+     * 对应 POST /api/v1/rooms/:id/verify-password
+     *
+     * @param roomId   目标房间 ID
+     * @param password 用户输入的密码
+     * @return [Result.success] 包含 access_token（用于后续 WS JoinRoom）
+     * @throws [PasswordWrongException] 密码错误（HTTP 40103），含剩余次数
+     * @throws [PasswordLockedException] 已被锁定（HTTP 42910），含剩余分钟
+     * @throws [RoomNotFoundException] 房间不存在（HTTP 40400）
+     */
+    suspend fun verifyPassword(roomId: String, password: String): Result<String>
 }
