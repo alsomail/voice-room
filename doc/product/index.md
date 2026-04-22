@@ -47,7 +47,7 @@
 | **E-06: Web 管理端增强** | **Phase 0.5** | ✅ 已完成 (2/2) | T-20010 ✅, T-20011 ✅ |
 | **E-07: 虚拟礼物与钱包闭环 MVP** | **Phase 1** | ✅ **已完成 (15/15)** | T-00017 ✅（钱包 Schema）, T-00018 ✅（余额 API + WS 推送）, T-00019 ✅（礼物配置表+列表API）, T-00020 ✅（SendGift 事务+广播）, T-00021 ✅（魅力/财富榜单 API）, T-10013 ✅（Admin 手动调整余额）, T-10014 ✅（Admin 礼物 CRUD）, T-20012 ✅（Web 余额调整弹窗+礼物管理页），T-30027 ✅（Android 钱包页），T-30028 ✅（Android 礼物面板），T-30029 ✅（Android 接收者选择器），T-30030 ✅（Android SendGift 客户端+幂等），T-30031 ✅（Android 送礼特效+弹幕），T-30032 ✅（Android 余额不足引导弹窗），**T-30033 ✅（Android 魅力/财富榜页）** |
 | **E-07.5: 埋点与观测性基建** | **Phase 1 并行** | ✅ **已完成 (6/6)** | T-00022 ✅ (事件表+HTTP API) / T-00023 ✅ (WS 通道), T-10015 ✅ (Admin 查询 API), **T-20013 ✅ (Web 行为流 Tab)**, **T-30034 ✅ (Android Analytics 防腐层+Sentry)**, **T-30035 ✅ (Android EventReportClient+核心埋点+隐私弹窗)** |
-| **E-10: 房间主权与管理员体系** | **Phase 1.5** | 🟡 **进行中 (6/18)** | T-00024 ✅（rooms 治理 Schema + 迁移）；T-00025 ✅（创建房间 API 升级）；T-00026 ✅（密码房进房校验 + 锁定机制）；T-00027 ✅（观众席列表 API）；T-00028 ✅（KickUser 信令 + 10min 冷却）；T-00029 ✅（MuteUser/UnmuteUser 信令 + 双重拦截）；其余 12 个待开发 |
+| **E-10: 房间主权与管理员体系** | **Phase 1.5** | 🟡 **进行中 (7/18)** | T-00024 ✅（rooms 治理 Schema + 迁移）；T-00025 ✅（创建房间 API 升级）；T-00026 ✅（密码房进房校验 + 锁定机制）；T-00027 ✅（观众席列表 API）；T-00028 ✅（KickUser 信令 + 10min 冷却）；T-00029 ✅（MuteUser/UnmuteUser 信令 + 双重拦截）；T-00030 ✅（TransferAdmin + ForceTakeMic/ForceLeaveMic）；其余 11 个待开发 |
 | E-08: Google Play 真支付 | Phase 1 | 🔴 待开发 | 待拆解（依赖 E-07） |
 | E-09: 贵族体系 | Phase 1 | 🔴 待开发 | 待拆解（依赖 E-07/E-08） |
 
@@ -63,6 +63,7 @@
 ---
 
 **文档变更历史**:
+- 2026-05-19: v2.1，T-00030 DoD 完成，E-10 Epic 进度更新为 7/18（新增 T-00030 ✅ TransferAdmin + ForceTakeMic/ForceLeaveMic，Review Round 1 通过，427 个测试全部通过）；doc/arch/server/room.md 新增三十二~三十九章：TransferAdmin assign/revoke C→S 信令格式、AdminChanged 广播含 previous_admin_id、ForceTakeMic/ForceLeaveMic 信令、权限矩阵、原子性约束、遗留问题、文件清单与 427 测试汇总；doc/product/index.md E-10 进度 6/18 → 7/18
 - 2026-05-18: v2.0，T-00029 DoD 完成，E-10 Epic 进度更新为 6/18（新增 T-00029 ✅ MuteUser/UnmuteUser 信令 + 双重拦截，Review Round 3 通过，365 个测试全部通过）；doc/arch/server/room.md 新增二十四~三十一章：MuteUser/UnmuteUser C→S 信令格式（duration_sec [60,86400]、type mic/chat 独立）、UserMuted S→C 广播格式（duration_sec=0 表解除）、Redis Key 设计（mic_muted/chat_muted TTL=duration_sec）、处理流程 5 步（权限→SETEX→INSERT→若在麦下麦+MicLeft→广播 UserMuted）、SendMessage 前置 40305 / TakeMic 前置 40306 双重拦截、送礼不受禁麦影响、文件清单与 365 测试汇总；doc/product/index.md E-10 进度 5/18 → 6/18
 - 2026-05-17: v1.9，T-00028 DoD 完成，E-10 Epic 进度更新为 5/18（新增 T-00028 ✅ KickUser 信令 + 10min 冷却，Review Round 1 通过，366+ 测试全部通过）；doc/arch/server/room.md 新增十六~二十三章：KickUser 信令格式（C→S/S→C/广播 UserKicked/UserLeft/MicLeft）、处理流程 7 步、权限校验矩阵（owner/admin/member 三级，不可踢 owner）、Redis 冷却 Key（kicked:{room_id}:{user_id} TTL 600s）、JoinRoom 冷却拦截（42911 KICKED_COOLDOWN）、并发保护（DashMap.remove() 原子性）、遗留问题（MEDIUM 广播顺序 + LOW TTL=-1）、文件清单与测试汇总；doc/product/index.md E-10 进度 4/18 → 5/18
 - 2026-05-16: v1.8，T-00027 DoD 完成，E-10 Epic 进度更新为 4/18（新增 T-00027 ✅ 观众席列表 API，Review Round 2 通过，398 个测试全部通过）；doc/arch/server/room.md 新增十三~十五章：GET /api/v1/rooms/:id/members 接口契约（响应格式、排序规则）、角色计算优先级（owner > admin > member）、性能设计（1 次批量 SQL WHERE id = ANY($1)）、muted_mic/muted_chat 读 Redis Key、MemberSnapshot 单一数据源说明（删除 member_join_times DashMap）、权限错误码、文件清单与测试覆盖汇总（398 个测试全部通过）；doc/product/index.md E-10 进度 3/18 → 4/18

@@ -725,3 +725,147 @@ if deps.mute_redis.is_mic_muted(room_id, user_id).await? {
 |--------|------|------|
 | 集成测试 `mute_user_test.rs` | MU29-01 ~ MU29-12 端到端 | 12 |
 | **全量测试** | 365 个全部 ✅，零回归 | 365 |
+
+---
+
+## 三十二、TransferAdmin 信令（T-00030）
+
+### C→S：TransferAdmin（仅房主）
+
+```json
+{
+  "type": "TransferAdmin",
+  "msg_id": "uuid",
+  "payload": {
+    "room_id": "uuid",
+    "target_user_id": "uuid",
+    "action": "assign" | "revoke"
+  }
+}
+```
+
+### S→所有成员：AdminChanged 广播
+
+```json
+{
+  "type": "AdminChanged",
+  "payload": {
+    "room_id": "uuid",
+    "admin_user_id": "uuid | null",
+    "previous_admin_id": "uuid | null",
+    "operator_id": "uuid"
+  }
+}
+```
+
+- `previous_admin_id`：assign 覆盖旧管理员时非 null；revoke 时为 null
+- `admin_user_id`：revoke 时为 null
+
+---
+
+## 三十三、ForceTakeMic / ForceLeaveMic 信令（T-00030）
+
+### C→S：ForceTakeMic（owner / admin）
+
+```json
+{
+  "type": "ForceTakeMic",
+  "msg_id": "uuid",
+  "payload": { "room_id": "uuid", "target_user_id": "uuid", "slot_index": 2 }
+}
+```
+
+### C→S：ForceLeaveMic（owner / admin）
+
+```json
+{
+  "type": "ForceLeaveMic",
+  "msg_id": "uuid",
+  "payload": { "room_id": "uuid", "target_user_id": "uuid" }
+}
+```
+
+广播复用已有信令：`MicTaken { forced_by: operator_id }` / `MicLeft { forced_by: operator_id }`
+
+---
+
+## 三十四、权限矩阵（T-00030）
+
+| 信令 | owner | admin | member |
+|------|:-----:|:-----:|:------:|
+| TransferAdmin assign/revoke | ✅ | ❌ 40301 | ❌ 40301 |
+| ForceTakeMic | ✅ | ✅ | ❌ 40301 |
+| ForceLeaveMic | ✅ | ✅（不可抱下房主） | ❌ 40301 |
+
+---
+
+## 三十五、业务规则与约束（T-00030）
+
+### TransferAdmin assign
+1. `ctx.user_id == room.owner_id`，否则 40301
+2. `target_user_id` 不能是房主，否则 40302
+3. 若已有管理员（`room.admin_user_id IS NOT NULL`）→ 先隐式 revoke，`previous_admin_id` 填旧管理员 ID
+4. `UPDATE rooms SET admin_user_id = target`（行锁，MVP `SELECT … FOR UPDATE`）
+5. 广播 `AdminChanged`
+
+### TransferAdmin revoke
+1. `target_user_id` 必须是当前管理员，否则 40404
+2. `UPDATE rooms SET admin_user_id = NULL`
+3. 广播 `AdminChanged { admin_user_id: null }`
+
+### ForceTakeMic
+1. 权限：owner / admin（否则 40301）
+2. `mic_muted:{room_id}:{target}` 存在 → 40306 MIC_MUTED
+3. `slot_index` 已被占 → 40907 SLOT_OCCUPIED
+4. `room_manager.take_mic(slot_index, target, forced_by)`
+5. 广播 `MicTaken { forced_by }`
+
+### ForceLeaveMic
+1. 权限：owner / admin（否则 40301）
+2. 管理员不能抱下房主 → 40302
+3. target 不在麦 → 40404 MIC_NOT_FOUND
+4. `room_manager.leave_mic(slot, forced_by)`
+5. 广播 `MicLeft { forced_by }`
+
+---
+
+## 三十六、原子性保证（T-00030）
+
+- TransferAdmin 整体走 SQLx 事务：`BEGIN → UPDATE rooms → INSERT admin_logs → COMMIT`
+- DB 任意步骤失败 → 全部回滚，**不广播** AdminChanged
+- ForceTakeMic/ForceLeaveMic：先修改内存 `room_manager`，再 DB（mic_state 内存权威），广播在最后一步
+
+---
+
+## 三十七、遗留问题（T-00030）
+
+| 优先级 | 问题 | 说明 |
+|--------|------|------|
+| LOW | `target_user_id` 不在房间未显式校验 | MVP 范围接受；建议后续 Task 补充 40412 NOT_IN_ROOM 错误码 |
+| LOW | `TransferAdminDeps.room_manager` 暂未使用 | 预留字段，不影响正确性 |
+
+---
+
+## 三十八、涉及文件清单（T-00030 新增 / 修改）
+
+| 文件路径 | 变更类型 | 说明 |
+|---------|---------|------|
+| `app/server/src/modules/governance/transfer.rs` | **新增** | `handle_transfer_admin`：assign/revoke 逻辑 + AdminChanged 广播 |
+| `app/server/src/modules/governance/force_mic.rs` | **新增** | `handle_force_take_mic` / `handle_force_leave_mic` |
+| `app/server/src/modules/governance/mod.rs` | 修改 | 导出 `transfer` / `force_mic` 子模块 |
+| `app/server/src/ws/connection.rs` | 修改 | 新增 TransferAdmin/ForceTakeMic/ForceLeaveMic 三个路由分支；`SocketDeps` 新增 `transfer_admin_repo` |
+| `app/server/src/ws/handler.rs` | 修改 | 传递 `transfer_admin_repo` 给 `handle_socket` |
+| `app/server/src/bootstrap/mod.rs` | 修改 | `AppState` 新增 `transfer_admin_repo`；`with_transfer_admin_repo()` builder |
+| `app/server/src/room/manager.rs` | 修改 | `take_mic`/`leave_mic` 加 `forced_by: Option<Uuid>` 参数 |
+| `app/server/tests/transfer_admin_test.rs` | **新增** | TA30-01~06 + TA30-14（7 个用例）|
+| `app/server/tests/force_mic_test.rs` | **新增** | FM30-07~13（7 个用例）|
+
+---
+
+## 三十九、测试覆盖汇总（T-00030）
+
+| 测试集 | 范围 | 数量 |
+|--------|------|------|
+| 集成测试 `transfer_admin_test.rs` | TA30-01~06 + TA30-14 端到端 | 7 |
+| 集成测试 `force_mic_test.rs` | FM30-07~13 端到端 | 7 |
+| **全量测试** | 427 个全部 ✅，零回归 | 427 |
