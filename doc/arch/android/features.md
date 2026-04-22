@@ -141,6 +141,75 @@ interface IRoomRepository {
 > **向后兼容**：旧版 `CreateRoomBottomSheet` (T-30007) 与 `CreateRoomViewModel.createRoom(title, type, password)` 接口保持不变，新版通过 `CreateRoomScreen` + `CreateRoomFormState` 并行运行  
 > **遗留项**（下一迭代）：`CreateRoomScreen` 标题计数器显示与 `isError` 判断仍用 `title.length`（UTF-16），与 `canSubmit` 的 `codePointCount` 不一致（Review R2 MEDIUM-NEW-01）；`RoomCategory.label` 硬编码中文，待改为 `@StringRes` 支持 i18n（Review R1 LOW-01）
 
+### 房间封面选择器模块（🟢 已完成，T-30037，Review 通过）
+
+| 组件 | 关键文件 | Task | 当前状态 |
+| --- | --- | --- | --- |
+| 封面选择底部弹窗 | `feature/room/create/CoverPickerBottomSheet.kt` | T-30037 | 🟢 `ModalBottomSheet` 内嵌 `LazyVerticalGrid(Fixed(3))`，3 列展示 8 张中东风预设封面；选中项金色 2dp 边框（`MenaColors.Primary`）+ 角标对钩；确认按钮回传 `coverUrl` 给父页；testTag `cover_picker_sheet` |
+| 封面选项常量 | `feature/room/create/CoverOptions.kt` | T-30037 | 🟢 `COVER_OPTIONS: List<CoverOption>` 共 8 项（沙漠 / 清真寺 / 烛灯 / 鹰 / 玫瑰 / 游艇 / 太阳 / 书法），每项含 `drawableRes: Int` + `coverUrl: String`（预设 CDN 路径或 `drawable://` 协议）|
+| 封面选项状态 | `feature/room/create/CoverPickerState.kt` | T-30037 | 🟢 `CoverPickerState(selectedIndex: Int)` 由 `mutableStateOf` 驱动，响应式更新选中封面 |
+| CreateRoomScreen 集成 | `feature/room/CreateRoomScreen.kt` | T-30037 | 🟢 新增 `showCoverPicker: Boolean` 本地状态（`rememberSaveable`）；`CoverPreview` 点击 → `showCoverPicker = true`；`CoverPickerBottomSheet` onDismiss → `showCoverPicker = false`，onConfirm(url) → `viewModel.updateCoverUrl(url) + showCoverPicker = false` |
+
+#### CoverPickerBottomSheet 架构说明
+
+```kotlin
+// feature/room/create/CoverPickerBottomSheet.kt
+@Composable
+fun CoverPickerBottomSheet(
+    currentCoverUrl: String,
+    onDismiss: () -> Unit,
+    onConfirm: (coverUrl: String) -> Unit
+) {
+    var state by remember { mutableStateOf(CoverPickerState(
+        selectedIndex = COVER_OPTIONS.indexOfFirst { it.coverUrl == currentCoverUrl }.coerceAtLeast(0)
+    )) }
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        LazyVerticalGrid(columns = GridCells.Fixed(3)) {
+            itemsIndexed(COVER_OPTIONS) { index, option ->
+                CoverOptionItem(
+                    option = option,
+                    selected = state.selectedIndex == index,
+                    onClick = { state = state.copy(selectedIndex = index) },
+                    modifier = Modifier.testTag("cover_option_$index")
+                )
+            }
+        }
+        GoldButton(
+            text = "确认",
+            onClick = { onConfirm(COVER_OPTIONS[state.selectedIndex].coverUrl) },
+            modifier = Modifier.testTag("btn_confirm_cover")
+        )
+    }
+}
+```
+
+#### COVER_OPTIONS 封面清单（8 张中东风格）
+
+| index | 主题 | drawableRes | coverUrl 后缀 |
+|-------|------|-------------|--------------|
+| 0 | 沙漠 (desert) | `R.drawable.cover_desert` | `cover_desert` |
+| 1 | 清真寺 (mosque) | `R.drawable.cover_mosque` | `cover_mosque` |
+| 2 | 烛灯 (lantern) | `R.drawable.cover_lantern` | `cover_lantern` |
+| 3 | 鹰 (eagle) | `R.drawable.cover_eagle` | `cover_eagle` |
+| 4 | 玫瑰 (rose) | `R.drawable.cover_rose` | `cover_rose` |
+| 5 | 游艇 (yacht) | `R.drawable.cover_yacht` | `cover_yacht` |
+| 6 | 太阳 (sun) | `R.drawable.cover_sun` | `cover_sun` |
+| 7 | 书法 (calligraphy) | `R.drawable.cover_calligraphy` | `cover_calligraphy` |
+
+#### testTag 清单
+
+| testTag | 组件 | 用途 |
+|---------|------|------|
+| `cover_picker_sheet` | `CoverPickerBottomSheet` 根容器 | 断言弹窗已显示 |
+| `cover_option_0` ~ `cover_option_7` | 每张封面卡片 | 点击选中指定封面，断言选中态金色边框 |
+| `btn_confirm_cover` | 确认按钮 | 点击触发 `onConfirm(coverUrl)` |
+| `cover_preview` | `CreateRoomScreen` 封面预览区 | 点击 → `showCoverPicker = true`（T-30036 已定义）|
+
+> **包路径**：`com.voice.room.android.feature.room.create`  
+> **状态驱动**：`CoverPickerState.selectedIndex` 由 `mutableStateOf` 驱动，组件内部状态，选中封面通过 `onConfirm` 回调单向流出  
+> **集成方式**：`CreateRoomScreen` 通过 `showCoverPicker: Boolean`（`rememberSaveable`）控制弹窗显隐；确认后调用 `viewModel.updateCoverUrl(url)` 写入 `CreateRoomFormState.coverUrl`；`canSubmit` 校验 `coverUrl.isNotEmpty()` 确保必选  
+> **内置资源**：8 张 drawable 内置于 `app/src/main/res/drawable/`，MVP 阶段不依赖网络加载
+
 ### Chat 模块（🟢 已完成，T-30014 ~ T-30017）
 
 | 模块 | 关键文件 | Task | 当前状态 |
