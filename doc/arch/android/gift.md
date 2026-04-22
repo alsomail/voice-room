@@ -43,7 +43,7 @@ domain/gift/
 |-----|------|------|
 | `IGiftRepository` | Repository 接口 | `listGifts(locale: String): Result<List<GiftVO>>` |
 | `GiftVO` | 礼物值对象 | `id: String` / `code: String` / `name: String` / `iconUrl: String` / `price: Long` / `sortOrder: Int` / `tier: Int` |
-| `MicUserVO` | 麦位用户值对象 | `micIndex: Int` / `userId: String` / `nickname: String` / `avatarUrl: String` / `isMuted: Boolean` |
+| `MicUserVO` | 麦位用户值对象 | `micIndex: Int` / `userId: String` / `nickname: String` / `avatarUrl: String` |
 
 ### Data 层（HTTP 与缓存）
 
@@ -101,6 +101,7 @@ feature/gift/
 └── components/
     ├── GiftCard.kt             # 礼物卡片组件
     ├── CountSelector.kt        # 数量选择器
+    ├── RecipientSelector.kt    # 接收者选择器（T-30029）
     └── BalanceBar.kt           # 顶部余额条
 ```
 
@@ -350,11 +351,10 @@ GiftCard 显示 gift.name（自动适配语言）
 | `showGiftPanel` 状态 | RoomScreen | 控制面板显示/隐藏 |
 | `GiftPanelEvent` | RoomScreen LaunchedEffect | Toast/弹窗通知 |
 
-### 后续接入（T-30029~T-30033）
+### 后续接入（T-30030~T-30033）
 
 | Task | 接入内容 |
 |-----|---------|
-| **T-30029** | 接收者选择器组件：替换 `[RecipientSelector 占位]` |
 | **T-30030** | SendGift 逻辑：实现"送出"按钮的 `onClick = { viewModel.sendGift() }` |
 | **T-30032** | 余额不足弹窗：ShowRechargeHint 事件处理 |
 | **T-30031** | 送礼特效：GiftReceived 事件驱动动画播放 |

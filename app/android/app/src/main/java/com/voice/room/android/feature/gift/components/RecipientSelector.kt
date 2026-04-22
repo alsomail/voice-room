@@ -1,12 +1,11 @@
 package com.voice.room.android.feature.gift.components
 
-import androidx.compose.foundation.border
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -35,7 +34,7 @@ import com.voice.room.android.domain.gift.MicUserVO
  *
  * - 非空列表：[LazyRow] 横向滚动，每项 [AvatarWithFrame](48dp) + 昵称省略号
  * - 主麦（slot=0）置首（由 [GiftPanelViewModel.updateRecipients] 排序保证）
- * - 选中项：金色 2dp 光圈边框 + 底部金色圆点
+ * - 选中项：金色 2dp 光圈边框 + 底部实心金色圆点
  * - 空列表：显示"当前无人在麦"（居中灰字），`selectedRecipientId` 为 null
  * - 首次渲染若 selected 为 null 且有列表，ViewModel 已自动选中第一个（主麦）
  *
@@ -94,7 +93,7 @@ fun RecipientSelector(
  * 单个接收者头像项
  *
  * - 48dp 头像（[AvatarWithFrame]）
- * - 选中态：金色 2dp 边框 + 底部 4dp 金色圆点
+ * - 选中态：金色 2dp 边框 + 底部实心 4dp 金色圆点
  * - 昵称最多 1 行，超出省略号
  *
  * testTag：`recipient_item_{userId}`
@@ -106,44 +105,44 @@ private fun RecipientItem(
     onSelect: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(
+    Box(
         modifier = modifier
             .width(56.dp)
             .clickable { onSelect(user.userId) }
             .testTag("recipient_item_${user.userId}"),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+        contentAlignment = Alignment.TopCenter,
     ) {
-        // ── 头像 + 选中边框 ────────────────────────────────────────────────
-        Box(
-            contentAlignment = Alignment.BottomCenter,
+        Column(
+            modifier = Modifier.align(Alignment.BottomCenter),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            // AvatarWithFrame 已内置金色边框（showFrame=isSelected 时显示 2dp Primary 边框）
+            // ── 头像 + 选中边框 ────────────────────────────────────────────────
             AvatarWithFrame(
                 imageUrl = user.avatarUrl,
                 size = 48.dp,
                 showFrame = isSelected,
             )
 
-            // 底部金色选中指示点
-            if (isSelected) {
-                Spacer(
-                    modifier = Modifier
-                        .size(4.dp)
-                        .clip(CircleShape)
-                        .border(2.dp, MenaColors.Primary, CircleShape),
-                )
-            }
+            // ── 昵称（省略号截断） ────────────────────────────────────────────
+            Text(
+                text = user.nickname,
+                style = MenaTypography.labelSmall,
+                color = if (isSelected) MenaColors.Primary else MenaColors.OnBackgroundSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
 
-        // ── 昵称（省略号截断） ────────────────────────────────────────────
-        Text(
-            text = user.nickname,
-            style = MenaTypography.labelSmall,
-            color = if (isSelected) MenaColors.Primary else MenaColors.OnBackgroundSecondary,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
+        // 底部实心金色选中指示点（在头像 Column 外部，避免昵称文字跳动）
+        if (isSelected) {
+            Box(
+                modifier = Modifier
+                    .size(4.dp)
+                    .background(MenaColors.Primary, CircleShape)
+                    .align(Alignment.TopCenter),
+            )
+        }
     }
 }
 
