@@ -588,3 +588,140 @@ if let Some(remaining_sec) = kick_redis.get_ttl(room_id, user_id).await? {
 |--------|------|------|
 | 集成测试 `kick_user_test.rs` | K28-01 ~ K28-12 端到端 | 12 |
 | **全量测试** | 366+ 个全部 ✅，零回归 | 366+ |
+
+---
+
+## 二十四、MuteUser/UnmuteUser 信令格式（C→S）
+
+**`MuteUser` C→S**
+```json
+{ "type": "MuteUser", "msg_id": "uuid",
+  "payload": { "room_id": "uuid", "target_user_id": "uuid",
+               "type": "mic" | "chat", "duration_sec": 300, "reason": "..." } }
+```
+- `duration_sec` 合法范围：**[60, 86400]**；超出范围返回 `40002`（payload 非法）
+- `type` 必填，`mic` / `chat` 独立不互相影响
+
+**`UnmuteUser` C→S**
+```json
+{ "type": "UnmuteUser", "msg_id": "uuid",
+  "payload": { "room_id": "uuid", "target_user_id": "uuid", "type": "mic" | "chat" } }
+```
+
+**错误码**
+
+| 错误码 | 含义 |
+|--------|------|
+| `40301` | 权限不足（member 发出） |
+| `40302` | 目标为房主（不可被禁） |
+| `40002` | payload 非法（duration_sec 越界 / type 缺失） |
+| `40400` | 目标不在房间 |
+
+---
+
+## 二十五、UserMuted 广播格式（S→C）
+
+```json
+{ "type": "UserMuted", "payload": {
+    "room_id": "uuid",
+    "target_user_id": "uuid",
+    "type": "mic" | "chat",
+    "duration_sec": 300,
+    "expires_at": "2025-01-07T12:05:00Z",
+    "operator_id": "uuid"
+} }
+```
+- **解除广播**：`duration_sec=0`，`expires_at` 可省略
+- 广播范围：房间所有连接（含被禁者）
+
+---
+
+## 二十六、Redis Key 设计（T-00029）
+
+| Key 格式 | 类型 | TTL | 含义 |
+|---------|------|-----|------|
+| `mic_muted:{room_id}:{user_id}` | String | `duration_sec` 秒 | 禁麦中 |
+| `chat_muted:{room_id}:{user_id}` | String | `duration_sec` 秒 | 禁言中 |
+
+写入命令：`SETEX mic_muted:{room_id}:{user_id} {duration_sec} {reason}`
+删除命令（UnmuteUser）：`DEL mic_muted:{room_id}:{user_id}`
+TTL 到期后 Redis 自动清除，禁令自动解除，**无需定时任务**。
+
+---
+
+## 二十七、MuteUser 处理流程（5步）
+
+```
+handle_mute(type=mic):
+  1. 权限校验：ctx.user_id ∈ {owner, admin}，target ≠ owner
+     └─ 失败 → 40301 / 40302
+  2. SETEX mic_muted:{room_id}:{target} duration_sec reason
+  3. INSERT room_mute_records(room_id, operator_id, target_user_id,
+                              type='mic', duration_sec, reason, muted_at)
+  4. 若 target 当前在麦
+     ├─ room_manager.leave_mic(room_id, slot)
+     └─ 广播 MicLeft { slot, user_id: target, forced: true }
+  5. 广播 UserMuted 给房间所有人
+```
+
+**UnmuteUser 流程**（3步）：
+1. 权限校验（同上）
+2. DEL `{mic|chat}_muted:{room_id}:{target}`
+3. 广播 `UserMuted { duration_sec: 0 }`
+
+---
+
+## 二十八、双重拦截：SendMessage / TakeMic
+
+### SendMessage 拦截（40305 CHAT_MUTED）
+
+```rust
+// handler.rs — handle_send_message 前置检查
+if deps.mute_redis.is_chat_muted(room_id, user_id).await? {
+    return Err(AppError::ChatMuted);  // 40305
+}
+```
+
+### TakeMic 拦截（40306 MIC_MUTED）
+
+```rust
+// connection.rs — TakeMic 路由前置检查
+if deps.mute_redis.is_mic_muted(room_id, user_id).await? {
+    return Err(AppError::MicMuted);   // 40306
+}
+```
+
+| 拦截点 | Redis Key | 错误码 |
+|--------|-----------|--------|
+| `handle_send_message` | `chat_muted:{room_id}:{user_id}` | `40305` CHAT_MUTED |
+| TakeMic 路由 | `mic_muted:{room_id}:{user_id}` | `40306` MIC_MUTED |
+
+---
+
+## 二十九、送礼不受禁麦/禁言影响
+
+`handle_send_gift`（T-00020）**不检查** `mic_muted` / `chat_muted` Key，符合产品权限矩阵。
+被禁麦或禁言的用户仍可正常送礼，送礼流程走 `SendGiftServicePort`，与 mute 逻辑完全隔离。
+
+---
+
+## 三十、涉及文件清单（T-00029 新增 / 修改）
+
+| 文件路径 | 变更类型 | 说明 |
+|---------|---------|------|
+| `app/server/src/modules/governance/mute.rs` | **新增** | `MuteRedis`/`MuteDb` trait + Fake/Real 实现 + `handle_mute`/`handle_unmute` |
+| `app/server/src/modules/governance/mod.rs` | 修改 | 导出 `mute` 子模块 |
+| `app/server/src/room/handler.rs` | 修改 | `TakeMicDeps`/`SendMessageDeps` 加 `mute_redis`；TakeMic 前置 40306；SendMessage 前置 40305 |
+| `app/server/src/ws/connection.rs` | 修改 | `MuteUser`/`UnmuteUser` 路由分支；`SocketDeps` 新增 `mute_redis`/`mute_db` |
+| `app/server/src/ws/handler.rs` | 修改 | `handle_socket` 传入 `mute_redis`/`mute_db` |
+| `app/server/src/bootstrap/mod.rs` | 修改 | `AppState` 新增 `mute_redis`/`mute_db` + builder 方法 |
+| `app/server/tests/mute_user_test.rs` | **新增** | MU29-01 ~ MU29-12 集成测试（12 个） |
+
+---
+
+## 三十一、测试覆盖汇总（T-00029）
+
+| 测试集 | 范围 | 数量 |
+|--------|------|------|
+| 集成测试 `mute_user_test.rs` | MU29-01 ~ MU29-12 端到端 | 12 |
+| **全量测试** | 365 个全部 ✅，零回归 | 365 |
