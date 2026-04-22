@@ -24,6 +24,7 @@ Server 端基于 Rust + Axum 构建。启动骨架（配置、日志、健康检
 - 🏠 [房间运行时模块](./room_runtime.md) - `src/room/` 模块说明：`RoomManager`（DashMap 全局状态）、`RoomState`（成员表 + 麦位 + `banned_mics` + `muted_users` + `processed_msg_ids`）、`handle_join_room` WS 信令处理（T-00012）、`do_leave_room` / `handle_leave_room` 离开房间逻辑（T-00013）、`take_mic_slot` / `handle_take_mic` 上麦逻辑（T-00014）、`leave_mic_slot` / `handle_leave_mic` 下麦逻辑（T-00015）、`filter_content` 敏感词净化 / `handle_send_message` 文本消息广播（T-00016）。
 - 💰 [Wallet 模块架构](./wallet.md) - 余额查询 API（T-00018）、流水分页查询、`WalletService.apply_delta` 原子事务支持、`BalanceBroadcaster` Redis PubSub 跨进程推送、WS `BalanceUpdated` 信令设计。
 - 🎁 [礼物模块架构](./gift.md) - 礼物配置表与列表 API（T-00019）、国际化支持（Accept-Language）、缓存策略（60s 进程内存）、`GiftModel` 数据模型；SendGift 事务编排（T-00020）、6 步强事务流程、msg_id 幂等、并发超扣防护、房间广播与发送者推送。
+- 📊 [Analytics 模块架构](./analytics.md) - 事件表 Schema + 分区设计（T-00022）、HTTP `POST /api/v1/events/batch` 批量接收接口、PartitionScheduler 定时分区创建 + 补偿逻辑；WebSocket `ReportEvent` 信令（T-00023）与 EventWriter 共享写入层、JWT user_id 覆盖逻辑、properties 8KB 截断机制。
 
 ## 三、 当前能力全景与状态 (Capability Matrix)
 > 状态枚举：🟢 已完成 | 🟡 开发/调试中 | 🔴 待开发
@@ -168,6 +169,35 @@ Server 端基于 Rust + Axum 构建。启动骨架（配置、日志、健康检
   - **FakeRankingService**：返回空榜单，供 HTTP 参数校验测试（无需 Redis/PG）
   - **测试覆盖**：11 个集成测试 R01~R08（含补充 R05b/R06b/r_auth_required）+ ~20 单元测试；全量 335 tests passed, 0 failed，Clippy 零警告
   - **完成时间**：2025-06-27（TDD 实现）
+- 🟢 **Analytics 模块 - 事件表 + HTTP 接收 API**（T-00022）：`src/core/analytics/` 模块
+  - **数据库设计**：新建 `events` 分区表（id, user_id?, device_id, event_name, properties JSONB, session_id, client_ts, server_ts, app_version, os_version, locale, network_type）
+    - **分区策略**：`PARTITION BY RANGE (server_ts)`，按日分区（Asia/Riyadh 时区）
+    - **分区命名**：`events_YYYYMMDD`，时间范围 `[date-1 21:00 UTC, date 21:00 UTC)` = Riyadh 整天
+    - **索引设计**：`idx_events_user_ts(user_id, server_ts DESC)` 用户流水查询；`idx_events_name_ts(event_name, server_ts DESC)` 事件统计
+  - **EventWriter 设计**：`src/core/analytics/writer.rs`
+    - **核心方法**：`persist(&self, batch: Vec<EventInput>, jwt_user_id: Option<Uuid>) -> Result<PersistResult>`
+    - **校验**：device_id 必填 → 40002，batch >100 → 40204 但仍写前 100 条
+    - **Properties 截断**：JSON 序列化 >8KB 截断为 `{"_truncated": true}` 并记 warn 日志
+    - **JWT user_id 覆盖**：请求中 user_id 与 JWT 不一致时以 JWT 为准，记 warn 日志；无 JWT 允许 user_id=null
+    - **批量写入**：`sqlx::QueryBuilder` 多行 INSERT，单请求 <200ms
+  - **HTTP 接口**：`POST /api/v1/events/batch`（JWT 可选，支持未登录 Splash 阶段）
+    - **请求**：`{events: [{event_name, device_id, user_id?, session_id?, client_ts?, properties, app_version?, os_version?, locale?, network_type?}]}`
+    - **响应**：`{code: 0, data: {received: N, rejected_indices: [...]}}`
+    - **关键特性**：兼容未登录、device_id 必填、properties 8KB 限制、批次 100 event 限制
+  - **PartitionScheduler 设计**：`src/core/analytics/scheduler.rs`
+    - **主动创建**：Cron `0 0 23 * * *` (Riyadh 23:00)，每日创建次日分区
+    - **补偿创建**：启动时读 Redis `events:partition:last_created`，缺失 N 天分区自动补齐
+    - **时间边界**：正确处理 Asia/Riyadh UTC+3 时区偏移（Bug Fix Review R2 通过）
+    - **关键函数**：`create_next_partition(date)` / `compensate_missing_partitions()` / `start_partition_scheduler()`
+  - **测试覆盖**：EV01~EV10 集成测试 10 个（含迁移幂等、批量写入 <200ms、properties 截断、JWT 覆盖、分区创建、补偿逻辑、并发无丢失）；W01~W13 单元测试 13 个；全量 293 passed, 0 failed
+  - **完成时间**：2026-05-11（TDD 实现 + Bug 修复 Review R2 通过）
+- 🟡 **Analytics 模块 - WS ReportEvent 信令**（T-00023）：WebSocket 上报通道
+  - **信令设计**：`ReportEvent { events: [...] }` (C→S) → `EventReportAck { received, rejected_indices }` (S→C)
+  - **复用设计**：共享 T-00022 的 EventWriter 写入服务，无重复代码
+  - **user_id 处理**：来自当前 WS 连接的 JWT，覆盖客户端上报的可选 user_id，记 warn 日志
+  - **server_ts**：由服务器生成，客户端 client_ts 仅作参考
+  - **批量限制**：同 HTTP，100 events 上限，超过返回 BATCH_TOO_LARGE 但仍写前 100 条
+  - **当前状态**：In Progress（待 TDD Agent 实现）
 - 🔴 支付业务域
 
 ### 遗留技术债 (Tech Debt)
