@@ -73,7 +73,7 @@ impl GovernanceService {
     fn resolve_params(
         &self,
         params: &GovernanceQueryParams,
-    ) -> Result<(GovernanceFilter, i64, i64, i64, i64), AppError> {
+    ) -> Result<(GovernanceFilter, i64, i64, i64), AppError> {
         let now = Utc::now();
 
         // 解析 to（默认当前时间）
@@ -99,9 +99,9 @@ impl GovernanceService {
             ));
         }
 
-        // page 校验：= 0 → 40003；默认 1
+        // page 校验：< 1（包含负值与 0）→ 40003；默认 1
         let page = params.page.unwrap_or(1);
-        if page == 0 {
+        if page < 1 {
             return Err(AppError::ValidationError(
                 "page must be >= 1".to_string(),
             ));
@@ -109,6 +109,15 @@ impl GovernanceService {
 
         // limit 校验：> 100 → 截断为 100；默认 20
         let limit = params.limit.unwrap_or(20).clamp(1, 100);
+
+        // mute_type 枚举白名单校验：仅允许 "mic" / "chat"（None 表示不过滤）
+        if let Some(ref t) = params.mute_type {
+            if t != "mic" && t != "chat" {
+                return Err(AppError::ValidationError(format!(
+                    "invalid mute_type '{t}': must be 'mic' or 'chat'"
+                )));
+            }
+        }
 
         let offset = (page - 1) * limit;
 
@@ -121,7 +130,7 @@ impl GovernanceService {
             mute_type: params.mute_type.clone(),
         };
 
-        Ok((filter, page, limit, offset, limit))
+        Ok((filter, page, limit, offset))
     }
 
     // ── 公共接口 ─────────────────────────────────────────────────────────────
@@ -133,7 +142,7 @@ impl GovernanceService {
         admin_id: Uuid,
         ip: Option<String>,
     ) -> Result<KicksResponse, AppError> {
-        let (filter, page, limit, offset, _) = self.resolve_params(&params)?;
+        let (filter, page, limit, offset) = self.resolve_params(&params)?;
 
         let (total, items) = self.repo.find_kicks(&filter, limit, offset).await?;
 
@@ -169,7 +178,7 @@ impl GovernanceService {
         admin_id: Uuid,
         ip: Option<String>,
     ) -> Result<MutesResponse, AppError> {
-        let (filter, page, limit, offset, _) = self.resolve_params(&params)?;
+        let (filter, page, limit, offset) = self.resolve_params(&params)?;
 
         let (total, items) = self.repo.find_mutes(&filter, limit, offset).await?;
 
@@ -337,5 +346,103 @@ mod tests {
         };
         let result = service.query_kicks(params, Uuid::new_v4(), None).await;
         assert!(matches!(result, Err(AppError::ValidationError(_))));
+    }
+
+    // ── G16-08 补充：page 负值校验 ───────────────────────────────────────────
+
+    /// SV-09: page=-1 → ValidationError（[HIGH] Review 修复）
+    #[tokio::test]
+    async fn sv09_page_negative_one_validation_error() {
+        let service = make_service();
+        let mut params = default_params();
+        params.page = Some(-1);
+        let result = service.query_kicks(params, Uuid::new_v4(), None).await;
+        assert!(
+            matches!(result, Err(AppError::ValidationError(_))),
+            "SV-09: page=-1 应返回 ValidationError，防止 OFFSET 负值导致 HTTP 500"
+        );
+    }
+
+    /// SV-10: page=-100 → ValidationError（极端负值）
+    #[tokio::test]
+    async fn sv10_page_large_negative_validation_error() {
+        let service = make_service();
+        let mut params = default_params();
+        params.page = Some(-100);
+        let result = service.query_mutes(params, Uuid::new_v4(), None).await;
+        assert!(
+            matches!(result, Err(AppError::ValidationError(_))),
+            "SV-10: page=-100 也应返回 ValidationError"
+        );
+    }
+
+    // ── [MEDIUM] mute_type 枚举白名单校验 ────────────────────────────────────
+
+    /// SV-11: mute_type="xyz" → ValidationError（非法枚举值）
+    #[tokio::test]
+    async fn sv11_invalid_mute_type_validation_error() {
+        let service = make_service();
+        let mut params = default_params();
+        params.mute_type = Some("xyz".to_string());
+        let result = service.query_mutes(params, Uuid::new_v4(), None).await;
+        assert!(
+            matches!(result, Err(AppError::ValidationError(_))),
+            "SV-11: mute_type=xyz 应返回 ValidationError，而非静默返回空结果"
+        );
+    }
+
+    /// SV-12: mute_type="MIC"（大写）→ ValidationError（大小写敏感）
+    #[tokio::test]
+    async fn sv12_mute_type_uppercase_validation_error() {
+        let service = make_service();
+        let mut params = default_params();
+        params.mute_type = Some("MIC".to_string());
+        let result = service.query_mutes(params, Uuid::new_v4(), None).await;
+        assert!(
+            matches!(result, Err(AppError::ValidationError(_))),
+            "SV-12: mute_type=MIC（大写）应返回 ValidationError，枚举仅允许 mic/chat"
+        );
+    }
+
+    /// SV-13: mute_type="" 空字符串 → ValidationError
+    #[tokio::test]
+    async fn sv13_mute_type_empty_string_validation_error() {
+        let service = make_service();
+        let mut params = default_params();
+        params.mute_type = Some("".to_string());
+        let result = service.query_mutes(params, Uuid::new_v4(), None).await;
+        assert!(
+            matches!(result, Err(AppError::ValidationError(_))),
+            "SV-13: mute_type=空字符串 应返回 ValidationError"
+        );
+    }
+
+    /// SV-14: mute_type="mic" → 正常（合法枚举值）
+    #[tokio::test]
+    async fn sv14_mute_type_mic_ok() {
+        let service = make_service();
+        let mut params = default_params();
+        params.mute_type = Some("mic".to_string());
+        let result = service.query_mutes(params, Uuid::new_v4(), None).await;
+        assert!(result.is_ok(), "SV-14: mute_type=mic 应正常返回");
+    }
+
+    /// SV-15: mute_type="chat" → 正常（合法枚举值）
+    #[tokio::test]
+    async fn sv15_mute_type_chat_ok() {
+        let service = make_service();
+        let mut params = default_params();
+        params.mute_type = Some("chat".to_string());
+        let result = service.query_mutes(params, Uuid::new_v4(), None).await;
+        assert!(result.is_ok(), "SV-15: mute_type=chat 应正常返回");
+    }
+
+    /// SV-16: mute_type=None → 正常（不传 type 参数）
+    #[tokio::test]
+    async fn sv16_mute_type_none_ok() {
+        let service = make_service();
+        let params = default_params(); // mute_type = None
+        let result = service.query_mutes(params, Uuid::new_v4(), None).await;
+        assert!(result.is_ok(), "SV-16: 不传 mute_type 应正常返回");
     }
 }
