@@ -1,6 +1,32 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+// ─── T-00026: 密码房校验 ──────────────────────────────────────────────────────
+
+/// POST /api/v1/rooms/:id/verify-password 请求体
+#[derive(Debug, Deserialize)]
+pub struct VerifyPasswordRequest {
+    pub password: String,
+}
+
+/// POST /api/v1/rooms/:id/verify-password 成功响应 data
+#[derive(Debug, Serialize)]
+pub struct VerifyPasswordResponse {
+    pub access_token: String,
+}
+
+/// 密码错误响应 data（code=40103，HTTP 401）
+#[derive(Debug, Serialize)]
+pub struct WrongPasswordData {
+    pub remaining_attempts: u32,
+}
+
+/// 已锁定响应 data（code=42910，HTTP 429）
+#[derive(Debug, Serialize)]
+pub struct LockedData {
+    pub locked_remaining_sec: i64,
+}
+
 /// POST /api/v1/rooms 请求体（T-00025 扩展：新增 cover_url/category/announcement）
 #[derive(Debug, Deserialize)]
 pub struct CreateRoomRequest {

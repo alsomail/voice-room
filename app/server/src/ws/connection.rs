@@ -104,6 +104,8 @@ pub struct SocketDeps {
     pub auth_service: Arc<AuthService>,
     pub send_gift_service: Arc<dyn SendGiftServicePort>,
     pub event_writer: Arc<dyn EventWriterPort>,
+    /// JWT 密钥（T-00026 room access token 验证用）
+    pub jwt_secret: String,
 }
 
 /// 在成功升级的 WebSocket 上运行完整的读/写生命周期。
@@ -122,6 +124,7 @@ pub async fn handle_socket(
     auth_service: Arc<AuthService>,
     send_gift_service: Arc<dyn SendGiftServicePort>,
     event_writer: Arc<dyn EventWriterPort>,
+    jwt_secret: String,
 ) {
     let connection_id = Uuid::new_v4(); // 每次連接生成唯一 ID，與 user_id 解耦
     let (tx, mut rx) = mpsc::unbounded_channel::<String>();
@@ -168,6 +171,7 @@ pub async fn handle_socket(
                                     auth_service: auth_service.clone(),
                                     registry: registry.clone(),
                                     stats: stats.clone(),
+                                    jwt_secret: jwt_secret.clone(),
                                 };
                                 let response = crate::room::handler::handle_join_room(
                                     incoming.payload,

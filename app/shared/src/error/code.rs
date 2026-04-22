@@ -10,6 +10,8 @@ pub enum ErrorCode {
     ParameterMissing = 40002,
     #[error("VALIDATION_ERROR")]
     ValidationError = 40003,
+    #[error("NOT_PASSWORD_ROOM")]
+    NotPasswordRoom = 40014,
     #[error("INSUFFICIENT_BALANCE")]
     InsufficientBalance = 40204,
 
@@ -50,6 +52,8 @@ pub enum ErrorCode {
     VerificationCodeCooldown = 42901,
     #[error("VERIFICATION_CODE_DAILY_LIMIT")]
     VerificationCodeDailyLimit = 42902,
+    #[error("PASSWORD_ROOM_LOCKED")]
+    PasswordRoomLocked = 42910,
 
     // 500 - 服务端错误
     #[error("INTERNAL_ERROR")]

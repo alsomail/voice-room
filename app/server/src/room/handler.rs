@@ -3,17 +3,23 @@
 //! 流程：
 //! 1. 解析 payload → room_id（失败 → code:40002）
 //! 2. room_service.get_active_room_detail(room_id) → None → code:40400
-//! 3. auth_service.get_user_by_id(user_id) → 获取 nickname/avatar
-//! 4. room_manager.get_or_create_room(room_id)
-//! 5. room_state.members.insert(user_id, MemberInfo)
-//! 6. registry.set_room_id(connection_id, room_id)
-//! 7. stats.user_join_room(room_id).await.ok()
-//! 8. 广播 UserJoined 给 registry.get_connections_in_room(room_id)
-//! 9. 返回 JoinRoomResult { code:0, payload: room_snapshot }
+//! 3. 密码房校验 access_token（T-00026）
+//!    - 无 token → 40104 PASSWORD_REQUIRED
+//!    - token 过期 → 40105 TOKEN_EXPIRED
+//!    - room_id 不匹配 → 40106 INVALID_TOKEN
+//! 4. auth_service.get_user_by_id(user_id) → 获取 nickname/avatar
+//! 5. room_manager.get_or_create_room(room_id)
+//! 6. room_state.members.insert(user_id, MemberInfo)
+//! 7. registry.set_room_id(connection_id, room_id)
+//! 8. stats.user_join_room(room_id).await.ok()
+//! 9. 广播 UserJoined 给 registry.get_connections_in_room(room_id)
+//! 10. 返回 JoinRoomResult { code:0, payload: room_snapshot }
 
 use std::sync::Arc;
 
+use jsonwebtoken::errors::ErrorKind;
 use uuid::Uuid;
+use voice_room_shared::auth::room_access::decode_room_access_token;
 
 use crate::modules::auth::service::AuthService;
 use crate::modules::room::service::RoomService;
@@ -33,6 +39,8 @@ pub struct JoinRoomDeps {
     pub auth_service: Arc<AuthService>,
     pub registry: Arc<ConnectionRegistry>,
     pub stats: Arc<dyn StatsPort>,
+    /// JWT 密钥（用于 room access token 验证，T-00026）
+    pub jwt_secret: String,
 }
 
 // ─── handle_join_room ────────────────────────────────────────────────────────
@@ -53,6 +61,7 @@ pub async fn handle_join_room(
         auth_service,
         registry,
         stats,
+        jwt_secret,
     } = deps;
 
     // ── 1. 解析 room_id ───────────────────────────────────────────────────────
@@ -80,7 +89,40 @@ pub async fn handle_join_room(
         }
     };
 
-    // ── 3. 获取用户信息 ────────────────────────────────────────────────────────
+    // ── 3. 密码房：校验 access_token（T-00026）──────────────────────────────
+    if room_detail.room_type == "password" {
+        let token = match payload
+            .as_ref()
+            .and_then(|p| p.get("access_token"))
+            .and_then(|v| v.as_str())
+        {
+            Some(t) if !t.is_empty() => t.to_string(),
+            _ => {
+                return error_response(msg_id, 40104, "password required: missing access_token");
+            }
+        };
+
+        match decode_room_access_token(&token, jwt_secret.as_bytes()) {
+            Err(e) if e.kind() == &ErrorKind::ExpiredSignature => {
+                return error_response(msg_id, 40105, "access_token expired");
+            }
+            Err(_) => {
+                return error_response(msg_id, 40106, "invalid access_token");
+            }
+            Ok(claims) => {
+                // 校验 sub（user_id）
+                if claims.sub != user_id.to_string() {
+                    return error_response(msg_id, 40106, "invalid access_token: user mismatch");
+                }
+                // 校验 room_id
+                if claims.room_id != room_id.to_string() {
+                    return error_response(msg_id, 40106, "invalid access_token: room_id mismatch");
+                }
+            }
+        }
+    }
+
+    // ── 4. 获取用户信息 ────────────────────────────────────────────────────────
     // Ok(None)：用户在 DB 中不存在，使用兜底昵称继续加入（非阻断性错误）
     // Err(e)：DB 故障，记录警告日志并返回 50000 内部错误
     let (nickname, avatar) = match auth_service.get_user_by_id(user_id).await {
@@ -92,10 +134,10 @@ pub async fn handle_join_room(
         }
     };
 
-    // ── 4. 获取或创建内存房间状态 ───────────────────────────────────────────────
+    // ── 5. 获取或创建内存房间状态 ───────────────────────────────────────────────
     let room_state = room_manager.get_or_create_room(room_id);
 
-    // ── 5. 加入成员表 ──────────────────────────────────────────────────────────
+    // ── 6. 加入成员表 ──────────────────────────────────────────────────────────
     room_state.members.insert(
         user_id,
         MemberInfo {
@@ -105,7 +147,7 @@ pub async fn handle_join_room(
         },
     );
 
-    // ── 6. 标记连接所属房间 ─────────────────────────────────────────────────────
+    // ── 7. 标记连接所属房间 ─────────────────────────────────────────────────────
     registry.set_room_id(connection_id, room_id);
 
     // ── 7. 统计：活跃房间 ──────────────────────────────────────────────────────
@@ -713,6 +755,7 @@ mod tests {
             auth_service: auth_service.clone(),
             registry: registry.clone(),
             stats: stats.clone(),
+            jwt_secret: "test-secret".to_string(),
         }
     }
 
@@ -2158,5 +2201,195 @@ mod tests {
         );
         assert_eq!(json["type"], "JoinRoomResult");
         assert_eq!(json["msg_id"], "msg-j10");
+    }
+
+    // ── PR26-02 ~ PR26-04, PR26-12: 密码房 access_token 校验（T-00026）────────
+
+    /// 创建含密码房间的 RoomService（room_type="password"）
+    fn password_room_service_with(room_id: Uuid) -> Arc<RoomService> {
+        let repo = Arc::new(FakeRoomRepository::default());
+        let now = Utc::now();
+        repo.seed(RoomModel {
+            id: room_id,
+            owner_id: Uuid::new_v4(),
+            title: "密码房".to_string(),
+            room_type: "password".to_string(),
+            member_count: 0,
+            status: "active".to_string(),
+            password_hash: Some("$2b$04$hash".to_string()),
+            max_members: 50,
+            created_at: now,
+            updated_at: now,
+            deleted_at: None,
+            cover_url: String::new(),
+            category: "chat".to_string(),
+            announcement: None,
+            admin_user_id: None,
+        });
+        Arc::new(RoomService::new(repo))
+    }
+
+    /// 构建含有 access_token 的 JoinRoom payload
+    fn join_payload_with_token(room_id: Uuid, access_token: &str) -> Option<serde_json::Value> {
+        Some(serde_json::json!({
+            "room_id": room_id.to_string(),
+            "access_token": access_token,
+        }))
+    }
+
+    // PR26-02: 带有效 token 进入密码房 → 成功（code=0）
+    #[tokio::test]
+    async fn pr26_02_valid_token_joins_password_room() {
+        let room_id = Uuid::new_v4();
+        let user_id = Uuid::new_v4();
+        let room_manager = Arc::new(RoomManager::new());
+        let room_service = password_room_service_with(room_id);
+        let auth_service = auth_service_with(user_id, "TestUser");
+        let registry = Arc::new(ConnectionRegistry::new());
+        let stats: Arc<dyn StatsPort> = Arc::new(FakeStatsService::default());
+
+        let secret = b"test-secret";
+        let token = voice_room_shared::auth::room_access::encode_room_access_token(
+            user_id, room_id, secret,
+        ).expect("encode token");
+
+        let (conn_id, _rx) = register_connection(&registry, user_id, None);
+        let deps = JoinRoomDeps {
+            room_manager: room_manager.clone(),
+            room_service: room_service.clone(),
+            auth_service: auth_service.clone(),
+            registry: registry.clone(),
+            stats: stats.clone(),
+            jwt_secret: "test-secret".to_string(),
+        };
+
+        let response = handle_join_room(
+            join_payload_with_token(room_id, &token),
+            Some("msg-pr02".to_string()),
+            conn_id,
+            user_id,
+            &deps,
+        )
+        .await;
+
+        let json: serde_json::Value = serde_json::from_str(&response).unwrap();
+        assert_eq!(json["code"], 0, "PR26-02: 有效 token 应成功进入，got code={}", json["code"]);
+        assert_eq!(json["type"], "JoinRoomResult");
+    }
+
+    // PR26-03: 无 token 对密码房 WS JoinRoom → 40104 PASSWORD_REQUIRED
+    #[tokio::test]
+    async fn pr26_03_no_token_for_password_room_returns_40104() {
+        let room_id = Uuid::new_v4();
+        let user_id = Uuid::new_v4();
+        let room_manager = Arc::new(RoomManager::new());
+        let room_service = password_room_service_with(room_id);
+        let auth_service = empty_auth_service();
+        let registry = Arc::new(ConnectionRegistry::new());
+        let stats: Arc<dyn StatsPort> = Arc::new(FakeStatsService::default());
+
+        let (conn_id, _rx) = register_connection(&registry, user_id, None);
+        let deps = build_deps(&room_manager, &room_service, &auth_service, &registry, &stats);
+
+        // 不带 access_token
+        let response = handle_join_room(
+            join_payload(room_id),
+            Some("msg-pr03".to_string()),
+            conn_id,
+            user_id,
+            &deps,
+        )
+        .await;
+
+        let json: serde_json::Value = serde_json::from_str(&response).unwrap();
+        assert_eq!(
+            json["code"], 40104,
+            "PR26-03: 无 token 进入密码房应返回 40104, got {}", json["code"]
+        );
+    }
+
+    // PR26-04: token 超 60s → 40105 TOKEN_EXPIRED
+    #[tokio::test]
+    async fn pr26_04_expired_token_returns_40105() {
+        let room_id = Uuid::new_v4();
+        let user_id = Uuid::new_v4();
+        let room_manager = Arc::new(RoomManager::new());
+        let room_service = password_room_service_with(room_id);
+        let auth_service = empty_auth_service();
+        let registry = Arc::new(ConnectionRegistry::new());
+        let stats: Arc<dyn StatsPort> = Arc::new(FakeStatsService::default());
+
+        // 手动构造一个过期的 token（exp = iat - 10）
+        let now_secs = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let claims = voice_room_shared::auth::room_access::RoomAccessClaims {
+            sub: user_id.to_string(),
+            room_id: room_id.to_string(),
+            iat: now_secs,
+            exp: now_secs - 10, // 已过期
+            iss: "voiceroom-room-access".to_string(),
+        };
+        use jsonwebtoken::{encode, Header, EncodingKey};
+        let expired_token = encode(&Header::default(), &claims, &EncodingKey::from_secret(b"test-secret"))
+            .expect("encode expired token");
+
+        let (conn_id, _rx) = register_connection(&registry, user_id, None);
+        let deps = build_deps(&room_manager, &room_service, &auth_service, &registry, &stats);
+
+        let response = handle_join_room(
+            join_payload_with_token(room_id, &expired_token),
+            Some("msg-pr04".to_string()),
+            conn_id,
+            user_id,
+            &deps,
+        )
+        .await;
+
+        let json: serde_json::Value = serde_json::from_str(&response).unwrap();
+        assert_eq!(
+            json["code"], 40105,
+            "PR26-04: 过期 token 应返回 40105 TOKEN_EXPIRED, got {}", json["code"]
+        );
+    }
+
+    // PR26-12: 为 B 房间颁发的 token 不能进入 A 房间（room_id 校验）
+    #[tokio::test]
+    async fn pr26_12_token_for_other_room_returns_40106() {
+        let room_a_id = Uuid::new_v4();
+        let room_b_id = Uuid::new_v4(); // 不同的房间
+        let user_id = Uuid::new_v4();
+        let room_manager = Arc::new(RoomManager::new());
+        let room_service = password_room_service_with(room_a_id); // 进入 A 房间
+        let auth_service = empty_auth_service();
+        let registry = Arc::new(ConnectionRegistry::new());
+        let stats: Arc<dyn StatsPort> = Arc::new(FakeStatsService::default());
+
+        // 签发 B 房间的 token
+        let token_for_b = voice_room_shared::auth::room_access::encode_room_access_token(
+            user_id,
+            room_b_id, // B 房间的 token
+            b"test-secret",
+        ).expect("encode token for room B");
+
+        let (conn_id, _rx) = register_connection(&registry, user_id, None);
+        let deps = build_deps(&room_manager, &room_service, &auth_service, &registry, &stats);
+
+        // 尝试用 B 房间的 token 进入 A 房间
+        let response = handle_join_room(
+            join_payload_with_token(room_a_id, &token_for_b),
+            Some("msg-pr12".to_string()),
+            conn_id,
+            user_id,
+            &deps,
+        )
+        .await;
+
+        let json: serde_json::Value = serde_json::from_str(&response).unwrap();
+        assert_eq!(
+            json["code"], 40106,
+            "PR26-12: B 房间 token 不能进入 A 房间，应返回 40106 INVALID_TOKEN, got {}", json["code"]
+        );
     }
 }

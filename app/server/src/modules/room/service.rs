@@ -232,6 +232,19 @@ impl RoomService {
         self.room_repo.find_room_by_id(room_id).await
     }
 
+    /// T-00026: 获取活跃房间的完整 Model（含 password_hash）
+    ///
+    /// 用于密码房校验场景，返回 None 表示房间不存在或已关闭/软删除。
+    pub async fn get_active_room_model(
+        &self,
+        room_id: Uuid,
+    ) -> Result<Option<voice_room_shared::models::room::RoomModel>, AppError> {
+        match self.room_repo.find_room_any_status(room_id).await? {
+            Some(room) if room.status == "active" && room.deleted_at.is_none() => Ok(Some(room)),
+            _ => Ok(None),
+        }
+    }
+
     /// T-00010: 关闭房间
     ///
     /// 验证规则：

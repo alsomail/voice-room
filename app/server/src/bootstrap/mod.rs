@@ -12,7 +12,7 @@ use crate::{
         events::events_routes,
         gift::{gift_routes, send_gift::SendGiftServicePort, service::GiftServicePort},
         ranking::{ranking_routes, RankingServicePort},
-        room::{repository::RoomRepository, room_routes, RoomService},
+        room::{password::RoomPasswordRedis, repository::RoomRepository, room_routes, RoomService},
         wallet::{service::WalletServicePort, wallet_routes},
     },
     room::RoomManager,
@@ -41,6 +41,8 @@ pub struct AppState {
     pub ranking_service: Arc<dyn RankingServicePort>,
     /// 事件写入服务（T-00022 埋点批量写入）
     pub event_writer: Arc<dyn EventWriterPort>,
+    /// 密码房 Redis 操作（T-00026 失败计数 + 锁定）
+    pub room_password_redis: Arc<dyn RoomPasswordRedis>,
 }
 
 impl AppState {
@@ -77,6 +79,7 @@ impl AppState {
             send_gift_service,
             ranking_service,
             event_writer,
+            room_password_redis: Arc::new(crate::modules::room::FakeRoomPasswordRedis::default()),
         }
     }
 
@@ -117,7 +120,16 @@ impl AppState {
             send_gift_service,
             ranking_service,
             event_writer,
+            room_password_redis: Arc::new(crate::modules::room::FakeRoomPasswordRedis::default()),
         }
+    }
+
+    /// 设置生产环境真实 Redis（用于密码房校验），替换默认的 FakeRoomPasswordRedis。
+    ///
+    /// 在 `main.rs` 中调用：`state.with_room_password_redis(Arc::new(RealRoomPasswordRedis::new(url)?))`
+    pub fn with_room_password_redis(mut self, redis: Arc<dyn RoomPasswordRedis>) -> Self {
+        self.room_password_redis = redis;
+        self
     }
 
     #[cfg(any(test, feature = "test-utils"))]

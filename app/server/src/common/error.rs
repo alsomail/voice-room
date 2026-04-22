@@ -39,6 +39,10 @@ pub enum AppError {
     #[error("Room is already closed")]
     RoomAlreadyClosed,
 
+    // Room password errors (T-00026)
+    #[error("Room is not a password room")]
+    NotPasswordRoom,
+
     // 429
     #[error("Verification code sent too frequently")]
     VerificationCodeCooldown,
@@ -74,6 +78,7 @@ impl AppError {
             AppError::Forbidden(_) => ErrorCode::Forbidden,
             AppError::ActiveRoomExists => ErrorCode::Conflict,
             AppError::RoomAlreadyClosed => ErrorCode::RoomAlreadyClosed,
+            AppError::NotPasswordRoom => ErrorCode::NotPasswordRoom,
             AppError::VerificationCodeCooldown => ErrorCode::VerificationCodeCooldown,
             AppError::VerificationCodeDailyLimit => ErrorCode::VerificationCodeDailyLimit,
             AppError::NotFound(_) => ErrorCode::NotFound,
@@ -96,6 +101,7 @@ impl AppError {
             | AppError::VerificationCodeMaxAttempts => StatusCode::UNAUTHORIZED,
             AppError::Forbidden(_) => StatusCode::FORBIDDEN,
             AppError::ActiveRoomExists | AppError::RoomAlreadyClosed => StatusCode::CONFLICT,
+            AppError::NotPasswordRoom => StatusCode::BAD_REQUEST,
             AppError::VerificationCodeCooldown | AppError::VerificationCodeDailyLimit => {
                 StatusCode::TOO_MANY_REQUESTS
             }

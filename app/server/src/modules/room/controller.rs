@@ -1,12 +1,17 @@
 use axum::{extract::{Path, Query, State}, http::StatusCode, response::IntoResponse, Extension, Json};
+use serde::Serialize;
 
 use crate::{
     bootstrap::AppState,
-    common::{auth::AuthContext, error::err_response, response::ApiResponse, RequestContext},
+    common::{auth::AuthContext, error::AppError, error::err_response, response::ApiResponse, RequestContext},
+    modules::room::password::{verify_password, VerifyPasswordResult},
     ws::broadcaster::{broadcast_room_info_updated, RoomInfoUpdatedPayload},
 };
 
-use super::dto::{CreateRoomRequest, PatchRoomRequest, RoomListQuery};
+use super::dto::{
+    CreateRoomRequest, LockedData, PatchRoomRequest, RoomListQuery, VerifyPasswordRequest,
+    VerifyPasswordResponse, WrongPasswordData,
+};
 
 /// POST /api/v1/rooms（需要 JWT 鉴权）
 ///
@@ -146,5 +151,121 @@ pub async fn patch_room(
             (StatusCode::OK, Json(ApiResponse::ok(resp, rc.request_id()))).into_response()
         }
         Err(e) => err_response(e, rc.request_id()),
+    }
+}
+
+// ─── 自定义错误响应构建（含 data 字段）──────────────────────────────────────────
+
+#[derive(Serialize)]
+struct ErrorWithData<T: Serialize> {
+    code: i32,
+    message: String,
+    data: T,
+    request_id: String,
+}
+
+fn error_with_data<T: Serialize>(
+    status: StatusCode,
+    code: i32,
+    message: &str,
+    data: T,
+    request_id: &str,
+) -> axum::response::Response {
+    let body = ErrorWithData {
+        code,
+        message: message.to_string(),
+        data,
+        request_id: request_id.to_string(),
+    };
+    (status, Json(body)).into_response()
+}
+
+/// POST /api/v1/rooms/:id/verify-password（需要 JWT 鉴权）— T-00026
+///
+/// 成功：HTTP 200 + { access_token: "<jwt-60s>" }
+/// 错误：
+/// - 400/40003 密码格式非 6 位数字
+/// - 404/40400 房间不存在或已关闭
+/// - 400/40014 非密码房
+/// - 401/40103 密码错误 + remaining_attempts
+/// - 429/42910 已锁定 + locked_remaining_sec
+pub async fn verify_password_handler(
+    State(state): State<AppState>,
+    Extension(rc): Extension<RequestContext>,
+    ctx: AuthContext,
+    Path(id): Path<String>,
+    Json(req): Json<VerifyPasswordRequest>,
+) -> axum::response::Response {
+    // ── 1. 解析 room_id ──────────────────────────────────────────────────────
+    let room_id = match uuid::Uuid::parse_str(&id) {
+        Ok(uid) => uid,
+        Err(_) => {
+            return err_response(
+                AppError::ValidationError(format!("invalid room id format: {id:?}")),
+                rc.request_id(),
+            );
+        }
+    };
+
+    // ── 2. 验证密码格式（6 位数字）──────────────────────────────────────────
+    if let Err(e) = super::validator::validate_password(&req.password) {
+        return err_response(e, rc.request_id());
+    }
+
+    // ── 3. 获取房间（含 password_hash）──────────────────────────────────────
+    let room = match state.room_service.get_active_room_model(room_id).await {
+        Ok(Some(r)) => r,
+        Ok(None) => {
+            return err_response(
+                AppError::NotFound(format!("room {room_id}")),
+                rc.request_id(),
+            );
+        }
+        Err(e) => return err_response(e, rc.request_id()),
+    };
+
+    // ── 4. 校验是密码房 ──────────────────────────────────────────────────────
+    if room.room_type != "password" {
+        return err_response(AppError::NotPasswordRoom, rc.request_id());
+    }
+
+    // ── 5. 密码校验 + 锁定逻辑（通过 Redis 抽象）────────────────────────────
+    match verify_password(
+        &room,
+        &req.password,
+        ctx.user_id,
+        &*state.room_password_redis,
+        &state.jwt_secret,
+    )
+    .await
+    {
+        Err(e) => err_response(e, rc.request_id()),
+
+        Ok(VerifyPasswordResult::Token(jwt)) => (
+            StatusCode::OK,
+            Json(ApiResponse::ok(
+                VerifyPasswordResponse { access_token: jwt },
+                rc.request_id(),
+            )),
+        )
+            .into_response(),
+
+        Ok(VerifyPasswordResult::WrongPassword { remaining_attempts }) => error_with_data(
+            StatusCode::UNAUTHORIZED,
+            40103,
+            "wrong password",
+            WrongPasswordData { remaining_attempts },
+            rc.request_id(),
+        ),
+
+        Ok(VerifyPasswordResult::Locked { remaining_sec }) => error_with_data(
+            StatusCode::TOO_MANY_REQUESTS,
+            42910,
+            "too many wrong attempts, locked",
+            LockedData {
+                locked_remaining_sec: remaining_sec,
+            },
+            rc.request_id(),
+        ),
     }
 }

@@ -18,7 +18,7 @@ use voice_room_server::{
         auth::repository::PgUserRepository,
         gift::{send_gift::GiftSendService, service::GiftService},
         ranking::service::RankingService,
-        room::repository::PgRoomRepository,
+        room::{password::RealRoomPasswordRedis, repository::PgRoomRepository},
         wallet::{broadcaster::BalanceBroadcaster, service::WalletService},
     },
     stats::{StatsService, snapshot_task::start_snapshot_task},
@@ -95,6 +95,9 @@ async fn main() -> anyhow::Result<()> {
     // 创建 EventWriter（T-00022）
     let event_writer = Arc::new(EventWriter::new(pool.clone()));
 
+    // 创建 RealRoomPasswordRedis（T-00026 密码房校验）
+    let room_password_redis = Arc::new(RealRoomPasswordRedis::new(redis_url)?);
+
     let state = AppState::new_with_managers(
         Arc::new(PgUserRepository::new(pool.clone())),
         code_store,
@@ -109,7 +112,8 @@ async fn main() -> anyhow::Result<()> {
         ws_registry,
         room_manager,
         event_writer,
-    );
+    )
+    .with_room_password_redis(room_password_redis);
 
     // 启动 BalanceBroadcaster（HIGH-2：同时监听本进程 mpsc channel 和 Redis PubSub）
     let broadcaster = BalanceBroadcaster::new(state.ws_registry.clone());
