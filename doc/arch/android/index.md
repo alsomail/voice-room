@@ -20,6 +20,7 @@
 - 🧩 [业务骨架与测试现状](./features.md) - `auth/room/profile` 能力现状：room 模块已完成大厅页完整链路（T-30005）、Paging3 无限滚动（T-30006）、大厅页黑金视觉升级（T-30022，RoomCard/OnlineCountBadge/HallTopBar/CategoryTabRow）、**房间页黑金视觉升级（T-30025，HostMicSlot/MicSlotCard/EmptyMicSlot/MicSlotsGrid/ChatMessageList）**及**房间底部操作栏升级（T-30026，RoomBottomBar：GoldOutlinedTextField+MicButton三态+GiftButton/EmoteButton灰禁+ExitButton二次确认）**，`profile` 已完成个人中心完整链路（T-30024，ProfileScreen/ProfileViewModel/ProfileUiState/ProfileEvent）；测试覆盖面说明。
 - 💳 [钱包模块](./wallet.md) - 余额显示 + 流水列表（Paging3 分页）+ WebSocket 实时更新（T-30027，Review R2 通过，22 tests 全部通过）。
 - 🎁 [礼物模块](./gift.md) - 礼物面板 BottomSheet（4列网格 + Tab 分类 + 数量选择器 + Mutex 缓存）+ WebSocket 实时余额更新 + 错误重试（T-30028，Review R2 通过，27 新单元测试全部通过）。
+- 🏆 [榜单模块](./ranking.md) - 魅力/财富 × 日/周四组 Tab 榜单展示 + Top3 金银铜光圈 + Top1 王冠 + 我的排名 Sticky Footer + 下拉刷新（T-30033，Review R2 通过，18 个单元测试全部通过，HIGH-01 竞态取消机制已实现）。
 - 🔐 [Auth 认证模块](./auth.md) - 登录页组件结构（LoginScreen / LoginViewModel / LoginUiState）、+966 手机号输入、60s 倒计时、RTL 布局支持、StateFlow 数据流；**登录页视觉升级（T-30021）**：MenaTheme 黑金渐变背景 + GoldOutlinedTextField + GoldButton，纯 UI 改造功能不变。
 - 🎨 [中东黑金主题系统](./theme.md) - MenaColors / MenaTypography / MenaShapes / MenaTheme + GoldButton / GoldOutlinedTextField / AvatarWithFrame 通用组件（T-30018）。
 - 🚀 [Splash 启动页与 Compose Navigation](./bootstrap.md) - SplashScreen / SplashViewModel / SplashNavEvent / AppNavGraph / MainActivity Compose 改造（T-30019）。

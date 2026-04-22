@@ -1,7 +1,7 @@
 # Voice Room 产品文档总索引
 
-> **版本**: v0.9  
-> **更新日期**: 2026-04-27  
+> **版本**: v1.0  
+> **更新日期**: 2026-04-28  
 > **负责人**: PM Agent  
 > **目标市场**: MENA (Middle East & North Africa) 中东北非
 
@@ -45,7 +45,7 @@
 | E-04: 房间内核心功能 | Phase 0 | ✅ 已完成 | T-00011~T-00016, T-00011B~T-00011C, T-10007~T-10012, T-20006~T-20009, T-30008~T-30017 |
 | **E-05: 中东黑金主题与 App 壳体** | **Phase 0.5** | ✅ 已完成 (9/9) | T-30018~T-30026 (Android 9 Tasks) |
 | **E-06: Web 管理端增强** | **Phase 0.5** | ✅ 已完成 (2/2) | T-20010 ✅, T-20011 ✅ |
-| **E-07: 虚拟礼物与钱包闭环 MVP** | **Phase 1** | 🟡 **进行中 (14/15)** | T-00017 ✅（钱包 Schema）, T-00018 ✅（余额 API + WS 推送）, T-00019 ✅（礼物配置表+列表API）, T-00020 ✅（SendGift 事务+广播）, T-00021 ✅（魅力/财富榜单 API）, T-10013 ✅（Admin 手动调整余额）, T-10014 ✅（Admin 礼物 CRUD）, T-20012 ✅（Web 余额调整弹窗+礼物管理页），T-30027 ✅（Android 钱包页），T-30028 ✅（Android 礼物面板），T-30029 ✅（Android 接收者选择器），T-30030 ✅（Android SendGift 客户端+幂等），T-30031 ✅（Android 送礼特效+弹幕），**T-30032 ✅（Android 余额不足引导弹窗）**，T-30033 |
+| **E-07: 虚拟礼物与钱包闭环 MVP** | **Phase 1** | ✅ **已完成 (15/15)** | T-00017 ✅（钱包 Schema）, T-00018 ✅（余额 API + WS 推送）, T-00019 ✅（礼物配置表+列表API）, T-00020 ✅（SendGift 事务+广播）, T-00021 ✅（魅力/财富榜单 API）, T-10013 ✅（Admin 手动调整余额）, T-10014 ✅（Admin 礼物 CRUD）, T-20012 ✅（Web 余额调整弹窗+礼物管理页），T-30027 ✅（Android 钱包页），T-30028 ✅（Android 礼物面板），T-30029 ✅（Android 接收者选择器），T-30030 ✅（Android SendGift 客户端+幂等），T-30031 ✅（Android 送礼特效+弹幕），T-30032 ✅（Android 余额不足引导弹窗），**T-30033 ✅（Android 魅力/财富榜页）** |
 | **E-07.5: 埋点与观测性基建** | **Phase 1 并行** | 🟡 **设计中 (0/~6)** | T-00022~T-00023, T-10015, T-20013, T-30034~T-30035 （待拆解） |
 | **E-10: 房间主权与管理员体系** | **Phase 1.5** | 🟡 **设计中 (0/~18)** | 待拆解，预计 Server 7 + AdminServer 1 + Web 1 + Android 9 |
 | E-08: Google Play 真支付 | Phase 1 | 🔴 待开发 | 待拆解（依赖 E-07） |
@@ -63,6 +63,7 @@
 ---
 
 **文档变更历史**:
+- 2026-04-28: v1.0，T-30033 DoD 完成，E-07 Epic 进度更新为 15/15（新增 T-30033 ✅ Android 魅力/财富榜页，Review R2 通过，18 个单元测试全部通过）；doc/arch/android/ranking.md 新增完整的 RankingScreen 架构设计（四组 Tab 独立加载、防腐层 IRankingRepository + RetrofitRankingRepository、竞态取消机制 loadingJob、Top3 金银铜光圈+Top1 王冠、MyRankFooter 粘性底部、下拉刷新与错误重试、大厅+房间菜单双入口），doc/arch/android/index.md 新增 ranking.md 子模块索引，doc/product/index.md E-07 Epic 状态更新为 ✅ 已完成 (15/15)
 - 2026-04-27: v0.9，T-30032 DoD 完成，E-07 Epic 进度更新为 14/15（新增 T-30032 ✅ Android 余额不足引导弹窗，Review R2 通过，10 个 TDD 验收用例全部通过）；doc/arch/android/gift.md 新增第六章完整的 InsufficientBalanceDialog 架构（触发机制、弹窗设计、状态与事件、集成方式、回调拆分修复），Tasks.md T-30032 标记为 ✅ Done（负责人: Dod）
 - 2026-04-26: v1.8，T-30031 DoD 完成，E-07 Epic 进度更新为 13/15（新增 T-30031 ✅ Android 送礼特效播放器+弹幕，Review R2 通过，全部 15 个 TDD 验收用例通过）；doc/arch/android/gift.md 新增第十章完整的送礼特效架构（GiftEffectController L1/L2/L3 三级特效、ILottiePlayer 防腐层、GiftDanmakuMessage 弹幕组件、GiftReceivedEvent 字段约定），Tasks.md T-30031 标记为 ✅ Done（负责人: Dod）
 - 2026-04-25: v1.7，T-30030 DoD 完成，E-07 Epic 进度更新为 12/15（新增 T-30030 ✅ Android SendGift 客户端+幂等，Review R2 通过，366+ tests 全部通过）；doc/arch/android/gift.md 补充 SendGiftJob、ComboAggregator、GiftEvents 新增类，sendGift() 幂等流程，Gson JsonObject 安全构造模式说明；Tasks.md T-30030 标记为 ✅ Done（负责人: Dod）
