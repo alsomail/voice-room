@@ -18,6 +18,18 @@ use crate::{
 
 use super::query_dto::EventQueryParams;
 
+// ─── 角色 → 过滤标志 纯函数 ──────────────────────────────────────────────────
+
+/// 根据管理员角色计算是否需要过滤 `admin_*` 前缀事件。
+///
+/// 权限规则（对齐 TDS § 权限）：
+/// - `super_admin` / `operator` → `false`（全量可查，含 admin_* 事件）
+/// - `cs` → `true`（只读客服，过滤 admin_* 前缀事件）
+/// - `finance` → 不会到达此函数（RBAC 在上方拦截 → 403）
+pub fn compute_filter_admin_events(role: &str) -> bool {
+    role == "cs"
+}
+
 // ─── Handler ─────────────────────────────────────────────────────────────────
 
 /// GET /api/v1/admin/users/:id/events
@@ -26,7 +38,8 @@ use super::query_dto::EventQueryParams;
 ///
 /// 权限规则：
 /// - `super_admin`：全量可查（含 admin_* 事件）
-/// - `operator` / `cs`：可查，admin_* 事件自动过滤
+/// - `operator`：全量可查（含 admin_* 事件）
+/// - `cs`：可查，admin_* 事件自动过滤
 /// - `finance`：403（无 UserRead 权限）
 pub async fn list_user_events_handler(
     ctx: AdminAuthContext,
@@ -57,8 +70,15 @@ pub async fn list_user_events_handler(
         return err_response(e, rc.request_id());
     }
 
-    // ── 角色衍生：非 super_admin 过滤 admin_* 事件 ───────────────────────
-    let filter_admin_events = ctx.role != "super_admin";
+    // ── 角色衍生：cs 过滤 admin_* 事件，super_admin/operator 全量可查 ──────
+    let filter_admin_events = compute_filter_admin_events(&ctx.role);
+
+    // ── 保存审计所需参数（params 将被 move 到 query_events 中）────────────
+    let audit_event_name = params.event_name.clone();
+    let audit_from = params.from.clone();
+    let audit_to = params.to.clone();
+    let audit_page = params.page;
+    let audit_limit = params.limit;
 
     // ── 调用 EventQueryService ────────────────────────────────────────────
     let result = state
@@ -79,6 +99,13 @@ pub async fn list_user_events_handler(
                 ip,
                 Some(serde_json::json!({
                     "target_user_id": user_id.to_string(),
+                    "filters": {
+                        "event_name": audit_event_name,
+                        "from": audit_from,
+                        "to": audit_to,
+                        "page": audit_page,
+                        "limit": audit_limit,
+                    },
                     "filter_admin_events": filter_admin_events,
                 })),
             )
@@ -216,6 +243,48 @@ mod tests {
             resp.status(),
             StatusCode::BAD_REQUEST,
             "EQ06-invalid-uuid: 非法 UUID 应返回 400"
+        );
+    }
+
+    // ── HIGH-1: operator 角色权限测试（compute_filter_admin_events 纯函数）────
+
+    /// HIGH-1a: super_admin 角色 → filter_admin_events=false（全量可查）
+    #[test]
+    fn high1a_super_admin_does_not_filter() {
+        use super::compute_filter_admin_events;
+        assert!(
+            !compute_filter_admin_events("super_admin"),
+            "HIGH-1a: super_admin 不应过滤 admin_* 事件"
+        );
+    }
+
+    /// HIGH-1b: operator 角色 → filter_admin_events=false（全量可查，TDS 要求）
+    #[test]
+    fn high1b_operator_does_not_filter() {
+        use super::compute_filter_admin_events;
+        assert!(
+            !compute_filter_admin_events("operator"),
+            "HIGH-1b: operator 应与 super_admin 一样全量可查，不应过滤 admin_* 事件"
+        );
+    }
+
+    /// HIGH-1c: cs 角色 → filter_admin_events=true（过滤 admin_* 事件）
+    #[test]
+    fn high1c_cs_role_filters_admin_events() {
+        use super::compute_filter_admin_events;
+        assert!(
+            compute_filter_admin_events("cs"),
+            "HIGH-1c: cs 角色应过滤 admin_* 事件"
+        );
+    }
+
+    /// HIGH-1d: 未知角色 → filter_admin_events=false（保守：不过滤，RBAC 已拦截）
+    #[test]
+    fn high1d_unknown_role_does_not_filter() {
+        use super::compute_filter_admin_events;
+        assert!(
+            !compute_filter_admin_events("unknown"),
+            "HIGH-1d: 未知角色不应过滤（RBAC 已在上方拦截非法角色）"
         );
     }
 }

@@ -30,7 +30,8 @@ pub trait EventQueryRepository: Send + Sync {
 
 /// 基于 SQLx + PostgreSQL 的 EventQueryRepository 生产实现。
 ///
-/// SQL 利用 `server_ts BETWEEN from AND to` 命中分区键，实现分区剪枝。
+/// SQL 利用 `server_ts >= from AND server_ts < to` 半开区间命中分区键，
+/// 实现分区剪枝，避免 BETWEEN 闭区间在分区边界时多扫一个分区。
 pub struct PgEventQueryRepository {
     pool: PgPool,
 }
@@ -48,7 +49,7 @@ impl EventQueryRepository for PgEventQueryRepository {
         let count: (i64,) = sqlx::query_as(
             "SELECT COUNT(*) FROM events \
              WHERE user_id = $1 \
-               AND server_ts BETWEEN $2 AND $3 \
+               AND server_ts >= $2 AND server_ts < $3 \
                AND ($4::text[] IS NULL OR event_name = ANY($4)) \
                AND (NOT $5 OR event_name NOT LIKE 'admin_%')",
         )
@@ -75,7 +76,7 @@ impl EventQueryRepository for PgEventQueryRepository {
                     properties, app_version, os_version, locale, network_type \
              FROM events \
              WHERE user_id = $1 \
-               AND server_ts BETWEEN $2 AND $3 \
+               AND server_ts >= $2 AND server_ts < $3 \
                AND ($4::text[] IS NULL OR event_name = ANY($4)) \
                AND (NOT $5 OR event_name NOT LIKE 'admin_%') \
              ORDER BY server_ts DESC \

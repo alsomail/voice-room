@@ -75,15 +75,26 @@ impl EventQueryService {
             ));
         }
 
-        // ── limit 校验：>100 → 400/40003 ──────────────────────────────────
+        // ── limit 校验：=0 → 400/40003 / >100 → 400/40003 ───────────────────
         let limit_raw = params.limit.unwrap_or(20);
+        if limit_raw == 0 {
+            return Err(AppError::ValidationError(
+                "limit must be >= 1".to_string(),
+            ));
+        }
         if limit_raw > 100 {
             return Err(AppError::ValidationError(
                 "limit must be <= 100".to_string(),
             ));
         }
-        let limit = limit_raw.max(1);
-        let page = params.page.unwrap_or(1).max(1);
+        let limit = limit_raw;
+        let page_raw = params.page.unwrap_or(1);
+        if page_raw == 0 {
+            return Err(AppError::ValidationError(
+                "page must be >= 1".to_string(),
+            ));
+        }
+        let page = page_raw;
         let offset = ((page - 1) as i64) * (limit as i64);
 
         // ── event_name 逗号分隔 → Option<Vec<String>> ─────────────────────
@@ -609,6 +620,92 @@ mod tests {
             matches!(result, Err(AppError::ValidationError(_))),
             "非法 from 应返回 ValidationError"
         );
+    }
+
+    // ── HIGH-2: page=0 / limit=0 未返回 400 修复验证 ─────────────────────
+
+    /// HIGH-2a: limit=0 → ValidationError（TDS 40003，page/limit 非法）
+    #[tokio::test]
+    async fn high2a_limit_zero_returns_validation_error() {
+        let repo = Arc::new(FakeEventQueryRepository::default());
+        let service = EventQueryService::new(repo);
+
+        let now = Utc::now();
+        let params = EventQueryParams {
+            event_name: None,
+            from: Some((now - Duration::hours(1)).to_rfc3339()),
+            to: Some(now.to_rfc3339()),
+            page: Some(1),
+            limit: Some(0), // ← 非法：limit=0 应返回 ValidationError
+        };
+
+        let result = service.query_events(Uuid::new_v4(), params, false).await;
+        assert!(
+            matches!(result, Err(AppError::ValidationError(_))),
+            "HIGH-2a: limit=0 应返回 ValidationError，got: {:?}",
+            result
+        );
+    }
+
+    /// HIGH-2b: page=0 → ValidationError（TDS 40003，page/limit 非法）
+    #[tokio::test]
+    async fn high2b_page_zero_returns_validation_error() {
+        let repo = Arc::new(FakeEventQueryRepository::default());
+        let service = EventQueryService::new(repo);
+
+        let now = Utc::now();
+        let params = EventQueryParams {
+            event_name: None,
+            from: Some((now - Duration::hours(1)).to_rfc3339()),
+            to: Some(now.to_rfc3339()),
+            page: Some(0), // ← 非法：page=0 应返回 ValidationError
+            limit: Some(20),
+        };
+
+        let result = service.query_events(Uuid::new_v4(), params, false).await;
+        assert!(
+            matches!(result, Err(AppError::ValidationError(_))),
+            "HIGH-2b: page=0 应返回 ValidationError，got: {:?}",
+            result
+        );
+    }
+
+    /// HIGH-2c: limit=1（合法下界）不报错
+    #[tokio::test]
+    async fn high2c_limit_one_is_ok() {
+        let repo = Arc::new(FakeEventQueryRepository::default());
+        let service = EventQueryService::new(repo);
+
+        let now = Utc::now();
+        let params = EventQueryParams {
+            event_name: None,
+            from: Some((now - Duration::hours(1)).to_rfc3339()),
+            to: Some(now.to_rfc3339()),
+            page: Some(1),
+            limit: Some(1), // ← 合法下界
+        };
+
+        let result = service.query_events(Uuid::new_v4(), params, false).await;
+        assert!(result.is_ok(), "HIGH-2c: limit=1 应为合法值，got: {:?}", result);
+    }
+
+    /// HIGH-2d: page=1（合法下界）不报错
+    #[tokio::test]
+    async fn high2d_page_one_is_ok() {
+        let repo = Arc::new(FakeEventQueryRepository::default());
+        let service = EventQueryService::new(repo);
+
+        let now = Utc::now();
+        let params = EventQueryParams {
+            event_name: None,
+            from: Some((now - Duration::hours(1)).to_rfc3339()),
+            to: Some(now.to_rfc3339()),
+            page: Some(1), // ← 合法下界
+            limit: Some(20),
+        };
+
+        let result = service.query_events(Uuid::new_v4(), params, false).await;
+        assert!(result.is_ok(), "HIGH-2d: page=1 应为合法值，got: {:?}", result);
     }
 
     /// super_admin（filter_admin_events=false）可以看到 admin_* 事件
