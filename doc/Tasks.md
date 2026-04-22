@@ -334,7 +334,7 @@
 
 | Task ID | 归属端 | 模块 | 任务名称 | 前置依赖 | 核心描述 | TDD 验收标准 | 状态 | 预估工时 | 负责人 | UI设计文档 |
 |---------|--------|------|----------|----------|----------|-------------|------|----------|--------|------------|
-| **T-20013** | Web | User | 用户详情页"行为流"Tab [TDS](./tds/web/T-20013.md) | T-10015, T-20007 | 用户详情页新增 `EventStreamTab`：时间筛选（最近 1h/24h/7d/30d/自定义）+ event_name 多选下拉 + 时间线列表（事件名 + properties 折叠 JSON + 设备信息）；支持导出 CSV（当前筛选下前 1000 条） | 1. 默认加载最近 24h<br>2. event_name 下拉从后台枚举<br>3. 无数据空状态占位<br>4. CSV 下载文件名带 user_id 与时间戳<br>5. properties JSON 支持关键字高亮 | Review | 5h | TDD | 25 个测试全绿；覆盖率 85% |
+| **T-20013** | Web | User | 用户详情页"行为流"Tab [TDS](./tds/web/T-20013.md) | T-10015, T-20007 | 用户详情页新增 `EventStreamTab`：时间筛选（最近 1h/24h/7d/30d/自定义）+ event_name 多选下拉 + 时间线列表（事件名 + properties 折叠 JSON + 设备信息）；支持导出 CSV（当前筛选下前 1000 条） | 1. 默认加载最近 24h<br>2. event_name 下拉从后台枚举<br>3. 无数据空状态占位<br>4. CSV 下载文件名带 user_id 与时间戳<br>5. properties JSON 支持关键字高亮 | Review | 5h | TDD | 25 个测试全绿；覆盖率 85%；Review未通过（HIGH-1 XSS + HIGH-2 limit） |
 
 #### Android
 
