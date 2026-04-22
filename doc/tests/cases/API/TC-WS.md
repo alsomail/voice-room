@@ -157,7 +157,7 @@
 
 ---
 
-## TC-STATS-00001：在线统计 - HyperLogLog 在线人数
+## TC-WS-00008：在线统计 - HyperLogLog 在线人数
 **【元数据】**
 - **归属模块**：`STATS`
 - **测试类型**：`Integration`

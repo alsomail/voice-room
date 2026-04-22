@@ -5,7 +5,7 @@
 
 ---
 
-## TC-USER-00009：Web 封禁 → Android 被踢 → Web 状态刷新 完整闭环
+## TC-USER-00001：Web 封禁 → Android 被踢 → Web 状态刷新 完整闭环
 **【元数据】**
 - **归属模块**：`USER`
 - **测试类型**：`Integration`

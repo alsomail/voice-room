@@ -5,7 +5,7 @@
 
 ---
 
-## TC-GIFT-00010：Android U1 向麦位 U2 送礼 - 多端闭环
+## TC-GIFT-00001：Android U1 向麦位 U2 送礼 - 多端闭环
 **【元数据】**
 - **归属模块**：`GIFT`
 - **测试类型**：`Integration`
