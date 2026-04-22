@@ -50,6 +50,7 @@ import com.voice.room.android.feature.room.RoomListViewModel
 fun MainScreen(
     appContainer: AppContainer,
     onLogout: () -> Unit = {},
+    onNavigateToRanking: () -> Unit = {},
 ) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -90,6 +91,7 @@ fun MainScreen(
                     pagingItems = pagingItems,
                     onNavigateToRoom = { /* TODO: 接入 RoomScreen 导航 */ },
                     onCreateRoom = { showCreateRoom = true },
+                    onNavigateToRanking = onNavigateToRanking,
                 )
             }
             composable(MainTab.MESSAGES.route) {

@@ -23,6 +23,9 @@ import com.voice.room.android.data.gift.DebugGiftRepository
 import com.voice.room.android.data.remote.api.RoomApiService
 import com.voice.room.android.data.remote.api.WalletApiService
 import com.voice.room.android.data.wallet.RetrofitWalletRepository
+import com.voice.room.android.data.ranking.RetrofitRankingRepository
+import com.voice.room.android.data.remote.api.RankingApiService
+import com.voice.room.android.domain.ranking.IRankingRepository
 import com.voice.room.android.data.remote.api.UserApiService
 import com.voice.room.android.data.room.DebugRoomGateway
 import com.voice.room.android.data.room.DebugRoomSyncService
@@ -54,6 +57,7 @@ data class AppContainer(
     val roomSyncService: IRoomSyncService,
     val walletRepository: IWalletRepository,
     val giftRepository: IGiftRepository,
+    val rankingRepository: IRankingRepository,
     val roomRepository: IRoomRepository,
     val webSocketClient: IWebSocketClient,
     val tokenManager: ITokenManager,
@@ -102,6 +106,10 @@ data class AppContainer(
             val giftRepository: IGiftRepository =
                 com.voice.room.android.data.gift.RetrofitGiftRepository(giftApiService)
 
+            // Ranking API — 复用 roomRetrofit（已注入 AuthInterceptor）(T-30033)
+            val rankingApiService = roomRetrofit.create(RankingApiService::class.java)
+            val rankingRepository: IRankingRepository = RetrofitRankingRepository(rankingApiService)
+
             // WebSocket 客户端 — 独立 IO 作用域，随 App 生命周期存在
             val wsHttpClient = AppHttpClientFactory.create(
                 config = NetworkClientConfig(),
@@ -125,6 +133,7 @@ data class AppContainer(
                 roomSyncService = DebugRoomSyncService(),
                 walletRepository = walletRepository,
                 giftRepository = giftRepository,
+                rankingRepository = rankingRepository,
                 roomRepository = RetrofitRoomRepository(roomApiService),
                 webSocketClient = webSocketClient,
                 tokenManager = tokenManager,

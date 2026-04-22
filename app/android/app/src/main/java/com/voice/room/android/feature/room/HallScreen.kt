@@ -55,10 +55,11 @@ fun HallScreen(
     pagingItems: LazyPagingItems<RoomItem>,
     onNavigateToRoom: (String) -> Unit = {},
     onCreateRoom: () -> Unit = {},
+    onNavigateToRanking: () -> Unit = {},
 ) {
     Scaffold(
         containerColor = MenaColors.Background,
-        topBar = { HallTopBar() },
+        topBar = { HallTopBar(onNavigateToRanking = onNavigateToRanking) },
         floatingActionButton = { CreateRoomFab(onClick = onCreateRoom) },
     ) { innerPadding ->
         Column(

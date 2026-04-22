@@ -1,6 +1,7 @@
 package com.voice.room.android.feature.room
 
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -15,17 +16,22 @@ import com.voice.room.android.core.theme.MenaColors
 import com.voice.room.android.core.theme.MenaTypography
 
 /**
- * HallTopBar — 大厅页顶部栏 (T-30022)
+ * HallTopBar — 大厅页顶部栏 (T-30022, T-30033 升级)
  *
  * - 金色标题 "VoiceRoom" (titleLarge, MenaColors.Primary)
  * - 搜索图标 (占位，点击无操作)
+ * - 🏆 榜单图标 (点击跳转排行榜页)
  * - testTag: hall_top_bar
  *
- * @param modifier 可选修饰符
+ * @param modifier          可选修饰符
+ * @param onNavigateToRanking 点击🏆时回调（默认无操作）
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HallTopBar(modifier: Modifier = Modifier) {
+fun HallTopBar(
+    modifier: Modifier = Modifier,
+    onNavigateToRanking: () -> Unit = {},
+) {
     TopAppBar(
         modifier = modifier.testTag("hall_top_bar"),
         title = {
@@ -36,6 +42,17 @@ fun HallTopBar(modifier: Modifier = Modifier) {
             )
         },
         actions = {
+            // 榜单入口 (T-30033)
+            IconButton(
+                onClick = onNavigateToRanking,
+                modifier = Modifier.testTag("hall_ranking_button"),
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.EmojiEvents,
+                    contentDescription = "榜单",
+                    tint = MenaColors.Primary,
+                )
+            }
             IconButton(onClick = { /* 占位：搜索功能待实现 */ }) {
                 Icon(
                     imageVector = Icons.Default.Search,

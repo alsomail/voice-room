@@ -8,6 +8,8 @@ import androidx.navigation.compose.rememberNavController
 import com.voice.room.android.common.AppContainer
 import com.voice.room.android.feature.auth.LoginScreen
 import com.voice.room.android.feature.main.MainScreen
+import com.voice.room.android.feature.ranking.RankingScreen
+import com.voice.room.android.feature.ranking.RankingViewModel
 import com.voice.room.android.feature.splash.SplashScreen
 import com.voice.room.android.feature.splash.SplashViewModel
 
@@ -15,9 +17,10 @@ import com.voice.room.android.feature.splash.SplashViewModel
  * AppNavGraph — Compose Navigation 全局导航骨架
  *
  * 路由：
- * - "splash" → SplashScreen（启动页，startDestination）
- * - "login"  → LoginScreen（登录页）
- * - "main"   → MainScreen（三 Tab 框架，T-30020）
+ * - "splash"  → SplashScreen（启动页，startDestination）
+ * - "login"   → LoginScreen（登录页）
+ * - "main"    → MainScreen（三 Tab 框架，T-30020）
+ * - "ranking" → RankingScreen（魅力/财富榜页，T-30033）
  *
  * 导航规则：
  * - Splash → Main/Login 使用 popUpTo("splash") { inclusive = true } 防止返回
@@ -70,6 +73,20 @@ fun AppNavGraph(appContainer: AppContainer) {
                         popUpTo("main") { inclusive = true }
                     }
                 },
+                onNavigateToRanking = {
+                    navController.navigate("ranking")
+                },
+            )
+        }
+
+        // ── 榜单页 (T-30033) ──────────────────────────
+        composable("ranking") {
+            val rankingViewModel: RankingViewModel = viewModel(
+                factory = RankingViewModel.factory(appContainer.rankingRepository)
+            )
+            RankingScreen(
+                viewModel = rankingViewModel,
+                onNavigateBack = { navController.popBackStack() },
             )
         }
     }
