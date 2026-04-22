@@ -8,8 +8,8 @@
 
 # Analytics 模块架构设计文档
 
-**最后更新：** 2026-05-13  
-**负责人：** Dod (T-00022), TDD (T-00023)  
+**最后更新：** 2026-05-14  
+**负责人：** Dod (T-00022, T-00023)  
 **相关 TDS：** [T-00022 事件表 + HTTP API](../tds/server/T-00022.md) | [T-00023 WS 上报服务](../tds/server/T-00023.md)
 
 ---
@@ -325,7 +325,10 @@ pub async fn start_partition_scheduler(
 
 ### 2.5 WebSocket 上报通道（T-00023）
 
-**文件位置：** `app/server/src/modules/events/` (WS 信令处理)
+**文件位置：** 
+- `app/server/src/modules/events/ws.rs` - `handle_report_event` 处理函数
+- `app/server/src/ws/connection.rs` - WS 消息路由
+- `app/server/src/ws/handler.rs` - 链接初始化
 
 **信令定义：**
 
@@ -333,6 +336,7 @@ pub async fn start_partition_scheduler(
 ```json
 {
   "type": "ReportEvent",
+  "msg_id": "uuid-string",
   "payload": {
     "events": [
       {
@@ -351,6 +355,8 @@ pub async fn start_partition_scheduler(
 ```json
 {
   "type": "EventReportAck",
+  "msg_id": "uuid-string",
+  "code": 0,
   "payload": {
     "received": 98,
     "rejected_indices": [100, 101, 102]
@@ -358,12 +364,133 @@ pub async fn start_partition_scheduler(
 }
 ```
 
+**错误码定义：**
+
+| Code | 名称 | 说明 | 处理方式 |
+|------|------|------|--------|
+| 0 | OK | 成功处理 | - |
+| 40003 | INVALID_PAYLOAD | payload.events 为空数组或格式错误 | 不写入，返回错误 ACK |
+| 40204 | BATCH_TOO_LARGE | events 超 100 条 | **仍写入前 100 条**，rejected_indices=[100..N-1] |
+
+**处理流程：**
+
+**文件**：`app/server/src/modules/events/ws.rs`  
+**函数**：`handle_report_event(events: Vec<EventInput>, conn_ctx: ConnectionContext)`
+
+```rust
+pub async fn handle_report_event(
+    event_writer: &Arc<EventWriter>,
+    events: Vec<EventPayload>,
+    user_id_from_jwt: Uuid,
+    msg_id: String
+) -> Result<(u32, EventReportAckPayload)>
+{
+    // 1. 参数校验
+    if events.is_empty() {
+        return Ok((40003, EventReportAckPayload::default()));
+    }
+    
+    // 2. 构造 EventInput 批次，强制覆盖 user_id
+    let batch: Vec<EventInput> = events.into_iter().map(|e| EventInput {
+        user_id: Some(user_id_from_jwt),  // ⚠️ 强制以 JWT user_id 覆盖
+        device_id: e.device_id,
+        event_name: e.event_name,
+        properties: e.properties,
+        client_ts: e.client_ts,
+        session_id: e.session_id,
+        app_version: None,
+        os_version: None,
+        locale: None,
+        network_type: None,
+    }).collect();
+    
+    // 3. 检查批次大小
+    let code = if batch.len() > 100 { 40204 } else { 0 };
+    
+    // 4. 调用共享 EventWriter 写入（最多前 100 条）
+    let truncated_batch = if batch.len() > 100 {
+        batch.into_iter().take(100).collect()
+    } else {
+        batch
+    };
+    
+    let result = event_writer.persist(truncated_batch, Some(user_id_from_jwt)).await?;
+    
+    // 5. 返回 ACK
+    let ack_payload = EventReportAckPayload {
+        received: result.received,
+        rejected_indices: if code == 40204 {
+            // 添加超过 100 的索引
+            (100..result.received + result.rejected_indices.len())
+                .chain(result.rejected_indices.into_iter())
+                .collect()
+        } else {
+            result.rejected_indices
+        }
+    };
+    
+    Ok((code, ack_payload))
+}
+```
+
 **处理特性：**
 
-1. **复用 EventWriter** — WS 通道与 HTTP 通道共用同一写入服务
-2. **user_id 来自 JWT** — WS 连接的 `jwt_user_id` 覆盖客户端上报的 user_id
-3. **server_ts 统一** — WS 上报事件的时间戳由服务器生成，客户端 `client_ts` 仅作参考
-4. **限制 100 events** — 单次 WS 消息最多 100 events，超过返回 `BATCH_TOO_LARGE` 但仍写前 100 条
+1. **复用 EventWriter** — WS 通道与 HTTP 通道共用同一写入服务，无代码重复
+2. **user_id 强制覆盖** — WS 连接的 `jwt_user_id` 在 EventInput 构造时强制覆盖客户端上报的任何 user_id（WS 连接必然登录）
+3. **server_ts 统一** — WS 上报事件的时间戳由 `EventWriter::persist` 内部统一覆盖为 `now()`，客户端 `client_ts` 仅供参考写入 DB
+4. **限制 100 events**：
+   - 单次 WS 消息最多 100 events
+   - 超过 100 返回 code=40204 `BATCH_TOO_LARGE`
+   - **仍写入前 100 条**到 DB
+   - `rejected_indices` 包含 `[100, 101, ..., N-1]`（超限部分的索引）
+
+**WS 连接中的集成：**
+
+**文件**：`app/server/src/ws/connection.rs`  
+消息路由在 `handle_socket` 内增加：
+
+```rust
+match msg.msg_type.as_str() {
+    // ... 其他消息类型
+    "ReportEvent" => {
+        let payload: ReportEventPayload = serde_json::from_value(msg.payload)?;
+        let (code, ack) = handle_report_event(
+            &socket_deps.event_writer,
+            payload.events,
+            conn_ctx.user_id,  // JWT user_id
+            msg.msg_id.clone()
+        ).await?;
+        
+        send_to_client(ConnectionMessage {
+            msg_id: msg.msg_id,
+            msg_type: "EventReportAck".to_string(),
+            code,
+            payload: serde_json::to_value(ack)?
+        }).await?;
+    }
+    // ...
+}
+```
+
+**文件**：`app/server/src/ws/handler.rs`  
+在建立 WS 连接时传入 `event_writer`：
+
+```rust
+pub async fn handle_websocket(
+    ws: WebSocketUpgrade,
+    State(state): State<AppState>,
+    // ... 其他参数
+) -> impl IntoResponse {
+    ws.on_upgrade(|socket| {
+        handle_socket(
+            socket,
+            conn_ctx,
+            // ... 其他依赖
+            state.event_writer.clone()  // ✅ 注入 EventWriter
+        )
+    })
+}
+```
 
 ---
 
@@ -423,7 +550,17 @@ pub async fn start_partition_scheduler(
 - S03: 补偿创建缺失分区 ✅
 - S04: 分区命名与时间对应 ✅
 
-### 4.2 集成测试 (EV01~EV10)
+#### WebSocket ReportEvent 相关 (RE01~RE08，T-00023)
+- RE01: WS 连接认证后发 ReportEvent 1 event，received=1, code=0 ✅
+- RE02: 50 events 一次上报，received=50, code=0 ✅
+- RE03: 101 events → 返回 `BATCH_TOO_LARGE`(40204) 但 DB 新增 100，rejected_indices=[100..100] ✅
+- RE04: server_ts 被覆盖为服务端时间（client_ts 传入 EventInput 供 EventWriter 处理）✅
+- RE05: client 伪造 user_id，DB 存 JWT user_id ✅
+- RE06: 未认证 WS 不应能触达此 handler（认证中间件在前置，handle_socket 仅在 JWT 验证通过后调用）✅
+- RE07: payload.events 为空数组 → 40003 ✅
+- RE08: 与 HTTP 通道并行写入 1000 条无丢失 ✅
+
+### 4.2 集成测试 (EV01~EV10 + RE01~RE08)
 
 - EV01: 迁移幂等，含首日分区
 - EV02: 100 events 批量写入耗时 <200ms
@@ -435,8 +572,9 @@ pub async fn start_partition_scheduler(
 - EV08: 分区任务运行后 `events_tomorrow` 分区存在
 - EV09: scheduler 启动补偿：缺失 N 天分区时一次性建完
 - EV10: 并发 10 req×100 events 写入：total=1000 无丢失
+- RE01~RE08: WS ReportEvent 信令完整验收用例（T-00023）
 
-**测试状态：** ✅ 全部通过（293 total = 196 server + 97 analytics）
+**测试状态：** ✅ 全部通过（318 total = 196 server + 97 analytics + 25 WS）
 
 ---
 
@@ -479,12 +617,17 @@ pub async fn start_partition_scheduler(
 | `app/server/src/core/analytics/mod.rs` | 新增 | analytics 模块入口 |
 | `app/server/src/core/analytics/writer.rs` | 新增 | EventWriter + EventInput + truncate_properties |
 | `app/server/src/core/analytics/scheduler.rs` | 新增 | create_next_partition + compensate + start_scheduler |
-| `app/server/src/modules/events/mod.rs` | 新增 | events 模块入口 + 路由注册 |
-| `app/server/src/modules/events/handler.rs` | 新增 | POST /api/v1/events/batch handler |
+| `app/server/src/modules/events/mod.rs` | 新增 | events 模块入口 + HTTP/WS 路由注册 |
+| `app/server/src/modules/events/handler.rs` | 新增 | POST /api/v1/events/batch HTTP handler (T-00022) |
+| `app/server/src/modules/events/ws.rs` | 新增 | `handle_report_event` WS 信令处理 + 14 个单元测试 (T-00023) |
+| `app/server/src/ws/connection.rs` | 修改 | 新增 `ReportEvent` 消息路由分支；`SocketDeps` 增 `event_writer` 字段 |
+| `app/server/src/ws/handler.rs` | 修改 | 向 `handle_socket` 传递 `state.event_writer` |
 | `app/server/src/lib.rs` | 修改 | 新增 `pub mod core` |
 | `app/server/src/bootstrap/mod.rs` | 修改 | AppState + event_writer 字段 |
 | `app/server/src/main.rs` | 修改 | 创建 EventWriter + 启动 scheduler |
-| `app/server/tests/events_batch_test.rs` | 新增 | EV01~EV10 集成测试 |
+| `app/server/Cargo.toml` | 修改 | 注册 `report_event_ws_test` 集成测试 |
+| `app/server/tests/events_batch_test.rs` | 新增 | EV01~EV10 集成测试 (T-00022) |
+| `app/server/tests/report_event_ws_test.rs` | 新增 | RE01~RE08 + 2 额外用例集成测试 (T-00023) |
 
 ---
 
