@@ -58,3 +58,7 @@ required-features = ["test-utils"]
 [[test]]
 name = "events_batch_test"
 required-features = ["test-utils"]
+
+[[test]]
+name = "report_event_ws_test"
+required-features = ["test-utils"]

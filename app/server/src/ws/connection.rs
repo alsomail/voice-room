@@ -17,7 +17,9 @@ use tokio::sync::mpsc;
 use uuid::Uuid;
 
 use super::registry::{ConnectionHandle, ConnectionRegistry};
+use crate::core::analytics::writer::EventWriterPort;
 use crate::modules::auth::service::AuthService;
+use crate::modules::events::ws::{ReportEventDeps, handle_report_event};
 use crate::modules::gift::send_gift::{SendGiftDeps, SendGiftServicePort, handle_send_gift};
 use crate::modules::room::service::RoomService;
 use crate::room::handler::{JoinRoomDeps, LeaveRoomDeps};
@@ -101,6 +103,7 @@ pub struct SocketDeps {
     pub room_service: Arc<RoomService>,
     pub auth_service: Arc<AuthService>,
     pub send_gift_service: Arc<dyn SendGiftServicePort>,
+    pub event_writer: Arc<dyn EventWriterPort>,
 }
 
 /// 在成功升级的 WebSocket 上运行完整的读/写生命周期。
@@ -118,6 +121,7 @@ pub async fn handle_socket(
     room_service: Arc<RoomService>,
     auth_service: Arc<AuthService>,
     send_gift_service: Arc<dyn SendGiftServicePort>,
+    event_writer: Arc<dyn EventWriterPort>,
 ) {
     let connection_id = Uuid::new_v4(); // 每次連接生成唯一 ID，與 user_id 解耦
     let (tx, mut rx) = mpsc::unbounded_channel::<String>();
@@ -248,6 +252,19 @@ pub async fn handle_socket(
                                 ).await;
                                 if !registry.send_to(connection_id, &response) {
                                     tracing::warn!(%connection_id, "failed to send SendGiftResult");
+                                }
+                            } else if incoming.msg_type == "ReportEvent" {
+                                let deps = ReportEventDeps {
+                                    event_writer: event_writer.clone(),
+                                };
+                                let response = handle_report_event(
+                                    incoming.payload,
+                                    incoming.msg_id,
+                                    user_id,
+                                    &deps,
+                                ).await;
+                                if !registry.send_to(connection_id, &response) {
+                                    tracing::warn!(%connection_id, "failed to send EventReportAck");
                                 }
                             } else {
                                 // 其他消息类型（ping 等）走纯函数路径
