@@ -23,6 +23,7 @@
 | **v1.2** | **04-21** | **E-07.5 埋点与观测性基建（与 E-07 并行）：新增 6 个 Task（App Server 2 / Admin Server 1 / Web 1 / Android 2）；产出 `doc/product/phase1_observability.md` 方向总纲、`business_flows.md §2.9` 事件字典；Android 2 个新设计文档** |
 | **v1.3** | **04-21** | **Phase 1.5 E-10 房间主权与管理员体系：新增 18 个 Task（App Server 7 / Admin Server 1 / Web 1 / Android 9）；产出 `doc/product/phase1_room_governance.md` 方向总纲、`competitors.md` 附录 B、`business_flows.md §2.8` 治理流程；Android 9 个新设计文档** |
 | **v1.4** | **2026-04-29** | **T-30034 DoD 完成，E-07.5 进度 5/6：新建 `doc/arch/android/analytics.md`（AnalyticsPort 接口设计、SentryAnalytics/DefaultSentryHub Stub、SensitiveFilter 脱敏策略、ConsentMode 枚举、NoopAnalytics、BuildConfig.SENTRY_DSN 注入、CI 静态检查脚本、MVP 限制 HIGH-01/02、待修复项 MEDIUM-01/02）；doc/arch/android/index.md 新增 analytics.md 子模块索引与能力状态描述；Tasks.md T-30034 标记为 ✅ Done（负责人: Dod）；doc/product/index.md E-07.5 进度更新为 5/6** |
+| **v1.5** | **2026-04-30** | **T-30035 DoD 完成，E-07.5 进度 6/6（全部完成）：doc/arch/android/analytics.md 新增第十二章 EventReportClient 主链路（EventReportClient 主入口 + 队列策略 + Throttler + Transport 选择 + SessionManager + CommonPropsProvider + ConsentRepository/DataStoreConsentStore + PrivacyConsentDialog + 26 个核心事件埋点）与第十三章 TDD 验收结果（42 个单元测试全部通过）；doc/arch/android/index.md 能力全景新增 T-30035 条目；Tasks.md T-30035 确认 ✅ Done（负责人: Dod）；doc/product/index.md E-07.5 进度更新为 6/6 全部完成** |
 
 ---
 
@@ -308,7 +309,7 @@
 > **说明**：为 E-07 礼物闭环提供数据验证能力。需在 E-07 上线前完成。与 E-07 **零依赖冲突**，可完全并行。详见 [phase1_observability.md](./product/phase1_observability.md)。
 > **产品流程规范**: [business_flows.md §2.9](./product/business_flows.md)
 
-### 模块 7: 埋点与观测性基建 (E-07.5)
+### 模块 7: 埋点与观测性基建 (E-07.5) ✅ 完成 (6/6)
 
 > **依赖关系图**:
 > ```
