@@ -1,12 +1,12 @@
 <!--
 [AI 写入规约]
-本文件记录 Room HTTP API 模块的架构设计与实现状态（T-00007 ~ T-00026 等）。
+本文件记录 Room HTTP API 模块的架构设计与实现状态（T-00007 ~ T-00027 等）。
 仅写架构约定与接口契约，不重复 TDS 中的 TDD 验收用例原文。
 -->
 
 # Room HTTP API 架构设计
 
-> 关联 TDS：[T-00025](../../tds/server/T-00025.md) · [T-00026](../../tds/server/T-00026.md)
+> 关联 TDS：[T-00025](../../tds/server/T-00025.md) · [T-00026](../../tds/server/T-00026.md) · [T-00027](../../tds/server/T-00027.md)
 > 数据库基座：[database.md](./database.md)（T-00024 治理扩字段）
 
 ---
@@ -273,3 +273,127 @@ JWT Claims（`iss=voiceroom-room-access`，TTL 60s）：
 | `room/handler.rs` 内联测试 | PR26-02/03/04/12 WS 校验层 | 4 |
 | 集成测试 `password_room_test.rs` | PR26-01 ~ PR26-12 端到端 | 12 |
 | **全量测试** | 382+ 个全部 ✅ | 382+ |
+
+---
+
+## 十三、GET /api/v1/rooms/:id/members — 观众席列表 API（T-00027）
+
+> 关联 TDS：[T-00027](../../tds/server/T-00027.md)
+
+### 接口定义
+
+**GET /api/v1/rooms/:id/members?page=1&limit=20**（需 JWT，仅连接中成员可调）
+
+#### 响应格式
+
+```json
+{
+  "code": 0,
+  "data": {
+    "total": 87,
+    "page": 1,
+    "limit": 20,
+    "items": [
+      {
+        "user_id": "uuid",
+        "nickname": "...",
+        "avatar": "...",
+        "role": "owner|admin|member",
+        "mic_slot": 0,
+        "joined_at": "2026-04-23T10:00:00Z",
+        "muted_mic": false,
+        "muted_chat": false
+      }
+    ]
+  }
+}
+```
+
+- `mic_slot`：整数（0 = 主麦），`null` 表示观众席
+- `muted_mic` / `muted_chat`：仅对连接中的房间成员可见（管理员视角）；非成员请求返回 403（40301）
+
+---
+
+### 排序规则
+
+1. **麦上用户置顶**：`mic_slot IS NOT NULL ORDER BY slot ASC`（主麦 slot=0 排最前）
+2. **观众按 `joined_at DESC`**：最新进房者在前
+
+---
+
+### 角色计算优先级
+
+```
+user_id == room.owner_id       → role = "owner"
+user_id == room.admin_user_id  → role = "admin"
+else                            → role = "member"
+```
+
+优先级：**owner > admin > member**（同一用户若既是 owner 又是 admin_user_id，取 owner）
+
+---
+
+### 性能设计
+
+| 步骤 | 操作 | 复杂度 |
+|------|------|--------|
+| 1 | `RoomManager.list_members(room_id)` 内存读取 `Vec<MemberSnapshot>` | O(n) 无 DB |
+| 2 | 批量 `SELECT id, nickname, avatar FROM users WHERE id = ANY($1) AND deleted_at IS NULL` | **1 次 SQL** |
+| 3 | `muted_mic` / `muted_chat` 从 Redis Key `mic_muted:{room_id}:{user_id}` / `chat_muted:{room_id}:{user_id}` 批量读取 | O(n) 内存/Redis |
+| 4 | 复合排序 + 分页 slice | O(n log n) |
+
+100 人房间 p95 目标 **< 150ms**。
+
+---
+
+### MemberSnapshot 结构体
+
+`RoomManager` 内存中维护的每位成员快照：
+
+```rust
+pub struct MemberSnapshot {
+    pub user_id:   Uuid,
+    pub joined_at: DateTime<Utc>,   // 进房时间（单一数据源，不再使用 member_join_times DashMap）
+    pub mic_slot:  Option<u8>,      // None = 观众；Some(n) = n 号麦位
+}
+```
+
+> **单一数据源**：`joined_at` 统一从 `MemberInfo.joined_at` 读取；`RoomState.member_join_times DashMap` 已于 T-00027 Round 2 修复中完整移除（7 处引用全部删除）。
+
+---
+
+### 权限与错误码
+
+| 场景 | HTTP | code |
+|------|------|------|
+| 非连接中用户（路人 HTTP 请求） | 403 | 40301 |
+| `page < 1` | 400 | 40003 |
+| 房间不存在 | 404 | 40400 |
+| `page` 超界 | 200 | `items: []`，`total` 返回真实总数 |
+
+---
+
+## 十四、涉及文件清单（T-00027 新增 / 修改）
+
+| 文件路径 | 变更类型 | 说明 |
+|---------|---------|------|
+| `app/server/src/modules/room/members_handler.rs` | **新增** | list members handler + `AuthServiceUserAdapter`（单次批量调用） |
+| `app/server/src/modules/room/members_service.rs` | **新增** | `MembersPort` trait + 业务组装逻辑 |
+| `app/server/src/modules/auth/repository.rs` | 修改 | `UserRepository` trait 新增 `find_by_ids`；`PgUserRepository` `WHERE id = ANY($1)` 单次 SQL；R01~R05 单元测试 |
+| `app/server/src/modules/auth/service.rs` | 修改 | `AuthService` 新增 `get_users_by_ids` 方法；S01~S03 单元测试 |
+| `app/server/src/room/manager.rs` | 修改 | `list_members(room_id)` 直接读 `MemberInfo.joined_at`，移除 fallback |
+| `app/server/src/room/state.rs` | 修改 | 删除 `member_join_times DashMap`（单一数据源） |
+| `app/server/src/room/handler.rs` | 修改 | 删除 `member_join_times.insert` / `.remove` 调用 |
+| `app/server/src/bootstrap/router.rs` | 修改 | 挂载 `GET /api/v1/rooms/{id}/members` 路由 |
+| `app/server/tests/members_list_test.rs` | **新增** | M27-01 ~ M27-08 集成测试 |
+
+---
+
+## 十五、测试覆盖汇总（T-00027）
+
+| 测试集 | 范围 | 数量 |
+|--------|------|------|
+| `repository.rs` 内联测试 | R01~R05 批量查询 `find_by_ids` | 5 |
+| `service.rs` 内联测试 | S01~S03 `get_users_by_ids` | 3 |
+| 集成测试 `members_list_test.rs` | M27-01 ~ M27-08 端到端 | 8 |
+| **全量测试** | 398 个全部 ✅ | 398 |
