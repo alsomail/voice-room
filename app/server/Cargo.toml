@@ -69,3 +69,7 @@ name = "room_governance_schema_test"
 [[test]]
 name = "password_room_test"
 required-features = ["test-utils"]
+
+[[test]]
+name = "kick_user_test"
+required-features = ["test-utils"]

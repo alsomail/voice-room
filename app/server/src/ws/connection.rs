@@ -21,6 +21,7 @@ use crate::core::analytics::writer::EventWriterPort;
 use crate::modules::auth::service::AuthService;
 use crate::modules::events::ws::{ReportEventDeps, handle_report_event};
 use crate::modules::gift::send_gift::{SendGiftDeps, SendGiftServicePort, handle_send_gift};
+use crate::modules::governance::kick::{KickAuditDb, KickDeps, KickRedis, handle_kick};
 use crate::modules::room::service::RoomService;
 use crate::room::handler::{JoinRoomDeps, LeaveRoomDeps};
 use crate::room::handler::do_leave_room;
@@ -106,6 +107,10 @@ pub struct SocketDeps {
     pub event_writer: Arc<dyn EventWriterPort>,
     /// JWT 密钥（T-00026 room access token 验证用）
     pub jwt_secret: String,
+    /// 踢人冷却 Redis（T-00028 KickUser 信令 + JoinRoom 前置检查）
+    pub kick_redis: Arc<dyn KickRedis>,
+    /// 踢人审计 DB（T-00028 KickUser 信令）
+    pub kick_audit_db: Arc<dyn KickAuditDb>,
 }
 
 /// 在成功升级的 WebSocket 上运行完整的读/写生命周期。
@@ -125,6 +130,8 @@ pub async fn handle_socket(
     send_gift_service: Arc<dyn SendGiftServicePort>,
     event_writer: Arc<dyn EventWriterPort>,
     jwt_secret: String,
+    kick_redis: Arc<dyn KickRedis>,
+    kick_audit_db: Arc<dyn KickAuditDb>,
 ) {
     let connection_id = Uuid::new_v4(); // 每次連接生成唯一 ID，與 user_id 解耦
     let (tx, mut rx) = mpsc::unbounded_channel::<String>();
@@ -172,6 +179,7 @@ pub async fn handle_socket(
                                     registry: registry.clone(),
                                     stats: stats.clone(),
                                     jwt_secret: jwt_secret.clone(),
+                                    kick_redis: Some(kick_redis.clone()),
                                 };
                                 let response = crate::room::handler::handle_join_room(
                                     incoming.payload,
@@ -269,6 +277,24 @@ pub async fn handle_socket(
                                 ).await;
                                 if !registry.send_to(connection_id, &response) {
                                     tracing::warn!(%connection_id, "failed to send EventReportAck");
+                                }
+                            } else if incoming.msg_type == "KickUser" {
+                                // T-00028: KickUser 信令处理
+                                let deps = KickDeps {
+                                    room_manager: room_manager.clone(),
+                                    room_service: room_service.clone(),
+                                    redis: kick_redis.clone(),
+                                    audit_db: kick_audit_db.clone(),
+                                    registry: registry.clone(),
+                                };
+                                let response = handle_kick(
+                                    incoming.payload,
+                                    incoming.msg_id,
+                                    user_id,
+                                    &deps,
+                                ).await;
+                                if !registry.send_to(connection_id, &response) {
+                                    tracing::warn!(%connection_id, "failed to send KickUserResult");
                                 }
                             } else {
                                 // 其他消息类型（ping 等）走纯函数路径

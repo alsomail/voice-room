@@ -2,6 +2,7 @@
 pub mod auth;
 pub mod events;
 pub mod gift;
+pub mod governance;
 pub mod ranking;
 pub mod room;
 pub mod wallet;

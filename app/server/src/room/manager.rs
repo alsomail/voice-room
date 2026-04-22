@@ -73,6 +73,26 @@ impl RoomManager {
         self.rooms.len()
     }
 
+    /// 原子移除指定房间中的某个成员（T-00028 KickUser 用）。
+    ///
+    /// 使用 `DashMap::remove()` 原子语义：
+    /// - 若房间不存在或成员不在房间 → 返回 `None`
+    /// - 成功移除 → 返回 `Some(MemberInfo)`
+    ///
+    /// **并发保护**：多个管理员同时踢同一人时，只有第一个 `remove()` 返回 `Some`，
+    /// 后续调用返回 `None`，调用方应将 `None` 视为静默成功。
+    pub fn remove_member(&self, room_id: Uuid, user_id: Uuid) -> Option<super::state::MemberInfo> {
+        let state = self.get_room(room_id)?;
+        state.members.remove(&user_id).map(|(_, m)| m)
+    }
+
+    /// 检查指定用户是否在指定房间内（非原子，仅用于前置快速检查）。
+    pub fn is_member(&self, room_id: Uuid, user_id: Uuid) -> bool {
+        self.get_room(room_id)
+            .map(|s| s.members.contains_key(&user_id))
+            .unwrap_or(false)
+    }
+
     /// 获取指定房间所有成员的快照（T-00027 列表 API 用）。
     ///
     /// 返回 `None` 表示房间不存在（未在内存中激活）。

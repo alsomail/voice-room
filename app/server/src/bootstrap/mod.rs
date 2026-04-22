@@ -11,6 +11,7 @@ use crate::{
         auth::{auth_routes, repository::UserRepository, service::AuthService},
         events::events_routes,
         gift::{gift_routes, send_gift::SendGiftServicePort, service::GiftServicePort},
+        governance::kick::{KickAuditDb, KickRedis},
         ranking::{ranking_routes, RankingServicePort},
         room::{password::RoomPasswordRedis, repository::RoomRepository, room_routes, RoomService},
         wallet::{service::WalletServicePort, wallet_routes},
@@ -43,6 +44,10 @@ pub struct AppState {
     pub event_writer: Arc<dyn EventWriterPort>,
     /// 密码房 Redis 操作（T-00026 失败计数 + 锁定）
     pub room_password_redis: Arc<dyn RoomPasswordRedis>,
+    /// 踢人冷却 Redis（T-00028）
+    pub kick_redis: Arc<dyn KickRedis>,
+    /// 踢人审计 DB（T-00028）
+    pub kick_audit_db: Arc<dyn KickAuditDb>,
 }
 
 impl AppState {
@@ -80,6 +85,8 @@ impl AppState {
             ranking_service,
             event_writer,
             room_password_redis: Arc::new(crate::modules::room::FakeRoomPasswordRedis::default()),
+            kick_redis: Arc::new(crate::modules::governance::kick::FakeKickRedis::default()),
+            kick_audit_db: Arc::new(crate::modules::governance::kick::FakeKickAuditDb::default()),
         }
     }
 
@@ -121,6 +128,8 @@ impl AppState {
             ranking_service,
             event_writer,
             room_password_redis: Arc::new(crate::modules::room::FakeRoomPasswordRedis::default()),
+            kick_redis: Arc::new(crate::modules::governance::kick::FakeKickRedis::default()),
+            kick_audit_db: Arc::new(crate::modules::governance::kick::FakeKickAuditDb::default()),
         }
     }
 
@@ -129,6 +138,18 @@ impl AppState {
     /// 在 `main.rs` 中调用：`state.with_room_password_redis(Arc::new(RealRoomPasswordRedis::new(url)?))`
     pub fn with_room_password_redis(mut self, redis: Arc<dyn RoomPasswordRedis>) -> Self {
         self.room_password_redis = redis;
+        self
+    }
+
+    /// 设置生产环境真实 KickRedis（T-00028），替换默认的 FakeKickRedis。
+    pub fn with_kick_redis(mut self, redis: Arc<dyn KickRedis>) -> Self {
+        self.kick_redis = redis;
+        self
+    }
+
+    /// 设置生产环境真实 KickAuditDb（T-00028），替换默认的 FakeKickAuditDb。
+    pub fn with_kick_audit_db(mut self, db: Arc<dyn KickAuditDb>) -> Self {
+        self.kick_audit_db = db;
         self
     }
 

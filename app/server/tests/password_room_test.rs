@@ -116,6 +116,7 @@ fn build_ws_deps(
         registry: registry.clone(),
         stats: Arc::new(FakeStatsService::default()),
         jwt_secret: TEST_JWT_SECRET.to_string(),
+        kick_redis: None,
     }
 }
 

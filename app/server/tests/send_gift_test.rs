@@ -160,6 +160,7 @@ fn join_room(registry: &ConnectionRegistry, room_state: &RoomState, user_id: Uui
         user_id,
         nickname: format!("User_{}", &user_id.to_string()[..8]),
         avatar: None,
+        joined_at: chrono::Utc::now(),
     });
     (connection_id, rx)
 }

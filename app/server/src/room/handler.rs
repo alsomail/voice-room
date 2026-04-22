@@ -22,6 +22,7 @@ use uuid::Uuid;
 use voice_room_shared::auth::room_access::decode_room_access_token;
 
 use crate::modules::auth::service::AuthService;
+use crate::modules::governance::kick::KickRedis;
 use crate::modules::room::service::RoomService;
 use crate::stats::StatsPort;
 use crate::ws::registry::ConnectionRegistry;
@@ -41,6 +42,8 @@ pub struct JoinRoomDeps {
     pub stats: Arc<dyn StatsPort>,
     /// JWT 密钥（用于 room access token 验证，T-00026）
     pub jwt_secret: String,
+    /// 踢人冷却 Redis（T-00028 JoinRoom 前置检查）；None = 跳过检查
+    pub kick_redis: Option<Arc<dyn KickRedis>>,
 }
 
 // ─── handle_join_room ────────────────────────────────────────────────────────
@@ -62,6 +65,7 @@ pub async fn handle_join_room(
         registry,
         stats,
         jwt_secret,
+        kick_redis,
     } = deps;
 
     // ── 1. 解析 room_id ───────────────────────────────────────────────────────
@@ -88,6 +92,21 @@ pub async fn handle_join_room(
             return error_response(msg_id, 50000, "internal error");
         }
     };
+
+    // ── 2.5 踢出冷却检查（T-00028）────────────────────────────────────────────
+    // K28-07: 被踢 10min 内重进 → 42911 + remaining_sec
+    if let Some(ref kr) = kick_redis {
+        match kr.get_kick_remaining_sec(room_id, user_id).await {
+            Ok(Some(remaining)) => {
+                return join_room_kick_cooldown_response(msg_id, remaining);
+            }
+            Ok(None) => {} // 未被踢或已过冷却，继续
+            Err(e) => {
+                tracing::warn!("kick cooldown check failed: {e}");
+                // 非阻断性，继续加入
+            }
+        }
+    }
 
     // ── 3. 密码房：校验 access_token（T-00026）──────────────────────────────
     if room_detail.room_type == "password" {
@@ -257,7 +276,7 @@ pub async fn do_leave_room(
 
     // 4'（被动下麦广播）：在 clear_room_id 之后广播 MicLeft，离开者已被排除
     if let Some(mic_index) = left_mic_index {
-        broadcast_mic_left(&deps.registry, room_id, mic_index, user_id);
+        broadcast_mic_left(&deps.registry, room_id, mic_index, user_id, false);
     }
 
     // 8. 空房间即时清理
@@ -297,6 +316,19 @@ fn error_response(msg_id: Option<String>, code: i64, message: &str) -> String {
         "msg_id": msg_id,
         "code": code,
         "message": message,
+        "timestamp": chrono::Utc::now().timestamp(),
+    });
+    serde_json::to_string(&resp).unwrap_or_default()
+}
+
+/// 踢出冷却响应（42911）：包含 remaining_sec（T-00028 K28-07）
+fn join_room_kick_cooldown_response(msg_id: Option<String>, remaining_sec: i64) -> String {
+    let resp = serde_json::json!({
+        "type": "JoinRoomResult",
+        "msg_id": msg_id,
+        "code": 42911,
+        "message": "kicked cooldown",
+        "payload": { "remaining_sec": remaining_sec },
         "timestamp": chrono::Utc::now().timestamp(),
     });
     serde_json::to_string(&resp).unwrap_or_default()
@@ -454,7 +486,7 @@ pub async fn handle_leave_mic(
     };
 
     // ── 4. 广播 MicLeft 给房间内所有连接（含请求方）──────────────────────────
-    broadcast_mic_left(&deps.registry, room_id, mic_index, user_id);
+    broadcast_mic_left(&deps.registry, room_id, mic_index, user_id, false);
 
     // ── 5. 返回 LeaveMicResult ────────────────────────────────────────────────
     let resp = serde_json::json!({
@@ -478,18 +510,23 @@ fn leave_mic_error_response(msg_id: Option<String>, code: i64, message: &str) ->
     serde_json::to_string(&resp).unwrap_or_default()
 }
 
-/// 广播 MicLeft 给房间内所有连接
-fn broadcast_mic_left(
+/// 广播 MicLeft 给房间内所有连接（T-00028 新增 forced 字段）
+///
+/// - `forced = false`：主动下麦（LeaveRoom / LeaveMic）
+/// - `forced = true`：被踢下麦（KickUser）
+pub(crate) fn broadcast_mic_left(
     registry: &ConnectionRegistry,
     room_id: Uuid,
     mic_index: usize,
     user_id: Uuid,
+    forced: bool,
 ) {
     let mic_left = serde_json::json!({
         "type": "MicLeft",
         "payload": {
             "mic_index": mic_index,
             "user_id": user_id.to_string(),
+            "forced": forced,
         },
         "timestamp": chrono::Utc::now().timestamp(),
     });
@@ -752,6 +789,7 @@ mod tests {
             registry: registry.clone(),
             stats: stats.clone(),
             jwt_secret: "test-secret".to_string(),
+            kick_redis: None,
         }
     }
 
@@ -2257,6 +2295,7 @@ mod tests {
             registry: registry.clone(),
             stats: stats.clone(),
             jwt_secret: "test-secret".to_string(),
+            kick_redis: None,
         };
 
         let response = handle_join_room(
