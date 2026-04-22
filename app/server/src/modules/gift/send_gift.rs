@@ -530,23 +530,20 @@ fn send_gift_error_response(msg_id: Option<String>, code: i64, message: &str) ->
     serde_json::to_string(&resp).unwrap_or_default()
 }
 
-// ─── FakeSendGiftService（仅测试/test-utils）─────────────────────────────────
+// ─── FakeSendGiftService（测试替身，无 cfg guard）────────────────────────────
 
 /// 内存测试替身，供 `AppState::for_test()` 注入
 ///
 /// - `send()` 始终返回 `Ok(SendGiftResult { ... })`
 /// - 不触碰 DB、Redis 或 registry
-#[cfg(any(test, feature = "test-utils"))]
 pub struct FakeSendGiftService;
 
-#[cfg(any(test, feature = "test-utils"))]
 impl Default for FakeSendGiftService {
     fn default() -> Self {
         Self
     }
 }
 
-#[cfg(any(test, feature = "test-utils"))]
 #[async_trait]
 impl SendGiftServicePort for FakeSendGiftService {
     async fn send(
