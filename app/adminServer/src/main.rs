@@ -6,7 +6,10 @@ use voice_room_admin_server::{
     modules::{
         audit::repository::PgAuditRepository,
         auth::{PgAdminLogRepository, PgAdminRepository},
-        event::publisher::{EventPublisher, NoopEventPublisher, RedisEventPublisher},
+        event::{
+            publisher::{EventPublisher, NoopEventPublisher, RedisEventPublisher},
+            PgEventQueryRepository,
+        },
         gift::repo::PgGiftRepository,
         room::PgAdminRoomRepository,
         stats::PgAdminStatsRepository,
@@ -74,7 +77,8 @@ async fn main() -> anyhow::Result<()> {
         event_publisher,
         Arc::new(PgAuditRepository::new(pool.clone())),
         Arc::new(PgWalletRepository::new(pool.clone())),
-        Arc::new(PgGiftRepository::new(pool)),
+        Arc::new(PgGiftRepository::new(pool.clone())),
+        Arc::new(PgEventQueryRepository::new(pool)),
     );
 
     let app = build_app(state);
