@@ -531,4 +531,279 @@ class CreateRoomViewModelTest {
                 viewModel.uiState.value
             )
         }
+
+    // ═════════════════════════════════════════════
+    // T-30036: 创建房间表单升级 C36-01 ~ C36-08
+    // ═════════════════════════════════════════════
+
+    // ─────────────────────────────────────────────
+    // C36-01: 空房名 canSubmit = false
+    // ─────────────────────────────────────────────
+
+    @Test
+    fun `C36-01 empty title canSubmit is false`() {
+        val state = CreateRoomFormState(
+            title = "",
+            coverUrl = "https://img.example.com/cover.jpg"
+        )
+        org.junit.Assert.assertFalse(
+            "C36-01: empty title should make canSubmit=false",
+            state.canSubmit
+        )
+    }
+
+    @Test
+    fun `C36-01b blank title canSubmit is false`() {
+        val state = CreateRoomFormState(
+            title = "   ",
+            coverUrl = "https://img.example.com/cover.jpg"
+        )
+        org.junit.Assert.assertFalse(
+            "C36-01b: blank title should make canSubmit=false",
+            state.canSubmit
+        )
+    }
+
+    @Test
+    fun `C36-01c valid title canSubmit is true`() {
+        val state = CreateRoomFormState(
+            title = "我的语音房",
+            coverUrl = "https://img.example.com/cover.jpg"
+        )
+        org.junit.Assert.assertTrue(
+            "C36-01c: valid title+cover should make canSubmit=true",
+            state.canSubmit
+        )
+    }
+
+    // ─────────────────────────────────────────────
+    // C36-02: 公告 >200 字 canSubmit = false
+    // ─────────────────────────────────────────────
+
+    @Test
+    fun `C36-02 announcement exceeds 200 chars canSubmit is false`() {
+        val state = CreateRoomFormState(
+            title = "Test Room",
+            coverUrl = "https://img.example.com/cover.jpg",
+            announcement = "x".repeat(201)
+        )
+        org.junit.Assert.assertFalse(
+            "C36-02: announcement >200 chars should make canSubmit=false",
+            state.canSubmit
+        )
+    }
+
+    @Test
+    fun `C36-02b announcement exactly 200 chars canSubmit is true`() {
+        val state = CreateRoomFormState(
+            title = "Test Room",
+            coverUrl = "https://img.example.com/cover.jpg",
+            announcement = "x".repeat(200)
+        )
+        org.junit.Assert.assertTrue(
+            "C36-02b: announcement=200 chars should still canSubmit=true",
+            state.canSubmit
+        )
+    }
+
+    // ─────────────────────────────────────────────
+    // C36-03: 密码开关关闭时不传 password 字段
+    // ─────────────────────────────────────────────
+
+    @Test
+    fun `C36-03 password disabled submit passes null password to repository`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            val fakeRepo = FakeSuccessRepository()
+            val viewModel = CreateRoomViewModel(fakeRepo)
+
+            viewModel.updateTitle("Test Room")
+            viewModel.updateCoverUrl("https://img.example.com/cover.jpg")
+            // passwordEnabled = false（默认值）
+
+            viewModel.submit()
+            advanceUntilIdle()
+
+            assertEquals(
+                "C36-03: password disabled — repository should receive null password",
+                null,
+                fakeRepo.lastPassword
+            )
+        }
+
+    // ─────────────────────────────────────────────
+    // C36-04: 密码开关开但输入 5 位 canSubmit = false
+    // ─────────────────────────────────────────────
+
+    @Test
+    fun `C36-04 password enabled with 5 digits canSubmit is false`() {
+        val state = CreateRoomFormState(
+            title = "Test Room",
+            coverUrl = "https://img.example.com/cover.jpg",
+            passwordEnabled = true,
+            password = "12345"
+        )
+        org.junit.Assert.assertFalse(
+            "C36-04: passwordEnabled=true + 5-digit password → canSubmit=false",
+            state.canSubmit
+        )
+    }
+
+    @Test
+    fun `C36-04b password enabled with 6 digits canSubmit is true`() {
+        val state = CreateRoomFormState(
+            title = "Test Room",
+            coverUrl = "https://img.example.com/cover.jpg",
+            passwordEnabled = true,
+            password = "123456"
+        )
+        org.junit.Assert.assertTrue(
+            "C36-04b: passwordEnabled=true + 6-digit password → canSubmit=true",
+            state.canSubmit
+        )
+    }
+
+    // ─────────────────────────────────────────────
+    // C36-05: 密码 6 位含字母 canSubmit = false
+    // ─────────────────────────────────────────────
+
+    @Test
+    fun `C36-05 password with letters canSubmit is false`() {
+        val state = CreateRoomFormState(
+            title = "Test Room",
+            coverUrl = "https://img.example.com/cover.jpg",
+            passwordEnabled = true,
+            password = "12345a"
+        )
+        org.junit.Assert.assertFalse(
+            "C36-05: 6-char password containing letter → canSubmit=false",
+            state.canSubmit
+        )
+    }
+
+    @Test
+    fun `C36-05b password with special chars canSubmit is false`() {
+        val state = CreateRoomFormState(
+            title = "Test Room",
+            coverUrl = "https://img.example.com/cover.jpg",
+            passwordEnabled = true,
+            password = "1234!6"
+        )
+        org.junit.Assert.assertFalse(
+            "C36-05b: 6-char password containing special char → canSubmit=false",
+            state.canSubmit
+        )
+    }
+
+    // ─────────────────────────────────────────────
+    // C36-06: 未选封面 canSubmit = false
+    // ─────────────────────────────────────────────
+
+    @Test
+    fun `C36-06 empty coverUrl canSubmit is false`() {
+        val state = CreateRoomFormState(
+            title = "Test Room",
+            coverUrl = ""
+        )
+        org.junit.Assert.assertFalse(
+            "C36-06: empty coverUrl → canSubmit=false",
+            state.canSubmit
+        )
+    }
+
+    // ─────────────────────────────────────────────
+    // C36-07: 创建成功 navigate 到 RoomScreen
+    // ─────────────────────────────────────────────
+
+    @Test
+    fun `C36-07 submit success sets navigatedRoomId in formState`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            val expectedRoomId = "room-c36-07"
+            val fakeRepo = FakeSuccessRepository(returnedRoomId = expectedRoomId)
+            val viewModel = CreateRoomViewModel(fakeRepo)
+
+            viewModel.updateTitle("语音房 C36")
+            viewModel.updateCoverUrl("https://img.example.com/cover.jpg")
+            viewModel.submit()
+            advanceUntilIdle()
+
+            assertEquals(
+                "C36-07: submit success → formState.navigatedRoomId = roomId",
+                expectedRoomId,
+                viewModel.formState.value.navigatedRoomId
+            )
+        }
+
+    @Test
+    fun `C36-07b submit success sets submitting false`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            val fakeRepo = FakeSuccessRepository()
+            val viewModel = CreateRoomViewModel(fakeRepo)
+
+            viewModel.updateTitle("语音房 C36b")
+            viewModel.updateCoverUrl("https://img.example.com/cover.jpg")
+            viewModel.submit()
+            advanceUntilIdle()
+
+            org.junit.Assert.assertFalse(
+                "C36-07b: after success submitting should be false",
+                viewModel.formState.value.submitting
+            )
+        }
+
+    // ─────────────────────────────────────────────
+    // C36-08: 409 错误显示 Snackbar（error 字段非 null）
+    // ─────────────────────────────────────────────
+
+    @Test
+    fun `C36-08 submit api failure sets error in formState`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            val errorMessage = "用户已有活跃房间"
+            val fakeRepo = FakeFailureRepository(errorMessage = errorMessage)
+            val viewModel = CreateRoomViewModel(fakeRepo)
+
+            viewModel.updateTitle("语音房 C36")
+            viewModel.updateCoverUrl("https://img.example.com/cover.jpg")
+            viewModel.submit()
+            advanceUntilIdle()
+
+            assertEquals(
+                "C36-08: API error → formState.error should contain error message",
+                errorMessage,
+                viewModel.formState.value.error
+            )
+        }
+
+    @Test
+    fun `C36-08b submit api failure sets submitting false`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            val fakeRepo = FakeFailureRepository()
+            val viewModel = CreateRoomViewModel(fakeRepo)
+
+            viewModel.updateTitle("语音房 C36")
+            viewModel.updateCoverUrl("https://img.example.com/cover.jpg")
+            viewModel.submit()
+            advanceUntilIdle()
+
+            org.junit.Assert.assertFalse(
+                "C36-08b: after API failure submitting should be false",
+                viewModel.formState.value.submitting
+            )
+        }
+
+    @Test
+    fun `C36-08c submit canSubmit false does not call repository`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            // canSubmit=false（无标题）时 submit() 不调用 repository
+            val fakeRepo = FakeSuccessRepository()
+            val viewModel = CreateRoomViewModel(fakeRepo)
+            // title empty → canSubmit=false
+            viewModel.submit()
+            advanceUntilIdle()
+
+            assertEquals(
+                "C36-08c: canSubmit=false → repository not called",
+                0,
+                fakeRepo.createRoomCallCount
+            )
+        }
 }
