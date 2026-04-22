@@ -53,4 +53,11 @@ data class GiftReceivedEvent(
     val effectLevel: Int,
     val count: Int,
     val totalPrice: Long,
+    /**
+     * 是否为重连补偿消息（T-30031 E31-07）。
+     *
+     * `true` 时仅播放 L1 弹幕，跳过 L2 麦位光圈与 L3 全屏特效。
+     * 默认值 `false` 保持向后兼容。
+     */
+    val isReplay: Boolean = false,
 )

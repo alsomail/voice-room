@@ -8,9 +8,13 @@ import com.voice.room.android.core.media.IMediaService
 import com.voice.room.android.core.media.NoOpMediaService
 import com.voice.room.android.core.ws.IWebSocketClient
 import com.voice.room.android.core.ws.WebSocketState
+import com.voice.room.android.core.ws.event.GiftReceivedEvent
 import com.voice.room.android.data.room.IRoomSnapshotRepository
 import com.voice.room.android.data.room.MicSlotData
 import com.voice.room.android.data.room.RoomSnapshot
+import com.voice.room.android.feature.room.effect.FullscreenAnim
+import com.voice.room.android.feature.room.effect.GiftEffectController
+import com.voice.room.android.feature.room.effect.GiftMessageUi
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -57,6 +61,21 @@ class RoomViewModel(
 
     /** 当前房间 UI 状态流，初始值为 [RoomViewState.Loading] */
     val uiState: StateFlow<RoomViewState> = _uiState.asStateFlow()
+
+    /** 礼物特效调度控制器（T-30031）*/
+    private val giftEffectController = GiftEffectController(viewModelScope)
+
+    /** L1 弹幕消息列表（金色礼物弹幕，persistently列） */
+    val giftMessages: StateFlow<List<GiftMessageUi>> = giftEffectController.giftMessages
+
+    /** L2 麦位光圈目标用户 ID（null = 无光圈） */
+    val micGlowTargetUserId: StateFlow<String?> = giftEffectController.micGlowTargetUserId
+
+    /** L3 全屏 Lottie 特效（null = 无全屏特效） */
+    val fullscreenEffect: StateFlow<FullscreenAnim?> = giftEffectController.fullscreenEffect
+
+    /** 跳过当前全屏 L3 特效 */
+    fun skipFullscreenEffect() = giftEffectController.skipFullscreen()
 
     private val _events = Channel<RoomEvent>(Channel.UNLIMITED)
 
@@ -422,6 +441,35 @@ class RoomViewModel(
 
             "RoomClosed" -> {
                 _events.trySend(RoomEvent.NavigateBack)
+            }
+
+            "GiftReceived" -> {
+                val msgId       = json.get("msgId")?.asString ?: return
+                val recordId    = json.get("giftRecordId")?.asString ?: ""
+                val senderObj   = json.getAsJsonObject("sender") ?: return
+                val receiverObj = json.getAsJsonObject("receiver") ?: return
+                val giftObj     = json.getAsJsonObject("gift") ?: return
+
+                val evt = GiftReceivedEvent(
+                    msgId           = msgId,
+                    giftRecordId    = recordId,
+                    senderUserId    = senderObj.get("userId")?.asString ?: return,
+                    senderNickname  = senderObj.get("nickname")?.asString ?: "",
+                    senderAvatar    = senderObj.get("avatar")?.takeIf { !it.isJsonNull }?.asString,
+                    receiverUserId  = receiverObj.get("userId")?.asString ?: return,
+                    receiverNickname = receiverObj.get("nickname")?.asString ?: "",
+                    receiverAvatar  = receiverObj.get("avatar")?.takeIf { !it.isJsonNull }?.asString,
+                    giftId          = giftObj.get("giftId")?.asString ?: return,
+                    giftCode        = giftObj.get("giftCode")?.asString ?: "",
+                    giftName        = giftObj.get("name")?.asString ?: "",
+                    giftIconUrl     = giftObj.get("iconUrl")?.asString ?: "",
+                    giftAnimationUrl = giftObj.get("animationUrl")?.takeIf { !it.isJsonNull }?.asString,
+                    effectLevel     = giftObj.get("effectLevel")?.asInt ?: 1,
+                    count           = json.get("count")?.asInt ?: 1,
+                    totalPrice      = json.get("totalPrice")?.asLong ?: 0L,
+                    isReplay        = json.get("isReplay")?.asBoolean ?: false,
+                )
+                giftEffectController.onGiftReceived(evt)
             }
         }
     }
