@@ -1,8 +1,8 @@
 # Android 礼物模块架构文档
 
-**最后更新**：2026-04-25  
+**最后更新**：2026-04-26  
 **负责人**：Dod Agent  
-**关联 Task**：T-30028（礼物面板 BottomSheet 完整实现），T-30029（接收者选择器），T-30030（SendGift 客户端+幂等）
+**关联 Task**：T-30028（礼物面板 BottomSheet 完整实现），T-30029（接收者选择器），T-30030（SendGift 客户端+幂等），T-30031（送礼特效+弹幕）
 
 ---
 
@@ -409,8 +409,420 @@ GiftCard 显示 gift.name（自动适配语言）
 | Task | 接入内容 | 状态 |
 |-----|---------|------|
 | **T-30030** | SendGift 客户端实现：UUID msg_id + 幂等 + 3s 连击聚合 + 5s 超时 | ✅ 完成（DoD） |
-| **T-30031** | 送礼特效：GiftReceived 事件驱动动画播放 | 进行中 |
+| **T-30031** | 送礼特效：GiftReceived 事件驱动动画播放（L1/L2/L3 分层） | ✅ 完成（DoD） |
 | **T-30032** | 余额不足弹窗：ShowRechargeHint 事件处理 | 待开发 |
+
+---
+
+## 十、送礼特效架构（T-30031 ✅）
+
+**最后更新**：2026-04-26  
+**关联 Task**：T-30031（Android 送礼特效播放器+弹幕）
+
+### 特效分层架构
+
+收到 `GiftReceivedEvent` 后，根据 `effect_level` 字段决定播放哪些层级：
+
+| 层级 | 触发条件 | 实现 | 时长 | 说明 |
+|------|---------|------|------|------|
+| **L1 弹幕** | effect_level ≥ 1 | `GiftDanmakuMessage` Composable，插入聊天消息列表 | 永久驻列 | 发送者→接收者，金色昵称+礼物图标+数量 |
+| **L2 麦位光圈** | effect_level ≥ 2 | `MicGlowModifier`，应用到接收者麦位组件 | 2s | Scale 1.0→1.2→1.0 循环 2 次（共 1200ms），后自动清除 |
+| **L3 全屏 Lottie** | effect_level ≥ 4 | `GiftFullscreenOverlay`，全屏覆盖层 + 动画队列 | 5s (level=4) / 8s (level=5) | Lottie JSON 动画，可点击跳过，同时只播 1 个，其他排队（最多 3 个） |
+
+### GiftReceivedEvent 字段约定
+
+```kotlin
+data class GiftReceivedEvent(
+    val senderId: String,
+    val senderNickname: String,
+    val senderAvatar: String?,        // 发送者头像 URL
+    val receiverUserId: String,
+    val receiverNickname: String,
+    val receiverAvatar: String?,      // 接收者头像 URL
+    val giftId: String,
+    val giftName: String,
+    val giftIconUrl: String,          // 礼物图标 URL
+    val count: Int,                   // 数量（连击聚合后）
+    val effectLevel: Int,             // 特效等级：1-2=L1, 3=L1+L2, 4-5=L1+L2+L3
+    val totalInRoom: Int,             // 当前房间累计收到此礼物次数
+    val isReplay: Boolean = false     // 补偿消息标志（true 时仅 L1，不播 L2/L3）
+)
+```
+
+**JSON 字段名约定**：snake_case 格式（与 Server 协议保持一致）：
+```json
+{
+  "sender_id": "uid_123",
+  "sender_nickname": "Alice",
+  "sender_avatar": "https://cdn/avatar/uid_123.jpg",
+  "receiver_id": "uid_456",
+  "receiver_nickname": "Bob",
+  "receiver_avatar": "https://cdn/avatar/uid_456.jpg",
+  "gift_id": "gift_flower",
+  "gift_name": "玫瑰花",
+  "gift_icon_url": "https://cdn/gift/flower.png",
+  "animation_url": "https://cdn/lottie/level5.json",
+  "count": 5,
+  "effect_level": 5,
+  "total_in_room": 12,
+  "is_replay": false
+}
+```
+
+### GiftEffectController 架构
+
+```kotlin
+class GiftEffectController @Inject constructor(
+    private val wsBus: WebSocketEventBus,
+    private val lottiePlayer: ILottiePlayer = NoOpLottiePlayer()
+) {
+    // L1：弹幕消息列表（StateFlow）
+    val giftMessages: StateFlow<List<GiftDanmakuMessage>> = MutableStateFlow(emptyList())
+    
+    // L2：麦位光圈目标用户 ID
+    val micGlowTargetUserId: StateFlow<String?> = MutableStateFlow(null)
+    
+    // L3：全屏特效
+    val fullscreenEffect: StateFlow<FullscreenAnim?> = MutableStateFlow(null)
+    
+    // L3 队列（最多 3 个）
+    private val l3Queue = Channel<GiftReceivedEvent>(capacity = 3)
+    
+    init {
+        CoroutineScope(Dispatchers.Main).launch {
+            wsBus.events
+                .filterIsInstance<GiftReceivedEvent>()
+                .collect { onGiftReceived(it) }
+        }
+        
+        // L3 队列处理：同时只播 1 个，其他排队
+        CoroutineScope(Dispatchers.Main).launch {
+            for (evt in l3Queue) {
+                playL3(evt)
+                delay(evt.duration.toLong())
+                fullscreenEffect.value = null
+            }
+        }
+    }
+    
+    private fun onGiftReceived(evt: GiftReceivedEvent) {
+        if (evt.isReplay) {
+            // 补偿消息仅 L1，无动画
+            addGiftMessage(evt)
+            return
+        }
+        
+        // L1：弹幕消息
+        addGiftMessage(evt)
+        
+        // L2：麦位光圈（effect_level >= 2）
+        if (evt.effectLevel >= 2) {
+            micGlowTargetUserId.value = evt.receiverUserId
+            CoroutineScope(Dispatchers.Main).launch {
+                delay(2000)  // 2s 自动清除
+                micGlowTargetUserId.value = null
+            }
+        }
+        
+        // L3：全屏 Lottie（effect_level >= 4）
+        if (evt.effectLevel >= 4) {
+            l3Queue.trySend(evt)
+        }
+    }
+    
+    private fun addGiftMessage(evt: GiftReceivedEvent) {
+        val newMsg = GiftDanmakuMessage(
+            msgId = UUID.randomUUID().toString(),
+            senderAvatar = evt.senderAvatar,
+            senderNickname = evt.senderNickname,
+            giftIconUrl = evt.giftIconUrl,
+            giftName = evt.giftName,
+            receiverNickname = evt.receiverNickname,
+            count = evt.count,
+            isBold = evt.effectLevel >= 3
+        )
+        val current = giftMessages.value.toMutableList()
+        // 同礼物+接收者的连击仅一条消息，累加 count
+        val existing = current.find {
+            it.giftIconUrl == newMsg.giftIconUrl && 
+            it.receiverNickname == newMsg.receiverNickname
+        }
+        if (existing != null) {
+            current[current.indexOf(existing)] = existing.copy(count = existing.count + newMsg.count)
+        } else {
+            current.add(newMsg)
+        }
+        giftMessages.value = current
+    }
+    
+    private suspend fun playL3(evt: GiftReceivedEvent) {
+        val duration = if (evt.effectLevel == 4) 5000 else 8000
+        val animUrl = evt.animationUrl
+        
+        // 使用 ILottiePlayer 防腐层预加载动画
+        val preloadSuccess = lottiePlayer.preload(animUrl ?: "")
+        
+        fullscreenEffect.value = FullscreenAnim(
+            animationUrl = if (preloadSuccess) animUrl else "",  // 失败则 fallback
+            durationMs = duration
+        )
+    }
+    
+    fun skipFullscreen() {
+        fullscreenEffect.value = null
+    }
+}
+
+data class FullscreenAnim(
+    val animationUrl: String,
+    val durationMs: Int
+)
+
+data class GiftDanmakuMessage(
+    val msgId: String,
+    val senderAvatar: String?,
+    val senderNickname: String,
+    val giftIconUrl: String,
+    val giftName: String,
+    val receiverNickname: String,
+    val count: Int,
+    val isBold: Boolean
+)
+```
+
+### ILottiePlayer 防腐层
+
+定义于 `core/media/ILottiePlayer.kt`：
+
+```kotlin
+interface ILottiePlayer {
+    /**
+     * 预加载 Lottie 动画，支持 CDN URL 或本地路径
+     * @param animUrl 动画 URL（可为空）
+     * @return true = 加载成功，false = 加载失败或 URL 为空
+     */
+    suspend fun preload(animUrl: String?): Boolean
+    
+    /**
+     * 检查动画是否已缓存
+     */
+    fun isCached(animUrl: String?): Boolean
+}
+
+class NoOpLottiePlayer : ILottiePlayer {
+    override suspend fun preload(animUrl: String?): Boolean = false
+    override fun isCached(animUrl: String?): Boolean = false
+}
+```
+
+**防腐层设计目的**：
+- 业务层（`GiftEffectController` 等）零依赖 Lottie SDK
+- 可无缝切换实现：MVP 用 NoOp，后续接入真实 Lottie SDK 或 CDN 预加载
+- 减少初始化开销（Lottie 动画引擎较重）
+
+### GiftDanmakuMessage 弹幕组件
+
+```kotlin
+@Composable
+fun GiftDanmakuMessage(msg: GiftDanmakuMessage) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color(0x1A_FF_FF_FF))
+            .padding(8.dp)
+            .testTag("gift_msg_${msg.msgId}")
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.Center),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // 发送者头像（16dp）
+            AsyncImage(
+                model = msg.senderAvatar,
+                contentDescription = null,
+                modifier = Modifier
+                    .size(16.dp)
+                    .clip(CircleShape),
+                contentScale = ContentScale.Crop,
+                placeholder = remember { ColorPainter(Color(0x80_FF_FF_FF)) },
+                error = remember { ColorPainter(Color(0x80_FF_FF_FF)) }
+            )
+            
+            // 发送者昵称（金色加粗）
+            Text(
+                text = msg.senderNickname,
+                color = MenaColors.Primary,
+                fontSize = if (msg.isBold) 14.sp else 12.sp,
+                fontWeight = if (msg.isBold) FontWeight.Bold else FontWeight.Normal
+            )
+            
+            // 礼物图标（24dp）
+            AsyncImage(
+                model = msg.giftIconUrl,
+                contentDescription = null,
+                modifier = Modifier.size(24.dp),
+                contentScale = ContentScale.Crop,
+                error = remember { ColorPainter(Color(0x80_FF_FF_FF)) }
+            )
+            
+            // "送给 xxx × N"（灰字）
+            Text(
+                text = "送给 ${msg.receiverNickname} × ${msg.count}",
+                color = Color.White.copy(alpha = 0.7f),
+                fontSize = if (msg.isBold) 12.sp else 10.sp,
+                fontWeight = if (msg.isBold) FontWeight.Bold else FontWeight.Normal
+            )
+        }
+    }
+}
+```
+
+### GiftFullscreenOverlay 全屏动画覆盖层
+
+```kotlin
+@Composable
+fun GiftFullscreenOverlay(
+    effect: FullscreenAnim?,
+    onSkip: () -> Unit
+) {
+    AnimatedVisibility(
+        visible = effect != null,
+        enter = fadeIn(),
+        exit = fadeOut()
+    ) {
+        if (effect != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.3f))
+                    .clickable(enabled = true) { onSkip() }
+                    .testTag("fullscreen_gift_overlay")
+            ) {
+                // 中央 Lottie 动画
+                LottieAnimation(
+                    composition = rememberLottieComposition(effect.animationUrl),
+                    modifier = Modifier
+                        .size(300.dp)
+                        .align(Alignment.Center),
+                    iterations = LottieConstants.IterateForever
+                )
+                
+                // 右上角 Skip 按钮
+                IconButton(
+                    onClick = onSkip,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(16.dp)
+                        .testTag("btn_skip_fullscreen_gift")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Skip",
+                        tint = Color.White
+                    )
+                }
+            }
+        }
+    }
+}
+```
+
+### L2 麦位动画 Modifier
+
+```kotlin
+fun Modifier.micGlow(
+    active: Boolean,
+    durationMs: Int = 2000
+): Modifier = composed {
+    if (active) {
+        val animatedScale = remember { Animatable(1f) }
+        
+        LaunchedEffect(Unit) {
+            // Scale 1.0 → 1.2 → 1.0，循环 2 次（每次 600ms）
+            repeat(2) {
+                animatedScale.animateTo(1.2f, animationSpec = tween(300))
+                animatedScale.animateTo(1.0f, animationSpec = tween(300))
+            }
+        }
+        
+        drawBehind {
+            // 金色光圈
+            val color = Color(0xFF_FF_D7_00)
+            drawCircle(
+                color = color,
+                radius = size.minDimension / 2 * animatedScale.value,
+                style = Stroke(width = 2.dp.toPx())
+            )
+        }
+    } else {
+        this
+    }
+}
+```
+
+### 集成到 RoomScreen
+
+```kotlin
+// 在 RoomViewModel 持有 GiftEffectController 实例
+val giftEffectController = remember { GiftEffectController(wsBus) }
+
+// 监听弹幕消息
+val giftMessages by giftEffectController.giftMessages.collectAsState()
+
+// 监听 L2 光圈
+val micGlowTargetUserId by giftEffectController.micGlowTargetUserId.collectAsState()
+
+// 监听 L3 动画
+val fullscreenEffect by giftEffectController.fullscreenEffect.collectAsState()
+
+// L1：在聊天消息列表上方或下方插入弹幕
+LazyColumn {
+    items(giftMessages) { msg ->
+        GiftDanmakuMessage(msg)
+    }
+    items(chatMessages) { msg ->
+        ChatBubble(msg)
+    }
+}
+
+// L2：应用光圈 Modifier 到麦位
+MicSlot(
+    user = user,
+    modifier = Modifier.micGlow(
+        active = user.userId == micGlowTargetUserId,
+        durationMs = 2000
+    )
+)
+
+// L3：全屏覆盖层
+GiftFullscreenOverlay(
+    effect = fullscreenEffect,
+    onSkip = { giftEffectController.skipFullscreen() }
+)
+```
+
+### TDD 验收用例（15 个）
+
+| 用例 | 验证内容 | 状态 |
+|-----|---------|------|
+| E31-01 | effect_level=1 → 仅 L1 弹幕，无 L2/L3 | ✅ 通过 |
+| E31-02 | effect_level=3 → L1 + L2 麦位光圈 2s | ✅ 通过 |
+| E31-03 | effect_level=5 → L1+L2+L3，L3 8s | ✅ 通过 |
+| E31-04 | L3 播放期间再来一个 L3 礼物进入队列，前一个结束后继续播放 | ✅ 通过 |
+| E31-05 | L3 点击跳过立即结束 | ✅ 通过 |
+| E31-06 | 连击礼物 L1 弹幕仅一条，count 累加 | ✅ 通过 |
+| E31-07 | 接收补偿消息时仅 L1，无 L2/L3（isReplay=true） | ✅ 通过 |
+| E31-08 | animation_url 404 时 fallback，不阻塞流程 | ✅ 通过 |
+| E31-09 | effect_level=4 → duration=5000ms | ✅ 通过 |
+| E31-10 | L2 光圈 2s 后自动清除 | ✅ 通过 |
+| E31-11 | 不同组合独立弹幕 | ✅ 通过 |
+| E31-12 | L3 队列容量=3，第 4 个丢弃 | ✅ 通过 |
+| E31-13 | isBold=true when effectLevel≥3 | ✅ 通过 |
+| E31-14 | isBold=false when effectLevel<3 | ✅ 通过 |
+| E31-15 | 跳过后排队事件继续播放 | ✅ 通过 |
 
 ---
 
@@ -563,43 +975,62 @@ app/android/app/src/main/java/com/voiceroom/
 │   └── gift/
 │       ├── RetrofitGiftRepository.kt
 │       └── DebugGiftRepository.kt
+├── core/
+│   ├── media/
+│   │   ├── ILottiePlayer.kt                 # ✅ T-30031 新增：Lottie 防腐层接口
+│   │   └── NoOpLottiePlayer.kt              # ✅ T-30031 新增：NoOp 实现
+│   └── ws/
+│       └── event/
+│           └── GiftEvents.kt                # T-30030 已完成，T-30031 使用
 └── feature/
+    ├── room/
+    │   ├── effect/
+    │   │   ├── GiftEffectController.kt       # ✅ T-30031 新增：L1/L2/L3 三级特效控制器
+    │   │   ├── FullscreenAnim.kt            # ✅ T-30031 新增：全屏动画数据类
+    │   │   └── GiftDanmakuMessage.kt        # ✅ T-30031 新增：弹幕消息数据类
+    │   ├── components/
+    │   │   ├── GiftDanmakuMessage.kt        # ✅ T-30031 新增：L1 弹幕 Composable
+    │   │   ├── GiftFullscreenOverlay.kt     # ✅ T-30031 新增：L3 全屏动画 Composable
+    │   │   ├── MicGlowModifier.kt           # ✅ T-30031 新增：L2 麦位光圈 Modifier
+    │   │   └── ...
+    │   └── RoomScreen.kt                    # T-30031 修改：集成 GiftEffectController
     └── gift/
-        ├── GiftPanelViewModel.kt       # T-30030 修改：新增 sendGift()、buildSendGiftJson()、handleSendGiftResult()
-        ├── GiftPanelUiState.kt         # T-30030 修改：新增 sending: Boolean 字段
-        ├── GiftPanelEvent.kt           # T-30030 修改：新增 ShowInsufficientDialog、DismissPanel
-        ├── GiftPanelBottomSheet.kt     # T-30030 修改：发送按钮 Loading、新事件处理
-        ├── SendGiftJob.kt              # ✅ T-30030 新增：发送作业描述对象
-        ├── ComboAggregator.kt          # ✅ T-30030 新增：3s 连击聚合器
+        ├── GiftPanelViewModel.kt            # T-30030 完成
+        ├── GiftPanelUiState.kt
+        ├── GiftPanelEvent.kt
+        ├── GiftPanelBottomSheet.kt
+        ├── SendGiftJob.kt
+        ├── ComboAggregator.kt
         └── components/
             ├── GiftCard.kt
             ├── CountSelector.kt
-            ├── RecipientSelector.kt        # T-30029 新增
+            ├── RecipientSelector.kt
             └── BalanceBar.kt
-
-app/android/app/src/main/java/com/voiceroom/core/ws/event/
-├── GiftEvents.kt                           # ✅ T-30030 新增：SendGiftResultEvent、GiftReceivedEvent（含 receiverAvatar）
 
 app/android/app/src/test/java/com/voiceroom/
 ├── feature/
+│   ├── room/
+│   │   └── effect/
+│   │       └── EffectControllerTest.kt      # ✅ T-30031 新增：15 个 TDD 验收测试（E31-01~E31-15）
 │   └── gift/
-│       ├── GiftPanelViewModelTest.kt (20 个测试，T-30028)
-│       ├── RecipientSelectorViewModelTest.kt (12 个测试，T-30029)
-│       └── SendFlowTest.kt               # ✅ T-30030 新增：15 个测试用例（S30-01~S30-15）
+│       ├── GiftPanelViewModelTest.kt        # 20 个测试（T-30028）
+│       ├── RecipientSelectorViewModelTest.kt # 12 个测试（T-30029）
+│       └── SendFlowTest.kt                  # 15 个测试（T-30030）
 └── data/
     └── gift/
-        └── RetrofitGiftRepositoryTest.kt (8 个测试)
+        └── RetrofitGiftRepositoryTest.kt    # 8 个测试
 ```
 
 ---
 
 ## 十六、参考资源
 
-- **TDS 文档**：`doc/tds/android/T-30028.md`、`doc/tds/android/T-30029.md`、`doc/tds/android/T-30030.md` （✅ T-30030 Complete）
-- **Design 文档**：`doc/design/android/T-30028.md`、`doc/design/android/T-30029.md`、`doc/design/android/T-30030.md`
+- **TDS 文档**：`doc/tds/android/T-30028.md`、`doc/tds/android/T-30029.md`、`doc/tds/android/T-30030.md`、`doc/tds/android/T-30031.md` （✅ T-30030/T-30031 Complete）
+- **Design 文档**：`doc/design/android/T-30028.md`、`doc/design/android/T-30029.md`、`doc/design/android/T-30030.md`、`doc/design/android/T-30031.md`
 - **Protocol 文档**：`doc/protocol/websocket_signals.md` 
   - §6.4.1 BalanceUpdated（余额推送）
   - §6.4.2 SendGift（客户端请求信令）
-  - §6.4.3 GiftReceived（服务端广播）
-- **依赖库**：Coil 2.x（图片加载）/ Kotlin Coroutines（并发）/ Compose Material3（UI）/ Gson（JSON 安全构造）
-- **Server 实现**：`doc/arch/server/gift.md` T-00020 SendGift 事务处理与幂等机制
+  - §6.4.3 GiftReceived（服务端广播，包含 effect_level、animation_url）
+- **依赖库**：Coil 2.x（图片加载）/ Kotlin Coroutines（并发）/ Compose Material3（UI）/ Gson（JSON 安全构造）/ Lottie-Compose（动画）
+- **Server 实现**：`doc/arch/server/gift.md` T-00020 SendGift 事务处理与幂等机制、T-00019 GiftReceived 广播格式
+- **相关架构文档**：`doc/arch/android/wallet.md`（钱包模块，余额实时更新）
