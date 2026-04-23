@@ -1228,6 +1228,125 @@ class RoomViewModelTest {
                 }
             )
         }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // KR41-05: kickUser 成功 → ShowToast "已踢出"
+    // ──────────────────────────────────────────────────────────────────────────
+
+    @Test
+    fun `KR41-05 kickUser success - emits ShowToast 已踢出`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            fakeWsClient.simulateConnect()
+            viewModel.joinRoom("room-1")
+            advanceUntilIdle()
+
+            val collectedEvents = mutableListOf<RoomEvent>()
+            val collectJob = launch(UnconfinedTestDispatcher()) {
+                viewModel.events.collect { collectedEvents.add(it) }
+            }
+
+            fakeWsClient.sentMessages.clear()
+            viewModel.kickUser("target-user-1", "harassment")
+            advanceUntilIdle()
+
+            assertTrue(
+                "kickUser should emit ShowToast '已踢出' on success",
+                collectedEvents.any { it is RoomEvent.ShowToast && it.message == "已踢出" }
+            )
+            collectJob.cancel()
+        }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // KR41-06: 收到 WS Error code=40301 → ShowToast "无权操作"
+    // ──────────────────────────────────────────────────────────────────────────
+
+    @Test
+    fun `KR41-06 WS Error code 40301 - emits ShowToast 无权操作`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            fakeWsClient.simulateConnect()
+            viewModel.joinRoom("room-1")
+            advanceUntilIdle()
+
+            val collectedEvents = mutableListOf<RoomEvent>()
+            val collectJob = launch(UnconfinedTestDispatcher()) {
+                viewModel.events.collect { collectedEvents.add(it) }
+            }
+
+            fakeWsClient.simulateMessage("""{"type":"Error","code":40301}""")
+            advanceUntilIdle()
+
+            assertTrue(
+                "WS Error 40301 should emit ShowToast '无权操作'",
+                collectedEvents.any { it is RoomEvent.ShowToast && it.message == "无权操作" }
+            )
+            collectJob.cancel()
+        }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // KR41-07: kickUser 发送正确 reason（预设 key / Other → customText）
+    // ──────────────────────────────────────────────────────────────────────────
+
+    @Test
+    fun `KR41-07 kickUser with preset reason - WS message contains reason key`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            fakeWsClient.simulateConnect()
+            viewModel.joinRoom("room-1")
+            advanceUntilIdle()
+            fakeWsClient.sentMessages.clear()
+
+            viewModel.kickUser("target-user-1", "harassment")
+            advanceUntilIdle()
+
+            val kickMsg = fakeWsClient.sentMessages.firstOrNull {
+                it.contains(""""type":"KickUser"""")
+            }
+            assertFalse("Should send KickUser WS message", kickMsg == null)
+            assertTrue(
+                "reason field should be 'harassment'",
+                kickMsg!!.contains(""""reason":"harassment"""")
+            )
+            assertTrue(
+                "targetUserId should be correct",
+                kickMsg.contains(""""targetUserId":"target-user-1"""")
+            )
+        }
+
+    @Test
+    fun `KR41-07 kickUser with Other reason - WS message contains custom text`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            fakeWsClient.simulateConnect()
+            viewModel.joinRoom("room-1")
+            advanceUntilIdle()
+            fakeWsClient.sentMessages.clear()
+
+            viewModel.kickUser("target-user-2", "custom reason text")
+            advanceUntilIdle()
+
+            val kickMsg = fakeWsClient.sentMessages.firstOrNull {
+                it.contains(""""type":"KickUser"""")
+            }
+            assertFalse("Should send KickUser WS message", kickMsg == null)
+            assertTrue(
+                "reason field should be 'custom reason text'",
+                kickMsg!!.contains(""""reason":"custom reason text"""")
+            )
+        }
+
+    @Test
+    fun `KR41-05 kickUser clears selectedKickTarget on success`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            fakeWsClient.simulateConnect()
+            viewModel.joinRoom("room-1")
+            advanceUntilIdle()
+
+            viewModel.kickUser("target-user-1", "spam")
+            advanceUntilIdle()
+
+            assertNull(
+                "selectedKickTarget should be null after successful kick",
+                viewModel.selectedKickTarget.value
+            )
+        }
 }
 
 // ─── Test Doubles ─────────────────────────────────────────────────────────────

@@ -485,6 +485,7 @@ class RoomViewModel(
                     """{"type":"KickUser","roomId":"$roomId","targetUserId":"$targetUserId","reason":"$reason"}"""
                 )
                 _selectedKickTarget.value = null
+                _events.trySend(RoomEvent.ShowToast("已踢出"))
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -746,6 +747,14 @@ class RoomViewModel(
 
             "RoomClosed" -> {
                 _events.trySend(RoomEvent.NavigateBack)
+            }
+
+            "Error" -> {
+                val code = json.get("code")?.asInt
+                when (code) {
+                    40301 -> _events.trySend(RoomEvent.ShowToast("无权操作"))
+                    // 其他错误码静默忽略（后续可按需扩展）
+                }
             }
 
             "GiftReceived" -> {
