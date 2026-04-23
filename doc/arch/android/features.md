@@ -864,6 +864,30 @@ WS 服务端广播 UserKicked / UserLeft / MicLeft
 
 ---
 
+## T-30043 公告栏 + 管理员徽章 + RoomInfoUpdated
+
+### 概述
+进房自动弹出公告（24h 防重），顶部图标支持手动查看，角色徽章展示 Owner/Admin，WS 动态刷新。
+
+### 组件结构
+| 组件 | 职责 |
+|------|------|
+| `AnnouncementPopup` | AlertDialog，长文本支持 verticalScroll，dismissOnClickOutside=true |
+| `AnnouncementIcon` | 顶部 📄 图标，公告非空时显示，点击触发弹窗 |
+| `RoleBadge` | Owner 👑 / Admin 🛡️ / Member 无显示；所有用户身份渲染位置统一复用 |
+| `AnnouncementSeenStore` | 记录各房间上次弹窗时间戳，Application 单例，24h 防重复弹出 |
+
+### 设计要点
+- `AnnouncementSeenStore` 为 Application 级单例（`AppContainer.announcementSeenStore`），进出房间 ViewModel 重建不丢记录
+- `Clock` 接口注入（与 T-30042 共享 `SystemClock` / `FakeClock`），24h 判断可测
+- `RoomInfoUpdated` → 更新 roomState.announcement/title/category；announcement 变化时重置 seen + 重新弹窗
+- `AdminChanged` → 更新 roomState.adminUserId，触发所有 `RoleBadge` 重组
+
+### testTag
+`announcement_popup`、`btn_announcement_close`、`btn_show_announcement`、`role_badge_{userId}`
+
+---
+
 ## 二、 当前测试覆盖
 
 - **测试文件**：30 个（含 `test/` 和 `androidTest/` 目录）
