@@ -64,6 +64,13 @@ data class RoomUiState(
      * true → 红色 MicOff 图标；false → 绿色 Mic 图标（仅 isCurrentUserOnMic=true 时有意义）。
      */
     val isCurrentUserMuted: Boolean = false,
+
+    /**
+     * 房间公告文本（T-30043）
+     *
+     * 空字符串表示无公告，顶部 📄 图标不显示。
+     */
+    val announcement: String = "",
 )
 
 /**

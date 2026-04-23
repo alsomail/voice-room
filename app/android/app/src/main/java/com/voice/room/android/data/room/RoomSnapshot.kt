@@ -11,6 +11,8 @@ data class RoomSnapshot(
     val onlineCount: Int,
     /** 服务端返回的当前麦位列表（可能不足 9 个，ViewModel 负责补全空麦位） */
     val micSlots: List<MicSlotData>,
+    /** 房间公告文本，空字符串表示无公告（T-30043） */
+    val announcement: String = "",
 )
 
 /**

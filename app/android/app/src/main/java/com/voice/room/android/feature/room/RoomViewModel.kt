@@ -11,6 +11,8 @@ import com.voice.room.android.core.ws.WebSocketState
 import com.voice.room.android.core.ws.event.GiftReceivedEvent
 import com.voice.room.android.data.local.InMemoryKickCooldownStore
 import com.voice.room.android.data.local.KickCooldownStore
+import com.voice.room.android.data.local.AnnouncementSeenStore
+import com.voice.room.android.data.local.InMemoryAnnouncementSeenStore
 import com.voice.room.android.data.model.RoomMember
 import com.voice.room.android.data.room.IRoomMemberRepository
 import com.voice.room.android.data.room.IRoomSnapshotRepository
@@ -62,12 +64,16 @@ class RoomViewModel(
     private val mediaService: IMediaService = NoOpMediaService(),
     private val memberRepository: IRoomMemberRepository = NoOpRoomMemberRepository(),
     private val kickCooldownStore: KickCooldownStore = InMemoryKickCooldownStore(),
+    private val announcementSeenStore: AnnouncementSeenStore = InMemoryAnnouncementSeenStore(),
     private val clock: Clock = SystemClock(),
 ) : ViewModel() {
 
     companion object {
         /** 每页加载成员数 */
         private const val PAGE_SIZE = 20
+
+        /** 公告弹窗间隔：24 小时（毫秒） */
+        private const val ANNOUNCEMENT_INTERVAL_MS = 24 * 60 * 60 * 1000L
     }
 
     // ─── 对外暴露的状态 ────────────────────────────────────────────────────────
@@ -76,6 +82,22 @@ class RoomViewModel(
 
     /** 当前房间 UI 状态流，初始值为 [RoomViewState.Loading] */
     val uiState: StateFlow<RoomViewState> = _uiState.asStateFlow()
+
+    /**
+     * 当前公告弹窗内容（T-30043）
+     *
+     * null = 不显示弹窗；非 null 时 UI 展示公告弹窗（[AnnouncementPopup]）。
+     */
+    private val _showAnnouncementPopup = MutableStateFlow<String?>(null)
+    val showAnnouncementPopup: StateFlow<String?> = _showAnnouncementPopup.asStateFlow()
+
+    /**
+     * 是否显示顶部公告图标 📄（T-30043）
+     *
+     * true = 当前房间有非空公告；false = 无公告不显示图标。
+     */
+    private val _showAnnouncementIcon = MutableStateFlow(false)
+    val showAnnouncementIcon: StateFlow<Boolean> = _showAnnouncementIcon.asStateFlow()
 
     /** 观众席 UI 状态（T-30039）：麦上列表 + 观众列表 + 分页信息 */
     private val _audienceState = MutableStateFlow(AudienceUiState())
@@ -148,6 +170,8 @@ class RoomViewModel(
             try {
                 val snapshot = roomSnapshotRepository.getRoomSnapshot(roomId)
                 _uiState.value = RoomViewState.Success(snapshot.toRoomUiState())
+                // T-30043: 进房后处理公告弹窗逻辑
+                handleAnnouncementOnEnter(snapshot.announcement, roomId)
                 val msgId = UUID.randomUUID().toString()
                 val accessTokenPart =
                     if (accessToken != null) ""","access_token":"$accessToken"""" else ""
@@ -532,6 +556,28 @@ class RoomViewModel(
         _events.trySend(RoomEvent.NavigateBack)
     }
 
+    /**
+     * 点击顶部公告图标 📄，手动展示公告弹窗（T-30043 AN43-04）。
+     *
+     * 仅在当前房间有非空公告时有效。
+     */
+    fun onAnnouncementIconClick() {
+        val currentAnnouncement = (_uiState.value as? RoomViewState.Success)
+            ?.uiState?.announcement ?: return
+        if (currentAnnouncement.isNotBlank()) {
+            _showAnnouncementPopup.value = currentAnnouncement
+        }
+    }
+
+    /**
+     * 关闭公告弹窗（T-30043 AN43-08）。
+     *
+     * 将 [showAnnouncementPopup] 重置为 null；顶部图标 [showAnnouncementIcon] 保持不变。
+     */
+    fun dismissAnnouncementPopup() {
+        _showAnnouncementPopup.value = null
+    }
+
     // ─── 私有：下麦信令发送 ────────────────────────────────────────────────────
 
     private fun leaveMic(slotIndex: Int) {
@@ -548,6 +594,30 @@ class RoomViewModel(
     }
 
     // ─── 私有：发送中状态更新 ──────────────────────────────────────────────────
+
+    /**
+     * 进房后处理公告弹窗逻辑（T-30043 AN43-01/AN43-02/AN43-03）。
+     *
+     * - 空公告 → 不弹窗，顶部图标隐藏
+     * - 非空公告 + 未看过（或超 24h）→ 弹窗并保存时间戳
+     * - 非空公告 + 24h 内已看过 → 仅显示顶部图标，不弹窗
+     *
+     * @param announcement 当前公告文本
+     * @param roomId       房间 ID
+     */
+    private fun handleAnnouncementOnEnter(announcement: String, roomId: String) {
+        if (announcement.isBlank()) {
+            _showAnnouncementIcon.value = false
+            return
+        }
+        _showAnnouncementIcon.value = true
+        val last = announcementSeenStore.get(roomId)
+        val now = clock.currentTimeMillis()
+        if (last == null || now - last > ANNOUNCEMENT_INTERVAL_MS) {
+            _showAnnouncementPopup.value = announcement
+            announcementSeenStore.save(roomId, now)
+        }
+    }
 
     /**
      * 更新 [RoomUiState.isSendingMessage] 字段。
@@ -836,6 +906,31 @@ class RoomViewModel(
                     _events.trySend(RoomEvent.UserMuted(muteType = muteType, expiresAt = expiresAt))
                 }
             }
+
+            "RoomInfoUpdated" -> {
+                // T-30043: 更新房间信息（title/announcement/category）
+                val newTitle = json.get("title")?.takeIf { !it.isJsonNull }?.asString
+                val newAnnouncement = json.get("announcement")?.takeIf { !it.isJsonNull }?.asString
+
+                // 更新 uiState 中的 roomName 和 announcement
+                val updatedState = state.copy(
+                    roomName = newTitle ?: state.roomName,
+                    announcement = newAnnouncement ?: state.announcement,
+                )
+                _uiState.value = RoomViewState.Success(updatedState)
+
+                // 若公告有变化且非空 → 重置 seen 并重新弹窗
+                if (newAnnouncement != null && newAnnouncement != state.announcement) {
+                    val roomId = currentRoomId ?: return
+                    if (newAnnouncement.isNotBlank()) {
+                        _showAnnouncementIcon.value = true
+                        announcementSeenStore.save(roomId, clock.currentTimeMillis())
+                        _showAnnouncementPopup.value = newAnnouncement
+                    } else {
+                        _showAnnouncementIcon.value = false
+                    }
+                }
+            }
         }
     }
 }
@@ -861,5 +956,6 @@ fun RoomSnapshot.toRoomUiState(): RoomUiState = RoomUiState(
         )
     },
     messages = emptyList(),
+    announcement = announcement,
 )
 
