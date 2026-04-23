@@ -650,6 +650,199 @@ RoomScreen 收到 ShowRevokeAdminConfirm
 
 ---
 
+### 踢人原因选择弹窗（🟢 已完成，T-30041，Review 通过）
+
+**最后更新**：2026-05-27  
+**包路径**：`com.voice.room.android.feature.room.governance`  
+**入口**：`RoomViewModel.selectedKickTarget` 非空时，`RoomScreen` 弹出 `KickReasonDialog`（由 T-30040 用户操作菜单点击「踢出」触发）
+
+#### 架构概览
+
+```
+RoomViewModel
+  ├── selectedKickTarget: RoomMember?      // T-30040 写入；T-30041 读取
+  └── kickUser(reason: String)
+        → WS KickUser { target_user_id, reason }
+        → 等待 UserKicked / UserLeft / MicLeft 广播
+        → 广播到达 → selectedKickTarget = null + dismiss KickReasonDialog
+
+RoomScreen
+  └── selectedKickTarget != null
+        → KickReasonDialog(
+              target     = selectedKickTarget,
+              onConfirm  = { reason → viewModel.kickUser(reason) },
+              onDismiss  = { viewModel.clearKickTarget() }
+           )
+```
+
+#### KickReason 枚举
+
+```kotlin
+// feature/room/governance/KickReason.kt
+enum class KickReason(val label: String) {
+    HARASSMENT("骚扰"),   // 默认选中
+    SPAM("刷屏"),
+    ABUSE("辱骂"),
+    OTHER("其他"),        // 选中时必须填写自定义文本
+}
+```
+
+#### KickDialogState（canSubmit 逻辑）
+
+```kotlin
+// feature/room/governance/KickDialogState.kt
+data class KickDialogState(
+    val selectedReason: KickReason = KickReason.HARASSMENT,   // 默认"骚扰"
+    val customText: String = "",                               // 仅 OTHER 时启用
+    val isSubmitting: Boolean = false,
+) {
+    /**
+     * 提交按钮可用条件：
+     *   非 OTHER → 始终可提交（已有预设原因）
+     *   OTHER    → customText 去空格后非空才可提交
+     * isSubmitting = true 时置灰防重复点击。
+     */
+    val canSubmit: Boolean
+        get() = !isSubmitting && when (selectedReason) {
+            KickReason.OTHER -> customText.isNotBlank()
+            else             -> true
+        }
+}
+```
+
+#### KickReasonDialog 组件（AlertDialog，dismissOnClickOutside=false）
+
+```kotlin
+// feature/room/governance/KickReasonDialog.kt
+@Composable
+fun KickReasonDialog(
+    target: RoomMember,
+    state: KickDialogState,
+    onReasonSelected: (KickReason) -> Unit,
+    onCustomTextChange: (String) -> Unit,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        // dismissOnClickOutside=false：踢人操作不允许误触关闭
+        properties = DialogProperties(dismissOnClickOutside = false),
+        onDismissRequest = { /* 禁止背景点击关闭；仅 [取消] 按钮可关闭 */ },
+        title   = { Text("踢出 ${target.nickname}") },
+        text    = {
+            Column {
+                KickReason.entries.forEachIndexed { index, reason ->
+                    Row(
+                        modifier = Modifier
+                            .testTag("kick_reason_$index")   // Key('kick_reason_$index')
+                            .clickable { onReasonSelected(reason) },
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RadioButton(
+                            selected = state.selectedReason == reason,
+                            onClick  = { onReasonSelected(reason) },
+                        )
+                        Text(reason.label)
+                    }
+                }
+                // 自定义文本框：仅 OTHER 时可见
+                if (state.selectedReason == KickReason.OTHER) {
+                    OutlinedTextField(
+                        value         = state.customText,
+                        onValueChange = onCustomTextChange,
+                        modifier      = Modifier.testTag("kick_reason_custom_input"),
+                        placeholder   = { Text("请填写原因（必填）") },
+                        singleLine    = true,
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick  = onConfirm,
+                enabled  = state.canSubmit,
+                modifier = Modifier.testTag("btn_confirm_kick"),   // Key('btn_confirm_kick')
+            ) { Text("确认踢出") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("取消") }
+        },
+    )
+}
+```
+
+#### reason 字段转义逻辑（JSON 安全）
+
+```kotlin
+// feature/room/RoomViewModel.kt
+fun kickUser(reason: String? = null) {
+    val target = selectedKickTarget ?: return
+    viewModelScope.launch {
+        _kickDialogState.update { it.copy(isSubmitting = true) }
+
+        // reason 字段转义：去除首尾空白，替换双引号为全角引号，
+        // 防止自定义文本注入 JSON KickUser 信令字符串。
+        val safeReason: String? = reason
+            ?.trim()
+            ?.replace("\"", "\u201C")   // " → "（全角左引号）
+            ?.replace("\\", "\\\\")     // 反斜杠转义
+
+        wsClient.send(KickUserPayload(
+            target_user_id = target.id,
+            reason         = safeReason,
+        ))
+    }
+}
+```
+
+> **转义规则说明**：  
+> - `customText` 由用户自由输入，必须在发 WS 信令前完成转义，避免 `"` 截断 JSON payload。  
+> - 采用全角替换（而非反斜杠转义）以兼容服务端对 `reason` 的字符串日志存储，不引入额外解析复杂度。  
+> - 预设 `HARASSMENT`/`SPAM`/`ABUSE` 枚举值只传枚举名（英文大写），无需额外转义。
+
+#### 与 T-30040 的联动（selectedKickTarget）
+
+```
+UserActionBottomSheet [踢出] 按钮
+  → RoomViewModel.onActionSelected(KICK, targetMember)
+      → selectedKickTarget = targetMember
+      → emit UserActionEvent.ShowKickReasonDialog
+
+RoomScreen 收到 ShowKickReasonDialog（或监听 selectedKickTarget != null）
+  → KickReasonDialog 弹出（AlertDialog，dismissOnClickOutside=false）
+
+用户选择原因 → [确认踢出]（btn_confirm_kick）
+  → KickDialogState.canSubmit 检查通过
+  → RoomViewModel.kickUser(safeReason)
+      → WS KickUser { target_user_id, reason }
+
+WS 服务端广播 UserKicked / UserLeft / MicLeft
+  → selectedKickTarget = null           ← 关闭 KickReasonDialog
+  → AudienceUiState 移除对应用户        ← 刷新观众席
+  → UserActionBottomSheet dismiss        ← 关闭操作菜单
+  → Toast("已踢出")
+```
+
+- `selectedKickTarget` 为独立字段，与 `selectedMember` 完全解耦：踢出流程进行中，观众席弹窗（T-30039）和操作菜单（T-30040）的展示状态不受干扰。  
+- 踢出失败（WS error 事件）→ `isSubmitting = false`，Toast 展示服务端错误原因，弹窗保持打开。
+
+#### testTag 清单
+
+| testTag | 组件 | 用途 |
+|---------|------|------|
+| `kick_reason_0` | 骚扰（HARASSMENT）RadioButton 行（`Key('kick_reason_0')`） | 断言默认选中；点击切换选项 |
+| `kick_reason_1` | 刷屏（SPAM）RadioButton 行（`Key('kick_reason_1')`） | 断言可点击切换 |
+| `kick_reason_2` | 辱骂（ABUSE）RadioButton 行（`Key('kick_reason_2')`） | 断言可点击切换 |
+| `kick_reason_3` | 其他（OTHER）RadioButton 行（`Key('kick_reason_3')`） | 选中后断言 `kick_reason_custom_input` 出现 |
+| `kick_reason_custom_input` | OTHER 自定义输入框（`OutlinedTextField`） | 断言仅 OTHER 时可见；输入后 `btn_confirm_kick` 变可用 |
+| `btn_confirm_kick` | 确认踢出按钮（`Key('btn_confirm_kick')`） | 断言 canSubmit=false 时 `isEnabled=false`；点击触发 `kickUser()` |
+
+> **包路径**：`com.voice.room.android.feature.room.governance`（KickReasonDialog、KickReason、KickDialogState）  
+> **状态持有**：`RoomViewModel.selectedKickTarget`（来自 T-30040）、`RoomViewModel._kickDialogState: MutableStateFlow<KickDialogState>`  
+> **服务端协议**：对齐 `doc/arch/server/room.md` §十六~§二十三（KickUser 信令格式、权限矩阵、10min 冷却 Redis Key）  
+> **遗留项**：[LOW-01] 踢出冷却期结束后（TTL 600s）UI 层无需处理，服务端 JoinRoom 42911 校验兜底；[LOW-02] reason 字段服务端目前仅存日志，不做校验，后续可加枚举约束
+
+---
+
 ## 二、 当前测试覆盖
 
 - **测试文件**：30 个（含 `test/` 和 `androidTest/` 目录）
