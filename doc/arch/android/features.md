@@ -512,6 +512,144 @@ class NoOpRoomMemberRepository : IRoomMemberRepository {
 
 ---
 
+### 用户操作菜单 BottomSheet（🟢 已完成，T-30040，Review 通过）
+
+**最后更新**：2026-05-26  
+**包路径**：`com.voice.room.android.feature.room.governance`  
+**入口**：`RoomScreen` 内 `selectedMember` 非空时弹出（来自 T-30039 `MemberRow` 点击回调）
+
+#### 架构概览
+
+```
+RoomViewModel
+  ├── selectedMember: StateFlow<RoomMember?>
+  │     └── onMemberClick(member) → selectedMember = member
+  ├── pendingRevokeTarget: RoomMember?   // RevokeAdmin 两步确认中间态
+  ├── selectedKickTarget: RoomMember?    // 联动 T-30041 KickReasonDialog
+  └── onActionSelected(action, target)
+        ├── REVOKE_ADMIN → pendingRevokeTarget = target
+        │     → emit UserActionEvent.ShowRevokeAdminConfirm(nickname)
+        ├── KICK → selectedKickTarget = target
+        │     → emit UserActionEvent.ShowKickReasonDialog
+        └── 其余动作 → 直接发 WS 信令
+
+RoomScreen
+  └── selectedMember != null
+        → UserActionBottomSheet(member, myRole)
+              └── ActionMatrix.computeActions(myRole, targetRole)
+                    → List<UserAction>（按角色组合过滤，不可用项不渲染）
+```
+
+#### Role 枚举 + UserAction 枚举
+
+```kotlin
+enum class Role { OWNER, ADMIN, MEMBER }
+
+enum class UserAction {
+    INVITE_MIC,    // 抱上麦（owner/admin → member）
+    MUTE_MIC,      // 禁麦（owner → admin/member；admin → member）
+    MUTE_CHAT,     // 禁言（同上）
+    KICK,          // 踢出（→ T-30041 KickReasonDialog）
+    ASSIGN_ADMIN,  // 任命管理员（owner → member）
+    REVOKE_ADMIN,  // 卸任管理员（owner → admin，两步确认）
+    VIEW_PROFILE,  // 查看资料（占位，全角色可见）
+    REPORT,        // 举报（全角色可见）
+}
+```
+
+#### ActionMatrix.kt 权限矩阵（computeActions，9 角色组合）
+
+```kotlin
+object ActionMatrix {
+    /**
+     * 根据（操作者角色, 目标角色）计算可用操作列表。
+     * 覆盖 9 种合法组合；不可用项不渲染。
+     *
+     * @param myRole     当前登录用户在房间内的角色
+     * @param targetRole 被点击用户在房间内的角色
+     * @return 有序操作列表（功能项在前，VIEW_PROFILE/REPORT 在后）
+     */
+    fun computeActions(myRole: Role, targetRole: Role): List<UserAction> = when {
+        // ── 操作者: OWNER ──────────────────────────────────────────────
+        myRole == Role.OWNER && targetRole == Role.ADMIN ->
+            listOf(REVOKE_ADMIN, MUTE_MIC, MUTE_CHAT, KICK, VIEW_PROFILE, REPORT)
+        myRole == Role.OWNER && targetRole == Role.MEMBER ->
+            listOf(INVITE_MIC, ASSIGN_ADMIN, MUTE_MIC, MUTE_CHAT, KICK, VIEW_PROFILE, REPORT)
+        myRole == Role.OWNER && targetRole == Role.OWNER ->
+            listOf(VIEW_PROFILE)                          // 自己看自己（理论上不触发）
+
+        // ── 操作者: ADMIN ──────────────────────────────────────────────
+        myRole == Role.ADMIN && targetRole == Role.OWNER ->
+            listOf(VIEW_PROFILE, REPORT)                  // 管理员不能操作房主
+        myRole == Role.ADMIN && targetRole == Role.ADMIN ->
+            listOf(VIEW_PROFILE, REPORT)                  // 管理员不能操作同级
+        myRole == Role.ADMIN && targetRole == Role.MEMBER ->
+            listOf(INVITE_MIC, MUTE_MIC, MUTE_CHAT, KICK, VIEW_PROFILE, REPORT)
+
+        // ── 操作者: MEMBER ─────────────────────────────────────────────
+        myRole == Role.MEMBER && targetRole == Role.OWNER ->
+            listOf(VIEW_PROFILE, REPORT)
+        myRole == Role.MEMBER && targetRole == Role.ADMIN ->
+            listOf(VIEW_PROFILE, REPORT)
+        myRole == Role.MEMBER && targetRole == Role.MEMBER ->
+            listOf(VIEW_PROFILE, REPORT)
+
+        else -> listOf(VIEW_PROFILE, REPORT)
+    }
+}
+```
+
+#### UserActionBottomSheet testTag 清单
+
+| testTag | 组件 | 用途 |
+|---------|------|------|
+| `user_action_sheet` | `UserActionBottomSheet` 根容器 | 断言弹窗已显示 |
+| `user_action_INVITE_MIC` | 抱上麦 菜单项（`Key('user_action_INVITE_MIC')`） | 断言按权限可见 / 触发 ForceTakeMic WS |
+| `user_action_MUTE_MIC` | 禁麦 菜单项 | 断言按权限可见 / 触发 MuteUser(type=mic) WS |
+| `user_action_MUTE_CHAT` | 禁言 菜单项 | 断言按权限可见 / 触发 MuteUser(type=chat) WS |
+| `user_action_KICK` | 踢出 菜单项 | 点击 → `selectedKickTarget` 更新 → 弹 T-30041 KickReasonDialog |
+| `user_action_ASSIGN_ADMIN` | 任命管理员 菜单项 | 触发 AssignAdmin AlertDialog 确认 |
+| `user_action_REVOKE_ADMIN` | 卸任管理员 菜单项 | 触发两步确认流程（pendingRevokeTarget） |
+| `user_action_VIEW_PROFILE` | 查看资料（占位） | Toast "功能开发中"，全角色可见 |
+| `user_action_REPORT` | 举报 菜单项 | Toast "已举报"，全角色可见 |
+| `btn_confirm_revoke_admin` | 卸任确认 AlertDialog 确认按钮 | 断言可见 / 触发 `confirmRevokeAdmin()` → WS TransferAdmin(revoke) |
+
+#### RevokeAdmin 两步确认流程
+
+```
+用户点击 [卸任管理员]
+  → RoomViewModel.onActionSelected(REVOKE_ADMIN, targetMember)
+      → pendingRevokeTarget = targetMember
+      → emit UserActionEvent.ShowRevokeAdminConfirm(targetMember.nickname)
+
+RoomScreen 收到 ShowRevokeAdminConfirm
+  → AlertDialog（标题"确认卸任 ${nickname} 的管理员？"）
+      [确认]（Key('btn_confirm_revoke_admin')）
+        → RoomViewModel.confirmRevokeAdmin()
+            → WS TransferAdmin { action = "revoke", target_user_id = ... }
+            → 等待 AdminChanged 广播
+            → AdminChanged 到达
+                → updateMemberRole(previous_admin_id, MEMBER)
+                → pendingRevokeTarget = null
+                → dismiss AlertDialog + dismiss UserActionBottomSheet
+      [取消]
+        → pendingRevokeTarget = null → dismiss dialog
+```
+
+#### 与 T-30041 的联动（selectedKickTarget）
+
+- 用户点击 **踢出** → `RoomViewModel.selectedKickTarget = targetMember`；`RoomScreen` 监听非空时弹出 `KickReasonDialog`（T-30041）  
+- `KickReasonDialog` 确认后调用 `RoomViewModel.kickUser(reason)` → WS `KickUser` 信令  
+- WS `UserKicked` 广播回来 → `selectedKickTarget = null` + dismiss KickReasonDialog + dismiss `UserActionBottomSheet`  
+- `selectedKickTarget` 为独立字段，与 `selectedMember` 解耦，避免踢出流程中意外关闭观众席列表
+
+> **包路径**：`com.voice.room.android.feature.room.governance`（UserActionBottomSheet、ActionMatrix、UserAction、Role）  
+> **状态持有**：`RoomViewModel.selectedMember`（来自 T-30039）、`pendingRevokeTarget`、`selectedKickTarget`（对接 T-30041）  
+> **权限对齐**：严格对应 `doc/product/phase1_room_governance.md §2.3` 权限矩阵与服务端 `doc/arch/server/room.md` §三十二~三十九（TransferAdmin/KickUser/MuteUser 信令）  
+> **遗留项**：[LOW-01] `INVITE_MIC` 对应的 `ForceTakeMic` WS 发送逻辑待 T-30044 补全；[LOW-02] `MUTE_MIC`/`MUTE_CHAT` 服务端交互亦待 T-30044 集成；[LOW-03] `ASSIGN_ADMIN` 确认 Dialog testTag `btn_confirm_assign_admin` 待 T-30043 联调验证
+
+---
+
 ## 二、 当前测试覆盖
 
 - **测试文件**：30 个（含 `test/` 和 `androidTest/` 目录）
