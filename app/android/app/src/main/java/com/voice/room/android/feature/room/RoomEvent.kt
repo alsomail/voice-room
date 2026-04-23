@@ -57,5 +57,17 @@ sealed class RoomEvent {
         val targetUserId: String,
         val muteType: String,
     ) : RoomEvent()
+    /**
+     * 用户被禁麦或禁言通知（T-30042）
+     *
+     * 由 [RoomViewModel] 收到 `UserMuted` WS 消息后发出，供 UI 层转发给 MuteCountdownViewModel。
+     *
+     * @param muteType  禁用类型："mic" 或 "chat"
+     * @param expiresAt 到期时间戳（epoch 毫秒）；null 表示解除禁用（duration_sec=0）
+     */
+    data class UserMuted(
+        val muteType: String,
+        val expiresAt: Long?,
+    ) : RoomEvent()
 }
 

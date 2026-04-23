@@ -3,6 +3,8 @@ package com.voice.room.android.feature.room
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.voice.room.android.data.local.InMemoryKickCooldownStore
+import com.voice.room.android.data.local.KickCooldownStore
 import com.voice.room.android.domain.room.IRoomRepository
 import com.voice.room.android.domain.room.PasswordLockedException
 import com.voice.room.android.domain.room.PasswordWrongException
@@ -28,7 +30,8 @@ import kotlinx.coroutines.launch
  * @param roomRepository 房间仓库（生产: [RetrofitRoomRepository]，测试: [FakeRoomRepository]）
  */
 class HallViewModel(
-    private val roomRepository: IRoomRepository = NoOpRoomRepository
+    private val roomRepository: IRoomRepository = NoOpRoomRepository,
+    private val kickCooldownStore: KickCooldownStore = InMemoryKickCooldownStore(),
 ) : ViewModel() {
 
     companion object {
@@ -164,6 +167,30 @@ class HallViewModel(
                     }
                 }
         }
+    }
+
+    // ─────────────────────────────────────────────
+    // 进房检查（T-30042）
+    // ─────────────────────────────────────────────
+
+    /**
+     * 普通房进入入口（T-30042）。
+     *
+     * 进房前检查 kickCooldown：
+     * - 若 cooldown 未过期 → 发出 [HallEvent.ShowToast] 并阻止进房
+     * - 若 cooldown 已过期或无记录 → 发出 [HallEvent.NavigateToRoom]
+     *
+     * @param roomId 目标房间 ID
+     */
+    fun enterRoom(roomId: String) {
+        val untilMs = kickCooldownStore.get(roomId)
+        val nowMs = System.currentTimeMillis()
+        if (untilMs > nowMs) {
+            val remainingSec = ((untilMs - nowMs) / 1000L).coerceAtLeast(1L)
+            _hallEvents.trySend(HallEvent.ShowToast("你暂时不能进入此房间，还剩 ${remainingSec} 秒"))
+            return
+        }
+        _hallEvents.trySend(HallEvent.NavigateToRoom(roomId, accessToken = null))
     }
 
     // ─────────────────────────────────────────────

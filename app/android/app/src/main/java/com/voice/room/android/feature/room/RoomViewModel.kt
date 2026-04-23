@@ -9,6 +9,8 @@ import com.voice.room.android.core.media.NoOpMediaService
 import com.voice.room.android.core.ws.IWebSocketClient
 import com.voice.room.android.core.ws.WebSocketState
 import com.voice.room.android.core.ws.event.GiftReceivedEvent
+import com.voice.room.android.data.local.InMemoryKickCooldownStore
+import com.voice.room.android.data.local.KickCooldownStore
 import com.voice.room.android.data.model.RoomMember
 import com.voice.room.android.data.room.IRoomMemberRepository
 import com.voice.room.android.data.room.IRoomSnapshotRepository
@@ -57,6 +59,7 @@ class RoomViewModel(
     private val roomSnapshotRepository: IRoomSnapshotRepository,
     private val mediaService: IMediaService = NoOpMediaService(),
     private val memberRepository: IRoomMemberRepository = NoOpRoomMemberRepository(),
+    private val kickCooldownStore: KickCooldownStore = InMemoryKickCooldownStore(),
 ) : ViewModel() {
 
     companion object {
@@ -102,6 +105,10 @@ class RoomViewModel(
 
     /** 一次性 UI 事件流（导航、Toast 等），由 Channel 保证不丢失 */
     val events: Flow<RoomEvent> = _events.receiveAsFlow()
+
+    /** 被踢出房间状态（T-30042）；null 表示未被踢出，非 null 时 UI 展示 UserKickedDialog */
+    private val _kickedState = MutableStateFlow<KickedState?>(null)
+    val kickedState: StateFlow<KickedState?> = _kickedState.asStateFlow()
 
     // ─── 内部状态 ──────────────────────────────────────────────────────────────
 
@@ -505,6 +512,23 @@ class RoomViewModel(
     @VisibleForTesting
     internal fun triggerOnCleared() = onCleared()
 
+    /**
+     * 用户确认"知道了"被踢出弹窗后的处理（T-30042）。
+     *
+     * 流程：
+     * 1. 保存 cooldown 到 [kickCooldownStore]（截止时间 = now + cooldownSec * 1000ms）
+     * 2. 清空 [kickedState]
+     * 3. 发出 [RoomEvent.NavigateBack] 让 UI 返回大厅
+     */
+    fun acknowledgeKick() {
+        val roomId = currentRoomId ?: return
+        val kicked = _kickedState.value ?: return
+        val untilMs = System.currentTimeMillis() + kicked.cooldownSec * 1000L
+        kickCooldownStore.save(roomId, untilMs)
+        _kickedState.value = null
+        _events.trySend(RoomEvent.NavigateBack)
+    }
+
     // ─── 私有：下麦信令发送 ────────────────────────────────────────────────────
 
     private fun leaveMic(slotIndex: Int) {
@@ -787,6 +811,27 @@ class RoomViewModel(
                     isReplay        = json.get("isReplay")?.asBoolean ?: false,
                 )
                 giftEffectController.onGiftReceived(evt)
+            }
+
+            "UserKicked" -> {
+                // T-30042: 收到被踢通知，设置 kickedState（WS 服务端只推送给被踢用户）
+                val reason = json.get("reason")?.asString ?: ""
+                val cooldownSec = json.get("cooldown_sec")?.asInt ?: 600
+                _kickedState.value = KickedState(reason = reason, cooldownSec = cooldownSec)
+            }
+
+            "UserMuted" -> {
+                // T-30042: 收到被禁麦/禁言通知，WS 服务端只推送给被禁用户
+                val muteType = json.get("muteType")?.asString ?: return
+                val durationSec = json.get("duration_sec")?.asInt ?: 0
+                val expiresAt = json.get("expires_at")?.asLong
+                    ?: (System.currentTimeMillis() + durationSec * 1000L)
+                // 发出 UserMuted 事件供 MuteCountdownViewModel 消费
+                if (durationSec == 0) {
+                    _events.trySend(RoomEvent.UserMuted(muteType = muteType, expiresAt = null))
+                } else {
+                    _events.trySend(RoomEvent.UserMuted(muteType = muteType, expiresAt = expiresAt))
+                }
             }
         }
     }
