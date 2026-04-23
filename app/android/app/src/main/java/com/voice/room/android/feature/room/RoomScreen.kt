@@ -18,6 +18,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -32,21 +33,29 @@ import com.voice.room.android.core.theme.MenaColors
 import com.voice.room.android.feature.gift.GiftPanelBottomSheet
 import com.voice.room.android.feature.gift.GiftPanelEvent
 import com.voice.room.android.feature.gift.GiftPanelUiState
+import com.voice.room.android.feature.room.governance.MuteCountdownViewModel
+import com.voice.room.android.feature.room.governance.MuteStatusChip
+import com.voice.room.android.feature.room.governance.UserKickedDialog
 
 /**
- * 房间页顶层 Composable (T-30009 / T-30026 / T-30028)
+ * 房间页顶层 Composable (T-30009 / T-30026 / T-30028 / T-30042)
  *
  * 布局（从上到下）：
  *  - [RoomTopBar]          ← topBar（房间名、在线人数、返回按钮）
+ *  - [MuteStatusChip]      ← 禁麦/禁言倒计时状态 Chip（T-30042，由 MuteCountdownViewModel 驱动）
  *  - [MicSlotsGrid]        ← 9 宫格麦位区（由 [MicPermissionHandler] 守卫点击事件）
  *  - [ChatMessageList]     ← 聊天消息列表（weight(1f)，自动填充剩余高度）
  *  - [RoomBottomBar]       ← bottomBar（输入框 + 发送 + 🎤🎁❤️🚪，T-30026）
  *  - [GiftPanelBottomSheet]← 礼物面板 BottomSheet（T-30028，🎁 点击弹出）
+ *  - [UserKickedDialog]    ← 被踢出房间全屏弹窗（T-30042，kickedState 非 null 时显示）
  *
  * 纯 UI，ViewModel 逻辑通过回调参数注入。
  *
  * @param uiState                房间页 UI 状态（含 [RoomUiState.isSendingMessage]）
  * @param events                 ViewModel 一次性事件流（T-30016：监听 [RoomEvent.ClearInput]）
+ * @param kickedState            被踢状态（T-30042）；非 null 时显示 [UserKickedDialog]
+ * @param onAcknowledgeKick      点击"知道了"确认被踢弹窗的回调（T-30042）
+ * @param muteCountdownViewModel 禁麦/禁言倒计时 ViewModel（T-30042）；null 时不显示 Chip
  * @param giftUiState            礼物面板 UI 状态（T-30028，由 GiftPanelViewModel 提供）
  * @param giftEvents             礼物面板一次性事件流（T-30028）
  * @param onBack                 点击返回按钮的回调
@@ -71,6 +80,9 @@ import com.voice.room.android.feature.gift.GiftPanelUiState
 fun RoomScreen(
     uiState: RoomUiState,
     events: Flow<RoomEvent> = emptyFlow(),
+    kickedState: KickedState? = null,
+    onAcknowledgeKick: () -> Unit = {},
+    muteCountdownViewModel: MuteCountdownViewModel? = null,
     giftUiState: GiftPanelUiState = GiftPanelUiState(loading = false),
     giftEvents: kotlinx.coroutines.flow.SharedFlow<GiftPanelEvent> = MutableSharedFlow(),
     onBack: () -> Unit = {},
@@ -100,11 +112,29 @@ fun RoomScreen(
     // T-30033 MEDIUM-02: 溢出菜单展开状态（本地）
     var showOverflowMenu by remember { mutableStateOf(false) }
 
-    // 监听 ViewModel 事件：成功发送后清空输入框
+    // T-30042: 收集禁麦/禁言到期时间戳
+    val micExpiresAt by (muteCountdownViewModel?.micExpiresAt ?: kotlinx.coroutines.flow.MutableStateFlow(null)).collectAsState()
+    val chatExpiresAt by (muteCountdownViewModel?.chatExpiresAt ?: kotlinx.coroutines.flow.MutableStateFlow(null)).collectAsState()
+
+    // 监听 ViewModel 事件
     LaunchedEffect(Unit) {
         events.collect { event ->
-            if (event is RoomEvent.ClearInput) {
-                localInputText = ""
+            when (event) {
+                is RoomEvent.ClearInput -> {
+                    localInputText = ""
+                }
+                is RoomEvent.UserMuted -> {
+                    // T-30042: 转发给 MuteCountdownViewModel
+                    val expiresAt = event.expiresAt
+                    if (expiresAt == null) {
+                        if (event.muteType == "mic") muteCountdownViewModel?.clearMic()
+                        else muteCountdownViewModel?.clearChat()
+                    } else {
+                        if (event.muteType == "mic") muteCountdownViewModel?.startMicCountdown(expiresAt)
+                        else muteCountdownViewModel?.startChatCountdown(expiresAt)
+                    }
+                }
+                else -> { /* 其他事件由调用方通过 events flow 处理 */ }
             }
         }
     }
@@ -175,6 +205,22 @@ fun RoomScreen(
                 .background(MenaColors.Background)   // T-30025: 深色背景
                 .padding(padding),
         ) {
+            // T-30042: 禁麦/禁言状态 Chip（有则展示，mic 和 chat 独立）
+            micExpiresAt?.let { expiresAt ->
+                MuteStatusChip(
+                    muteType = "mic",
+                    expiresAtMs = expiresAt,
+                    onExpired = { muteCountdownViewModel?.clearMic() },
+                )
+            }
+            chatExpiresAt?.let { expiresAt ->
+                MuteStatusChip(
+                    muteType = "chat",
+                    expiresAtMs = expiresAt,
+                    onExpired = { muteCountdownViewModel?.clearChat() },
+                )
+            }
+
             MicPermissionHandler(onPermissionGranted = onMicPermissionGranted) { onMicSlotClick ->
                 MicSlotsGrid(
                     slots = uiState.micSlots,
@@ -189,6 +235,14 @@ fun RoomScreen(
                 modifier = Modifier.weight(1f),
             )
         }
+    }
+
+    // T-30042: 被踢出房间弹窗（全屏覆盖，不可外部关闭）
+    kickedState?.let { ks ->
+        UserKickedDialog(
+            state = ks,
+            onAcknowledge = onAcknowledgeKick,
+        )
     }
 
     // T-30028: 礼物面板 BottomSheet

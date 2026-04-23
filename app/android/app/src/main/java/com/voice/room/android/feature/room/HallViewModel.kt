@@ -10,6 +10,8 @@ import com.voice.room.android.domain.room.PasswordLockedException
 import com.voice.room.android.domain.room.PasswordWrongException
 import com.voice.room.android.domain.room.RoomNotFoundException
 import com.voice.room.android.domain.room.RoomsPage
+import com.voice.room.android.feature.room.governance.Clock
+import com.voice.room.android.feature.room.governance.SystemClock
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -32,6 +34,7 @@ import kotlinx.coroutines.launch
 class HallViewModel(
     private val roomRepository: IRoomRepository = NoOpRoomRepository,
     private val kickCooldownStore: KickCooldownStore = InMemoryKickCooldownStore(),
+    private val clock: Clock = SystemClock(),
 ) : ViewModel() {
 
     companion object {
@@ -184,7 +187,7 @@ class HallViewModel(
      */
     fun enterRoom(roomId: String) {
         val untilMs = kickCooldownStore.get(roomId)
-        val nowMs = System.currentTimeMillis()
+        val nowMs = clock.currentTimeMillis()
         if (untilMs > nowMs) {
             val remainingSec = ((untilMs - nowMs) / 1000L).coerceAtLeast(1L)
             _hallEvents.trySend(HallEvent.ShowToast("你暂时不能进入此房间，还剩 ${remainingSec} 秒"))
@@ -198,11 +201,12 @@ class HallViewModel(
     // ─────────────────────────────────────────────
 
     class Factory(
-        private val roomRepository: IRoomRepository
+        private val roomRepository: IRoomRepository,
+        private val kickCooldownStore: KickCooldownStore = InMemoryKickCooldownStore(),
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T =
-            HallViewModel(roomRepository) as T
+            HallViewModel(roomRepository, kickCooldownStore) as T
     }
 
     // ─────────────────────────────────────────────

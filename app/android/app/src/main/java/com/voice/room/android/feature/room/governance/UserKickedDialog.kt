@@ -83,7 +83,7 @@ fun UserKickedDialog(
                     "abuse"      -> "辱骂他人"
                     else         -> state.reason.ifBlank { "违规行为" }
                 }
-                val cooldownMin = state.cooldownSec / 60
+                val cooldownMin = (state.cooldownSec + 59) / 60
 
                 Text(
                     text = "原因：$reasonText\n${cooldownMin} 分钟后可再次进入",

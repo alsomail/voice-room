@@ -1,5 +1,6 @@
 package com.voice.room.android.feature.room.governance
 
+import com.voice.room.android.utils.FakeClock
 import com.voice.room.android.utils.MainDispatcherRule
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -184,15 +185,4 @@ class MuteCountdownViewModelTest {
             assertNull("micExpiresAt should be null after clearMic", vm.micExpiresAt.value)
             assertEquals("chatExpiresAt should remain after clearMic", chatExpires, vm.chatExpiresAt.value)
         }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Test helper: FakeClock
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * 可注入的测试时钟，允许控制当前时间戳。
- */
-class FakeClock(var currentTimeMs: Long) : Clock {
-    override fun currentTimeMillis(): Long = currentTimeMs
 }

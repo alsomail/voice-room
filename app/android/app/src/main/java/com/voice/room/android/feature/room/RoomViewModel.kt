@@ -20,6 +20,8 @@ import com.voice.room.android.data.room.RoomSnapshot
 import com.voice.room.android.feature.room.effect.FullscreenAnim
 import com.voice.room.android.feature.room.effect.GiftEffectController
 import com.voice.room.android.feature.room.effect.GiftMessageUi
+import com.voice.room.android.feature.room.governance.Clock
+import com.voice.room.android.feature.room.governance.SystemClock
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -60,6 +62,7 @@ class RoomViewModel(
     private val mediaService: IMediaService = NoOpMediaService(),
     private val memberRepository: IRoomMemberRepository = NoOpRoomMemberRepository(),
     private val kickCooldownStore: KickCooldownStore = InMemoryKickCooldownStore(),
+    private val clock: Clock = SystemClock(),
 ) : ViewModel() {
 
     companion object {
@@ -523,7 +526,7 @@ class RoomViewModel(
     fun acknowledgeKick() {
         val roomId = currentRoomId ?: return
         val kicked = _kickedState.value ?: return
-        val untilMs = System.currentTimeMillis() + kicked.cooldownSec * 1000L
+        val untilMs = clock.currentTimeMillis() + kicked.cooldownSec * 1000L
         kickCooldownStore.save(roomId, untilMs)
         _kickedState.value = null
         _events.trySend(RoomEvent.NavigateBack)
@@ -825,7 +828,7 @@ class RoomViewModel(
                 val muteType = json.get("muteType")?.asString ?: return
                 val durationSec = json.get("duration_sec")?.asInt ?: 0
                 val expiresAt = json.get("expires_at")?.asLong
-                    ?: (System.currentTimeMillis() + durationSec * 1000L)
+                    ?: (clock.currentTimeMillis() + durationSec * 1000L)
                 // 发出 UserMuted 事件供 MuteCountdownViewModel 消费
                 if (durationSec == 0) {
                     _events.trySend(RoomEvent.UserMuted(muteType = muteType, expiresAt = null))

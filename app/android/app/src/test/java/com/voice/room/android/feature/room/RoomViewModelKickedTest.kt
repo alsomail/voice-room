@@ -4,11 +4,13 @@ import com.voice.room.android.core.ws.FakeWebSocketClient
 import com.voice.room.android.data.local.FakeKickCooldownStore
 import com.voice.room.android.data.room.MicSlotData
 import com.voice.room.android.data.room.RoomSnapshot
+import com.voice.room.android.utils.FakeClock
 import com.voice.room.android.utils.MainDispatcherRule
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -21,6 +23,7 @@ import org.junit.Test
  *
  * K42-01: 收到 UserKicked WS 消息 → kickedState 非 null（reason、cooldownSec 正确）
  * K42-02: acknowledgeKick() → 保存 cooldown 到 store + 发出 NavigateBack 事件
+ * K42-C1: acknowledgeKick() 使用注入的 Clock（而非 System.currentTimeMillis()）计算 cooldown
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class RoomViewModelKickedTest {
@@ -31,6 +34,7 @@ class RoomViewModelKickedTest {
     private lateinit var fakeWsClient: FakeWebSocketClient
     private lateinit var fakeRepo: FakeRoomSnapshotRepository
     private lateinit var fakeStore: FakeKickCooldownStore
+    private lateinit var fakeClock: FakeClock
     private lateinit var viewModel: RoomViewModel
 
     private val defaultSnapshot = RoomSnapshot(
@@ -45,10 +49,12 @@ class RoomViewModelKickedTest {
         fakeWsClient = FakeWebSocketClient()
         fakeRepo = FakeRoomSnapshotRepository(defaultSnapshot)
         fakeStore = FakeKickCooldownStore()
+        fakeClock = FakeClock(currentTimeMs = 1_000_000L)
         viewModel = RoomViewModel(
             wsClient = fakeWsClient,
             roomSnapshotRepository = fakeRepo,
-            kickCooldownStore = fakeStore
+            kickCooldownStore = fakeStore,
+            clock = fakeClock,
         )
     }
 
@@ -69,8 +75,8 @@ class RoomViewModelKickedTest {
 
             val kicked = viewModel.kickedState.value
             assertNotNull("kickedState should be non-null after UserKicked", kicked)
-            org.junit.Assert.assertEquals("reason should be 'spam'", "spam", kicked!!.reason)
-            org.junit.Assert.assertEquals(
+            assertEquals("reason should be 'spam'", "spam", kicked!!.reason)
+            assertEquals(
                 "cooldownSec should be 600", 600, kicked.cooldownSec
             )
         }
@@ -96,15 +102,14 @@ class RoomViewModelKickedTest {
             advanceUntilIdle()
 
             // 用户确认知道了
-            val beforeMs = System.currentTimeMillis()
             viewModel.acknowledgeKick()
             advanceUntilIdle()
 
-            // 验证：cooldown 已写入 store（until > now）
+            // 验证：cooldown 已写入 store（until > fakeClock.now + 599s）
             val untilMs = fakeStore.get("room-42")
             assertTrue(
-                "cooldown untilMs should be in the future (> beforeMs + 599s)",
-                untilMs > beforeMs + 599_000L
+                "cooldown untilMs should be in the future (> fakeClock.now + 599s)",
+                untilMs > fakeClock.currentTimeMs + 599_000L
             )
 
             // 验证：发出 NavigateBack 事件
@@ -117,5 +122,33 @@ class RoomViewModelKickedTest {
             assertNull("kickedState should be null after acknowledgeKick", viewModel.kickedState.value)
 
             job.cancel()
+        }
+
+    // ─── K42-C1: acknowledgeKick 使用注入的 Clock 计算 cooldown 截止时间 ────────
+
+    @Test
+    fun `K42-C1 acknowledgeKick uses injected clock to calculate cooldown untilMs`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            // fakeClock 固定在 1_000_000L ms
+            fakeClock.currentTimeMs = 5_000_000L
+
+            viewModel.joinRoom("room-42", "user-1")
+            advanceUntilIdle()
+
+            fakeWsClient.simulateMessage(
+                """{"type":"UserKicked","reason":"spam","cooldown_sec":600}"""
+            )
+            advanceUntilIdle()
+
+            viewModel.acknowledgeKick()
+            advanceUntilIdle()
+
+            val untilMs = fakeStore.get("room-42")
+            // 应该精确等于 fakeClock.currentTimeMs + 600_000L
+            assertEquals(
+                "untilMs should be fakeClock.now + 600s (using injected clock)",
+                5_000_000L + 600_000L,
+                untilMs
+            )
         }
 }

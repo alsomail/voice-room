@@ -29,6 +29,8 @@ import com.voice.room.android.data.ranking.RetrofitRankingRepository
 import com.voice.room.android.data.remote.api.RankingApiService
 import com.voice.room.android.domain.ranking.IRankingRepository
 import com.voice.room.android.data.remote.api.UserApiService
+import com.voice.room.android.data.local.InMemoryKickCooldownStore
+import com.voice.room.android.data.local.KickCooldownStore
 import com.voice.room.android.data.room.DebugRoomGateway
 import com.voice.room.android.data.room.DebugRoomSyncService
 import com.voice.room.android.data.room.RetrofitRoomRepository
@@ -65,6 +67,8 @@ data class AppContainer(
     val webSocketClient: IWebSocketClient,
     val tokenManager: ITokenManager,
     val userRepository: IUserRepository,
+    /** T-30042: KickCooldownStore Application 级别单例，RoomViewModel 与 HallViewModel 共享 */
+    val kickCooldownStore: KickCooldownStore = InMemoryKickCooldownStore(),
 ) {
     companion object {
         fun fromBuildConfig(): AppContainer {
@@ -142,6 +146,7 @@ data class AppContainer(
                 webSocketClient = webSocketClient,
                 tokenManager = tokenManager,
                 userRepository = userRepository,
+                kickCooldownStore = InMemoryKickCooldownStore(),
             )
         }
     }
