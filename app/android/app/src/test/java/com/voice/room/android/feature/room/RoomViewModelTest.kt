@@ -1056,6 +1056,150 @@ class RoomViewModelTest {
                 viewModel.giftMessages.value[0].count,
             )
         }
+
+    // ─── UA40-07: 任命管理员 → ShowConfirmAssignAdmin 事件 ─────────────────────
+
+    @Test
+    fun `UA40-07 assignAdmin - emits ShowConfirmAssignAdmin event`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            viewModel.joinRoom("room-1")
+            advanceUntilIdle()
+
+            val events = mutableListOf<RoomEvent>()
+            val job = launch(UnconfinedTestDispatcher()) {
+                viewModel.events.collect { events.add(it) }
+            }
+
+            viewModel.assignAdmin(targetUserId = "user-target")
+            advanceUntilIdle()
+
+            assertTrue(
+                "assignAdmin should emit ShowConfirmAssignAdmin event",
+                events.any { it is RoomEvent.ShowConfirmAssignAdmin && it.targetUserId == "user-target" }
+            )
+            job.cancel()
+        }
+
+    // ─── UA40-08: 踢出 → selectedKickTarget 被设置 ─────────────────────────────
+
+    @Test
+    fun `UA40-08 onKickAction - selectedKickTarget state is set to target member`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            viewModel.joinRoom("room-1")
+            advanceUntilIdle()
+
+            val targetMember = com.voice.room.android.data.model.RoomMember(
+                id = "kick-user",
+                nickname = "KickTarget",
+                role = "member",
+            )
+
+            viewModel.onKickAction(targetMember)
+            advanceUntilIdle()
+
+            assertEquals(
+                "selectedKickTarget should be set to the target member",
+                targetMember,
+                viewModel.selectedKickTarget.value,
+            )
+        }
+
+    // ─── UA40-09: 禁麦 30min → WS payload duration_sec=1800 ───────────────────
+
+    @Test
+    fun `UA40-09 muteUser with 30min - WS sends MuteUser with duration_sec 1800`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            fakeWsClient.simulateConnect()
+            viewModel.joinRoom("room-1")
+            advanceUntilIdle()
+            fakeWsClient.sentMessages.clear()
+
+            viewModel.muteUser(
+                targetUserId = "mute-user",
+                durationSec = 1800,
+                muteType = "mic",
+            )
+            advanceUntilIdle()
+
+            val sentMessages = fakeWsClient.sentMessages
+            assertTrue(
+                "Should have sent a MuteUser WS message",
+                sentMessages.any { it.contains("\"type\":\"MuteUser\"") }
+            )
+            val muteMsg = sentMessages.first { it.contains("\"type\":\"MuteUser\"") }
+            assertTrue("MuteUser payload should contain targetUserId", muteMsg.contains("mute-user"))
+            assertTrue("MuteUser payload should contain duration_sec=1800", muteMsg.contains("\"duration_sec\":1800"))
+            assertTrue("MuteUser payload should contain muteType=mic", muteMsg.contains("\"muteType\":\"mic\""))
+        }
+
+    // ─── UA40-09b: revokeAdmin → WS sends RevokeAdmin with targetUserId ────────
+
+    @Test
+    fun `UA40-09b revokeAdmin - WS sends RevokeAdmin with targetUserId`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            fakeWsClient.simulateConnect()
+            viewModel.joinRoom("room-1")
+            advanceUntilIdle()
+            fakeWsClient.sentMessages.clear()
+
+            viewModel.revokeAdmin(targetUserId = "admin-user")
+            advanceUntilIdle()
+
+            val sentMessages = fakeWsClient.sentMessages
+            assertTrue(
+                "Should send RevokeAdmin WS message",
+                sentMessages.any {
+                    it.contains("\"type\":\"RevokeAdmin\"") && it.contains("admin-user")
+                }
+            )
+        }
+
+    // ─── UA40-09c: forceTakeMic → WS sends ForceTakeMic ───────────────────────
+
+    @Test
+    fun `UA40-09c forceTakeMic - WS sends ForceTakeMic with targetUserId and slotIndex`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            fakeWsClient.simulateConnect()
+            viewModel.joinRoom("room-1")
+            advanceUntilIdle()
+            fakeWsClient.sentMessages.clear()
+
+            viewModel.forceTakeMic(targetUserId = "target-user", slotIndex = 3)
+            advanceUntilIdle()
+
+            val sentMessages = fakeWsClient.sentMessages
+            assertTrue(
+                "Should send ForceTakeMic WS message",
+                sentMessages.any {
+                    it.contains("\"type\":\"ForceTakeMic\"") &&
+                        it.contains("target-user") &&
+                        it.contains("\"slotIndex\":3")
+                }
+            )
+        }
+
+    // ─── UA40-09d: forceLeaveMic → WS sends ForceLeaveMic ─────────────────────
+
+    @Test
+    fun `UA40-09d forceLeaveMic - WS sends ForceLeaveMic with targetUserId`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            fakeWsClient.simulateConnect()
+            viewModel.joinRoom("room-1")
+            advanceUntilIdle()
+            fakeWsClient.sentMessages.clear()
+
+            viewModel.forceLeaveMic(targetUserId = "target-mic-user")
+            advanceUntilIdle()
+
+            val sentMessages = fakeWsClient.sentMessages
+            assertTrue(
+                "Should send ForceLeaveMic WS message",
+                sentMessages.any {
+                    it.contains("\"type\":\"ForceLeaveMic\"") &&
+                        it.contains("target-mic-user")
+                }
+            )
+        }
 }
 
 // ─── Test Doubles ─────────────────────────────────────────────────────────────

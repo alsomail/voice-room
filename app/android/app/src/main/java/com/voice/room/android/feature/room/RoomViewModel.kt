@@ -79,6 +79,10 @@ class RoomViewModel(
     private val _selectedMember = MutableStateFlow<RoomMember?>(null)
     val selectedMember: StateFlow<RoomMember?> = _selectedMember.asStateFlow()
 
+    /** 当前待踢出的目标成员（T-30040 UA40-08），供 KickReasonDialog（T-30041）使用 */
+    private val _selectedKickTarget = MutableStateFlow<RoomMember?>(null)
+    val selectedKickTarget: StateFlow<RoomMember?> = _selectedKickTarget.asStateFlow()
+
     /** 礼物特效调度控制器（T-30031）*/
     private val giftEffectController = GiftEffectController(viewModelScope)
 
@@ -322,6 +326,159 @@ class RoomViewModel(
      */
     fun onMemberClick(member: RoomMember) {
         _selectedMember.value = member
+    }
+
+    // ─── 治理信令（T-30040）───────────────────────────────────────────────────
+
+    /**
+     * 任命管理员（T-30040）。
+     *
+     * 发出 [RoomEvent.ShowConfirmAssignAdmin] 事件，UI 层弹出确认对话框；
+     * 用户确认后再调用 [confirmAssignAdmin] 发送 WS 信令。
+     *
+     * @param targetUserId   被任命目标的用户 ID
+     * @param targetNickname 被任命目标的昵称（用于确认对话框展示）
+     */
+    fun assignAdmin(targetUserId: String, targetNickname: String = "") {
+        _events.trySend(RoomEvent.ShowConfirmAssignAdmin(targetUserId, targetNickname))
+    }
+
+    /**
+     * 确认任命管理员后发送 WS 信令（T-30040）。
+     *
+     * @param targetUserId 被任命目标的用户 ID
+     */
+    fun confirmAssignAdmin(targetUserId: String) {
+        val roomId = currentRoomId ?: return
+        viewModelScope.launch {
+            try {
+                wsClient.send(
+                    """{"type":"AssignAdmin","roomId":"$roomId","targetUserId":"$targetUserId"}"""
+                )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _events.trySend(RoomEvent.ShowToast("任命管理员失败：${e.message}"))
+            }
+        }
+    }
+
+    /**
+     * 卸任管理员（T-30040）。
+     *
+     * 发送 WS RevokeAdmin 信令。
+     *
+     * @param targetUserId 被卸任目标的用户 ID
+     */
+    fun revokeAdmin(targetUserId: String) {
+        val roomId = currentRoomId ?: return
+        viewModelScope.launch {
+            try {
+                wsClient.send(
+                    """{"type":"RevokeAdmin","roomId":"$roomId","targetUserId":"$targetUserId"}"""
+                )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _events.trySend(RoomEvent.ShowToast("卸任管理员失败：${e.message}"))
+            }
+        }
+    }
+
+    /**
+     * 强制抱用户上麦（T-30040）。
+     *
+     * @param targetUserId 目标用户 ID
+     * @param slotIndex    目标麦位下标（0-based）
+     */
+    fun forceTakeMic(targetUserId: String, slotIndex: Int) {
+        val roomId = currentRoomId ?: return
+        viewModelScope.launch {
+            try {
+                wsClient.send(
+                    """{"type":"ForceTakeMic","roomId":"$roomId","targetUserId":"$targetUserId","slotIndex":$slotIndex}"""
+                )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _events.trySend(RoomEvent.ShowToast("抱上麦失败：${e.message}"))
+            }
+        }
+    }
+
+    /**
+     * 强制将用户从麦上移除（T-30040）。
+     *
+     * @param targetUserId 目标用户 ID
+     */
+    fun forceLeaveMic(targetUserId: String) {
+        val roomId = currentRoomId ?: return
+        viewModelScope.launch {
+            try {
+                wsClient.send(
+                    """{"type":"ForceLeaveMic","roomId":"$roomId","targetUserId":"$targetUserId"}"""
+                )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _events.trySend(RoomEvent.ShowToast("抱下麦失败：${e.message}"))
+            }
+        }
+    }
+
+    /**
+     * 禁麦或禁言用户（T-30040 UA40-09）。
+     *
+     * @param targetUserId 目标用户 ID
+     * @param durationSec  禁用时长（秒）：300/1800/7200/86400
+     * @param muteType     禁用类型："mic"（禁麦）或 "chat"（禁言）
+     */
+    fun muteUser(targetUserId: String, durationSec: Int, muteType: String) {
+        val roomId = currentRoomId ?: return
+        viewModelScope.launch {
+            try {
+                wsClient.send(
+                    """{"type":"MuteUser","roomId":"$roomId","targetUserId":"$targetUserId","duration_sec":$durationSec,"muteType":"$muteType"}"""
+                )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _events.trySend(RoomEvent.ShowToast("禁用操作失败：${e.message}"))
+            }
+        }
+    }
+
+    /**
+     * 踢出用户（T-30040 UA40-08）。
+     *
+     * 设置 [selectedKickTarget]，触发 UI 打开 KickReasonDialog（T-30041）。
+     *
+     * @param member 待踢出的目标成员
+     */
+    fun onKickAction(member: RoomMember) {
+        _selectedKickTarget.value = member
+    }
+
+    /**
+     * 确认踢出用户后发送 WS 信令（T-30040 / T-30041）。
+     *
+     * @param targetUserId 目标用户 ID
+     * @param reason       踢出原因（来自 KickReasonDialog）
+     */
+    fun kickUser(targetUserId: String, reason: String) {
+        val roomId = currentRoomId ?: return
+        viewModelScope.launch {
+            try {
+                wsClient.send(
+                    """{"type":"KickUser","roomId":"$roomId","targetUserId":"$targetUserId","reason":"$reason"}"""
+                )
+                _selectedKickTarget.value = null
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _events.trySend(RoomEvent.ShowToast("踢出操作失败：${e.message}"))
+            }
+        }
     }
 
     /**
