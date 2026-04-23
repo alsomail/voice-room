@@ -888,6 +888,30 @@ WS 服务端广播 UserKicked / UserLeft / MicLeft
 
 ---
 
+## T-30044 禁麦/禁言 UI 反馈 + 抱麦集成
+
+### 概述
+本地 UI 对禁麦/禁言状态的即时响应，以及 ForceTakeMic/ForceLeaveMic 信令的自动处理。
+
+### 组件结构
+| 组件 | 职责 |
+|------|------|
+| `SelfGovernanceState` | 保存 micMutedUntil/chatMutedUntil（毫秒时间戳），提供 isMicMuted(nowMs)/isChatMuted(nowMs) 查询 |
+| `IMicPermissionChecker` | 麦克风权限检查接口；AlwaysGrantedMicPermissionChecker 默认实现；FakeMicPermissionChecker 测试用 |
+| `ChatInput.kt`（已修改） | `enabled = !selfGovernanceState.isChatMuted()`，placeholder 显示禁言剩余时间 |
+| `MicSlot.kt`（已修改） | 禁麦时"+"按钮 enabled=false，点击时 ShowToast |
+
+### 设计要点
+- `SelfGovernanceState.isMicMuted(nowMs)` 与 `MuteCountdownViewModel` 互补：前者控制 UI 置灰防操作，后者控制倒计时 Chip 显示
+- `ForceTakeMic(forcedBy != null, isSelf)`：无麦克风权限时 requestMicPermission() → 拒绝则自动发 LeaveMic
+- `ForceLeaveMic(forcedBy != null, isSelf)`：stopPublishing() + onMicSelf=false + ShowToast "你已被抱下麦"
+- `Clock` 接口注入（复用 T-30042 已有的 SystemClock/FakeClock）
+
+### MEDIUM 遗留
+- 权限拒绝回调中 `wsClient.send()` 未包裹 `viewModelScope.launch`（线程安全隐患，待后续迭代修复）
+
+---
+
 ## 二、 当前测试覆盖
 
 - **测试文件**：30 个（含 `test/` 和 `androidTest/` 目录）
