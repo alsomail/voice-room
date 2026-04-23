@@ -2,6 +2,7 @@ package com.voice.room.android.feature.room
 
 import androidx.annotation.VisibleForTesting
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.google.gson.JsonParser
 import com.voice.room.android.core.media.IMediaService
@@ -933,6 +934,46 @@ class RoomViewModel(
             }
         }
     }
+}
+
+// ─── RoomViewModel.Factory（生产环境依赖注入）─────────────────────────────────────
+
+/**
+ * [RoomViewModel] 的 [ViewModelProvider.Factory]，用于生产环境依赖注入。
+ *
+ * 通过 [AppContainer] 注入 Application 级别单例（kickCooldownStore / announcementSeenStore），
+ * 确保多次进退房间时历史记录跨 ViewModel 实例共享。
+ *
+ * 使用示例（Compose Navigation）：
+ * ```kotlin
+ * val roomViewModel: RoomViewModel = viewModel(
+ *     factory = RoomViewModel.Factory(
+ *         wsClient                 = appContainer.webSocketClient,
+ *         roomSnapshotRepository   = ...,
+ *         kickCooldownStore        = appContainer.kickCooldownStore,
+ *         announcementSeenStore    = appContainer.announcementSeenStore,
+ *     )
+ * )
+ * ```
+ */
+class RoomViewModelFactory(
+    private val wsClient: IWebSocketClient,
+    private val roomSnapshotRepository: IRoomSnapshotRepository,
+    private val mediaService: IMediaService = NoOpMediaService(),
+    private val memberRepository: IRoomMemberRepository = NoOpRoomMemberRepository(),
+    private val kickCooldownStore: KickCooldownStore = InMemoryKickCooldownStore(),
+    private val announcementSeenStore: AnnouncementSeenStore = InMemoryAnnouncementSeenStore(),
+) : ViewModelProvider.Factory {
+    @Suppress("UNCHECKED_CAST")
+    override fun <T : ViewModel> create(modelClass: Class<T>): T =
+        RoomViewModel(
+            wsClient               = wsClient,
+            roomSnapshotRepository = roomSnapshotRepository,
+            mediaService           = mediaService,
+            memberRepository       = memberRepository,
+            kickCooldownStore      = kickCooldownStore,
+            announcementSeenStore  = announcementSeenStore,
+        ) as T
 }
 
 // ─── 扩展函数：RoomSnapshot → RoomUiState ─────────────────────────────────────

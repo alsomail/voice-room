@@ -29,6 +29,8 @@ import com.voice.room.android.data.ranking.RetrofitRankingRepository
 import com.voice.room.android.data.remote.api.RankingApiService
 import com.voice.room.android.domain.ranking.IRankingRepository
 import com.voice.room.android.data.remote.api.UserApiService
+import com.voice.room.android.data.local.AnnouncementSeenStore
+import com.voice.room.android.data.local.InMemoryAnnouncementSeenStore
 import com.voice.room.android.data.local.InMemoryKickCooldownStore
 import com.voice.room.android.data.local.KickCooldownStore
 import com.voice.room.android.data.room.DebugRoomGateway
@@ -69,6 +71,9 @@ data class AppContainer(
     val userRepository: IUserRepository,
     /** T-30042: KickCooldownStore Application 级别单例，RoomViewModel 与 HallViewModel 共享 */
     val kickCooldownStore: KickCooldownStore = InMemoryKickCooldownStore(),
+    /** T-30043: AnnouncementSeenStore Application 级别单例，RoomViewModel 跨实例共享，
+     *  确保 AN43-02（24h 内不重复弹窗）在生产路径生效 */
+    val announcementSeenStore: AnnouncementSeenStore = InMemoryAnnouncementSeenStore(),
 ) {
     companion object {
         fun fromBuildConfig(): AppContainer {

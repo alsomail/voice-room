@@ -3,8 +3,10 @@ package com.voice.room.android.feature.room
 import com.voice.room.android.core.ws.FakeWebSocketClient
 import com.voice.room.android.data.local.AnnouncementSeenStore
 import com.voice.room.android.data.local.FakeAnnouncementSeenStore
+import com.voice.room.android.data.local.InMemoryAnnouncementSeenStore
 import com.voice.room.android.data.room.MicSlotData
 import com.voice.room.android.data.room.RoomSnapshot
+import com.voice.room.android.feature.room.governance.Role
 import com.voice.room.android.utils.FakeClock
 import com.voice.room.android.utils.MainDispatcherRule
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -28,7 +30,7 @@ import org.junit.Test
  * AN43-04: 顶部 📄 点击手动弹出
  * AN43-05: AdminChanged 到达后 500ms 内麦位徽章更新
  * AN43-06: RoomInfoUpdated 改 announcement 后重新弹窗
- * AN43-07: Owner / Admin / member 角色正确映射
+ * AN43-07: Owner / Admin / member 角色正确映射（Role.fromString + AdminChanged 更新）
  * AN43-08: 关闭弹窗后 showAnnouncementPopup = null
  */
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -202,10 +204,10 @@ class AnnouncementPopupTest {
             assertEquals("弹窗内容应等于新公告", newAnnouncement, popup)
         }
 
-    // ─── AN43-07: 角色正确映射 ──────────────────────────────────────────────────
+    // ─── AN43-06c: RoomInfoUpdated 更新 title/category（原错位 AN43-07 → 正确归类）──────
 
     @Test
-    fun `AN43-07 RoomInfoUpdated更新title和category - roomState对应字段更新`() =
+    fun `AN43-06c RoomInfoUpdated更新title和category - roomState对应字段更新`() =
         runTest(mainDispatcherRule.testDispatcher) {
             viewModel.joinRoom("room-43", "user-1")
             advanceUntilIdle()
@@ -219,6 +221,129 @@ class AnnouncementPopupTest {
             val state = viewModel.uiState.value as? RoomViewState.Success
             assertNotNull("uiState 应为 Success", state)
             assertEquals("roomName 应更新为新标题", newTitle, state!!.uiState.roomName)
+        }
+
+    // ─── AN43-07: RoleBadge 角色映射 — Role.fromString() 三种值 ──────────────────
+
+    /**
+     * HIGH-02 修复（T-30043）：
+     * 验证 [Role.fromString] 正确将服务端字符串映射到 Role 枚举。
+     * 这是 RoleBadge 渲染逻辑的基础。
+     *
+     * - "owner"   → [Role.Owner]
+     * - "admin"   → [Role.Admin]
+     * - "unknown" → [Role.Member]（任意未知值 fallback）
+     * - "member"  → [Role.Member]
+     * - ""        → [Role.Member]（空字符串 fallback）
+     */
+    @Test
+    fun `AN43-07 RoleBadge role mapping - owner admin unknown 映射正确`() {
+        assertEquals("\"owner\" 应映射为 Role.Owner",  Role.Owner,  Role.fromString("owner"))
+        assertEquals("\"admin\" 应映射为 Role.Admin",  Role.Admin,  Role.fromString("admin"))
+        assertEquals("\"member\" 应映射为 Role.Member", Role.Member, Role.fromString("member"))
+        assertEquals("未知值应 fallback 为 Role.Member", Role.Member, Role.fromString("unknown"))
+        assertEquals("大写 OWNER 应被正规化",           Role.Owner,  Role.fromString("OWNER"))
+        assertEquals("大写 ADMIN 应被正规化",           Role.Admin,  Role.fromString("ADMIN"))
+        assertEquals("空字符串应 fallback 为 Role.Member", Role.Member, Role.fromString(""))
+    }
+
+    // ─── AN43-07b: AdminChanged WS → audienceState 中 role 枚举映射正确 ──────────
+
+    /**
+     * HIGH-02 修复（T-30043）：
+     * 收到 AdminChanged WS 消息后，audienceState 中用户的 role 字段应通过
+     * [Role.fromString] 正确映射为 Role 枚举。
+     * 验证 admin、owner 两种升权场景，以及 member 降权场景。
+     */
+    @Test
+    fun `AN43-07b AdminChanged event - audienceState role field maps via Role-fromString`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            viewModel.joinRoom("room-43", "user-1")
+            advanceUntilIdle()
+
+            // 初始：user-admin 以 member 身份进房
+            fakeWsClient.simulateMessage(
+                """{"type":"UserJoined","userId":"user-admin","nickname":"Admin","role":"member"}"""
+            )
+            advanceUntilIdle()
+
+            // 发送 AdminChanged：user-admin → admin
+            fakeWsClient.simulateMessage(
+                """{"type":"AdminChanged","userId":"user-admin","role":"admin"}"""
+            )
+            advanceUntilIdle()
+
+            val audience = viewModel.audienceState.value.audience
+            val adminUser = audience.find { it.id == "user-admin" }
+            assertNotNull("user-admin 应在观众列表中", adminUser)
+            // role 字段（String）应可通过 Role.fromString 解析为 Role.Admin
+            assertEquals(
+                "AdminChanged 后 Role.fromString(role) 应为 Role.Admin",
+                Role.Admin,
+                Role.fromString(adminUser!!.role),
+            )
+
+            // 再次降为 member（RevokeAdmin 场景）
+            fakeWsClient.simulateMessage(
+                """{"type":"AdminChanged","userId":"user-admin","role":"member"}"""
+            )
+            advanceUntilIdle()
+
+            val audience2 = viewModel.audienceState.value.audience
+            val degradedUser = audience2.find { it.id == "user-admin" }
+            assertNotNull("user-admin 降权后仍应在观众列表中", degradedUser)
+            assertEquals(
+                "降权后 Role.fromString(role) 应为 Role.Member",
+                Role.Member,
+                Role.fromString(degradedUser!!.role),
+            )
+        }
+
+    // ─── AN43-02c: 共享 Store 跨 ViewModel 实例有效（HIGH-01 行为验证）────────────
+
+    /**
+     * HIGH-01 修复验证（T-30043）：
+     * 验证将同一 [InMemoryAnnouncementSeenStore] 实例传给多个 ViewModel 时，
+     * 先前 ViewModel 的弹窗记录对后续 ViewModel 可见，
+     * 从而模拟 AppContainer 注入单例后的生产行为。
+     *
+     * 与之对比：如果每个 ViewModel 使用 `= InMemoryAnnouncementSeenStore()` 默认参数，
+     * vm2 将看不到 vm1 的记录，导致 24h 内重复弹窗（生产 Bug）。
+     */
+    @Test
+    fun `AN43-02c shared store persists across ViewModel instances`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            val sharedStore = InMemoryAnnouncementSeenStore()
+            val sharedClock = FakeClock(currentTimeMs = 2_000_000L)
+
+            // vm1 进房，首次弹窗，store 写入记录
+            val vm1 = RoomViewModel(
+                wsClient = FakeWebSocketClient(),
+                roomSnapshotRepository = FakeRoomSnapshotRepository(snapshotWithAnnouncement),
+                announcementSeenStore = sharedStore,
+                clock = sharedClock,
+            )
+            vm1.joinRoom("room-43", "user-1")
+            advanceUntilIdle()
+            assertNotNull("vm1 首次进房应弹窗", vm1.showAnnouncementPopup.value)
+
+            // 确认 store 已有记录（时间戳保存）
+            assertNotNull("sharedStore 应记录 room-43 的弹窗时间", sharedStore.get("room-43"))
+
+            // vm2 使用相同 store + 相同 clock（时间未推进，仍在 24h 内）进同一房间
+            val vm2 = RoomViewModel(
+                wsClient = FakeWebSocketClient(),
+                roomSnapshotRepository = FakeRoomSnapshotRepository(snapshotWithAnnouncement),
+                announcementSeenStore = sharedStore,
+                clock = sharedClock,
+            )
+            vm2.joinRoom("room-43", "user-2")
+            advanceUntilIdle()
+
+            assertNull(
+                "共享 store 有记录且在 24h 内，vm2 不应再次弹窗",
+                vm2.showAnnouncementPopup.value,
+            )
         }
 
     // ─── AN43-08: 关闭弹窗后 showAnnouncementPopup = null ────────────────────
