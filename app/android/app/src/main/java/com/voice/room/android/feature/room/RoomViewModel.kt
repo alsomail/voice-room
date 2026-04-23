@@ -24,6 +24,7 @@ import com.voice.room.android.feature.room.effect.FullscreenAnim
 import com.voice.room.android.feature.room.effect.GiftEffectController
 import com.voice.room.android.feature.room.effect.GiftMessageUi
 import com.voice.room.android.feature.room.governance.Clock
+import com.voice.room.android.feature.room.governance.SelfGovernanceState
 import com.voice.room.android.feature.room.governance.SystemClock
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
@@ -67,6 +68,14 @@ class RoomViewModel(
     private val kickCooldownStore: KickCooldownStore = InMemoryKickCooldownStore(),
     private val announcementSeenStore: AnnouncementSeenStore = InMemoryAnnouncementSeenStore(),
     private val clock: Clock = SystemClock(),
+    /**
+     * 麦克风权限检查器（T-30044）
+     *
+     * - 生产环境：RoomScreen 传入委托 Android 系统权限 API 的实现
+     * - 单元测试：注入 [FakeMicPermissionChecker] 精确控制权限状态与回调时机
+     * - 默认值：[AlwaysGrantedMicPermissionChecker]（已获得权限 / MVP 阶段）
+     */
+    private val micPermissionChecker: IMicPermissionChecker = AlwaysGrantedMicPermissionChecker(),
 ) : ViewModel() {
 
     companion object {
@@ -136,6 +145,15 @@ class RoomViewModel(
     private val _kickedState = MutableStateFlow<KickedState?>(null)
     val kickedState: StateFlow<KickedState?> = _kickedState.asStateFlow()
 
+    /**
+     * 当前用户自身的禁麦/禁言治理状态（T-30044）
+     *
+     * UI 层通过此状态控制"+"按钮置灰 / ChatInput disabled / 发送按钮置灰。
+     * 由 `UserMuted` WS 事件驱动更新；时间到期判断需外部传入当前时间戳。
+     */
+    private val _selfGovernanceState = MutableStateFlow(SelfGovernanceState())
+    val selfGovernanceState: StateFlow<SelfGovernanceState> = _selfGovernanceState.asStateFlow()
+
     // ─── 内部状态 ──────────────────────────────────────────────────────────────
 
     private var currentRoomId: String? = null
@@ -190,13 +208,20 @@ class RoomViewModel(
     /**
      * 麦克风权限授予后的处理入口（T-30012 / T-30013）。
      *
-     * 权限已授予 → 向服务端发送 TakeMic 信令。
+     * 权限已授予 → 检查禁麦状态（T-30044）：
+     * - 禁麦中：发出 [RoomEvent.ShowToast] 提示，不发送 WS
+     * - 未禁麦：向服务端发送 TakeMic 信令
      * 服务端收到后广播 MicTaken，ViewModel 再调用 RTC mediaService。
      *
      * @param slotIndex 麦位下标（0-based）
      */
     fun onMicPermissionGranted(slotIndex: Int) {
         val roomId = currentRoomId ?: return
+        // T-30044: 禁麦守卫 — 禁麦中不允许发起上麦请求
+        if (_selfGovernanceState.value.isMicMuted(clock.currentTimeMillis())) {
+            _events.trySend(RoomEvent.ShowToast("你已被禁麦，暂不能上麦"))
+            return
+        }
         viewModelScope.launch {
             try {
                 wsClient.send("""{"type":"TakeMic","roomId":"$roomId","slotIndex":$slotIndex}""")
@@ -285,6 +310,11 @@ class RoomViewModel(
     fun sendMessage(content: String) {
         if (content.isBlank()) return
         val roomId = currentRoomId ?: return
+        // T-30044: 禁言守卫 — 禁言中不允许发送消息
+        if (_selfGovernanceState.value.isChatMuted(clock.currentTimeMillis())) {
+            _events.trySend(RoomEvent.ShowToast("你已被禁言，暂不能发言"))
+            return
+        }
         viewModelScope.launch {
             updateSendingState(true)
             try {
@@ -594,6 +624,37 @@ class RoomViewModel(
         }
     }
 
+    /**
+     * 执行加入 RTC 频道 + 开始推流（T-30044 提取为私有 suspend 函数）
+     *
+     * 供 MicTaken 普通路径 / ForceTakeMic 权限已授予路径统一调用。
+     * 需在 [viewModelScope.launch] 内调用。
+     *
+     * @param roomId 房间 ID
+     * @param userId 当前用户 ID
+     */
+    private suspend fun startPublishingInternal(roomId: String, userId: String) {
+        try {
+            val joinResult = mediaService.joinChannel(roomId, userId)
+            if (joinResult.isFailure) {
+                _events.trySend(
+                    RoomEvent.ShowToast("加入频道失败：${joinResult.exceptionOrNull()?.message}")
+                )
+                return
+            }
+            val publishResult = mediaService.startPublishAudio()
+            if (publishResult.isFailure) {
+                _events.trySend(
+                    RoomEvent.ShowToast("开启推流失败：${publishResult.exceptionOrNull()?.message}")
+                )
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            _events.trySend(RoomEvent.ShowToast("上麦媒体操作异常：${e.message}"))
+        }
+    }
+
     // ─── 私有：发送中状态更新 ──────────────────────────────────────────────────
 
     /**
@@ -705,6 +766,9 @@ class RoomViewModel(
                 val slotIndex = json.get("slotIndex")?.asInt ?: return
                 val userId = json.get("userId")?.asString
                 val nickname = json.get("nickname")?.asString
+                // T-30044: 检测是否为管理员强制抱上麦（forcedBy 字段存在且非 null）
+                val forcedBy = json.get("forcedBy")?.takeIf { !it.isJsonNull }?.asString
+
                 val newSlots = state.micSlots.map { slot ->
                     if (slot.index == slotIndex) slot.copy(userId = userId, nickname = nickname)
                     else slot
@@ -730,33 +794,26 @@ class RoomViewModel(
                     )
                 }
 
-                // 若是当前用户上麦成功，调用 RTC mediaService
-                if (userId != null && userId == currentUserId && currentUserId.isNotEmpty()) {
+                // T-30044: 若是当前用户，根据是否强制抱麦决定推流策略
+                if (isSelf) {
                     val roomId = currentRoomId ?: return
-                    viewModelScope.launch {
-                        try {
-                            val joinResult = mediaService.joinChannel(roomId, userId)
-                            if (joinResult.isFailure) {
-                                _events.trySend(
-                                    RoomEvent.ShowToast(
-                                        "加入频道失败：${joinResult.exceptionOrNull()?.message}"
-                                    )
-                                )
-                                return@launch
-                            }
-                            val publishResult = mediaService.startPublishAudio()
-                            if (publishResult.isFailure) {
-                                _events.trySend(
-                                    RoomEvent.ShowToast(
-                                        "开启推流失败：${publishResult.exceptionOrNull()?.message}"
-                                    )
+                    if (forcedBy != null && !micPermissionChecker.hasMicPermission()) {
+                        // ForceTakeMic 且无权限 → 请求权限；拒绝则自动下麦
+                        val capturedSlotIndex = slotIndex
+                        micPermissionChecker.requestMicPermission { granted ->
+                            if (granted) {
+                                viewModelScope.launch { startPublishingInternal(roomId, userId!!) }
+                            } else {
+                                // 权限被拒绝 → 自动发送 LeaveMic 信令
+                                val currentRoom = currentRoomId ?: return@requestMicPermission
+                                wsClient.send(
+                                    """{"type":"LeaveMic","roomId":"$currentRoom","slotIndex":$capturedSlotIndex}"""
                                 )
                             }
-                        } catch (e: CancellationException) {
-                            throw e
-                        } catch (e: Exception) {
-                            _events.trySend(RoomEvent.ShowToast("上麦媒体操作异常：${e.message}"))
                         }
+                    } else {
+                        // 普通 TakeMic（用户主动）或 ForceTakeMic（权限已授予）→ 直接推流
+                        viewModelScope.launch { startPublishingInternal(roomId, userId!!) }
                     }
                 }
             }
@@ -766,6 +823,8 @@ class RoomViewModel(
                 // 在清空前记录该槽位原有 userId，用于判断是否需要调用 mediaService
                 val leavingUserId = json.get("userId")?.asString
                     ?: state.micSlots.getOrNull(slotIndex)?.userId
+                // T-30044: 检测是否为管理员强制踢下麦
+                val forcedBy = json.get("forcedBy")?.takeIf { !it.isJsonNull }?.asString
 
                 val newSlots = state.micSlots.map { slot ->
                     if (slot.index == slotIndex) slot.copy(userId = null, nickname = null)
@@ -794,10 +853,11 @@ class RoomViewModel(
                 }
 
                 // 若是当前用户下麦，停止推流并离开频道
-                if (leavingUserId != null
-                    && leavingUserId == currentUserId
-                    && currentUserId.isNotEmpty()
-                ) {
+                if (isSelfLeaving) {
+                    // T-30044: ForceLeaveMic → 发出 Toast 通知用户被强制踢下麦
+                    if (forcedBy != null) {
+                        _events.trySend(RoomEvent.ShowToast("你已被抱下麦"))
+                    }
                     viewModelScope.launch {
                         try {
                             mediaService.stopPublishAudio()
@@ -903,8 +963,20 @@ class RoomViewModel(
                 // 发出 UserMuted 事件供 MuteCountdownViewModel 消费
                 if (durationSec == 0) {
                     _events.trySend(RoomEvent.UserMuted(muteType = muteType, expiresAt = null))
+                    // T-30044: 同步清除 SelfGovernanceState 对应禁用状态
+                    _selfGovernanceState.value = when (muteType) {
+                        "mic"  -> _selfGovernanceState.value.copy(micMutedUntil = null)
+                        "chat" -> _selfGovernanceState.value.copy(chatMutedUntil = null)
+                        else   -> _selfGovernanceState.value
+                    }
                 } else {
                     _events.trySend(RoomEvent.UserMuted(muteType = muteType, expiresAt = expiresAt))
+                    // T-30044: 同步设置 SelfGovernanceState 对应禁用到期时间
+                    _selfGovernanceState.value = when (muteType) {
+                        "mic"  -> _selfGovernanceState.value.copy(micMutedUntil = expiresAt)
+                        "chat" -> _selfGovernanceState.value.copy(chatMutedUntil = expiresAt)
+                        else   -> _selfGovernanceState.value
+                    }
                 }
             }
 
@@ -963,6 +1035,7 @@ class RoomViewModelFactory(
     private val memberRepository: IRoomMemberRepository = NoOpRoomMemberRepository(),
     private val kickCooldownStore: KickCooldownStore = InMemoryKickCooldownStore(),
     private val announcementSeenStore: AnnouncementSeenStore = InMemoryAnnouncementSeenStore(),
+    private val micPermissionChecker: IMicPermissionChecker = AlwaysGrantedMicPermissionChecker(),
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T =
@@ -973,6 +1046,7 @@ class RoomViewModelFactory(
             memberRepository       = memberRepository,
             kickCooldownStore      = kickCooldownStore,
             announcementSeenStore  = announcementSeenStore,
+            micPermissionChecker   = micPermissionChecker,
         ) as T
 }
 
