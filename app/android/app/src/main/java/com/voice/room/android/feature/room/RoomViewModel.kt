@@ -481,8 +481,11 @@ class RoomViewModel(
         val roomId = currentRoomId ?: return
         viewModelScope.launch {
             try {
+                val safeReason = reason
+                    .replace("\\", "\\\\")
+                    .replace("\"", "\\\"")
                 wsClient.send(
-                    """{"type":"KickUser","roomId":"$roomId","targetUserId":"$targetUserId","reason":"$reason"}"""
+                    """{"type":"KickUser","roomId":"$roomId","targetUserId":"$targetUserId","reason":"$safeReason"}"""
                 )
                 _selectedKickTarget.value = null
                 _events.trySend(RoomEvent.ShowToast("已踢出"))

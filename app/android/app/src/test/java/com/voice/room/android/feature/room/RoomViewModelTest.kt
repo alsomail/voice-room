@@ -1347,6 +1347,110 @@ class RoomViewModelTest {
                 viewModel.selectedKickTarget.value
             )
         }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // KR41-07b: reason 含双引号 / 反斜杠时 WS 消息仍是有效 JSON（R1 HIGH fix）
+    // ──────────────────────────────────────────────────────────────────────────
+
+    @Test
+    fun `KR41-07b kickUser reason with double-quote - WS message is valid JSON`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            fakeWsClient.simulateConnect()
+            viewModel.joinRoom("room-1")
+            advanceUntilIdle()
+            fakeWsClient.sentMessages.clear()
+
+            // reason 含双引号，直接拼接会破坏 JSON
+            viewModel.kickUser("target-user-1", """she said "hello" to me""")
+            advanceUntilIdle()
+
+            val kickMsg = fakeWsClient.sentMessages.firstOrNull {
+                it.contains(""""type":"KickUser"""")
+            }
+            assertFalse("Should send KickUser WS message", kickMsg == null)
+
+            // 验证 WS 消息是合法 JSON（用 Gson 解析，非 Android 存根）
+            val jsonElement = try {
+                com.google.gson.JsonParser.parseString(kickMsg!!)
+            } catch (e: com.google.gson.JsonParseException) {
+                null
+            }
+            assertTrue(
+                "WS message must be valid JSON even when reason contains double-quotes; got: $kickMsg",
+                jsonElement != null && jsonElement.isJsonObject
+            )
+            assertEquals(
+                "reason field must preserve the original text",
+                """she said "hello" to me""",
+                jsonElement!!.asJsonObject.get("reason").asString
+            )
+        }
+
+    @Test
+    fun `KR41-07b kickUser reason with backslash - WS message is valid JSON`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            fakeWsClient.simulateConnect()
+            viewModel.joinRoom("room-1")
+            advanceUntilIdle()
+            fakeWsClient.sentMessages.clear()
+
+            // reason 含反斜杠，直接拼接会破坏 JSON
+            viewModel.kickUser("target-user-2", """path\to\file""")
+            advanceUntilIdle()
+
+            val kickMsg = fakeWsClient.sentMessages.firstOrNull {
+                it.contains(""""type":"KickUser"""")
+            }
+            assertFalse("Should send KickUser WS message", kickMsg == null)
+
+            val jsonElement = try {
+                com.google.gson.JsonParser.parseString(kickMsg!!)
+            } catch (e: com.google.gson.JsonParseException) {
+                null
+            }
+            assertTrue(
+                "WS message must be valid JSON even when reason contains backslash; got: $kickMsg",
+                jsonElement != null && jsonElement.isJsonObject
+            )
+            assertEquals(
+                "reason field must preserve the original text",
+                """path\to\file""",
+                jsonElement!!.asJsonObject.get("reason").asString
+            )
+        }
+
+    @Test
+    fun `KR41-07b kickUser reason with both double-quote and backslash - WS message is valid JSON`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            fakeWsClient.simulateConnect()
+            viewModel.joinRoom("room-1")
+            advanceUntilIdle()
+            fakeWsClient.sentMessages.clear()
+
+            val nastyReason = """say \"weird\" \thing"""
+            viewModel.kickUser("target-user-3", nastyReason)
+            advanceUntilIdle()
+
+            val kickMsg = fakeWsClient.sentMessages.firstOrNull {
+                it.contains(""""type":"KickUser"""")
+            }
+            assertFalse("Should send KickUser WS message", kickMsg == null)
+
+            val jsonElement = try {
+                com.google.gson.JsonParser.parseString(kickMsg!!)
+            } catch (e: com.google.gson.JsonParseException) {
+                null
+            }
+            assertTrue(
+                "WS message must be valid JSON for complex escape input; got: $kickMsg",
+                jsonElement != null && jsonElement.isJsonObject
+            )
+            assertEquals(
+                "reason field must preserve the original text",
+                nastyReason,
+                jsonElement!!.asJsonObject.get("reason").asString
+            )
+        }
 }
 
 // ─── Test Doubles ─────────────────────────────────────────────────────────────
