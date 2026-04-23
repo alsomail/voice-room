@@ -843,6 +843,27 @@ WS 服务端广播 UserKicked / UserLeft / MicLeft
 
 ---
 
+## T-30042 被踢/被禁提示弹窗
+
+### 概述
+当 WS 收到 `UserKicked` / `UserMuted` 信令时，向用户展示全屏确认弹窗，提供 Cooldown 拦截保护。
+
+### 组件结构
+| 组件 | 职责 |
+|------|------|
+| `UserKickedDialog` | 全屏弹窗，展示踢出原因和冷却时间，dismissOnClickOutside=false |
+| `MuteStatusChip` | 禁麦/禁言倒计时 Chip，嵌入房间状态栏 |
+| `MuteCountdownViewModel` | 管理 mic/chat 独立倒计时，注入 Clock 接口 |
+| `KickCooldownStore` | 保存踢出记录，Application 单例，RoomViewModel + HallViewModel 共享 |
+
+### 设计要点
+- `KickCooldownStore` 为 Application 级单例（`AppContainer.kickCooldownStore`），RoomViewModel 写入、HallViewModel 读取，实现跨 ViewModel cooldown 拦截
+- `Clock` 接口注入（SystemClock 默认实现），支持单元测试中注入 FakeClock
+- `acknowledgeKick()` 保存 cooldown 并导航回大厅
+- HallViewModel.enterRoom() 进入前检查 cooldown，未过期则拦截并提示
+
+---
+
 ## 二、 当前测试覆盖
 
 - **测试文件**：30 个（含 `test/` 和 `androidTest/` 目录）

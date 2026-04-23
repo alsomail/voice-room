@@ -14,7 +14,7 @@ dotenv.config({ path: path.resolve(__dirname, '.env') });
  * See https://playwright.dev/docs/test-configuration.
  */
 export default defineConfig({
-  testDir: './e2e',
+  testDir: './tests/scripts',
   
   /* 核心修改 2：延长全局超时时间。因为 AI 视觉大模型识别页面和推理需要时间，单条用例默认的 30 秒通常不够，建议延长到 120 秒 */
   timeout: 120 * 1000,
