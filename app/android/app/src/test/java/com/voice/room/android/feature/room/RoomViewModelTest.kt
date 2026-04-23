@@ -1132,22 +1132,50 @@ class RoomViewModelTest {
             assertTrue("MuteUser payload should contain muteType=mic", muteMsg.contains("\"muteType\":\"mic\""))
         }
 
-    // ─── UA40-09b: revokeAdmin → WS sends RevokeAdmin with targetUserId ────────
+    // ─── UA40-09b: revokeAdmin → ShowConfirmRevokeAdmin 事件（R1 修复）─────────
 
     @Test
-    fun `UA40-09b revokeAdmin - WS sends RevokeAdmin with targetUserId`() =
+    fun `UA40-09b revokeAdmin - emits ShowConfirmRevokeAdmin event`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            viewModel.joinRoom("room-1")
+            advanceUntilIdle()
+
+            val events = mutableListOf<RoomEvent>()
+            val job = launch(UnconfinedTestDispatcher()) {
+                viewModel.events.collect { events.add(it) }
+            }
+
+            viewModel.revokeAdmin(targetUserId = "admin-user")
+            advanceUntilIdle()
+
+            assertTrue(
+                "revokeAdmin should emit ShowConfirmRevokeAdmin event",
+                events.any { it is RoomEvent.ShowConfirmRevokeAdmin && it.targetUserId == "admin-user" }
+            )
+            // 未经确认不应直接发 WS
+            assertFalse(
+                "revokeAdmin should NOT send WS before confirmation",
+                fakeWsClient.sentMessages.any { it.contains("\"type\":\"RevokeAdmin\"") }
+            )
+            job.cancel()
+        }
+
+    // ─── UA40-09b-confirm: confirmRevokeAdmin → WS sends RevokeAdmin ─────────
+
+    @Test
+    fun `UA40-09b-confirm confirmRevokeAdmin - WS sends RevokeAdmin with targetUserId`() =
         runTest(mainDispatcherRule.testDispatcher) {
             fakeWsClient.simulateConnect()
             viewModel.joinRoom("room-1")
             advanceUntilIdle()
             fakeWsClient.sentMessages.clear()
 
-            viewModel.revokeAdmin(targetUserId = "admin-user")
+            viewModel.confirmRevokeAdmin(targetUserId = "admin-user")
             advanceUntilIdle()
 
             val sentMessages = fakeWsClient.sentMessages
             assertTrue(
-                "Should send RevokeAdmin WS message",
+                "confirmRevokeAdmin should send RevokeAdmin WS message",
                 sentMessages.any {
                     it.contains("\"type\":\"RevokeAdmin\"") && it.contains("admin-user")
                 }

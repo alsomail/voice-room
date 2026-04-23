@@ -364,13 +364,25 @@ class RoomViewModel(
     }
 
     /**
-     * 卸任管理员（T-30040）。
+     * 卸任管理员（T-30040 R1 修复）。
      *
-     * 发送 WS RevokeAdmin 信令。
+     * 发出 [RoomEvent.ShowConfirmRevokeAdmin] 事件，UI 层弹出确认对话框；
+     * 用户确认后再调用 [confirmRevokeAdmin] 发送 WS 信令。
+     * 与 [assignAdmin] 保持对称的两步确认流程。
+     *
+     * @param targetUserId   被卸任目标的用户 ID
+     * @param targetNickname 被卸任目标的昵称（用于确认对话框展示）
+     */
+    fun revokeAdmin(targetUserId: String, targetNickname: String = "") {
+        _events.trySend(RoomEvent.ShowConfirmRevokeAdmin(targetUserId, targetNickname))
+    }
+
+    /**
+     * 确认卸任管理员后发送 WS 信令（T-30040 R1 修复）。
      *
      * @param targetUserId 被卸任目标的用户 ID
      */
-    fun revokeAdmin(targetUserId: String) {
+    fun confirmRevokeAdmin(targetUserId: String) {
         val roomId = currentRoomId ?: return
         viewModelScope.launch {
             try {
