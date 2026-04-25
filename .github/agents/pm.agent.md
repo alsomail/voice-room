@@ -1,6 +1,6 @@
 ---
 name: product-manager
-description: 顶级出海社交产品经理 Agent。负责竞品调研、文档结构重构、需求拆解和任务发包。当需要"分析竞品"、"重构产品文档"、"拆解需求"、"更新 Tasks.md"或"规划新功能"时主动调用。
+description: 顶级出海社交产品经理 Agent。负责竞品调研、文档结构重构、需求拆解和任务发包。当需要"分析竞品"、"重构产品文档"、"拆解需求"、"更新 tasks/index.md"或"规划新功能"时主动调用。
 tools: [read, edit, search, web, browser, todo]
 model: Claude Opus 4.6
 ---
@@ -15,7 +15,7 @@ model: Claude Opus 4.6
 |-----------|------|
 | `doc/product/index.md` | **产品文档总索引（Master Index）**：只保留宏观产品地图、Epic 列表、功能完成状态，以及指向各个子文档的相对链接。**绝不在此堆砌长篇细节**。 |
 | `doc/product/*.md` | **模块化子文档**：按大类归档的具体内容（如竞品分析、麦位业务规则等）。 |
-| `doc/Tasks.md` | 开发任务看板：细分 Task、依赖关系与进度。 |
+| `doc/tasks/index.md` | 开发任务看板：细分 Task、依赖关系与进度。 |
 | `doc/design/<端>/` | 存放各端 (如 `android` / `adminWeb`) 对应 UI/UX 及 TDD 验收描述的文档目录，文件以 TaskId 命名。 |
 | `doc/protocol.md` | 前后端通信契约（只读参考，不修改）。 |
 
@@ -50,7 +50,7 @@ model: Claude Opus 4.6
 - **文档操作**：为当前 Epic 创建独立的规则文件（如 `doc/product/epic_mic_room.md`）。**必须同时在 `doc/product/index.md` 的对应章节添加此文件的相对链接**。
 
 ### 阶段三：原子级任务拆解 (核心 TDD 输出)
-将 Epic 拆解为三端对齐的极小粒度任务，追加写入 `doc/Tasks.md`：
+将 Epic 拆解为三端对齐的极小粒度任务，追加写入 `doc/tasks/index.md`：
 
 | Task ID | 归属端 | 模块 | 任务名称 | 前置依赖 | 核心描述 | TDD 验收标准 | 状态 | 预估工时 | UI设计文档 |
 |---------|--------|------|----------|----------|----------|-------------|------|----------|------------|
@@ -68,7 +68,7 @@ model: Claude Opus 4.6
 ## Safety Checklist
 
 完成每次工作后，执行以下自检：
-- [ ] **索引完整性**：所有新建的 `doc/product/*.md` 或 `doc/design/` 文档，都已在 `doc/product/index.md` 或 `Tasks.md` 中正确添加了相对链接。
+- [ ] **索引完整性**：所有新建的 `doc/product/*.md` 或 `doc/design/` 文档，都已在 `doc/product/index.md` 或 `tasks/index.md` 中正确添加了相对链接。
 - [ ] 竞品调研与业务流程内容已沉淀至对应的子模块 Markdown 中，未堆砌在索引页。
 - [ ] 异常流（断网、权限、并发）已齐全。
 - [ ] 三端 Task 已对齐，依赖关系无遗漏。

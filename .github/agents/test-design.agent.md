@@ -8,7 +8,7 @@ user-invocable: true
 
 # Primary Input
 
-- 任务列表文件：`doc/Tasks.md`，每个任务对应具体`T-xxxxx.md`的设计
+- 任务列表文件：`doc/tasks/index.md`，每个任务对应具体`T-xxxxx.md`的设计
 - 架构设计文档: `doc/architecture/index.md`
 - 协议文档：`doc/protocol/index.md`
 - 产品文档：`doc/product/index.md`及其子模块
@@ -21,7 +21,7 @@ user-invocable: true
 你必须综合运用多种测试设计方法，确保用例的覆盖率和深度：
 
 1. **全场景覆盖与等价类划分**   
-   - **基本路径**：为 Tasks.md 中每个模块功能生成至少 1 个正常路径（Happy Path）用例。   
+   - **基本路径**：为 tasks/index.md 中每个模块功能生成至少 1 个正常路径（Happy Path）用例。   
    - **异常与边界**：必须包含异常路径（Unhappy Path）用例。对输入字段进行等价类划分（有效/无效类），对数值/长度/日期强制进行边界值分析（Min-1, Min, Max, Max+1）。   
    - **需求存疑处理**：若任务描述模糊，禁止静默跳过，必须在测试套件顶部的 `Ambiguity Notes` 字段中详细记录。 
 2. **跨端 E2E 联调闭环 (Multi-Endpoint)**   
@@ -84,4 +84,4 @@ user-invocable: true
 ---
 
 # Start Instruction
-请深呼吸，仔细阅读用户提供的 Tasks.md 及相关文档，一步步思考业务逻辑，严格按照以上《Design Rules》发散用例，并最终以《Output Format》输出所有 Markdown 测试用例。
+请深呼吸，仔细阅读用户提供的 tasks/index.md 及相关文档，一步步思考业务逻辑，严格按照以上《Design Rules》发散用例，并最终以《Output Format》输出所有 Markdown 测试用例。

@@ -269,3 +269,50 @@
 
 **【数据清理】**
 - 清理数据。
+
+---
+
+## TC-ROOM-00013：WS JoinRoom - 加入内存态 + 广播 UserJoined + 返回快照
+**【元数据】**
+- **归属模块**：`ROOM`
+- **测试类型**：`Integration`
+- **回归级别**：`P0`
+
+**【前置条件】**
+1. 房间 R1 已由 U1 创建并 JoinRoom，麦上 U1 占 slot=1。
+2. U2 WS 已连接但未进房。
+
+**【执行步骤与断言】**
+| 步骤序号 | 目标端 | 操作动作 (Action) | 预期结果 (Assertion) |
+| :------: | :----- | :---------------- | :------------------- |
+| 1 | `AppServer` | U2 发 `{"type":"JoinRoom","payload":{"room_id":"R1"}}` | U2 收到 `RoomState` 快照，`mic_slots[0].user_id=U1`，`members_count≥2` |
+| 2 | `AppServer` | U1 的 WS 通道 | 收到 `{"type":"UserJoined","payload":{"user_id":"U2",...}}` |
+| 3 | `AppServer` | U2 再发 JoinRoom 同 R1（已在房间） | 返回 `code=40902, error=ALREADY_IN_ROOM` 或幂等返回同快照（以实现为准，断言二者之一） |
+| 4 | `AppServer` | U2 发 JoinRoom room_id 不存在 | `code=40400, ROOM_NOT_FOUND` |
+| 5 | `AppServer` | U2 发 JoinRoom 到 closed 房间 | `code=40910, ROOM_CLOSED` |
+
+**【数据清理】**
+- 无。
+
+---
+
+## TC-ROOM-00014：WS LeaveRoom - 显式离开 + 连接断开隐式离开 + 在麦自动下麦
+**【元数据】**
+- **归属模块**：`ROOM`
+- **测试类型**：`Integration`
+- **回归级别**：`P0`
+
+**【前置条件】**
+1. R1 房主 U1，成员 U2（观众），麦上 U3 占 slot=2。
+
+**【执行步骤与断言】**
+| 步骤序号 | 目标端 | 操作动作 (Action) | 预期结果 (Assertion) |
+| :------: | :----- | :---------------- | :------------------- |
+| 1 | `AppServer` | U2 发 `{"type":"LeaveRoom"}` | 房间广播 `UserLeft {user_id:U2}`；U2 自身 WS 连接保持 |
+| 2 | `AppServer` | U3 WS 连接被网络强断（模拟 TCP RST），30s 内 | 服务端心跳超时后，房间广播 `MicLeft {slot:2}` → `UserLeft {user_id:U3}` |
+| 3 | `AppServer` | U1（房主）发 LeaveRoom | 广播 `UserLeft {user_id:U1}`；房间不自动关闭（房主离开 ≠ 关闭房间） |
+| 4 | `DB` | `SELECT status FROM rooms WHERE id=R1` | 仍为 `active` |
+| 5 | `AppServer` | 非房间成员 U5 发 LeaveRoom | `code=40901, NOT_IN_ROOM` |
+
+**【数据清理】**
+- 关闭 R1。

@@ -32,5 +32,5 @@
 
 - **协议契约**: [doc/protocol/index.md](../protocol/index.md)
 - **产品需求**: [doc/product/index.md](../product/index.md)
-- **任务看板**: [doc/Tasks.md](../Tasks.md)
+- **任务看板**: [doc/tasks/index.md](../tasks/index.md)
 - **各端实现架构**: `doc/arch/{server,adminServer,android,web}/index.md`

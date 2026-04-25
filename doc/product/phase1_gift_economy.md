@@ -130,7 +130,7 @@
 
 ## 7. 关联 Task 一览
 
-详见 [doc/Tasks.md - 模块 6](../Tasks.md) - 共 15 个 Task：
+详见 [doc/tasks/index.md - 模块 6](../tasks/index.md) - 共 15 个 Task：
 - App Server: 5 个（T-00017 ~ T-00021）
 - Admin Server: 2 个（T-10013 ~ T-10014）
 - Web: 1 个（T-20012）

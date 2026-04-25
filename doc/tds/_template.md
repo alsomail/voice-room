@@ -1,7 +1,7 @@
 <!-- 
 [AI 写入规约]
 1. 本文件由 Plan Agent 创建。TDD Agent 仅填写第四节【实现结果】，其余章节只读。Review Agent 仅填写第五节【Reviewer意见】。
-2. 创建后必须在 doc/Tasks.md 对应 Task 的行内补充链接：[TDS](./tds/[$端]/T-xxx.md)
+2. 创建后必须在 doc/tasks/index.md 对应 Task 的行内补充链接：[TDS](./tds/[$端]/T-xxx.md)
 3. 实现完成后，在本文件底部的【实现结果】章节补充实际的代码路径。
 -->
 
@@ -24,7 +24,7 @@
 （如果涉及前后端通信，直接引用或补充 `doc/protocol.md`）
 
 ## 三、TDD 验收用例
-（直接从 Tasks.md 复制过来，并在此基础上扩充边界用例）
+（直接从 doc/tasks/index.md 复制过来，并在此基础上扩充边界用例）
 - [ ] 正向：xxx
 - [ ] 异常：断网场景下 xxx
 - [ ] 异常：并发场景下 xxx

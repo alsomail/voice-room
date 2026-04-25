@@ -510,7 +510,7 @@ src/modules/gift/ranking.rs
 - [Phase 1 虚拟礼物与钱包闭环 MVP](../product/phase1_gift_economy.md) — E-07 Epic 方向总纲
 
 ### 9.4 任务看板
-- [Tasks.md](../Tasks.md) — T-00019 ✅ / T-00020 ✅ / T-00021 开发中
+- [doc/tasks/index.md](../../tasks/index.md) — T-00019 ✅ / T-00020 ✅ / T-00021 开发中
 
 ---
 
