@@ -25,5 +25,14 @@ module.exports = {
       'warn',
       { allowConstantExport: true },
     ],
+    // 标准约定：以下划线开头的形参/变量被显式忽略（例如 `_userId` 表示未使用但保留签名）。
+    '@typescript-eslint/no-unused-vars': [
+      'error',
+      {
+        argsIgnorePattern: '^_',
+        varsIgnorePattern: '^_',
+        caughtErrorsIgnorePattern: '^_',
+      },
+    ],
   },
 };

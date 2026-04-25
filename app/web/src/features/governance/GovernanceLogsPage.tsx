@@ -48,6 +48,7 @@ function getDefaultFilters(): GovernanceFilters {
  * 直接强转 `filters as MuteListParams` 不会重命名字段，
  * 运行时会向服务端发送 mute_type=mic（服务端期望 type=mic），导致筛选静默失效。
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function toMuteListParams(filters: GovernanceFilters): MuteListParams {
   const { mute_type, ...rest } = filters;
   return { ...rest, type: mute_type };

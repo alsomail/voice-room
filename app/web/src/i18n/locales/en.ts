@@ -159,7 +159,6 @@ const en = {
     },
     unban: {
       modalTitle: 'Confirm Unban User',
-      description: 'Are you sure to unban this user? The user will regain normal access.',
       reasonLabel: 'Unban Reason',
       reasonRequired: 'Please select a reason',
       reasonExpired: 'Penalty Expired',

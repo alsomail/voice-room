@@ -79,8 +79,8 @@ export function UsersPage() {
   }, []);
 
   const handleUnbanSuccess = useCallback(
-    (userId: string) => {
-      void userId; // userId 已通过 setUnbanUserId 追踪，此处仅作类型完整性标注
+    (_userId: string) => {
+      // P2-4: 形参重命名为 _userId（unused 显式标注），userId 信息已通过 setUnbanUserId 追踪
       message.success(t('users.unban.successMsg'));
       setUnbanUserId(null);
       setSelectedUserId(null);

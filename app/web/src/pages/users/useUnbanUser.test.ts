@@ -4,7 +4,7 @@
  * 验收用例：
  *   U01: 调用 unban() 成功，loading 经历 true → false，error=null
  *   U02: API 抛出错误，loading=false，error 非空，且 error 被 re-throw
- *   U03: 409/40901（已是正常状态），错误被正确捕获，error.message 非空
+ *   U03: 409/40900（已是正常状态），错误被正确捕获，error.message 非空
  *   U04: unban() 执行中 loading=true（防重复提交验证）
  */
 
@@ -33,16 +33,14 @@ describe('useUnbanUser — U01: 成功', () => {
 
     await act(async () => {
       await result.current.unban('user-1', {
-        reason: '处罚到期',
-        remark: '备注',
+        reason: '处罚到期: 备注',
       });
     });
 
     expect(result.current.loading).toBe(false);
     expect(result.current.error).toBeNull();
     expect(mockAdminUnbanUser).toHaveBeenCalledWith('user-1', {
-      reason: '处罚到期',
-      remark: '备注',
+      reason: '处罚到期: 备注',
     });
   });
 });
@@ -68,10 +66,10 @@ describe('useUnbanUser — U02: API 错误', () => {
   });
 });
 
-// ── U03: 40901 错误 ────────────────────────────────────────────────────────
-describe('useUnbanUser — U03: 40901 错误捕获', () => {
-  it('40901（已是正常状态）时 error.message 非空，error 对象被正确设置', async () => {
-    const conflictError = new Error('[40901] 用户当前未被封禁');
+// ── U03: 40900 错误 ────────────────────────────────────────────────────────
+describe('useUnbanUser — U03: 40900 错误捕获（与 admin-server UserAlreadyNormal 对齐）', () => {
+  it('40900（已是正常状态）时 error.message 非空，error 对象被正确设置', async () => {
+    const conflictError = new Error('[40900] 用户当前未被封禁');
     mockAdminUnbanUser.mockRejectedValue(conflictError);
     const { result } = renderHook(() => useUnbanUser());
 

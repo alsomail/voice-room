@@ -231,16 +231,19 @@ export function RoomsTable({
           showSizeChanger: true,
           onChange: onPageChange,
         }}
-        onRow={(record) => ({
-          onClick: () => onRowClick(record.room_id),
-          style: {
-            cursor: 'pointer',
-            // T-20011: 异常房间行高亮背景
-            ...(getActivityStatus(record) === 'abnormal'
-              ? { background: 'rgba(231, 76, 60, 0.1)' }
-              : {}),
-          },
-        })}
+        onRow={(record) => {
+          const isAbnormal = getActivityStatus(record) === 'abnormal';
+          return {
+            onClick: () => onRowClick(record.room_id),
+            // P2-1: 异常行附加 aria-label，提升屏幕阅读器/高对比度模式下的可访问性
+            ...(isAbnormal ? { 'aria-label': t('rooms.activityLevelAbnormal') } : {}),
+            style: {
+              cursor: 'pointer',
+              // T-20011: 异常房间行高亮背景
+              ...(isAbnormal ? { background: 'rgba(231, 76, 60, 0.1)' } : {}),
+            },
+          };
+        }}
       />
     </div>
   );

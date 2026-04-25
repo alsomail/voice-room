@@ -62,6 +62,7 @@ const MAX_WINDOW_DAYS = 30;
  * 验证自定义时间范围是否合法（≤ 30 天）
  * 导出为纯函数，方便单元测试
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function validateCustomRange(from: string, to: string): boolean {
   const diff = new Date(to).getTime() - new Date(from).getTime();
   return diff <= MAX_WINDOW_DAYS * 24 * 60 * 60 * 1000;

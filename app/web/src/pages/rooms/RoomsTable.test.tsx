@@ -387,6 +387,25 @@ describe('RoomsTable — C21: 异常行高亮背景', () => {
     expect(row).not.toBeNull();
     expect(row!.style.background).toBe('rgba(231, 76, 60, 0.1)');
   });
+
+  // P2-1: 高对比度/屏幕阅读器无障碍 — 异常行需附加 aria-label
+  it('P2-1: 异常房间所在 tr 含 aria-label="rooms.activityLevelAbnormal"', () => {
+    render(<RoomsTable {...activityProps} />);
+    const activityTag = screen.getByTestId('room-activity-tag-room-abnormal');
+    const row = activityTag.closest('tr');
+    expect(row).not.toBeNull();
+    expect(row!.getAttribute('aria-label')).toBe('rooms.activityLevelAbnormal');
+  });
+
+  it('P2-1: 非异常行不携带 aria-label', () => {
+    render(<RoomsTable {...activityProps} />);
+    for (const roomId of ['room-active', 'room-quiet', 'room-normal']) {
+      const tag = screen.getByTestId(`room-activity-tag-${roomId}`);
+      const row = tag.closest('tr');
+      expect(row).not.toBeNull();
+      expect(row!.getAttribute('aria-label')).toBeNull();
+    }
+  });
 });
 
 // ── C22: 非异常房间无高亮背景 ──────────────────────────────────────────────

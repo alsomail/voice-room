@@ -21,6 +21,7 @@ import {
   adminCreateGift,
   adminUpdateGift,
   adminDeleteGift,
+  adminUnbanUser,
 } from './apiClient';
 
 // ── 常量 ────────────────────────────────────────────────────────────────────
@@ -322,6 +323,54 @@ describe('adminCloseRoom — T-20004', () => {
 
     const [url] = vi.mocked(fetch).mock.calls[0];
     expect(url as string).toContain('room%2Fwith%2Fslashes');
+  });
+});
+
+// ── 5b. adminUnbanUser — T-20010 P0-1 契约对齐回归 ──────────────────────────
+// 解封必须复用 POST /users/:id/ban + body {action:"unban", ...}
+// （admin-server 未注册任何 /unban 路由；旧实现 PUT /users/:id/unban 会 404）
+describe('adminUnbanUser — T-20010 P0-1: 契约（POST /:id/ban + action=unban）', () => {
+  it('U-API-01: 调用 POST /users/{id}/ban，body 含 action="unban" 与 reason', async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      mockResponse({ code: 0, message: 'ok', data: null }, { status: 200, ok: true }),
+    );
+
+    await adminUnbanUser('user-1', { reason: '处罚到期' });
+
+    expect(fetch).toHaveBeenCalledTimes(1);
+    const [url, init] = vi.mocked(fetch).mock.calls[0];
+    expect(url as string).toContain('/users/user-1/ban');
+    expect(url as string).not.toContain('/unban');
+    const reqInit = init as RequestInit;
+    expect(reqInit.method).toBe('POST');
+    const body = JSON.parse(reqInit.body as string) as Record<string, unknown>;
+    expect(body.action).toBe('unban');
+    expect(body.reason).toBe('处罚到期');
+    // ban_type / duration_hours 可省略或为 null（与服务端 Option<...> 对齐）
+    expect(body.ban_type === null || body.ban_type === undefined).toBe(true);
+    expect(body.duration_hours === null || body.duration_hours === undefined).toBe(true);
+  });
+
+  it('U-API-02: userId 含特殊字符时 URL 被 encodeURIComponent 编码', async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      mockResponse({ code: 0, message: 'ok', data: null }, { status: 200, ok: true }),
+    );
+
+    await adminUnbanUser('user/with/slashes', { reason: '误封' });
+
+    const [url] = vi.mocked(fetch).mock.calls[0];
+    expect(url as string).toContain('user%2Fwith%2Fslashes/ban');
+  });
+
+  it('U-API-03: 后端 409 + 40900 → 抛出 Error（P0-2 错误码已对齐）', async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      mockResponse(
+        { code: 40900, message: '[40900] User already in normal status' },
+        { status: 409, ok: false },
+      ),
+    );
+
+    await expect(adminUnbanUser('user-1', { reason: '误封' })).rejects.toThrow(/40900/);
   });
 });
 

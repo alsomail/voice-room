@@ -443,29 +443,45 @@ export async function adminGetStatsOverview(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Admin Unban User（T-20010，对应 PUT /admin/users/:id/unban）
+// Admin Unban User（T-20010；P0-1 修复：复用 POST /users/:id/ban + action=unban）
+//
+// 历史背景：旧实现误调 PUT /users/:id/unban，但 admin-server 从未注册该路由
+//（见 app/adminServer/src/bootstrap/mod.rs 仅 POST /users/{id}/ban）。
+// 服务端通过请求体 `action: "ban"|"unban"` 区分语义，DTO 见
+// `app/adminServer/src/modules/user/dto.rs::AdminBanUserRequest`。
+// 此处与 P0-2 已对齐的 ban payload 对称：unban 时 ban_type/duration_hours = null。
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** PUT /admin/users/:id/unban 请求体 */
+/** 解封请求体（前端 API 层；与服务端 BanUserRequest 对齐，action 固定 'unban'） */
 export interface AdminUnbanUserRequest {
+  /** 解封原因（必填，可包含原备注，与 BanModal P0-2 修复对称） */
   reason: string;
-  remark?: string;
 }
 
 /**
- * PUT /admin/users/:id/unban — 管理员解封用户（T-20010）
- * 成功 200：{ code: 0, data: null }
- * 40901：用户当前未被封禁（幂等）
+ * POST /admin/users/:id/ban — 管理员解封用户（T-20010 P0-1）
+ *
+ * Body: `{ action: 'unban', reason, ban_type: null, duration_hours: null }`
+ * 成功 200：`{ code: 0, data: null }`
+ * 业务错误：40900 用户当前未被封禁 (UserAlreadyNormal，HTTP 409)
  */
 export async function adminUnbanUser(
   userId: string,
   req: AdminUnbanUserRequest,
   signal?: AbortSignal,
 ): Promise<void> {
-  await adminFetch<null>(`/users/${encodeURIComponent(userId)}/unban`, {
-    method: 'PUT',
+  // 与 admin-server `AdminBanUserRequest { action, ban_type, duration_hours, reason }`
+  // 对齐：unban 时 ban_type / duration_hours 显式置 null（serde Option 接受 null）。
+  const body = {
+    action: 'unban' as const,
+    ban_type: null,
+    duration_hours: null,
+    reason: req.reason,
+  };
+  await adminFetch<null>(`/users/${encodeURIComponent(userId)}/ban`, {
+    method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(req),
+    body: JSON.stringify(body),
     signal,
   });
 }

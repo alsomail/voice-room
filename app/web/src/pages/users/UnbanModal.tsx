@@ -62,14 +62,17 @@ export function UnbanModal({ userId, onClose, onSuccess }: UnbanModalProps) {
       onOk: async () => {
         try {
           setUnbanError(null);
-          await unban(userId!, {
-            reason: values.reason,
-            remark: values.remark,
-          });
+          // P0-1 修复：与 BanModal P0-2 对称，备注合并入 reason；服务端仅识别 reason 字段。
+          const reasonText = values.remark
+            ? `${values.reason}: ${values.remark}`
+            : values.reason;
+          await unban(userId!, { reason: reasonText });
           onSuccess(userId!);
         } catch (err) {
+          // P0-2 修复：服务端 UserAlreadyNormal 错误码为 40900（不是 40901，
+          // 40901 实际是 RoomAlreadyClosed，与解封链路无关）。
           const errMsg =
-            err instanceof Error && err.message.includes('40901')
+            err instanceof Error && err.message.includes('40900')
               ? t('users.unban.alreadyNormal')
               : err instanceof Error
                 ? err.message

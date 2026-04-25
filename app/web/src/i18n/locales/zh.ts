@@ -159,7 +159,6 @@ const zh = {
     },
     unban: {
       modalTitle: '确认解封用户',
-      description: '确定要解封该用户吗？解封后该用户将恢复正常访问权限。',
       reasonLabel: '解封原因',
       reasonRequired: '请选择解封原因',
       reasonExpired: '处罚到期',

@@ -10,7 +10,7 @@
  *   M06: 二次确认后，useUnbanUser.unban 以正确 userId 和 params 被调用
  *   M07: 解封成功，onSuccess 以 userId 为参数被调用
  *   M08: 解封失败（API 错误），Modal 不关闭，错误 Alert 可见
- *   M09: 解封失败（40901），错误信息展示友好文案
+ *   M09: 解封失败（40900），错误信息展示友好文案
  *   M10: 点击取消，onClose 被调用
  *   M11: 并发防护：快速双击提交按钮，unban 仅被调用一次
  *   M12: afterClose 触发后 isConfirming 重置为 false，按钮恢复可用
@@ -244,14 +244,14 @@ describe('UnbanModal — M08: 解封失败不关闭', () => {
   });
 });
 
-// ── M09: 解封失败（40901） → 友好文案 ────────────────────────────────────
-describe('UnbanModal — M09: 40901 错误友好文案', () => {
-  it('40901 错误时错误 Alert 显示 users.unban.alreadyNormal 文案', async () => {
+// ── M09: 解封失败（40900） → 友好文案 ────────────────────────────────────
+describe('UnbanModal — M09: 40900 错误友好文案（P0-2 修复后与 admin-server UserAlreadyNormal 对齐）', () => {
+  it('40900 错误时错误 Alert 显示 users.unban.alreadyNormal 文案', async () => {
     confirmSpy.mockImplementation(({ onOk }: Parameters<typeof Modal.confirm>[0]) => {
       void (onOk as (() => Promise<void>) | undefined)?.();
       return { destroy: vi.fn(), update: vi.fn() };
     });
-    mockUnban.mockRejectedValue(new Error('[40901] 用户当前未被封禁'));
+    mockUnban.mockRejectedValue(new Error('[40900] 用户当前未被封禁'));
     const user = userEvent.setup();
     render(<UnbanModal {...makeProps()} />);
     await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
@@ -264,6 +264,27 @@ describe('UnbanModal — M09: 40901 错误友好文案', () => {
       expect(alert).toBeInTheDocument();
       // t('users.unban.alreadyNormal') 在 mock 中返回 key 本身
       expect(alert.textContent).toContain('users.unban.alreadyNormal');
+    });
+  });
+
+  it('40901 错误（其它业务错误码）不应触发 alreadyNormal 文案，落入 fallback', async () => {
+    confirmSpy.mockImplementation(({ onOk }: Parameters<typeof Modal.confirm>[0]) => {
+      void (onOk as (() => Promise<void>) | undefined)?.();
+      return { destroy: vi.fn(), update: vi.fn() };
+    });
+    mockUnban.mockRejectedValue(new Error('[40901] Room already closed'));
+    const user = userEvent.setup();
+    render(<UnbanModal {...makeProps()} />);
+    await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
+
+    await selectOption(user, 'unban-reason-select', 'users.unban.reasonExpired');
+    await user.click(screen.getByTestId('unban-confirm-btn'));
+
+    await waitFor(() => {
+      const alert = screen.getByTestId('unban-error-alert');
+      expect(alert).toBeInTheDocument();
+      expect(alert.textContent).not.toContain('users.unban.alreadyNormal');
+      expect(alert.textContent).toContain('40901');
     });
   });
 });
