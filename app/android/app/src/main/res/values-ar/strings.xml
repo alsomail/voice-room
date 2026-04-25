@@ -27,4 +27,76 @@
     <string name="notification_ban_user">تم حظرك من هذه المنصة.</string>
     <string name="notification_room_closed">تم إغلاق هذه الغرفة من قبل المسؤول.</string>
     <string name="notification_broadcast_notice_prefix">[إشعار] %1$s</string>
+
+    <!-- ─── الوحدة 4: السمة وغلاف التطبيق (إصلاح خطأ #2/#3 i18n) ───────────── -->
+
+    <!-- شاشة البداية -->
+    <string name="splash_logo_description">شعار التطبيق</string>
+
+    <!-- العلامة التجارية -->
+    <string name="app_brand_emoji">🎙️</string>
+    <string name="app_brand_name">غرفة الصوت</string>
+
+    <!-- تسجيل الدخول -->
+    <string name="login_subtitle">تسجيل الدخول</string>
+    <string name="login_button">تسجيل الدخول</string>
+
+    <!-- التبويبات السفلية -->
+    <string name="tab_rooms">الغرف</string>
+    <string name="tab_messages">الرسائل</string>
+    <string name="tab_profile">حسابي</string>
+
+    <!-- شاشات نائبة -->
+    <string name="messages_placeholder_title">الرسائل قريباً</string>
+    <string name="messages_placeholder_subtitle">ترقّب القادم</string>
+    <string name="profile_placeholder_label">حسابي</string>
+
+    <!-- صفحة الملف الشخصي -->
+    <string name="profile_copy_id_action">نسخ المعرّف</string>
+    <string name="profile_balance_format">💰 %1$d عملة</string>
+    <string name="profile_cache_badge">من الذاكرة المؤقتة</string>
+    <string name="profile_settings">الإعدادات</string>
+    <string name="profile_logout">تسجيل الخروج</string>
+    <string name="profile_retry">إعادة المحاولة</string>
+    <string name="profile_load_failed">تعذّر تحميل الملف الشخصي.</string>
+
+    <!-- نافذة تأكيد الخروج -->
+    <string name="profile_logout_confirm_title">تسجيل الخروج</string>
+    <string name="profile_logout_confirm_text">هل تريد تسجيل الخروج من حسابك؟</string>
+    <string name="dialog_confirm">تأكيد</string>
+    <string name="dialog_cancel">إلغاء</string>
+
+    <!-- إشعارات Toast للملف الشخصي -->
+    <string name="profile_id_copied_toast">تم نسخ المعرّف</string>
+    <string name="profile_cached_data_toast">لا يوجد اتصال بالشبكة، يتم عرض البيانات المخزنة.</string>
+
+    <!-- الصورة الرمزية -->
+    <string name="avatar_default_description">الصورة الرمزية</string>
+
+    <!-- صفحة الغرف -->
+    <string name="hall_top_bar_title">غرفة الصوت</string>
+    <string name="hall_retry_button">إعادة المحاولة</string>
+    <string name="hall_empty_state">لا توجد غرف بعد</string>
+    <string name="hall_create_room_fab">إنشاء غرفة</string>
+    <string name="hall_ranking_action">المتصدّرون</string>
+    <string name="hall_search_action">بحث</string>
+
+    <!-- داخل الغرفة -->
+    <string name="room_input_placeholder">اكتب شيئاً…</string>
+    <string name="room_send_action">إرسال</string>
+    <string name="room_unmute_action">إلغاء الكتم</string>
+    <string name="room_mute_action">كتم</string>
+    <string name="room_gift_action">هدية</string>
+    <string name="room_emoji_action">رموز تعبيرية</string>
+    <string name="room_emoji_coming_soon">الرموز التعبيرية قريباً</string>
+    <string name="room_exit_action">مغادرة الغرفة</string>
+    <string name="room_exit_dialog_title">مغادرة الغرفة</string>
+    <string name="room_exit_dialog_text">هل أنت متأكد من مغادرة الغرفة؟</string>
+    <string name="room_overflow_more">المزيد</string>
+    <string name="room_menu_ranking">المتصدّرون</string>
+
+    <!-- وصف مقاعد الميكروفون لإمكانية الوصول -->
+    <string name="mic_slot_empty_desc">المقعد %1$d، شاغر، اضغط لاعتلاء المنصة</string>
+    <string name="mic_slot_occupied_desc">المقعد %1$d، %2$s، اضغط للتفاعل</string>
+    <string name="mic_slot_muted_desc">المقعد %1$d، %2$s، مكتوم</string>
 </resources>

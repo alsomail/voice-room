@@ -12,17 +12,17 @@ import androidx.compose.ui.graphics.Color
 object MenaColors {
 
     // ── 原始值常量（JVM 单测可用） ────────────────────
-    const val BACKGROUND_VALUE: ULong              = 0xFF1A1A2Eu
-    const val SURFACE_VALUE: ULong                 = 0xFF16213Eu
-    const val SURFACE_VARIANT_VALUE: ULong         = 0xFF0F3460u
-    const val PRIMARY_VALUE: ULong                 = 0xFFD4AF37u
-    const val PRIMARY_BRIGHT_VALUE: ULong          = 0xFFFFD700u
-    const val ON_BACKGROUND_VALUE: ULong           = 0xFFFFFFFFu
-    const val ON_BACKGROUND_SECONDARY_VALUE: ULong = 0xFFB0B0B0u
-    const val ON_BACKGROUND_TERTIARY_VALUE: ULong  = 0xFF6C6C6Cu
-    const val ERROR_VALUE: ULong                   = 0xFFE74C3Cu
-    const val SUCCESS_VALUE: ULong                 = 0xFF2ECC71u
-    const val SYSTEM_MESSAGE_VALUE: ULong          = 0xFFF39C12u
+    const val BACKGROUND_VALUE: ULong              = 0xFF1A1A2EuL
+    const val SURFACE_VALUE: ULong                 = 0xFF16213EuL
+    const val SURFACE_VARIANT_VALUE: ULong         = 0xFF0F3460uL
+    const val PRIMARY_VALUE: ULong                 = 0xFFD4AF37uL
+    const val PRIMARY_BRIGHT_VALUE: ULong          = 0xFFFFD700uL
+    const val ON_BACKGROUND_VALUE: ULong           = 0xFFFFFFFFuL
+    const val ON_BACKGROUND_SECONDARY_VALUE: ULong = 0xFFB0B0B0uL
+    const val ON_BACKGROUND_TERTIARY_VALUE: ULong  = 0xFF6C6C6CuL
+    const val ERROR_VALUE: ULong                   = 0xFFE74C3CuL
+    const val SUCCESS_VALUE: ULong                 = 0xFF2ECC71uL
+    const val SYSTEM_MESSAGE_VALUE: ULong          = 0xFFF39C12uL
 
     // ── Compose Color 常量 ────────────────────────
     val Background: Color            = Color(BACKGROUND_VALUE)

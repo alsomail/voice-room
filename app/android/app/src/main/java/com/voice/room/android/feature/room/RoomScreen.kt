@@ -25,7 +25,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
+import com.voice.room.android.R
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.emptyFlow
@@ -154,7 +156,7 @@ fun RoomScreen(
                     ) {
                         Icon(
                             imageVector = Icons.Filled.MoreVert,
-                            contentDescription = "更多",
+                            contentDescription = stringResource(id = R.string.room_overflow_more),
                             tint = MenaColors.OnBackground,
                         )
                     }
@@ -163,11 +165,11 @@ fun RoomScreen(
                         onDismissRequest = { showOverflowMenu = false },
                     ) {
                         DropdownMenuItem(
-                            text = { Text("榜单") },
+                            text = { Text(stringResource(id = R.string.room_menu_ranking)) },
                             leadingIcon = {
                                 Icon(
                                     imageVector = Icons.Filled.EmojiEvents,
-                                    contentDescription = "榜单",
+                                    contentDescription = stringResource(id = R.string.room_menu_ranking),
                                 )
                             },
                             onClick = {
@@ -196,6 +198,8 @@ fun RoomScreen(
                 onLeaveRoom = onLeaveRoom,
                 // T-30028: 🎁 按钮点击 → 弹出 GiftPanelBottomSheet
                 onGiftClick = { showGiftPanel = true },
+                // 缺陷 #2 修复：表情按钮回调上移（暂留空，后续 emoji 模块接入）
+                onEmojiClick = { /* TODO: emoji panel - emoji feature pending */ },
             )
         },
     ) { padding ->

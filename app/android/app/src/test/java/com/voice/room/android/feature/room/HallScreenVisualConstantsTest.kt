@@ -23,7 +23,7 @@ class HallScreenVisualConstantsTest {
 
     @Test
     fun `V08 background color value matches 1A1A2E`() {
-        assertEquals(0xFF1A1A2Eu, MenaColors.BACKGROUND_VALUE)
+        assertEquals(0xFF1A1A2EuL, MenaColors.BACKGROUND_VALUE)
     }
 
     // ─────────────────────────────────────────────
@@ -32,7 +32,7 @@ class HallScreenVisualConstantsTest {
 
     @Test
     fun `V01 surface color value matches 16213E for RoomCard`() {
-        assertEquals(0xFF16213Eu, MenaColors.SURFACE_VALUE)
+        assertEquals(0xFF16213EuL, MenaColors.SURFACE_VALUE)
     }
 
     // ─────────────────────────────────────────────
@@ -41,7 +41,7 @@ class HallScreenVisualConstantsTest {
 
     @Test
     fun `V02 surfaceVariant color value matches 0F3460 for gradient block`() {
-        assertEquals(0xFF0F3460u, MenaColors.SURFACE_VARIANT_VALUE)
+        assertEquals(0xFF0F3460uL, MenaColors.SURFACE_VARIANT_VALUE)
     }
 
     // ─────────────────────────────────────────────
@@ -50,7 +50,7 @@ class HallScreenVisualConstantsTest {
 
     @Test
     fun `V05 primary color value matches D4AF37 for FAB and top bar`() {
-        assertEquals(0xFFD4AF37u, MenaColors.PRIMARY_VALUE)
+        assertEquals(0xFFD4AF37uL, MenaColors.PRIMARY_VALUE)
     }
 
     // ─────────────────────────────────────────────
@@ -59,7 +59,7 @@ class HallScreenVisualConstantsTest {
 
     @Test
     fun `V03 onBackground color value matches FFFFFF for title text`() {
-        assertEquals(0xFFFFFFFFu, MenaColors.ON_BACKGROUND_VALUE)
+        assertEquals(0xFFFFFFFFuL, MenaColors.ON_BACKGROUND_VALUE)
     }
 
     // ─────────────────────────────────────────────
@@ -68,7 +68,7 @@ class HallScreenVisualConstantsTest {
 
     @Test
     fun `error color value matches E74C3C`() {
-        assertEquals(0xFFE74C3Cu, MenaColors.ERROR_VALUE)
+        assertEquals(0xFFE74C3CuL, MenaColors.ERROR_VALUE)
     }
 
     // ─────────────────────────────────────────────
@@ -77,6 +77,6 @@ class HallScreenVisualConstantsTest {
 
     @Test
     fun `onBackgroundTertiary color value matches 6C6C6C for unselected tabs`() {
-        assertEquals(0xFF6C6C6Cu, MenaColors.ON_BACKGROUND_TERTIARY_VALUE)
+        assertEquals(0xFF6C6C6CuL, MenaColors.ON_BACKGROUND_TERTIARY_VALUE)
     }
 }

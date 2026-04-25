@@ -26,9 +26,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.voice.room.android.R
 import com.voice.room.android.core.theme.AvatarWithFrame
 import com.voice.room.android.core.theme.GoldButton
 import com.voice.room.android.core.theme.MenaColors
@@ -144,7 +147,7 @@ private fun ProfileSuccessContent(
         Row(
             modifier = Modifier
                 .testTag("profile_id_row")
-                .clickable { onCopyId(profile.id) }
+                .clickable(role = Role.Button) { onCopyId(profile.id) }
                 .padding(vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center,
@@ -158,7 +161,7 @@ private fun ProfileSuccessContent(
             Spacer(modifier = Modifier.width(6.dp))
             Icon(
                 imageVector = Icons.Default.ContentCopy,
-                contentDescription = "复制 ID",
+                contentDescription = stringResource(id = R.string.profile_copy_id_action),
                 tint = MenaColors.OnBackgroundSecondary,
                 modifier = Modifier.size(16.dp),
             )
@@ -168,19 +171,19 @@ private fun ProfileSuccessContent(
 
         // ── 余额（点击跳转钱包页，T-30027）──────────────────────
         Text(
-            text = "💰 ${profile.coinBalance} 金币",
+            text = stringResource(id = R.string.profile_balance_format, profile.coinBalance),
             style = MaterialTheme.typography.bodyLarge,
             color = MenaColors.Primary,
             modifier = Modifier
                 .testTag("profile_balance")
-                .clickable { onNavigateToWallet() },
+                .clickable(role = Role.Button) { onNavigateToWallet() },
         )
 
         // ── 缓存标记（仅 fromCache=true 时显示）─────────
         if (fromCache) {
             Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = "缓存",
+                text = stringResource(id = R.string.profile_cache_badge),
                 style = MaterialTheme.typography.labelSmall,
                 color = MenaColors.OnBackgroundTertiary,
                 fontSize = 10.sp,
@@ -208,12 +211,12 @@ private fun ProfileSuccessContent(
         ) {
             Icon(
                 imageVector = Icons.Default.Settings,
-                contentDescription = "设置",
+                contentDescription = stringResource(id = R.string.profile_settings),
                 tint = MenaColors.OnBackgroundSecondary,
             )
             Spacer(modifier = Modifier.width(12.dp))
             Text(
-                text = "设置",
+                text = stringResource(id = R.string.profile_settings),
                 style = MaterialTheme.typography.bodyLarge,
                 color = MenaColors.OnBackgroundSecondary,
             )
@@ -230,7 +233,7 @@ private fun ProfileSuccessContent(
                 .testTag("profile_logout_button"),
         ) {
             Text(
-                text = "退出登录",
+                text = stringResource(id = R.string.profile_logout),
                 color = MenaColors.Error,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Medium,
@@ -246,6 +249,8 @@ private fun ProfileErrorContent(
     message: String,
     onRetry: () -> Unit,
 ) {
+    // 缺陷 #2 修复：当底层异常 message 为空时，回退到本地化资源
+    val displayMessage = message.ifBlank { stringResource(id = R.string.profile_load_failed) }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -254,13 +259,13 @@ private fun ProfileErrorContent(
         verticalArrangement = Arrangement.Center,
     ) {
         Text(
-            text = message,
+            text = displayMessage,
             style = MaterialTheme.typography.bodyLarge,
             color = MenaColors.OnBackgroundSecondary,
         )
         Spacer(modifier = Modifier.height(16.dp))
         GoldButton(
-            text = "重试",
+            text = stringResource(id = R.string.profile_retry),
             onClick = onRetry,
             modifier = Modifier.testTag("profile_retry_button"),
         )

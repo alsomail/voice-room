@@ -8,12 +8,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
+import com.voice.room.android.R
 import com.voice.room.android.core.theme.MenaColors
 
 /**
- * 我的 Tab 占位 Composable (T-30020)
+ * 我的 Tab 占位 Composable (T-30020 / 缺陷 #2 i18n)
  *
- * 居中显示 "Me" 占位文本，后续 T-30024 替换为真正的个人中心页面。
+ * 居中显示占位文本，按系统 Locale 自动切换到 values-ar 阿语版本。
+ * 后续 T-30024 替换为真正的个人中心页面。
  */
 @Composable
 fun ProfilePlaceholder() {
@@ -24,7 +27,7 @@ fun ProfilePlaceholder() {
         contentAlignment = Alignment.Center
     ) {
         Text(
-            text = "Me",
+            text = stringResource(id = R.string.profile_placeholder_label),
             style = MaterialTheme.typography.headlineMedium,
             color = MenaColors.OnBackgroundSecondary
         )

@@ -22,9 +22,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.paging.LoadState
 import androidx.paging.compose.LazyPagingItems
+import com.voice.room.android.R
 import com.voice.room.android.core.theme.MenaColors
 import com.voice.room.android.core.theme.MenaTypography
 import com.voice.room.android.domain.room.RoomItem
@@ -101,8 +103,11 @@ fun HallScreen(
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.spacedBy(16.dp),
                             ) {
+                                // 缺陷 #2：底层异常 message 通常已是英文/技术消息；
+                                // 当为空时回退到本地化的 hall_load_failed
+                                val fallback = stringResource(id = R.string.hall_load_failed)
                                 Text(
-                                    text = refresh.error.message ?: "加载失败",
+                                    text = refresh.error.message?.takeIf { it.isNotBlank() } ?: fallback,
                                     style = MenaTypography.bodyMedium,
                                     color = MenaColors.Error,
                                     modifier = Modifier.testTag("hall_error_text"),
@@ -115,7 +120,7 @@ fun HallScreen(
                                         contentColor = MenaColors.OnBackground,
                                     ),
                                 ) {
-                                    Text("重试")
+                                    Text(stringResource(id = R.string.hall_retry_button))
                                 }
                             }
                         }
@@ -128,7 +133,7 @@ fun HallScreen(
                                 contentAlignment = Alignment.Center,
                             ) {
                                 Text(
-                                    text = "暂无房间",
+                                    text = stringResource(id = R.string.hall_empty_state),
                                     style = MenaTypography.bodyMedium,
                                     color = MenaColors.OnBackgroundSecondary,
                                     modifier = Modifier.testTag("hall_empty_state"),
@@ -186,7 +191,7 @@ private fun CreateRoomFab(onClick: () -> Unit) {
     ) {
         Icon(
             imageVector = Icons.Default.Add,
-            contentDescription = "创建房间",
+            contentDescription = stringResource(id = R.string.hall_create_room_fab),
         )
     }
 }

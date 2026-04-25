@@ -3,9 +3,11 @@ package com.voice.room.android.feature.profile
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.voice.room.android.R
 import com.voice.room.android.domain.local.ITokenManager
 import com.voice.room.android.domain.user.IUserRepository
 import com.voice.room.android.domain.user.UserProfile
+import com.voice.room.android.util.UiText
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -65,9 +67,15 @@ class ProfileViewModel(
                     val cached = cachedProfile
                     if (cached != null) {
                         _uiState.value = ProfileUiState.Success(cached, fromCache = true)
-                        _events.emit(ProfileEvent.ShowToast("网络异常，显示缓存数据"))
+                        // 缺陷 #2 修复：使用 UiText（@StringRes）替代中文字面量
+                        _events.emit(
+                            ProfileEvent.ShowToast(UiText.of(R.string.profile_cached_data_toast))
+                        )
                     } else {
-                        _uiState.value = ProfileUiState.Error(e.message ?: "加载失败")
+                        // 错误信息使用底层异常 message（IOException 等通常已是英文/技术消息）；
+                        // 当 message 为 null/blank 时，UI 层 ProfileErrorContent 会回退到
+                        // R.string.profile_load_failed（缺陷 #2）
+                        _uiState.value = ProfileUiState.Error(e.message.orEmpty())
                     }
                 }
         }
@@ -80,7 +88,8 @@ class ProfileViewModel(
      */
     fun copyId(userId: String) {
         viewModelScope.launch {
-            _events.emit(ProfileEvent.ShowToast("ID 已复制"))
+            // 缺陷 #2 修复：UiText 占位，UI 层按 Locale 解析
+            _events.emit(ProfileEvent.ShowToast(UiText.of(R.string.profile_id_copied_toast)))
         }
     }
 

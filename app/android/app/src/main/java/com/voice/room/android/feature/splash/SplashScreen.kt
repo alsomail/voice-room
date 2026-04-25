@@ -21,6 +21,7 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.voice.room.android.BuildConfig
@@ -104,7 +105,7 @@ fun SplashScreen(
             // Logo — 居中，金色，120dp
             Image(
                 painter = painterResource(id = R.drawable.ic_logo),
-                contentDescription = "App Logo",
+                contentDescription = stringResource(id = R.string.splash_logo_description),
                 modifier = Modifier
                     .size(120.dp)
                     .scale(scale.value)

@@ -11,6 +11,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.voice.room.android.core.theme.MenaColors
 
@@ -46,13 +47,13 @@ fun MenaBottomNavigation(
                 icon = {
                     Icon(
                         tab.icon,
-                        contentDescription = tab.labelEn,
+                        contentDescription = stringResource(tab.labelRes),
                         modifier = Modifier.size(24.dp)
                     )
                 },
                 label = {
                     Text(
-                        tab.labelEn,
+                        stringResource(tab.labelRes),
                         style = MaterialTheme.typography.labelSmall
                     )
                 },

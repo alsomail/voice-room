@@ -23,7 +23,7 @@ class OnlineCountBadgeTest {
     fun `V04 success color value matches green 2ECC71`() {
         assertEquals(
             "MenaColors.SUCCESS_VALUE should be 0xFF2ECC71",
-            0xFF2ECC71u,
+            0xFF2ECC71uL,
             MenaColors.SUCCESS_VALUE
         )
     }
@@ -36,7 +36,7 @@ class OnlineCountBadgeTest {
     fun `V04 onBackgroundSecondary color value matches B0B0B0`() {
         assertEquals(
             "MenaColors.ON_BACKGROUND_SECONDARY_VALUE should be 0xFFB0B0B0",
-            0xFFB0B0B0u,
+            0xFFB0B0B0uL,
             MenaColors.ON_BACKGROUND_SECONDARY_VALUE
         )
     }

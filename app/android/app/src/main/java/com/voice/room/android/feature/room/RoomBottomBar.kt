@@ -1,6 +1,5 @@
 package com.voice.room.android.feature.room
 
-import android.widget.Toast
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -29,11 +28,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.voice.room.android.R
 import com.voice.room.android.core.theme.MenaColors
 
 /**
@@ -60,6 +60,8 @@ import com.voice.room.android.core.theme.MenaColors
  * @param isMicMuted          当前用户麦克风是否静音
  * @param onMicToggle         点击麦克风按钮的回调（toggle 静音）
  * @param onLeaveRoom         确认退出房间的回调
+ * @param onEmojiClick        点击 😊 表情按钮的回调（缺陷 #2 修复：替换原 Composable 内 Toast）
+ * @param onGiftClick         点击 🎁 礼物按钮的回调（T-30028）
  * @param modifier            可选 Modifier
  */
 @Composable
@@ -73,9 +75,9 @@ fun RoomBottomBar(
     onMicToggle: () -> Unit,
     onLeaveRoom: () -> Unit,
     onGiftClick: () -> Unit = {},   // T-30028: 🎁 按钮点击回调（替换 Toast 占位）
+    onEmojiClick: () -> Unit = {},  // 缺陷 #2 修复：表情点击交由调用方处理（不在 Composable 内 Toast）
     modifier: Modifier = Modifier,
 ) {
-    val context = LocalContext.current
     val canSend = inputText.isNotBlank() && !isSending
 
     // 退出确认弹窗状态
@@ -103,7 +105,7 @@ fun RoomBottomBar(
             modifier = Modifier
                 .weight(1f)
                 .testTag("chat_input_field"),
-            placeholder = "说点什么...",
+            placeholder = stringResource(id = R.string.room_input_placeholder),
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
             keyboardActions = KeyboardActions(
                 onSend = { if (canSend) onSendMessage(inputText) }
@@ -119,7 +121,7 @@ fun RoomBottomBar(
         ) {
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.Send,
-                contentDescription = "发送",
+                contentDescription = stringResource(id = R.string.room_send_action),
                 tint = if (canSend) MenaColors.Primary else MenaColors.OnBackgroundTertiary,
             )
         }
@@ -135,7 +137,9 @@ fun RoomBottomBar(
         ) {
             Icon(
                 imageVector = if (isMicMuted) Icons.Default.MicOff else Icons.Default.Mic,
-                contentDescription = if (isMicMuted) "取消静音" else "静音",
+                contentDescription = stringResource(
+                    id = if (isMicMuted) R.string.room_unmute_action else R.string.room_mute_action
+                ),
                 tint = micTint,
             )
         }
@@ -148,22 +152,20 @@ fun RoomBottomBar(
         ) {
             Icon(
                 imageVector = Icons.Default.CardGiftcard,
-                contentDescription = "礼物",
+                contentDescription = stringResource(id = R.string.room_gift_action),
                 tint = MenaColors.Primary,  // T-30028: 礼物按钮激活为金色
             )
         }
 
-        // ── 表情按钮（始终灰色 + 点击 Toast） ───────────────────────────────
+        // ── 表情按钮（缺陷 #2 修复：交由调用方处理，不在 Composable 内 Toast） ──
         IconButton(
-            onClick = {
-                Toast.makeText(context, "表情功能敬请期待", Toast.LENGTH_SHORT).show()
-            },
+            onClick = onEmojiClick,
             enabled = true,
             modifier = Modifier.testTag("btn_emoji"),
         ) {
             Icon(
                 imageVector = Icons.Default.EmojiEmotions,
-                contentDescription = "表情",
+                contentDescription = stringResource(id = R.string.room_emoji_action),
                 tint = MenaColors.OnBackgroundTertiary,
             )
         }
@@ -175,7 +177,7 @@ fun RoomBottomBar(
         ) {
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.ExitToApp,
-                contentDescription = "退出房间",
+                contentDescription = stringResource(id = R.string.room_exit_action),
                 tint = MenaColors.Error,
             )
         }
@@ -186,8 +188,8 @@ fun RoomBottomBar(
         AlertDialog(
             modifier = Modifier.testTag("exit_room_dialog"),
             onDismissRequest = { showExitDialog = false },
-            title = { Text("退出房间") },
-            text = { Text("确认退出当前房间？") },
+            title = { Text(stringResource(id = R.string.room_exit_dialog_title)) },
+            text = { Text(stringResource(id = R.string.room_exit_dialog_text)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -195,12 +197,12 @@ fun RoomBottomBar(
                         onLeaveRoom()
                     }
                 ) {
-                    Text("确认", color = MenaColors.Error)
+                    Text(stringResource(id = R.string.dialog_confirm), color = MenaColors.Error)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showExitDialog = false }) {
-                    Text("取消")
+                    Text(stringResource(id = R.string.dialog_cancel))
                 }
             },
         )

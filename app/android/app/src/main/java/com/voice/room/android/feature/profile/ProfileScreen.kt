@@ -14,11 +14,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.voice.room.android.R
 import com.voice.room.android.common.AppContainer
 import com.voice.room.android.core.theme.MenaColors
 
@@ -61,7 +63,7 @@ fun ProfileScreen(
             when (event) {
                 is ProfileEvent.NavigateToLogin -> onLogout()
                 is ProfileEvent.ShowToast ->
-                    Toast.makeText(context, event.message, Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, event.message.asString(context), Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -88,13 +90,13 @@ fun ProfileScreen(
             containerColor = MenaColors.Surface,
             title = {
                 Text(
-                    text = "退出登录",
+                    text = stringResource(id = R.string.profile_logout_confirm_title),
                     color = MenaColors.OnBackground,
                 )
             },
             text = {
                 Text(
-                    text = "确认退出当前账号？",
+                    text = stringResource(id = R.string.profile_logout_confirm_text),
                     color = MenaColors.OnBackgroundSecondary,
                 )
             },
@@ -106,7 +108,7 @@ fun ProfileScreen(
                     },
                     modifier = Modifier.testTag("logout_confirm_button"),
                 ) {
-                    Text(text = "确认", color = MenaColors.Error)
+                    Text(text = stringResource(id = R.string.dialog_confirm), color = MenaColors.Error)
                 }
             },
             dismissButton = {
@@ -114,7 +116,7 @@ fun ProfileScreen(
                     onClick = { showLogoutDialog = false },
                     modifier = Modifier.testTag("logout_cancel_button"),
                 ) {
-                    Text(text = "取消", color = MenaColors.OnBackgroundSecondary)
+                    Text(text = stringResource(id = R.string.dialog_cancel), color = MenaColors.OnBackgroundSecondary)
                 }
             },
         )

@@ -12,6 +12,8 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
+import com.voice.room.android.R
 import com.voice.room.android.core.theme.MenaColors
 import com.voice.room.android.core.theme.MenaTypography
 
@@ -36,7 +38,7 @@ fun HallTopBar(
         modifier = modifier.testTag("hall_top_bar"),
         title = {
             Text(
-                text = "VoiceRoom",
+                text = stringResource(id = R.string.hall_top_bar_title),
                 style = MenaTypography.titleLarge,
                 color = MenaColors.Primary,
             )
@@ -49,14 +51,14 @@ fun HallTopBar(
             ) {
                 Icon(
                     imageVector = Icons.Filled.EmojiEvents,
-                    contentDescription = "榜单",
+                    contentDescription = stringResource(id = R.string.hall_ranking_action),
                     tint = MenaColors.Primary,
                 )
             }
             IconButton(onClick = { /* 占位：搜索功能待实现 */ }) {
                 Icon(
                     imageVector = Icons.Default.Search,
-                    contentDescription = "搜索",
+                    contentDescription = stringResource(id = R.string.hall_search_action),
                     tint = MenaColors.OnBackgroundSecondary,
                 )
             }

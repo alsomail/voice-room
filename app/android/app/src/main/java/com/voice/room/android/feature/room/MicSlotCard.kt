@@ -24,16 +24,17 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.voice.room.android.R
 import com.voice.room.android.core.theme.AvatarWithFrame
 import com.voice.room.android.core.theme.MenaColors
 
@@ -60,9 +61,9 @@ fun MicSlotCard(
 
     // 无障碍 contentDescription（MC-08/09/10）
     val contentDesc = when {
-        !isOccupied -> "麦位 ${slot.index + 1}，空位，点击上麦"
-        isMuted     -> "麦位 ${slot.index + 1}，${slot.nickname}，已禁麦"
-        else        -> "麦位 ${slot.index + 1}，${slot.nickname}，点击互动"
+        !isOccupied -> stringResource(id = R.string.mic_slot_empty_desc, slot.index + 1)
+        isMuted     -> stringResource(id = R.string.mic_slot_muted_desc, slot.index + 1, slot.nickname ?: "")
+        else        -> stringResource(id = R.string.mic_slot_occupied_desc, slot.index + 1, slot.nickname ?: "")
     }
 
     Box(
@@ -113,7 +114,7 @@ fun MicSlotCard(
                                 .align(Alignment.BottomEnd)
                                 .size(16.dp)
                                 .testTag("mic_slot_muted_icon_${slot.index}"),
-                            tint = Color.Red,
+                            tint = MenaColors.Error,
                         )
                     }
                 }
@@ -202,7 +203,7 @@ private fun SoundWaveAnimationPlaceholder(modifier: Modifier = Modifier) {
         modifier = modifier
             .graphicsLayer(scaleX = scale, scaleY = scale)
             .background(
-                color = Color(0xFF4CAF50).copy(alpha = 0.25f),
+                color = MenaColors.Success.copy(alpha = 0.25f),
                 shape = CircleShape,
             ),
     )

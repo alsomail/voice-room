@@ -60,7 +60,9 @@ fun GoldButton(
     ) {
         Text(
             text = text,
-            color = MenaColors.OnBackground,
+            // 缺陷 #6 修复（WCAG AA）：金色渐变（#D4AF37→#FFD700）上的文字
+            // 用深色 Background (#1A1A2E) 而非白色 OnBackground，可获得 ~7.5:1 对比度
+            color = MenaColors.Background,
             style = MaterialTheme.typography.titleMedium,
         )
     }

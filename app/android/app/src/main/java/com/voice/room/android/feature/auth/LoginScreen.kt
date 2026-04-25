@@ -15,18 +15,21 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.voice.room.android.R
 import com.voice.room.android.core.theme.GoldButton
 import com.voice.room.android.core.theme.MenaColors
 import com.voice.room.android.core.theme.MenaTheme
@@ -51,15 +54,23 @@ fun LoginScreen(
 ) {
     val uiState by loginViewModel.uiState.collectAsState()
 
+    // 缺陷 #8 修复：监听 ViewModel 的 navEvent 流，登录成功 → 调用 onLoginSuccess
+    LaunchedEffect(Unit) {
+        loginViewModel.navEvent.collect { event ->
+            if (event is NavEvent.NavigateToHall) {
+                onLoginSuccess()
+            }
+        }
+    }
+
     LoginScreenContent(
         uiState = uiState,
         onPhoneNumberChanged = loginViewModel::onPhoneNumberChanged,
         onVerificationCodeChanged = loginViewModel::onVerificationCodeChanged,
         onSendCode = loginViewModel::onSendCode,
-        onLogin = {
-            // T-30002 将接入真实登录 API；此处留空或触发回调
-            onLoginSuccess()
-        }
+        // 缺陷 #8 修复：调用真实登录方法（保存 JWT + 发射 NavigateToHall），
+        // 不再 stub 直跳；导航由上方 LaunchedEffect 在 navEvent 触发后执行。
+        onLogin = loginViewModel::onLogin,
     )
 }
 
@@ -104,13 +115,13 @@ fun LoginScreenContent(
                 Spacer(modifier = Modifier.height(40.dp))
 
                 Text(
-                    text = "🎙️",
+                    text = stringResource(id = R.string.app_brand_emoji),
                     style = MaterialTheme.typography.displayLarge,
                     textAlign = TextAlign.Center
                 )
 
                 Text(
-                    text = "Voice Room",
+                    text = stringResource(id = R.string.app_brand_name),
                     style = MaterialTheme.typography.headlineLarge,
                     fontWeight = FontWeight.Bold,
                     color = MenaColors.OnBackground,
@@ -118,7 +129,7 @@ fun LoginScreenContent(
                 )
 
                 Text(
-                    text = "تسجيل الدخول",  // 阿拉伯语"登录"
+                    text = stringResource(id = R.string.login_subtitle),
                     style = MaterialTheme.typography.titleMedium,
                     color = MenaColors.Primary,
                     textAlign = TextAlign.Center
@@ -155,7 +166,7 @@ fun LoginScreenContent(
 
                 // ── 登录按钮 ──────────────────────────────────────
                 GoldButton(
-                    text = "تسجيل الدخول",  // 阿拉伯语"登录"
+                    text = stringResource(id = R.string.login_button),
                     onClick = onLogin,
                     enabled = uiState.isLoginButtonEnabled,
                     modifier = Modifier

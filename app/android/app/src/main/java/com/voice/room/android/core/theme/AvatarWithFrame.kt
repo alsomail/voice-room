@@ -2,7 +2,6 @@ package com.voice.room.android.core.theme
 
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -14,9 +13,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import com.voice.room.android.R
 
 /**
  * AvatarWithFrame — 圆形头像 + 可选金色光圈
@@ -25,10 +26,12 @@ import coil.compose.AsyncImage
  * - showFrame=true 时外圈金色描边 2dp（Primary 色 + CircleShape border）
  * - 默认占位图（Icons.Default.Person）
  *
- * @param imageUrl  头像 URL（null 时显示占位图）
- * @param size      图片区域尺寸（不含边框），默认 60.dp
- * @param showFrame 是否显示金色边框，默认 true
- * @param modifier  外部 Modifier
+ * @param imageUrl           头像 URL（null 时显示占位图）
+ * @param size               图片区域尺寸（不含边框），默认 60.dp
+ * @param showFrame          是否显示金色边框，默认 true
+ * @param contentDescription 无障碍文字（缺陷 #5：允许调用方传入用户昵称等本地化文案）；
+ *                           为 null 时回退到 [R.string.avatar_default_description]
+ * @param modifier           外部 Modifier
  */
 @Composable
 fun AvatarWithFrame(
@@ -36,8 +39,10 @@ fun AvatarWithFrame(
     modifier: Modifier = Modifier,
     size: Dp = 60.dp,
     showFrame: Boolean = true,
+    contentDescription: String? = null,
 ) {
     val borderWidth = 2.dp
+    val resolvedDesc = contentDescription ?: stringResource(id = R.string.avatar_default_description)
 
     Box(
         modifier = modifier
@@ -68,7 +73,7 @@ fun AvatarWithFrame(
         if (imageUrl != null) {
             AsyncImage(
                 model = imageUrl,
-                contentDescription = "Avatar",
+                contentDescription = resolvedDesc,
                 modifier = Modifier
                     .size(size)
                     .clip(CircleShape),
@@ -78,7 +83,7 @@ fun AvatarWithFrame(
             // 占位图
             Icon(
                 imageVector = Icons.Default.Person,
-                contentDescription = "Default avatar",
+                contentDescription = resolvedDesc,
                 modifier = Modifier
                     .size(size)
                     .clip(CircleShape)

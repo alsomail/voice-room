@@ -1,8 +1,10 @@
 package com.voice.room.android.feature.profile
 
+import com.voice.room.android.R
 import com.voice.room.android.domain.local.ITokenManager
 import com.voice.room.android.domain.user.IUserRepository
 import com.voice.room.android.domain.user.UserProfile
+import com.voice.room.android.util.UiText
 import com.voice.room.android.utils.MainDispatcherRule
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -159,7 +161,10 @@ class ProfileViewModelTest {
 
             assertTrue(
                 "Should emit ShowToast, got: $events",
-                events.any { it is ProfileEvent.ShowToast && it.message == "ID 已复制" }
+                events.any {
+                    it is ProfileEvent.ShowToast &&
+                        (it.message as? UiText.StringResource)?.resId == R.string.profile_id_copied_toast
+                }
             )
         }
 
@@ -249,7 +254,10 @@ class ProfileViewModelTest {
             assertEquals(FakeUserRepository.DEFAULT_PROFILE, state.profile)
             assertTrue(
                 "Should emit ShowToast with cache-related message, got: $events",
-                events.any { it is ProfileEvent.ShowToast && it.message.contains("缓存") }
+                events.any {
+                    it is ProfileEvent.ShowToast &&
+                        (it.message as? UiText.StringResource)?.resId == R.string.profile_cached_data_toast
+                }
             )
         }
 
