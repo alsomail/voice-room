@@ -83,9 +83,7 @@ impl AdminStatsService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::modules::stats::{
-        dto::StatsOverviewQuery, repository::FakeAdminStatsRepository,
-    };
+    use crate::modules::stats::{dto::StatsOverviewQuery, repository::FakeAdminStatsRepository};
 
     fn make_service() -> AdminStatsService {
         AdminStatsService::new(Arc::new(FakeAdminStatsRepository::default()))
@@ -104,8 +102,14 @@ mod tests {
 
         assert_eq!(result.active_rooms, 0, "ST-01: active_rooms MVP 值应为 0");
         assert_eq!(result.online_users, 0, "ST-01: online_users MVP 值应为 0");
-        assert_eq!(result.date_range.start, "2024-01-01", "ST-01: date_range.start 应回显");
-        assert_eq!(result.date_range.end, "2024-01-31", "ST-01: date_range.end 应回显");
+        assert_eq!(
+            result.date_range.start, "2024-01-01",
+            "ST-01: date_range.start 应回显"
+        );
+        assert_eq!(
+            result.date_range.end, "2024-01-31",
+            "ST-01: date_range.end 应回显"
+        );
     }
 
     // ST-02: 缺省日期（start_date=None, end_date=None）
@@ -120,14 +124,8 @@ mod tests {
         let result = service.get_overview(query).await.unwrap();
 
         let today = Utc::now().date_naive().format("%Y-%m-%d").to_string();
-        assert_eq!(
-            result.date_range.start, today,
-            "ST-02: start 默认应为今天"
-        );
-        assert_eq!(
-            result.date_range.end, today,
-            "ST-02: end 默认应为今天"
-        );
+        assert_eq!(result.date_range.start, today, "ST-02: start 默认应为今天");
+        assert_eq!(result.date_range.end, today, "ST-02: end 默认应为今天");
     }
 
     // ST-03: 仅传 start_date（end_date=None）：date_range.end 补全为 today

@@ -43,11 +43,7 @@ use uuid::Uuid;
 
 use crate::{
     bootstrap::AppState,
-    common::{
-        error::err_response,
-        response::ApiResponse,
-        RequestContext,
-    },
+    common::{error::err_response, response::ApiResponse, RequestContext},
     core::analytics::writer::EventInput,
 };
 
@@ -80,11 +76,7 @@ pub async fn batch_events(
     // 可选 JWT：有 token 则解析 user_id，失败则当作未登录
     let jwt_user_id = try_extract_jwt_user_id(&headers, &state.jwt_secret);
 
-    match state
-        .event_writer
-        .persist(body.events, jwt_user_id)
-        .await
-    {
+    match state.event_writer.persist(body.events, jwt_user_id).await {
         Ok(result) => (
             StatusCode::OK,
             Json(ApiResponse::ok(

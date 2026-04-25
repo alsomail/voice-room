@@ -32,9 +32,9 @@ pub trait AdminRoomRepository: Send + Sync {
         room_id: Uuid,
     ) -> Result<Option<AdminRoomDetailRow>, AppError>;
 
-    /// 将房间状态设置为 "closed"（仅过滤软删除，不做状态前置校验）。
-    /// 房间不存在时静默忽略（Ok(())），由调用方负责前置状态检查。
-    async fn set_room_closed(&self, room_id: Uuid) -> Result<(), AppError>;
+    /// 将房间状态设置为 "closed"（带 status='active' 守卫，原子操作；缺陷 #3）。
+    /// 返回 true 表示本次成功关闭；false 表示房间不存在 / 已 closed / 已软删除。
+    async fn set_room_closed(&self, room_id: Uuid) -> Result<bool, AppError>;
 }
 
 // ─── Postgres 实现 ───────────────────────────────────────────────────────────
@@ -50,19 +50,41 @@ impl PgAdminRoomRepository {
     }
 }
 
+// ─── 公开辅助：LIKE 通配符转义（缺陷 #7）─────────────────────────────────────
+
+/// 转义 SQL LIKE 模式中的特殊字符（`\` `%` `_`），与 `LIKE ... ESCAPE '\\'` 配合使用。
+///
+/// 修复缺陷 #7：用户输入的 keyword 中若含 `%` / `_`，否则会被 Postgres 解释为通配符，
+/// 引起搜索结果与 Fake 不一致 + 极端 keyword 可能触发全表扫描。
+pub fn escape_like_pattern(input: &str) -> String {
+    let mut out = String::with_capacity(input.len());
+    for ch in input.chars() {
+        match ch {
+            '\\' | '%' | '_' => {
+                out.push('\\');
+                out.push(ch);
+            }
+            _ => out.push(ch),
+        }
+    }
+    out
+}
+
 #[async_trait]
 impl AdminRoomRepository for PgAdminRoomRepository {
     async fn count_rooms(&self, filter: &AdminRoomFilter) -> Result<i64, AppError> {
+        // 缺陷 #7：keyword 转义后再用 LIKE ... ESCAPE '\\'，避免 % / _ 通配符注入。
+        let escaped_kw = filter.keyword.as_deref().map(escape_like_pattern);
         let count: (i64,) = sqlx::query_as(
             "SELECT COUNT(*) \
              FROM rooms r \
              JOIN users u ON r.owner_id = u.id \
              WHERE r.deleted_at IS NULL \
                AND ($1::text IS NULL OR r.status = $1) \
-               AND ($2::text IS NULL OR LOWER(r.title) LIKE '%' || LOWER($2) || '%')",
+               AND ($2::text IS NULL OR LOWER(r.title) LIKE '%' || LOWER($2) || '%' ESCAPE '\\')",
         )
         .bind(filter.status.as_deref())
-        .bind(filter.keyword.as_deref())
+        .bind(escaped_kw.as_deref())
         .fetch_one(&self.pool)
         .await?;
         Ok(count.0)
@@ -74,6 +96,7 @@ impl AdminRoomRepository for PgAdminRoomRepository {
         offset: i64,
         limit: i64,
     ) -> Result<Vec<AdminRoomListRow>, AppError> {
+        let escaped_kw = filter.keyword.as_deref().map(escape_like_pattern);
         let rows = sqlx::query_as::<_, AdminRoomListRow>(
             "SELECT r.id, r.title, r.status, r.room_type, r.member_count, r.max_members, \
                     r.owner_id, u.nickname AS owner_nickname, u.avatar AS owner_avatar, \
@@ -82,12 +105,12 @@ impl AdminRoomRepository for PgAdminRoomRepository {
              JOIN users u ON r.owner_id = u.id \
              WHERE r.deleted_at IS NULL \
                AND ($1::text IS NULL OR r.status = $1) \
-               AND ($2::text IS NULL OR LOWER(r.title) LIKE '%' || LOWER($2) || '%') \
+               AND ($2::text IS NULL OR LOWER(r.title) LIKE '%' || LOWER($2) || '%' ESCAPE '\\') \
              ORDER BY r.created_at DESC \
              LIMIT $3 OFFSET $4",
         )
         .bind(filter.status.as_deref())
-        .bind(filter.keyword.as_deref())
+        .bind(escaped_kw.as_deref())
         .bind(limit)
         .bind(offset)
         .fetch_all(&self.pool)
@@ -114,48 +137,57 @@ impl AdminRoomRepository for PgAdminRoomRepository {
         Ok(row)
     }
 
-    async fn set_room_closed(&self, room_id: Uuid) -> Result<(), AppError> {
-        sqlx::query(
+    async fn set_room_closed(&self, room_id: Uuid) -> Result<bool, AppError> {
+        // 缺陷 #3：SQL 层带 status='active' 守卫，保证两个并发 force_close 仅一次 rows_affected=1。
+        let result = sqlx::query(
             "UPDATE rooms \
              SET status = 'closed', updated_at = NOW() \
              WHERE id = $1 \
+               AND status = 'active' \
                AND deleted_at IS NULL",
         )
         .bind(room_id)
         .execute(&self.pool)
         .await?;
-        Ok(())
+        Ok(result.rows_affected() > 0)
     }
 }
 
 // ─── Fake 实现（内存，用于单元 / 集成测试）────────────────────────────────────
+//
+// 缺陷 #8：限制为 cfg(test) 或显式 `test-utils` feature 才编译，
+// 防止生产二进制体积膨胀 + 阻止生产代码误用 seed_* helpers。
 
 /// 内部存储条目（含软删除标记，供测试用）。
+#[cfg(any(test, feature = "test-utils"))]
 struct FakeRoomEntry {
     row: AdminRoomListRow,
     deleted_at: Option<DateTime<Utc>>,
 }
 
 /// 内部存储条目（详情，含软删除标记）。
+#[cfg(any(test, feature = "test-utils"))]
 struct FakeDetailEntry {
     row: AdminRoomDetailRow,
     deleted_at: Option<DateTime<Utc>>,
 }
 
 /// 内存版 AdminRoomRepository，用于单元 / 集成测试。
+#[cfg(any(test, feature = "test-utils"))]
 #[derive(Default)]
 pub struct FakeAdminRoomRepository {
     entries: Mutex<Vec<FakeRoomEntry>>,
     detail_entries: Mutex<HashMap<Uuid, FakeDetailEntry>>,
 }
 
+#[cfg(any(test, feature = "test-utils"))]
 impl FakeAdminRoomRepository {
     /// 预置一条未删除的房间列表行（供 list 测试）。
     pub fn seed(&self, row: AdminRoomListRow) {
-        self.entries
-            .lock()
-            .unwrap()
-            .push(FakeRoomEntry { row, deleted_at: None });
+        self.entries.lock().unwrap().push(FakeRoomEntry {
+            row,
+            deleted_at: None,
+        });
     }
 
     /// 预置一条已软删除的房间列表行（用于 R-07 测试）。
@@ -168,10 +200,13 @@ impl FakeAdminRoomRepository {
 
     /// 预置一条未删除的房间详情行（供 detail 测试）。
     pub fn seed_detail(&self, row: AdminRoomDetailRow) {
-        self.detail_entries
-            .lock()
-            .unwrap()
-            .insert(row.id, FakeDetailEntry { row, deleted_at: None });
+        self.detail_entries.lock().unwrap().insert(
+            row.id,
+            FakeDetailEntry {
+                row,
+                deleted_at: None,
+            },
+        );
     }
 
     /// 预置一条已软删除的房间详情行（用于 DR-04 / D-04 测试）。
@@ -186,6 +221,7 @@ impl FakeAdminRoomRepository {
     }
 }
 
+#[cfg(any(test, feature = "test-utils"))]
 #[async_trait]
 impl AdminRoomRepository for FakeAdminRoomRepository {
     async fn count_rooms(&self, filter: &AdminRoomFilter) -> Result<i64, AppError> {
@@ -233,20 +269,21 @@ impl AdminRoomRepository for FakeAdminRoomRepository {
         Ok(result)
     }
 
-    async fn set_room_closed(&self, room_id: Uuid) -> Result<(), AppError> {
+    async fn set_room_closed(&self, room_id: Uuid) -> Result<bool, AppError> {
+        // 缺陷 #3：在锁内做 status='active' 守卫，仅 active 房间才能被关闭一次。
         let mut guard = self.detail_entries.lock().unwrap();
         if let Some(entry) = guard.get_mut(&room_id) {
-            // 仅对未软删除的条目生效
-            if entry.deleted_at.is_none() {
+            if entry.deleted_at.is_none() && entry.row.status == "active" {
                 entry.row.status = "closed".to_string();
+                return Ok(true);
             }
         }
-        // 找不到时静默忽略（幂等设计，由 Service 层负责前置状态校验）
-        Ok(())
+        Ok(false)
     }
 }
 
-/// 辅助：检查行是否满足过滤条件。
+/// 辅助：检查行是否满足过滤条件（仅 Fake 使用）。
+#[cfg(any(test, feature = "test-utils"))]
 fn matches_filter(row: &AdminRoomListRow, filter: &AdminRoomFilter) -> bool {
     if let Some(status) = &filter.status {
         if &row.status != status {
@@ -345,7 +382,7 @@ mod tests {
         let repo = FakeAdminRoomRepository::default();
         repo.seed(make_row("Old Room", "active", -100)); // 最早
         repo.seed(make_row("Newest Room", "active", 0)); // 最新
-        repo.seed(make_row("Mid Room", "active", -50));  // 中间
+        repo.seed(make_row("Mid Room", "active", -50)); // 中间
 
         let rows = repo.find_rooms(&empty_filter(), 0, 10).await.unwrap();
         assert_eq!(rows.len(), 3);
@@ -388,7 +425,10 @@ mod tests {
         let count = repo.count_rooms(&keyword_filter("music")).await.unwrap();
         assert_eq!(count, 2, "R-06: 大小写不敏感，'music' 应匹配 2 条");
 
-        let rows = repo.find_rooms(&keyword_filter("music"), 0, 10).await.unwrap();
+        let rows = repo
+            .find_rooms(&keyword_filter("music"), 0, 10)
+            .await
+            .unwrap();
         assert_eq!(rows.len(), 2, "R-06: find_rooms 也应返回 2 条");
     }
 
@@ -407,8 +447,36 @@ mod tests {
         assert_eq!(rows[0].title, "Visible Room");
     }
 
-    // ══════════════════════════════════════════════════════════════════════════
-    // T-10005 新增 Repository 单元测试（DR-01~DR-04）
+    // ── R-08: keyword 含 SQL LIKE 通配符（缺陷 #7）─────────────────────────
+    // Fake 用 String::contains（字面匹配），代表期望的 Postgres 行为
+    // （ESCAPE 后 % / _ 视为字面字符）。
+    #[tokio::test]
+    async fn r08_keyword_with_like_wildcards_matches_literally() {
+        let repo = FakeAdminRoomRepository::default();
+        repo.seed(make_row("50%off", "active", 0));
+        repo.seed(make_row("50aoff", "active", -10));
+        repo.seed(make_row("50_off", "active", -20));
+        repo.seed(make_row("normal", "active", -30));
+
+        // "50%off" 字面包含 → 应只命中 1 条（不应通过 % 通配符匹配 "50aoff"）
+        let count = repo.count_rooms(&keyword_filter("50%off")).await.unwrap();
+        assert_eq!(count, 1, "R-08: '%' 应当作字面字符匹配");
+
+        // "_" 字面也是 1 条
+        let count2 = repo.count_rooms(&keyword_filter("50_off")).await.unwrap();
+        assert_eq!(count2, 1, "R-08: '_' 应当作字面字符匹配");
+    }
+
+    // ── R-09: escape_like_pattern 转义辅助（缺陷 #7）─────────────────────────
+    #[test]
+    fn r09_escape_like_pattern_escapes_special_chars() {
+        assert_eq!(super::escape_like_pattern("plain"), "plain");
+        assert_eq!(super::escape_like_pattern("50%off"), r"50\%off");
+        assert_eq!(super::escape_like_pattern("a_b"), r"a\_b");
+        assert_eq!(super::escape_like_pattern(r"a\b"), r"a\\b");
+        assert_eq!(super::escape_like_pattern(r"%_\"), r"\%\_\\");
+    }
+
     // ══════════════════════════════════════════════════════════════════════════
 
     fn make_detail_row(title: &str, status: &str) -> super::super::dto::AdminRoomDetailRow {
@@ -450,7 +518,10 @@ mod tests {
         repo.seed_detail(row);
 
         let result = repo.find_room_by_id_any_status(id).await.unwrap();
-        assert!(result.is_some(), "DR-02: closed 房间也应能查到（不过滤 status）");
+        assert!(
+            result.is_some(),
+            "DR-02: closed 房间也应能查到（不过滤 status）"
+        );
         assert_eq!(result.unwrap().status, "closed");
     }
 
@@ -481,7 +552,7 @@ mod tests {
     // T-10006 新增 Repository 单元测试（FCR-01~FCR-03）
     // ══════════════════════════════════════════════════════════════════════════
 
-    // ── FCR-01: set_room_closed(active_id) → Ok(())，再 find → status=="closed" ──
+    // ── FCR-01: set_room_closed(active_id) → Ok(true)，再 find → status=="closed" ──
     #[tokio::test]
     async fn fcr01_set_room_closed_active_room_becomes_closed() {
         let repo = FakeAdminRoomRepository::default();
@@ -489,8 +560,8 @@ mod tests {
         let id = row.id;
         repo.seed_detail(row);
 
-        let result = repo.set_room_closed(id).await;
-        assert!(result.is_ok(), "FCR-01: set_room_closed 应返回 Ok(())");
+        let updated = repo.set_room_closed(id).await.expect("set_room_closed");
+        assert!(updated, "FCR-01: 首次关闭 active 房间应返回 Ok(true)");
 
         let found = repo.find_room_by_id_any_status(id).await.unwrap();
         assert!(found.is_some(), "FCR-01: 关闭后仍能查到房间");
@@ -501,36 +572,34 @@ mod tests {
         );
     }
 
-    // ── FCR-02: set_room_closed(closed_id) → Ok(())（幂等）─────────────────────
+    // ── FCR-02: set_room_closed(closed_id) → Ok(false)（缺陷 #3：不再幂等）──
     #[tokio::test]
-    async fn fcr02_set_room_closed_already_closed_is_idempotent() {
+    async fn fcr02_set_room_closed_already_closed_returns_false() {
         let repo = FakeAdminRoomRepository::default();
         let row = make_detail_row("Closed Room", "closed");
         let id = row.id;
         repo.seed_detail(row);
 
-        // 对已关闭房间再次关闭，应静默 Ok(())
-        let result = repo.set_room_closed(id).await;
-        assert!(result.is_ok(), "FCR-02: 对已 closed 房间调用 set_room_closed 应返回 Ok(())");
+        let updated = repo.set_room_closed(id).await.expect("set_room_closed");
+        assert!(
+            !updated,
+            "FCR-02: 已 closed 房间不应再次被 set_room_closed 命中"
+        );
 
         let found = repo.find_room_by_id_any_status(id).await.unwrap();
-        assert_eq!(
-            found.unwrap().status,
-            "closed",
-            "FCR-02: 幂等操作后 status 仍为 closed"
-        );
+        assert_eq!(found.unwrap().status, "closed");
     }
 
-    // ── FCR-03: set_room_closed(nonexistent_id) → Ok(())（静默忽略）──────────────
+    // ── FCR-03: set_room_closed(nonexistent_id) → Ok(false)（静默忽略，但返回 false）──
     #[tokio::test]
-    async fn fcr03_set_room_closed_nonexistent_id_is_silent_ok() {
+    async fn fcr03_set_room_closed_nonexistent_id_returns_false() {
         let repo = FakeAdminRoomRepository::default();
         let nonexistent_id = Uuid::new_v4();
 
-        let result = repo.set_room_closed(nonexistent_id).await;
-        assert!(
-            result.is_ok(),
-            "FCR-03: 对不存在的 room_id 调用 set_room_closed 应返回 Ok(())"
-        );
+        let updated = repo
+            .set_room_closed(nonexistent_id)
+            .await
+            .expect("set_room_closed");
+        assert!(!updated, "FCR-03: 不存在的 room_id 应返回 Ok(false)");
     }
 }

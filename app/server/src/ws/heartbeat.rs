@@ -22,7 +22,10 @@ pub fn remove_expired(registry: &ConnectionRegistry) -> usize {
 
     registry.connections.retain(|connection_id, handle| {
         let elapsed = now.duration_since(
-            *handle.last_heartbeat.read().expect("heartbeat lock poisoned"),
+            *handle
+                .last_heartbeat
+                .read()
+                .expect("heartbeat lock poisoned"),
         );
         if elapsed > HEARTBEAT_TIMEOUT {
             tracing::info!(
@@ -98,8 +101,15 @@ mod tests {
 
         let removed = remove_expired(&registry);
 
-        assert_eq!(removed, 0, "fresh heartbeat connection should not be removed");
-        assert_eq!(registry.count(), 1, "connection should still be in registry");
+        assert_eq!(
+            removed, 0,
+            "fresh heartbeat connection should not be removed"
+        );
+        assert_eq!(
+            registry.count(),
+            1,
+            "connection should still be in registry"
+        );
     }
 
     // H02: 超过 30 秒无心跳，连接被标记为过期并从 registry 移除
@@ -115,8 +125,15 @@ mod tests {
 
         let removed = remove_expired(&registry);
 
-        assert_eq!(removed, 1, "expired connection should be counted as removed");
-        assert_eq!(registry.count(), 0, "expired connection should be removed from registry");
+        assert_eq!(
+            removed, 1,
+            "expired connection should be counted as removed"
+        );
+        assert_eq!(
+            registry.count(),
+            0,
+            "expired connection should be removed from registry"
+        );
     }
 
     // H03: heartbeat_task 收到 shutdown 信号后退出
@@ -130,7 +147,9 @@ mod tests {
         let task = tokio::spawn(heartbeat_task(registry, shutdown_rx));
 
         // 发送 shutdown 信号
-        shutdown_tx.send(true).expect("shutdown send should succeed");
+        shutdown_tx
+            .send(true)
+            .expect("shutdown send should succeed");
 
         // task 应在短时间内退出，不会永久阻塞
         tokio::time::timeout(Duration::from_millis(200), task)

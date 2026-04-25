@@ -117,7 +117,10 @@ pub async fn list_mutes_handler(
 mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    use axum::{body::Body, http::{Request, StatusCode}};
+    use axum::{
+        body::Body,
+        http::{Request, StatusCode},
+    };
     use tower::ServiceExt;
     use uuid::Uuid;
     use voice_room_shared::jwt::token::{encode_token, AdminClaims};

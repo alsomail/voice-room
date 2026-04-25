@@ -119,7 +119,10 @@ mod tests {
             .expect("channel should be open");
 
         let json: serde_json::Value = serde_json::from_str(&msg).unwrap();
-        assert_eq!(json["type"], "RoomInfoUpdated", "BR-01: type must be RoomInfoUpdated");
+        assert_eq!(
+            json["type"], "RoomInfoUpdated",
+            "BR-01: type must be RoomInfoUpdated"
+        );
         assert_eq!(json["payload"]["room_id"], room_id.to_string());
         assert_eq!(json["payload"]["title"], "新标题");
         assert_eq!(json["payload"]["category"], "music");
@@ -161,8 +164,7 @@ mod tests {
 
         let json: serde_json::Value = serde_json::from_str(&msg).unwrap();
         assert_eq!(
-            json["payload"]["has_password"],
-            true,
+            json["payload"]["has_password"], true,
             "PR25-12: has_password must be true for password rooms"
         );
     }
@@ -187,8 +189,7 @@ mod tests {
 
         broadcast_room_info_updated(&registry, &sample_payload(room_id));
 
-        let result =
-            tokio::time::timeout(Duration::from_millis(50), rx.recv()).await;
+        let result = tokio::time::timeout(Duration::from_millis(50), rx.recv()).await;
         assert!(
             result.is_err(),
             "BR-04: connection in different room should NOT receive message"

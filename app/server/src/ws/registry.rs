@@ -63,7 +63,9 @@ impl ConnectionRegistry {
 
     /// 获取连接的消息发送端（克隆 sender，不持有引用）
     pub fn get_sender(&self, connection_id: Uuid) -> Option<mpsc::UnboundedSender<String>> {
-        self.connections.get(&connection_id).map(|h| h.sender.clone())
+        self.connections
+            .get(&connection_id)
+            .map(|h| h.sender.clone())
     }
 
     /// 向指定连接发送消息；连接不存在或 channel 已关闭时返回 false
@@ -86,7 +88,10 @@ impl ConnectionRegistry {
 
     /// 按 room_id 获取该房间内所有连接的 (connection_id, sender) 对
     /// （用于房间级广播或批量断开）
-    pub fn get_connections_in_room(&self, room_id: Uuid) -> Vec<(Uuid, mpsc::UnboundedSender<String>)> {
+    pub fn get_connections_in_room(
+        &self,
+        room_id: Uuid,
+    ) -> Vec<(Uuid, mpsc::UnboundedSender<String>)> {
         self.connections
             .iter()
             .filter(|entry| entry.room_id == Some(room_id))
@@ -169,7 +174,11 @@ mod tests {
 
         registry.register(handle);
 
-        assert_eq!(registry.count(), 1, "registry should contain 1 connection after register");
+        assert_eq!(
+            registry.count(),
+            1,
+            "registry should contain 1 connection after register"
+        );
     }
 
     // R02: 注册后可通过 connection_id 查找到 sender
@@ -183,7 +192,10 @@ mod tests {
         registry.register(handle);
 
         let sender = registry.get_sender(conn_id);
-        assert!(sender.is_some(), "registered connection_id should return a sender");
+        assert!(
+            sender.is_some(),
+            "registered connection_id should return a sender"
+        );
     }
 
     // R03: 注销连接，查找返回 None

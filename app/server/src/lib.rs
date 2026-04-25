@@ -60,7 +60,10 @@ mod tests {
             json["request_id"], "test-req-id-jwt-reject",
             "JWT rejection body.request_id must match X-Request-Id header, not be empty"
         );
-        assert_eq!(json["code"], 40101, "error code should be 40101 (Unauthorized)");
+        assert_eq!(
+            json["code"], 40101,
+            "error code should be 40101 (Unauthorized)"
+        );
     }
 
     #[tokio::test]

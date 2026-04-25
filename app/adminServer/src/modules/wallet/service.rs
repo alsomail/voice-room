@@ -66,11 +66,7 @@ impl WalletService {
             admin_id: admin_id.to_string(),
             ts: chrono::Utc::now().timestamp(),
         };
-        if let Err(e) = self
-            .event_publisher
-            .publish("admin:events", event)
-            .await
-        {
+        if let Err(e) = self.event_publisher.publish("admin:events", event).await {
             tracing::warn!(error = %e, user_id = %user_id, "wallet adjust: failed to publish Redis event");
         }
 
@@ -112,8 +108,14 @@ mod tests {
 
         let calls = publisher.calls.lock().unwrap();
         assert_eq!(calls.len(), 1, "WS-01: Redis publish 应调用 1 次");
-        assert_eq!(calls[0].0, "admin:events", "WS-01: channel 应为 admin:events");
-        assert_eq!(calls[0].1.r#type, "balance_updated", "WS-01: event.type 应为 balance_updated");
+        assert_eq!(
+            calls[0].0, "admin:events",
+            "WS-01: channel 应为 admin:events"
+        );
+        assert_eq!(
+            calls[0].1.r#type, "balance_updated",
+            "WS-01: event.type 应为 balance_updated"
+        );
     }
 
     // ── WS-02: 余额不足 → InsufficientBalance，不 publish ─────────────────────
@@ -131,7 +133,11 @@ mod tests {
             .unwrap_err();
 
         assert!(matches!(err, AppError::InsufficientBalance));
-        assert_eq!(publisher.calls.lock().unwrap().len(), 0, "WS-02: 失败时不应 publish");
+        assert_eq!(
+            publisher.calls.lock().unwrap().len(),
+            0,
+            "WS-02: 失败时不应 publish"
+        );
     }
 
     // ── WS-03: 用户不存在 → UserNotFound ─────────────────────────────────────

@@ -24,10 +24,7 @@ use crate::stats::StatsPort;
 /// 定時快照任務（便捷入口，固定 60s 間隔）
 ///
 /// 生產環境推薦使用此函數，避免在調用方硬編碼 interval。
-pub async fn start_snapshot_task(
-    stats: Arc<dyn StatsPort>,
-    shutdown: watch::Receiver<bool>,
-) {
+pub async fn start_snapshot_task(stats: Arc<dyn StatsPort>, shutdown: watch::Receiver<bool>) {
     snapshot_task(stats, Duration::from_secs(60), shutdown).await;
 }
 
@@ -73,8 +70,8 @@ pub async fn snapshot_task(
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
     use std::sync::atomic::Ordering;
+    use std::sync::Arc;
     use std::time::Duration;
 
     use tokio::sync::watch;

@@ -23,19 +23,19 @@ use chrono::Utc;
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
-use voice_room_server::modules::governance::mute::{
-    FakeMuteDb, FakeMuteRedis, MuteDeps, MuteRedis, handle_mute, handle_unmute,
-};
 use voice_room_server::modules::gift::send_gift::{
-    FakeSendGiftService, SendGiftDeps, handle_send_gift,
+    handle_send_gift, FakeSendGiftService, SendGiftDeps,
 };
+use voice_room_server::modules::governance::mute::{
+    handle_mute, handle_unmute, FakeMuteDb, FakeMuteRedis, MuteDeps, MuteRedis,
+};
+use voice_room_server::modules::room::service::RoomService;
 use voice_room_server::modules::room::FakeRoomRepository;
 use voice_room_server::room::handler::{
-    SendMessageDeps, TakeMicDeps, handle_send_message, handle_take_mic,
+    handle_send_message, handle_take_mic, SendMessageDeps, TakeMicDeps,
 };
 use voice_room_server::room::manager::RoomManager;
 use voice_room_server::room::state::MemberInfo;
-use voice_room_server::modules::room::service::RoomService;
 use voice_room_server::ws::registry::{ConnectionHandle, ConnectionRegistry};
 use voice_room_shared::models::room::RoomModel;
 
@@ -169,7 +169,13 @@ async fn mu29_01_owner_mute_mic_success() {
     let mute_db = Arc::new(FakeMuteDb::default());
 
     let room_service = make_room_service(make_room(room_id, owner_id, None));
-    let deps = make_mute_deps(&room_manager, &room_service, &mute_redis, &mute_db, &registry);
+    let deps = make_mute_deps(
+        &room_manager,
+        &room_service,
+        &mute_redis,
+        &mute_db,
+        &registry,
+    );
 
     // 注册成员
     add_member(&room_manager, room_id, owner_id, "Owner");
@@ -209,15 +215,21 @@ async fn mu29_01_owner_mute_mic_success() {
     let owner_msgs = drain_messages(&mut owner_rx);
     let target_msgs = drain_messages(&mut target_rx);
 
-    let owner_has_muted = owner_msgs
-        .iter()
-        .any(|m| m["type"] == "UserMuted" && m["payload"]["target_user_id"] == target_id.to_string());
-    let target_has_muted = target_msgs
-        .iter()
-        .any(|m| m["type"] == "UserMuted" && m["payload"]["target_user_id"] == target_id.to_string());
+    let owner_has_muted = owner_msgs.iter().any(|m| {
+        m["type"] == "UserMuted" && m["payload"]["target_user_id"] == target_id.to_string()
+    });
+    let target_has_muted = target_msgs.iter().any(|m| {
+        m["type"] == "UserMuted" && m["payload"]["target_user_id"] == target_id.to_string()
+    });
 
-    assert!(owner_has_muted, "MU29-01: owner should receive UserMuted broadcast");
-    assert!(target_has_muted, "MU29-01: target should receive UserMuted broadcast");
+    assert!(
+        owner_has_muted,
+        "MU29-01: owner should receive UserMuted broadcast"
+    );
+    assert!(
+        target_has_muted,
+        "MU29-01: target should receive UserMuted broadcast"
+    );
 }
 
 // ─── MU29-02: 禁麦时 target 在麦 → 自动下麦 + MicLeft forced=true ────────────
@@ -235,7 +247,13 @@ async fn mu29_02_mute_while_on_mic_auto_leave() {
     let mute_db = Arc::new(FakeMuteDb::default());
 
     let room_service = make_room_service(make_room(room_id, owner_id, None));
-    let deps = make_mute_deps(&room_manager, &room_service, &mute_redis, &mute_db, &registry);
+    let deps = make_mute_deps(
+        &room_manager,
+        &room_service,
+        &mute_redis,
+        &mute_db,
+        &registry,
+    );
 
     add_member(&room_manager, room_id, owner_id, "Owner");
     add_member(&room_manager, room_id, target_id, "Target");
@@ -316,7 +334,10 @@ async fn mu29_03_muted_user_take_mic_blocked() {
     .await;
 
     let json: serde_json::Value = serde_json::from_str(&response).unwrap();
-    assert_eq!(json["code"], 40306, "MU29-03: muted user TakeMic should return 40306");
+    assert_eq!(
+        json["code"], 40306,
+        "MU29-03: muted user TakeMic should return 40306"
+    );
 }
 
 // ─── MU29-04: 被禁言用户 SendMessage → 40305 ─────────────────────────────────
@@ -430,7 +451,13 @@ async fn mu29_06_admin_cannot_mute_owner() {
     let mute_db = Arc::new(FakeMuteDb::default());
 
     let room_service = make_room_service(make_room(room_id, owner_id, Some(admin_id)));
-    let deps = make_mute_deps(&room_manager, &room_service, &mute_redis, &mute_db, &registry);
+    let deps = make_mute_deps(
+        &room_manager,
+        &room_service,
+        &mute_redis,
+        &mute_db,
+        &registry,
+    );
 
     add_member(&room_manager, room_id, owner_id, "Owner");
     add_member(&room_manager, room_id, admin_id, "Admin");
@@ -466,7 +493,13 @@ async fn mu29_07_normal_user_cannot_mute() {
     let mute_db = Arc::new(FakeMuteDb::default());
 
     let room_service = make_room_service(make_room(room_id, owner_id, None));
-    let deps = make_mute_deps(&room_manager, &room_service, &mute_redis, &mute_db, &registry);
+    let deps = make_mute_deps(
+        &room_manager,
+        &room_service,
+        &mute_redis,
+        &mute_db,
+        &registry,
+    );
 
     add_member(&room_manager, room_id, target_id, "Target");
 
@@ -507,7 +540,13 @@ async fn mu29_08_duration_zero_unmute_path() {
     assert!(mute_redis.key_exists("mic", room_id, target_id));
 
     let room_service = make_room_service(make_room(room_id, owner_id, None));
-    let deps = make_mute_deps(&room_manager, &room_service, &mute_redis, &mute_db, &registry);
+    let deps = make_mute_deps(
+        &room_manager,
+        &room_service,
+        &mute_redis,
+        &mute_db,
+        &registry,
+    );
 
     add_member(&room_manager, room_id, owner_id, "Owner");
     add_member(&room_manager, room_id, target_id, "Target");
@@ -620,7 +659,13 @@ async fn mu29_10_normal_user_cannot_unmute() {
     let mute_db = Arc::new(FakeMuteDb::default());
 
     let room_service = make_room_service(make_room(room_id, owner_id, None));
-    let deps = make_mute_deps(&room_manager, &room_service, &mute_redis, &mute_db, &registry);
+    let deps = make_mute_deps(
+        &room_manager,
+        &room_service,
+        &mute_redis,
+        &mute_db,
+        &registry,
+    );
 
     let response = handle_unmute(
         unmute_payload(room_id, target_id, "mic"),
@@ -644,17 +689,23 @@ async fn mu29_10_normal_user_cannot_unmute() {
 /// 合法区间：[60, 86400]（duration=0 为特殊解除路径，不在此测试）
 #[tokio::test]
 async fn mu29_11_duration_exceeds_max_returns_40002() {
-    let room_id  = Uuid::new_v4();
+    let room_id = Uuid::new_v4();
     let owner_id = Uuid::new_v4();
     let target_id = Uuid::new_v4();
 
     let room_manager = Arc::new(RoomManager::new());
-    let registry     = Arc::new(ConnectionRegistry::new());
-    let mute_redis   = Arc::new(FakeMuteRedis::default());
-    let mute_db      = Arc::new(FakeMuteDb::default());
+    let registry = Arc::new(ConnectionRegistry::new());
+    let mute_redis = Arc::new(FakeMuteRedis::default());
+    let mute_db = Arc::new(FakeMuteDb::default());
 
     let room_service = make_room_service(make_room(room_id, owner_id, None));
-    let deps = make_mute_deps(&room_manager, &room_service, &mute_redis, &mute_db, &registry);
+    let deps = make_mute_deps(
+        &room_manager,
+        &room_service,
+        &mute_redis,
+        &mute_db,
+        &registry,
+    );
 
     // ── 上界违规：duration=86401 → 40002 ──────────────────────────────────────
     let resp_above = handle_mute(

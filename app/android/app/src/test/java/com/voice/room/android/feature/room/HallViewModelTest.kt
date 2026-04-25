@@ -1,9 +1,11 @@
 package com.voice.room.android.feature.room
 
+import com.voice.room.android.R
 import com.voice.room.android.data.room.FakeRoomRepository
 import com.voice.room.android.domain.room.IRoomRepository
 import com.voice.room.android.domain.room.RoomItem
 import com.voice.room.android.domain.room.RoomsPage
+import com.voice.room.android.util.UiText
 import com.voice.room.android.utils.MainDispatcherRule
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -190,6 +192,45 @@ class HallViewModelTest {
             val viewModel = HallViewModel(fakeRepo)
             advanceUntilIdle()
 
-            assertEquals("网络异常，请稍后重试", viewModel.uiState.value.error)
+            // 缺陷 #4：error 改为 UiText（@StringRes），不再是中文字面量
+            val err = viewModel.uiState.value.error
+            assertNotNull(err)
+            assertTrue(err is UiText.StringResource)
+            assertEquals(
+                "Should reference R.string.hall_load_failed",
+                R.string.hall_load_failed,
+                (err as UiText.StringResource).resId,
+            )
+        }
+
+    // ─────────────────────────────────────────────
+    // V11: refresh() 重置分页状态（缺陷 #5）
+    //
+    // V04 仅验证 currentPage 重置，未覆盖 totalItems 与 hasMore；
+    // V11 显式断言三者都被重置，且当 refresh 后 total 变小，hasMore 也跟着重新计算。
+    // ─────────────────────────────────────────────
+
+    @Test
+    fun `V11 refresh resets pagination state currentPage hasMore totalItems`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            val fakeRepo = FakeRoomRepository().apply { total = 42 }
+            val viewModel = HallViewModel(fakeRepo)
+            advanceUntilIdle()
+
+            // 加载第二页，使 currentPage = 2、hasMore = (42 > 40) = true
+            viewModel.loadRooms(page = 2)
+            advanceUntilIdle()
+            assertEquals("Pre: currentPage=2", 2, viewModel.uiState.value.currentPage)
+            assertTrue("Pre: hasMore=true", viewModel.uiState.value.hasMore)
+
+            // refresh 后服务端只返回 1 条 → hasMore 应为 false、currentPage=1
+            fakeRepo.total = 1
+            viewModel.refresh()
+            advanceUntilIdle()
+
+            val state = viewModel.uiState.value
+            assertEquals("currentPage 应被重置为 1", 1, state.currentPage)
+            assertEquals("totalItems 应反映新 total=1", 1, state.totalItems)
+            assertFalse("hasMore 应根据新 total 重新计算（false）", state.hasMore)
         }
 }

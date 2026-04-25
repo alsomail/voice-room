@@ -12,18 +12,10 @@ use crate::common::error::AppError;
 #[async_trait]
 pub trait AdminStatsRepository: Send + Sync {
     /// 统计日期范围内 created_at 在区间内的用户数（新增用户）。
-    async fn count_new_users(
-        &self,
-        start: NaiveDate,
-        end: NaiveDate,
-    ) -> Result<i64, AppError>;
+    async fn count_new_users(&self, start: NaiveDate, end: NaiveDate) -> Result<i64, AppError>;
 
     /// 统计日期范围内 updated_at 在区间内的用户数（近似 DAU）。
-    async fn count_dau(
-        &self,
-        start: NaiveDate,
-        end: NaiveDate,
-    ) -> Result<i64, AppError>;
+    async fn count_dau(&self, start: NaiveDate, end: NaiveDate) -> Result<i64, AppError>;
 }
 
 // ─── Postgres 实现 ───────────────────────────────────────────────────────────
@@ -41,11 +33,7 @@ impl PgAdminStatsRepository {
 
 #[async_trait]
 impl AdminStatsRepository for PgAdminStatsRepository {
-    async fn count_new_users(
-        &self,
-        start: NaiveDate,
-        end: NaiveDate,
-    ) -> Result<i64, AppError> {
+    async fn count_new_users(&self, start: NaiveDate, end: NaiveDate) -> Result<i64, AppError> {
         let count: (i64,) = sqlx::query_as(
             "SELECT COUNT(*) FROM users \
              WHERE created_at::date >= $1 AND created_at::date <= $2 AND deleted_at IS NULL",
@@ -58,11 +46,7 @@ impl AdminStatsRepository for PgAdminStatsRepository {
         Ok(count.0)
     }
 
-    async fn count_dau(
-        &self,
-        start: NaiveDate,
-        end: NaiveDate,
-    ) -> Result<i64, AppError> {
+    async fn count_dau(&self, start: NaiveDate, end: NaiveDate) -> Result<i64, AppError> {
         let count: (i64,) = sqlx::query_as(
             "SELECT COUNT(*) FROM users \
              WHERE updated_at::date >= $1 AND updated_at::date <= $2 AND deleted_at IS NULL",
@@ -89,19 +73,11 @@ pub struct FakeAdminStatsRepository {
 
 #[async_trait]
 impl AdminStatsRepository for FakeAdminStatsRepository {
-    async fn count_new_users(
-        &self,
-        start: NaiveDate,
-        end: NaiveDate,
-    ) -> Result<i64, AppError> {
+    async fn count_new_users(&self, start: NaiveDate, end: NaiveDate) -> Result<i64, AppError> {
         Ok(*self.new_users.get(&(start, end)).unwrap_or(&0))
     }
 
-    async fn count_dau(
-        &self,
-        start: NaiveDate,
-        end: NaiveDate,
-    ) -> Result<i64, AppError> {
+    async fn count_dau(&self, start: NaiveDate, end: NaiveDate) -> Result<i64, AppError> {
         Ok(*self.dau.get(&(start, end)).unwrap_or(&0))
     }
 }
@@ -138,9 +114,7 @@ mod tests {
         repo.dau
             .insert((date("2024-01-01"), date("2024-01-31")), 1234);
 
-        let result = repo
-            .count_dau(date("2024-01-01"), date("2024-01-31"))
-            .await;
+        let result = repo.count_dau(date("2024-01-01"), date("2024-01-31")).await;
         assert_eq!(result.unwrap(), 1234, "RT-02: 预置值 1234 应被正确返回");
     }
 
@@ -152,11 +126,13 @@ mod tests {
         let new_users = repo
             .count_new_users(date("2024-01-01"), date("2024-01-31"))
             .await;
-        let dau = repo
-            .count_dau(date("2024-01-01"), date("2024-01-31"))
-            .await;
+        let dau = repo.count_dau(date("2024-01-01"), date("2024-01-31")).await;
 
-        assert_eq!(new_users.unwrap(), 0, "RT-03: 未预置时 count_new_users 应返回 0");
+        assert_eq!(
+            new_users.unwrap(),
+            0,
+            "RT-03: 未预置时 count_new_users 应返回 0"
+        );
         assert_eq!(dau.unwrap(), 0, "RT-03: 未预置时 count_dau 应返回 0");
     }
 }

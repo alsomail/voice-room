@@ -253,7 +253,11 @@ mod tests {
         assert_eq!(logs.len(), 1, "AL-01: logs 长度应为 1");
         assert_eq!(logs[0].action, "ban_user", "AL-01: action 应匹配");
         assert_eq!(logs[0].admin_id, admin_id, "AL-01: admin_id 应匹配");
-        assert_eq!(logs[0].target_id, Some(target_id), "AL-01: target_id 应匹配");
+        assert_eq!(
+            logs[0].target_id,
+            Some(target_id),
+            "AL-01: target_id 应匹配"
+        );
         assert_eq!(
             logs[0].ip_address,
             Some("1.2.3.4".to_string()),
@@ -273,7 +277,9 @@ mod tests {
         let admin1 = Uuid::new_v4();
         let admin2 = Uuid::new_v4();
 
-        repo.insert(make_entry("ban_user", admin1, None)).await.unwrap();
+        repo.insert(make_entry("ban_user", admin1, None))
+            .await
+            .unwrap();
         repo.insert(make_entry("close_room", admin2, None))
             .await
             .unwrap();

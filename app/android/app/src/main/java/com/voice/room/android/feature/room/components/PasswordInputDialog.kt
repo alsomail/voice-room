@@ -140,12 +140,19 @@ fun PasswordInputDialog(
                             modifier = Modifier.testTag("password_error_text")
                         )
 
-                    is PasswordDialogState.Locked ->
+                    is PasswordDialogState.Locked -> {
+                        // 缺陷 #1：state.remainingSeconds 是秒；UI 显示分钟时做向上取整。
+                        // 缺陷 #4：使用 stringResource 渲染当前 locale 的文案。
+                        val mins = ((state.remainingSeconds + 59) / 60).coerceAtLeast(1)
                         Text(
-                            text = "已被锁定，${state.remainingMinutes} 分钟后重试",
+                            text = androidx.compose.ui.res.stringResource(
+                                com.voice.room.android.R.string.password_locked_minutes,
+                                mins,
+                            ),
                             color = Color.Red,
                             modifier = Modifier.testTag("password_error_text")
                         )
+                    }
 
                     else -> {}
                 }

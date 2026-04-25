@@ -161,7 +161,10 @@ pub async fn handle_force_take_mic(
     }
 
     // ── 3. 检查 target 是否被禁麦 ─────────────────────────────────────────────
-    match mute_redis.get_mute_ttl("mic", room_id, target_user_id).await {
+    match mute_redis
+        .get_mute_ttl("mic", room_id, target_user_id)
+        .await
+    {
         Ok(Some(_)) => return force_take_error(msg_id, 40306, "target is mic-muted"),
         Ok(None) => {} // 未被禁麦，继续
         Err(e) => {

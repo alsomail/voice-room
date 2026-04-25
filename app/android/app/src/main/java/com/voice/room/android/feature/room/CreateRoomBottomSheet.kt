@@ -212,7 +212,8 @@ internal fun CreateRoomContent(
         // ── 错误提示 ──────────────────────────────
         if (errorMessage != null) {
             Text(
-                text = errorMessage,
+                // 缺陷 #4：UiText 通过 stringResource 渲染当前 locale 文案
+                text = errorMessage.asString(),
                 color = MaterialTheme.colorScheme.error,
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.testTag("create_room_error_text")

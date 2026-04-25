@@ -256,11 +256,7 @@ mod tests {
     fn archive_key_format_charm_day() {
         let ty = RankingType::Charm;
         let date = "2026-04-21";
-        let archive_key = format!(
-            "ranking_archive:{}:day:{}",
-            ty.as_key_segment(),
-            date
-        );
+        let archive_key = format!("ranking_archive:{}:day:{}", ty.as_key_segment(), date);
         assert_eq!(archive_key, "ranking_archive:charm:day:2026-04-21");
     }
 
@@ -269,18 +265,18 @@ mod tests {
     fn archive_key_format_wealth_week() {
         let ty = RankingType::Wealth;
         let week = "2026-17";
-        let archive_key = format!(
-            "ranking_archive:{}:week:{}",
-            ty.as_key_segment(),
-            week
-        );
+        let archive_key = format!("ranking_archive:{}:week:{}", ty.as_key_segment(), week);
         assert_eq!(archive_key, "ranking_archive:wealth:week:2026-17");
     }
 
     // SCH-03: last_archive key 格式
     #[test]
     fn last_archive_key_format() {
-        let key = format!("{}_{}:day", LAST_ARCHIVE_KEY_PREFIX, RankingType::Charm.as_key_segment());
+        let key = format!(
+            "{}_{}:day",
+            LAST_ARCHIVE_KEY_PREFIX,
+            RankingType::Charm.as_key_segment()
+        );
         assert_eq!(key, "ranking:last_archive_charm:day");
     }
 }

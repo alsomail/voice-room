@@ -106,7 +106,10 @@ pub async fn force_close_room_handler(
     };
 
     let ip = extract_ip(&headers);
-    let result = state.room_service.force_close_room(ctx.admin_id, room_id).await;
+    let result = state
+        .room_service
+        .force_close_room(ctx.admin_id, room_id)
+        .await;
 
     // 业务成功后写入审计日志（fire-and-forget：失败仅 warn，不影响响应）
     if result.is_ok() {
@@ -124,9 +127,7 @@ pub async fn force_close_room_handler(
     }
 
     match result {
-        Ok(()) => {
-            Json(ApiResponse::ok(serde_json::Value::Null, rc.request_id())).into_response()
-        }
+        Ok(()) => Json(ApiResponse::ok(serde_json::Value::Null, rc.request_id())).into_response(),
         Err(e) => err_response(e, rc.request_id()),
     }
 }

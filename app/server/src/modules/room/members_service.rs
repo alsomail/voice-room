@@ -123,9 +123,7 @@ impl MembersService {
     ) -> Result<MembersListResponse, AppError> {
         // ── 1. 参数校验 ──────────────────────────────────────────────────────
         if page == 0 {
-            return Err(AppError::ValidationError(
-                "page must be >= 1".to_string(),
-            ));
+            return Err(AppError::ValidationError("page must be >= 1".to_string()));
         }
         let limit = limit.clamp(1, 100);
 
@@ -147,10 +145,7 @@ impl MembersService {
         }
 
         // ── 4. 获取全量成员快照（内存 O(n)）────────────────────────────────
-        let mut snapshots = self
-            .room_manager
-            .list_members(room_id)
-            .unwrap_or_default();
+        let mut snapshots = self.room_manager.list_members(room_id).unwrap_or_default();
 
         let total = snapshots.len();
 
@@ -164,11 +159,7 @@ impl MembersService {
 
         // ── 6. 分页切片 ──────────────────────────────────────────────────────
         let offset = ((page - 1) as usize) * (limit as usize);
-        let page_snapshots: Vec<_> = snapshots
-            .iter()
-            .skip(offset)
-            .take(limit as usize)
-            .collect();
+        let page_snapshots: Vec<_> = snapshots.iter().skip(offset).take(limit as usize).collect();
 
         // ── 7. 批量查询用户信息 ──────────────────────────────────────────────
         let user_ids: Vec<Uuid> = page_snapshots.iter().map(|s| s.user_id).collect();
@@ -184,9 +175,7 @@ impl MembersService {
                 let role = compute_role(s.user_id, &owner_info);
                 MemberItem {
                     user_id: s.user_id,
-                    nickname: user
-                        .map(|u| u.nickname.clone())
-                        .unwrap_or_default(),
+                    nickname: user.map(|u| u.nickname.clone()).unwrap_or_default(),
                     avatar: user.and_then(|u| u.avatar.clone()),
                     role,
                     mic_slot: s.mic_slot,

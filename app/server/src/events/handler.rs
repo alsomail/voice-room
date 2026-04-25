@@ -230,8 +230,14 @@ mod tests {
         let json2: serde_json::Value =
             serde_json::from_str(&msg2).expect("msg2 should be valid JSON");
 
-        assert_eq!(json1["type"], "close_room", "room member 1 should receive close_room");
-        assert_eq!(json2["type"], "close_room", "room member 2 should receive close_room");
+        assert_eq!(
+            json1["type"], "close_room",
+            "room member 1 should receive close_room"
+        );
+        assert_eq!(
+            json2["type"], "close_room",
+            "room member 2 should receive close_room"
+        );
 
         // 不在房间的连接不应收到消息
         let no_msg = tokio::time::timeout(Duration::from_millis(20), rx_other.recv()).await;

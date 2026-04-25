@@ -155,17 +155,18 @@ impl BalanceBroadcaster {
             }
         };
 
-        let payload = match serde_json::from_value::<BalanceUpdatedRedisPayload>(payload_val.clone()) {
-            Ok(p) => p,
-            Err(e) => {
-                tracing::error!(
-                    raw = %json,
-                    "BalanceBroadcaster: failed to parse balance_updated payload: {}",
-                    e
-                );
-                return;
-            }
-        };
+        let payload =
+            match serde_json::from_value::<BalanceUpdatedRedisPayload>(payload_val.clone()) {
+                Ok(p) => p,
+                Err(e) => {
+                    tracing::error!(
+                        raw = %json,
+                        "BalanceBroadcaster: failed to parse balance_updated payload: {}",
+                        e
+                    );
+                    return;
+                }
+            };
 
         self.broadcast_event(&BalanceEvent {
             user_id: payload.user_id,
@@ -207,7 +208,11 @@ impl BalanceBroadcaster {
         let client = match redis::Client::open(redis_url.as_str()) {
             Ok(c) => c,
             Err(e) => {
-                tracing::error!("BalanceBroadcaster: invalid Redis URL '{}': {:?}", redis_url, e);
+                tracing::error!(
+                    "BalanceBroadcaster: invalid Redis URL '{}': {:?}",
+                    redis_url,
+                    e
+                );
                 // fallback: 仅运行 mpsc 模式
                 while let Some(event) = rx.recv().await {
                     self.broadcast_event(&event);
@@ -489,7 +494,9 @@ mod tests {
             ref_id.to_string()
         );
         // msg_id 必须存在
-        let msg_id = val["msg_id"].as_str().expect("msg_id must be present in BalanceUpdated from Redis");
+        let msg_id = val["msg_id"]
+            .as_str()
+            .expect("msg_id must be present in BalanceUpdated from Redis");
         Uuid::parse_str(msg_id).expect("msg_id must be valid UUID");
     }
 
@@ -516,7 +523,10 @@ mod tests {
 
         // 不应收到任何 WS 消息
         let no_msg = tokio::time::timeout(Duration::from_millis(50), rx.recv()).await;
-        assert!(no_msg.is_err(), "Non-balance_updated event must not trigger WS push");
+        assert!(
+            no_msg.is_err(),
+            "Non-balance_updated event must not trigger WS push"
+        );
     }
 
     // BR08: handle_redis_payload 处理格式错误的 JSON（不 panic）
@@ -529,6 +539,7 @@ mod tests {
         broadcaster.handle_redis_payload("not valid json at all");
         broadcaster.handle_redis_payload(r#"{"type":"balance_updated","payload":{}}"#);
         // 缺少必填字段（user_id 缺失）
-        broadcaster.handle_redis_payload(r#"{"type":"balance_updated","payload":{"balance_after":100}}"#);
+        broadcaster
+            .handle_redis_payload(r#"{"type":"balance_updated","payload":{"balance_after":100}}"#);
     }
 }

@@ -70,10 +70,7 @@ mod tests {
     #[test]
     fn extract_ip_from_x_forwarded_for_takes_first_segment() {
         let mut headers = HeaderMap::new();
-        headers.insert(
-            "x-forwarded-for",
-            "1.2.3.4, 5.6.7.8".parse().unwrap(),
-        );
+        headers.insert("x-forwarded-for", "1.2.3.4, 5.6.7.8".parse().unwrap());
         let ip = extract_ip(&headers);
         assert_eq!(ip, Some("1.2.3.4".to_string()), "应取 XFF 的第一个 IP");
     }
@@ -84,7 +81,11 @@ mod tests {
         let mut headers = HeaderMap::new();
         headers.insert("x-real-ip", "9.10.11.12".parse().unwrap());
         let ip = extract_ip(&headers);
-        assert_eq!(ip, Some("9.10.11.12".to_string()), "备选 X-Real-IP 应被读取");
+        assert_eq!(
+            ip,
+            Some("9.10.11.12".to_string()),
+            "备选 X-Real-IP 应被读取"
+        );
     }
 
     /// 无 IP 头时返回 None

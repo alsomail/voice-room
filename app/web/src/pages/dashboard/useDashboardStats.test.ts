@@ -178,7 +178,53 @@ describe('useDashboardStats — U06: 30s 自动刷新', () => {
   });
 });
 
-// ── U07: 组件卸载 → clearInterval + AbortController.abort ────────────────────
+// ── U08: 缺陷 #6 回归 — refresh() 取消上一次飞行中请求 ──────────────────────
+describe('useDashboardStats — U08: refresh() 取消旧请求（缺陷 #6）', () => {
+  it('连续调用 refresh() 应 abort 上一次飞行中请求', async () => {
+    mockAdminGetRooms.mockResolvedValue(ROOMS_ALL);
+    mockAdminGetStatsOverview.mockResolvedValue(STATS_OVERVIEW);
+
+    const { result } = renderHook(() => useDashboardStats());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    // 监听后续创建的 AbortController 的 abort 调用
+    const abortSpy = vi.spyOn(AbortController.prototype, 'abort');
+    abortSpy.mockClear();
+
+    // 第一次手动 refresh：建立新 controller
+    act(() => {
+      result.current.refresh();
+    });
+    // 第二次手动 refresh：必须 abort 第一次的 controller
+    act(() => {
+      result.current.refresh();
+    });
+
+    // 至少有一次 abort 来自第二次 refresh 取消第一次（不计 effect cleanup）
+    expect(abortSpy).toHaveBeenCalled();
+    abortSpy.mockRestore();
+  });
+
+  it('refresh() 调用时传入 AbortSignal 给 API（不再裸调用）', async () => {
+    mockAdminGetRooms.mockResolvedValue(ROOMS_ALL);
+    mockAdminGetStatsOverview.mockResolvedValue(STATS_OVERVIEW);
+
+    const { result } = renderHook(() => useDashboardStats());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    mockAdminGetRooms.mockClear();
+    mockAdminGetStatsOverview.mockClear();
+
+    act(() => {
+      result.current.refresh();
+    });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    // refresh 触发的请求第二个参数应为 AbortSignal（不再是 undefined）
+    const lastCall =
+      mockAdminGetRooms.mock.calls[mockAdminGetRooms.mock.calls.length - 1];
+    expect(lastCall?.[1]).toBeInstanceOf(AbortSignal);
+  });
+});
 describe('useDashboardStats — U07: 卸载清理', () => {
   it('unmount 时 clearInterval 和 AbortController.abort 均被调用', () => {
     // clearInterval 在 useEffect cleanup 中同步执行，无需 async

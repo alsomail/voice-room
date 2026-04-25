@@ -90,14 +90,14 @@ pub async fn handle_report_event(
     }
 
     // 4. 反序列化为 Vec<EventInput>
-    let batch: Vec<EventInput> =
-        match serde_json::from_value(serde_json::Value::Array(events_arr)) {
-            Ok(b) => b,
-            Err(e) => {
-                tracing::warn!(error = %e, "failed to deserialize ReportEvent events");
-                return build_ack(msg_id, CODE_VALIDATION_ERROR, 0, vec![]);
-            }
-        };
+    let batch: Vec<EventInput> = match serde_json::from_value(serde_json::Value::Array(events_arr))
+    {
+        Ok(b) => b,
+        Err(e) => {
+            tracing::warn!(error = %e, "failed to deserialize ReportEvent events");
+            return build_ack(msg_id, CODE_VALIDATION_ERROR, 0, vec![]);
+        }
+    };
 
     // 5. 检查是否超出批量限制（超出时写前 100 条并返回 BATCH_TOO_LARGE）
     let batch_too_large = batch.len() > 100;
@@ -184,7 +184,10 @@ mod tests {
         assert_eq!(v["msg_id"], "msg-1");
         assert_eq!(v["code"], 0);
         assert_eq!(v["payload"]["received"], 5);
-        assert_eq!(v["payload"]["rejected_indices"].as_array().unwrap().len(), 0);
+        assert_eq!(
+            v["payload"]["rejected_indices"].as_array().unwrap().len(),
+            0
+        );
     }
 
     // WS02: build_ack — BATCH_TOO_LARGE 格式正确
@@ -213,8 +216,7 @@ mod tests {
         let (deps, _) = make_deps_local();
         let payload = serde_json::json!({ "events": [] });
         let resp =
-            handle_report_event(Some(payload), Some("m1".to_string()), Uuid::new_v4(), &deps)
-                .await;
+            handle_report_event(Some(payload), Some("m1".to_string()), Uuid::new_v4(), &deps).await;
         let v: serde_json::Value = serde_json::from_str(&resp).unwrap();
         assert_eq!(v["code"], 40003);
     }
@@ -234,8 +236,7 @@ mod tests {
         let (deps, _) = make_deps_local();
         let payload = serde_json::json!({ "other_field": 123 });
         let resp =
-            handle_report_event(Some(payload), Some("m3".to_string()), Uuid::new_v4(), &deps)
-                .await;
+            handle_report_event(Some(payload), Some("m3".to_string()), Uuid::new_v4(), &deps).await;
         let v: serde_json::Value = serde_json::from_str(&resp).unwrap();
         assert_eq!(v["code"], 40003);
     }
@@ -246,8 +247,7 @@ mod tests {
         let (deps, fake) = make_deps_local();
         let payload = make_payload(1);
         let uid = Uuid::new_v4();
-        let resp =
-            handle_report_event(Some(payload), Some("m4".to_string()), uid, &deps).await;
+        let resp = handle_report_event(Some(payload), Some("m4".to_string()), uid, &deps).await;
         let v: serde_json::Value = serde_json::from_str(&resp).unwrap();
         assert_eq!(v["code"], 0);
         assert_eq!(v["payload"]["received"], 1);
@@ -261,8 +261,7 @@ mod tests {
         let (deps, fake) = make_deps_local();
         let payload = make_payload(100);
         let uid = Uuid::new_v4();
-        let resp =
-            handle_report_event(Some(payload), Some("m5".to_string()), uid, &deps).await;
+        let resp = handle_report_event(Some(payload), Some("m5".to_string()), uid, &deps).await;
         let v: serde_json::Value = serde_json::from_str(&resp).unwrap();
         assert_eq!(v["code"], 0);
         assert_eq!(v["payload"]["received"], 100);
@@ -276,8 +275,7 @@ mod tests {
         let (deps, fake) = make_deps_local();
         let payload = make_payload(101);
         let uid = Uuid::new_v4();
-        let resp =
-            handle_report_event(Some(payload), Some("m6".to_string()), uid, &deps).await;
+        let resp = handle_report_event(Some(payload), Some("m6".to_string()), uid, &deps).await;
         let v: serde_json::Value = serde_json::from_str(&resp).unwrap();
         assert_eq!(v["code"], 40204);
         assert_eq!(v["payload"]["received"], 100);
@@ -296,8 +294,7 @@ mod tests {
             "events": [{ "event_name": "e", "device_id": "", "properties": {} }]
         });
         let resp =
-            handle_report_event(Some(payload), Some("m7".to_string()), Uuid::new_v4(), &deps)
-                .await;
+            handle_report_event(Some(payload), Some("m7".to_string()), Uuid::new_v4(), &deps).await;
         let v: serde_json::Value = serde_json::from_str(&resp).unwrap();
         assert_eq!(v["code"], 40002);
     }
@@ -316,13 +313,16 @@ mod tests {
                 "properties": {}
             }]
         });
-        let resp =
-            handle_report_event(Some(payload), Some("m8".to_string()), jwt_uid, &deps).await;
+        let resp = handle_report_event(Some(payload), Some("m8".to_string()), jwt_uid, &deps).await;
         let v: serde_json::Value = serde_json::from_str(&resp).unwrap();
         assert_eq!(v["code"], 0);
         let stored = fake.stored.lock().unwrap();
         let (event, _) = &stored[0];
-        assert_eq!(event.user_id, Some(jwt_uid), "JWT uid must override client uid");
+        assert_eq!(
+            event.user_id,
+            Some(jwt_uid),
+            "JWT uid must override client uid"
+        );
     }
 
     // WS12: msg_id 在 ACK 中回显

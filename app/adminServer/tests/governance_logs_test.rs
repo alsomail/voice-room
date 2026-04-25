@@ -13,7 +13,10 @@
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use axum::{body::Body, http::{Request, StatusCode}};
+use axum::{
+    body::Body,
+    http::{Request, StatusCode},
+};
 use chrono::{Duration, Utc};
 use tower::ServiceExt;
 use uuid::Uuid;
@@ -111,7 +114,7 @@ async fn g16_01_kicks_ordered_by_created_at_desc() {
 
     // 插入顺序：最旧的先插，最新的后插
     repo.push_kick(make_kick(None, None, 300)); // 5分钟前
-    repo.push_kick(make_kick(None, None, 60));  // 1分钟前
+    repo.push_kick(make_kick(None, None, 60)); // 1分钟前
     repo.push_kick(make_kick(None, None, 120)); // 2分钟前
 
     let service = GovernanceService::new(
@@ -221,7 +224,11 @@ async fn g16_02b_time_window_exactly_90_days_is_ok() {
     };
 
     let result = service.query_kicks(params, Uuid::new_v4(), None).await;
-    assert!(result.is_ok(), "G16-02b: 刚好 90 天应合法，got: {:?}", result);
+    assert!(
+        result.is_ok(),
+        "G16-02b: 刚好 90 天应合法，got: {:?}",
+        result
+    );
 }
 
 // ─── G16-03: room_id 过滤生效 ─────────────────────────────────────────────────
@@ -256,7 +263,10 @@ async fn g16_03_room_id_filter_works() {
         limit: Some(20),
     };
 
-    let resp = service.query_kicks(params, Uuid::new_v4(), None).await.unwrap();
+    let resp = service
+        .query_kicks(params, Uuid::new_v4(), None)
+        .await
+        .unwrap();
     assert_eq!(resp.total, 2, "G16-03: room_id 过滤后应只有 2 条");
     assert!(
         resp.items.iter().all(|i| i.room_id == target_room),
@@ -296,7 +306,10 @@ async fn g16_04_target_user_id_filter_works() {
         limit: Some(20),
     };
 
-    let resp = service.query_kicks(params, Uuid::new_v4(), None).await.unwrap();
+    let resp = service
+        .query_kicks(params, Uuid::new_v4(), None)
+        .await
+        .unwrap();
     assert_eq!(resp.total, 2, "G16-04: target_user_id 过滤后应只有 2 条");
     assert!(
         resp.items.iter().all(|i| i.target_user_id == target_user),
@@ -334,7 +347,10 @@ async fn g16_05_mute_type_filter_works() {
         limit: Some(20),
     };
 
-    let resp = service.query_mutes(params, Uuid::new_v4(), None).await.unwrap();
+    let resp = service
+        .query_mutes(params, Uuid::new_v4(), None)
+        .await
+        .unwrap();
     assert_eq!(resp.total, 2, "G16-05: type=mic 过滤后应只有 2 条");
     assert!(
         resp.items.iter().all(|i| i.mute_type == "mic"),
@@ -368,9 +384,15 @@ async fn g16_05b_mute_type_chat_filter_works() {
         limit: Some(20),
     };
 
-    let resp = service.query_mutes(params, Uuid::new_v4(), None).await.unwrap();
+    let resp = service
+        .query_mutes(params, Uuid::new_v4(), None)
+        .await
+        .unwrap();
     assert_eq!(resp.total, 1, "G16-05b: type=chat 过滤后应只有 1 条");
-    assert_eq!(resp.items[0].mute_type, "chat", "G16-05b: mute_type 应为 chat");
+    assert_eq!(
+        resp.items[0].mute_type, "chat",
+        "G16-05b: mute_type 应为 chat"
+    );
 }
 
 // ─── G16-06: finance 角色 → HTTP 403 ─────────────────────────────────────────
@@ -505,9 +527,9 @@ async fn g16_07a_query_kicks_writes_audit_log() {
 
     let service = GovernanceService::new(
         repo,
-        Arc::new(voice_room_admin_server::modules::audit::service::AuditLogger::new(
-            audit_repo.clone(),
-        )),
+        Arc::new(
+            voice_room_admin_server::modules::audit::service::AuditLogger::new(audit_repo.clone()),
+        ),
     );
 
     service
@@ -521,10 +543,7 @@ async fn g16_07a_query_kicks_writes_audit_log() {
         logs[0].action, "query_kick_records",
         "G16-07a: action 应为 query_kick_records"
     );
-    assert_eq!(
-        logs[0].admin_id, admin_id,
-        "G16-07a: admin_id 应匹配"
-    );
+    assert_eq!(logs[0].admin_id, admin_id, "G16-07a: admin_id 应匹配");
 }
 
 /// G16-07b: query_mutes 成功后写入 admin_logs，action=query_mute_records
@@ -536,9 +555,9 @@ async fn g16_07b_query_mutes_writes_audit_log() {
 
     let service = GovernanceService::new(
         repo,
-        Arc::new(voice_room_admin_server::modules::audit::service::AuditLogger::new(
-            audit_repo.clone(),
-        )),
+        Arc::new(
+            voice_room_admin_server::modules::audit::service::AuditLogger::new(audit_repo.clone()),
+        ),
     );
 
     service
@@ -564,9 +583,9 @@ async fn g16_07c_audit_log_contains_filters_detail() {
 
     let service = GovernanceService::new(
         repo,
-        Arc::new(voice_room_admin_server::modules::audit::service::AuditLogger::new(
-            audit_repo.clone(),
-        )),
+        Arc::new(
+            voice_room_admin_server::modules::audit::service::AuditLogger::new(audit_repo.clone()),
+        ),
     );
 
     let now = Utc::now();
@@ -584,7 +603,10 @@ async fn g16_07c_audit_log_contains_filters_detail() {
     service.query_kicks(params, admin_id, None).await.unwrap();
 
     let logs = audit_repo.get_logs();
-    let detail = logs[0].detail.as_ref().expect("G16-07c: detail 不应为 None");
+    let detail = logs[0]
+        .detail
+        .as_ref()
+        .expect("G16-07c: detail 不应为 None");
     assert!(
         detail.get("filters").is_some(),
         "G16-07c: detail 应包含 filters 字段"
@@ -685,7 +707,11 @@ async fn g16_08c_limit_exactly_100_is_ok() {
     };
 
     let result = service.query_kicks(params, Uuid::new_v4(), None).await;
-    assert!(result.is_ok(), "G16-08c: limit=100 应合法，got: {:?}", result);
+    assert!(
+        result.is_ok(),
+        "G16-08c: limit=100 应合法，got: {:?}",
+        result
+    );
     assert_eq!(result.unwrap().limit, 100, "G16-08c: limit 应为 100");
 }
 
@@ -723,8 +749,8 @@ async fn g16_08e_default_pagination_values() {
         from: Some((now - Duration::days(7)).to_rfc3339()),
         to: Some(now.to_rfc3339()),
         mute_type: None,
-        page: None,   // 应默认为 1
-        limit: None,  // 应默认为 20
+        page: None,  // 应默认为 1
+        limit: None, // 应默认为 20
     };
 
     let resp = service
@@ -751,11 +777,7 @@ async fn no_auth_returns_401_on_kicks() {
         .unwrap();
 
     let resp = app.oneshot(req).await.unwrap();
-    assert_eq!(
-        resp.status(),
-        StatusCode::UNAUTHORIZED,
-        "无 JWT 应返回 401"
-    );
+    assert_eq!(resp.status(), StatusCode::UNAUTHORIZED, "无 JWT 应返回 401");
 }
 
 /// super_admin 角色可以访问 kicks 接口
@@ -773,11 +795,7 @@ async fn super_admin_can_access_kicks() {
         .unwrap();
 
     let resp = app.oneshot(req).await.unwrap();
-    assert_eq!(
-        resp.status(),
-        StatusCode::OK,
-        "super_admin 应能访问 kicks"
-    );
+    assert_eq!(resp.status(), StatusCode::OK, "super_admin 应能访问 kicks");
 }
 
 /// 空结果时 total=0, items=[]

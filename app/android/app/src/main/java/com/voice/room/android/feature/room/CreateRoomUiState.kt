@@ -1,5 +1,7 @@
 package com.voice.room.android.feature.room
 
+import com.voice.room.android.util.UiText
+
 /**
  * 创建房间对话框 UI 状态 (T-30007)
  *
@@ -27,7 +29,10 @@ sealed interface CreateRoomUiState {
     /**
      * 失败（输入校验 或 API 错误）
      *
-     * @param message 可直接展示给用户的错误文本
+     * 缺陷 #4 修复：[message] 改为 [UiText]（@StringRes + format args），UI 层渲染。
+     *
+     * @param message 国际化文案占位
      */
-    data class Error(val message: String) : CreateRoomUiState
+    data class Error(val message: UiText) : CreateRoomUiState
 }
+

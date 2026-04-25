@@ -126,7 +126,10 @@ mod tests {
             Permission::FinanceWrite,
             Permission::SystemAdmin,
         ] {
-            assert!(c.has_permission(p), "super_admin should have permission {p:?}");
+            assert!(
+                c.has_permission(p),
+                "super_admin should have permission {p:?}"
+            );
         }
     }
 
@@ -152,7 +155,10 @@ mod tests {
     fn operator_lacks_finance_permissions() {
         let c = ctx("operator");
         for p in [Permission::FinanceRead, Permission::FinanceWrite] {
-            assert!(!c.has_permission(p), "operator must NOT have permission {p:?}");
+            assert!(
+                !c.has_permission(p),
+                "operator must NOT have permission {p:?}"
+            );
         }
     }
 
@@ -169,10 +175,7 @@ mod tests {
     #[test]
     fn cs_has_user_read_and_room_read_permissions() {
         let c = ctx("cs");
-        for p in [
-            Permission::UserRead,
-            Permission::RoomRead,
-        ] {
+        for p in [Permission::UserRead, Permission::RoomRead] {
             assert!(c.has_permission(p), "cs should have permission {p:?}");
         }
     }
@@ -250,7 +253,10 @@ mod tests {
             Permission::RoomForceClose,
             Permission::LogRead,
         ] {
-            assert!(!c.has_permission(p), "unknown role must NOT have permission {p:?}");
+            assert!(
+                !c.has_permission(p),
+                "unknown role must NOT have permission {p:?}"
+            );
         }
     }
 

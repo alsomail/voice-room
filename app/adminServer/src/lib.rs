@@ -57,8 +57,14 @@ mod tests {
         assert_eq!(model.username, "test_admin");
         assert_eq!(model.role, "operator");
         assert!(model.is_active, "is_active should default to true");
-        assert!(model.display_name.is_some(), "display_name should be optional");
-        assert!(model.last_login_at.is_none(), "last_login_at should start as None");
+        assert!(
+            model.display_name.is_some(),
+            "display_name should be optional"
+        );
+        assert!(
+            model.last_login_at.is_none(),
+            "last_login_at should start as None"
+        );
     }
 
     /// AdminModel fields must carry the right types (UUID, String, Option<String>,
@@ -115,10 +121,7 @@ mod tests {
             "god",
             "super admin", // space
         ] {
-            assert!(
-                !is_valid_admin_role(role),
-                "role '{role}' must be rejected"
-            );
+            assert!(!is_valid_admin_role(role), "role '{role}' must be rejected");
         }
     }
 
@@ -141,8 +144,7 @@ mod tests {
     fn password_hash_uses_bcrypt_format() {
         use voice_room_shared::crypto::hash_password;
 
-        let hash = hash_password("super_admin_password")
-            .expect("bcrypt hash should succeed");
+        let hash = hash_password("super_admin_password").expect("bcrypt hash should succeed");
 
         assert!(
             hash.starts_with("$2b$") || hash.starts_with("$2a$"),
@@ -186,12 +188,18 @@ mod tests {
             sql.contains("CREATE TABLE") && sql.contains("admins"),
             "migration 001 must create the admins table"
         );
-        for col in ["id", "username", "password_hash", "role", "display_name",
-                    "is_active", "last_login_at", "created_at", "updated_at"] {
-            assert!(
-                sql.contains(col),
-                "admins table must have column '{col}'"
-            );
+        for col in [
+            "id",
+            "username",
+            "password_hash",
+            "role",
+            "display_name",
+            "is_active",
+            "last_login_at",
+            "created_at",
+            "updated_at",
+        ] {
+            assert!(sql.contains(col), "admins table must have column '{col}'");
         }
     }
 
@@ -255,10 +263,7 @@ mod tests {
             "migration 002 must create admin_logs table"
         );
         for col in ["id", "admin_id", "action", "created_at"] {
-            assert!(
-                sql.contains(col),
-                "admin_logs must have column '{col}'"
-            );
+            assert!(sql.contains(col), "admin_logs must have column '{col}'");
         }
     }
 

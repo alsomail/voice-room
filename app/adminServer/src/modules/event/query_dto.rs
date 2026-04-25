@@ -55,8 +55,8 @@ pub struct EventRow {
 pub struct EventItem {
     pub id: String,
     pub event_name: String,
-    pub server_ts: String,            // RFC 3339
-    pub client_ts: Option<String>,    // RFC 3339
+    pub server_ts: String,         // RFC 3339
+    pub client_ts: Option<String>, // RFC 3339
     pub session_id: Option<String>,
     pub device_id: String,
     pub properties: serde_json::Value,

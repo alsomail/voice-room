@@ -187,9 +187,15 @@ mod tests {
     #[test]
     fn test_mute_type_serialize_lowercase() {
         let mic_json = serde_json::to_string(&MuteType::Mic).unwrap();
-        assert_eq!(mic_json, r#""mic""#, "MuteType::Mic should serialize as 'mic'");
+        assert_eq!(
+            mic_json, r#""mic""#,
+            "MuteType::Mic should serialize as 'mic'"
+        );
         let chat_json = serde_json::to_string(&MuteType::Chat).unwrap();
-        assert_eq!(chat_json, r#""chat""#, "MuteType::Chat should serialize as 'chat'");
+        assert_eq!(
+            chat_json, r#""chat""#,
+            "MuteType::Chat should serialize as 'chat'"
+        );
     }
 
     #[test]

@@ -17,11 +17,11 @@ use tokio::sync::mpsc;
 use uuid::Uuid;
 
 use voice_room_server::modules::governance::transfer::{
-    FailingTransferAdminRepo, FakeTransferAdminRepo, TransferAdminDeps, TransferAdminRepo,
-    handle_transfer_admin,
+    handle_transfer_admin, FailingTransferAdminRepo, FakeTransferAdminRepo, TransferAdminDeps,
+    TransferAdminRepo,
 };
-use voice_room_server::modules::room::FakeRoomRepository;
 use voice_room_server::modules::room::service::RoomService;
+use voice_room_server::modules::room::FakeRoomRepository;
 use voice_room_server::room::manager::RoomManager;
 use voice_room_server::ws::registry::{ConnectionHandle, ConnectionRegistry};
 use voice_room_shared::models::room::RoomModel;
@@ -130,17 +130,29 @@ async fn ta30_01_owner_assign_new_admin_success() {
     .await;
 
     let v: serde_json::Value = serde_json::from_str(&resp).unwrap();
-    assert_eq!(v["type"], "TransferAdminResult", "type should be TransferAdminResult");
+    assert_eq!(
+        v["type"], "TransferAdminResult",
+        "type should be TransferAdminResult"
+    );
     assert_eq!(v["code"], 0, "code should be 0 for success");
 
     // 验证 DB 更新
     let stored = repo.get_admin(room_id);
-    assert_eq!(stored, Some(Some(target_id)), "admin_user_id should be updated to target");
+    assert_eq!(
+        stored,
+        Some(Some(target_id)),
+        "admin_user_id should be updated to target"
+    );
 
     // 验证广播
-    let broadcast = rx.try_recv().expect("TA30-01: should have received AdminChanged broadcast");
+    let broadcast = rx
+        .try_recv()
+        .expect("TA30-01: should have received AdminChanged broadcast");
     let bv: serde_json::Value = serde_json::from_str(&broadcast).unwrap();
-    assert_eq!(bv["type"], "AdminChanged", "broadcast type should be AdminChanged");
+    assert_eq!(
+        bv["type"], "AdminChanged",
+        "broadcast type should be AdminChanged"
+    );
     assert_eq!(
         bv["payload"]["admin_user_id"],
         target_id.to_string(),
@@ -226,7 +238,10 @@ async fn ta30_03_admin_cannot_transfer() {
     assert_eq!(v["code"], 40301, "TA30-03: admin should get 40301");
 
     // DB 不应该被更新
-    assert!(repo.get_admin(room_id).is_none(), "TA30-03: DB should not be updated");
+    assert!(
+        repo.get_admin(room_id).is_none(),
+        "TA30-03: DB should not be updated"
+    );
 }
 
 /// TA30-04: 房主 assign 自己 → 40302
@@ -252,7 +267,10 @@ async fn ta30_04_cannot_assign_owner_as_admin() {
     .await;
 
     let v: serde_json::Value = serde_json::from_str(&resp).unwrap();
-    assert_eq!(v["code"], 40302, "TA30-04: assigning owner as admin should get 40302");
+    assert_eq!(
+        v["code"], 40302,
+        "TA30-04: assigning owner as admin should get 40302"
+    );
 }
 
 /// TA30-05: revoke 非当前管理员 → 40404
@@ -280,7 +298,10 @@ async fn ta30_05_revoke_non_current_admin_returns_40404() {
     .await;
 
     let v: serde_json::Value = serde_json::from_str(&resp).unwrap();
-    assert_eq!(v["code"], 40404, "TA30-05: revoke non-admin should get 40404");
+    assert_eq!(
+        v["code"], 40404,
+        "TA30-05: revoke non-admin should get 40404"
+    );
 }
 
 /// TA30-06: AdminChanged 广播给房间所有成员
@@ -316,10 +337,19 @@ async fn ta30_06_admin_changed_broadcast_to_all_room_members() {
     assert_eq!(v["code"], 0, "TA30-06: should succeed");
 
     // 所有三个连接都应收到广播
-    for (name, rx) in [("owner", &mut rx_owner), ("member1", &mut rx_m1), ("member2", &mut rx_m2)] {
-        let msg = rx.try_recv().unwrap_or_else(|_| panic!("TA30-06: {name} should receive AdminChanged"));
+    for (name, rx) in [
+        ("owner", &mut rx_owner),
+        ("member1", &mut rx_m1),
+        ("member2", &mut rx_m2),
+    ] {
+        let msg = rx
+            .try_recv()
+            .unwrap_or_else(|_| panic!("TA30-06: {name} should receive AdminChanged"));
         let bv: serde_json::Value = serde_json::from_str(&msg).unwrap();
-        assert_eq!(bv["type"], "AdminChanged", "TA30-06: {name} should receive AdminChanged");
+        assert_eq!(
+            bv["type"], "AdminChanged",
+            "TA30-06: {name} should receive AdminChanged"
+        );
     }
 }
 

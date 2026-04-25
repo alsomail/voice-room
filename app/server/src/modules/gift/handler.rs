@@ -9,11 +9,7 @@ use axum::{extract::State, http::HeaderMap, response::IntoResponse, Extension, J
 
 use crate::{
     bootstrap::AppState,
-    common::{
-        error::err_response,
-        response::ApiResponse,
-        RequestContext,
-    },
+    common::{error::err_response, response::ApiResponse, RequestContext},
 };
 
 /// GET /api/v1/gifts/list
@@ -64,10 +60,7 @@ mod tests {
 
     fn make_headers(lang: &str) -> HeaderMap {
         let mut headers = HeaderMap::new();
-        headers.insert(
-            axum::http::header::ACCEPT_LANGUAGE,
-            lang.parse().unwrap(),
-        );
+        headers.insert(axum::http::header::ACCEPT_LANGUAGE, lang.parse().unwrap());
         headers
     }
 
@@ -130,9 +123,12 @@ mod tests {
     // HC09: HTTP 端到端 — GET /api/v1/gifts/list 返回 200
     #[tokio::test]
     async fn hc09_get_gifts_list_returns_200() {
-        use axum::{body::Body, http::{Request, StatusCode}};
-        use tower::ServiceExt;
         use crate::bootstrap::{build_app, AppState};
+        use axum::{
+            body::Body,
+            http::{Request, StatusCode},
+        };
+        use tower::ServiceExt;
 
         let app = build_app(AppState::for_test());
         let response = app
@@ -146,6 +142,10 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(response.status(), StatusCode::OK, "HC09: GET /api/v1/gifts/list should return 200");
+        assert_eq!(
+            response.status(),
+            StatusCode::OK,
+            "HC09: GET /api/v1/gifts/list should return 200"
+        );
     }
 }

@@ -46,7 +46,6 @@ pub struct RoomModel {
     pub deleted_at: Option<DateTime<Utc>>,
 
     // ── T-00024: 治理字段 ─────────────────────────────────────────────────
-
     /// Room cover image URL. Empty string `""` means no cover (legacy rooms).
     /// Added by migration 008_room_governance.sql with DEFAULT ''.
     #[serde(default)]
@@ -190,7 +189,8 @@ mod tests {
             "announcement": "Welcome to Cozy Room!",
             "admin_user_id": null
         }"#;
-        let room: super::RoomModel = serde_json::from_str(json).expect("deserialize should succeed");
+        let room: super::RoomModel =
+            serde_json::from_str(json).expect("deserialize should succeed");
         assert_eq!(room.title, "Cozy Room");
         assert_eq!(room.room_type, "password");
         assert_eq!(room.member_count, 5);
@@ -220,7 +220,8 @@ mod tests {
             "announcement": null,
             "admin_user_id": null
         }"#;
-        let room: super::RoomModel = serde_json::from_str(json).expect("deserialize should succeed");
+        let room: super::RoomModel =
+            serde_json::from_str(json).expect("deserialize should succeed");
         // serde(default) 使 cover_url 默认为空串
         assert_eq!(room.cover_url, "");
         // serde(default = "default_category") 使 category 默认为 "chat"
@@ -389,13 +390,12 @@ mod tests {
     fn test_migration_member_count_index_filters_soft_deleted() {
         let sql = load_migration();
         // The member_count index line must itself carry the WHERE clause.
-        let has_partial_member_count_idx = sql
-            .lines()
-            .any(|l| l.contains("idx_rooms_member_count") && l.contains("WHERE deleted_at IS NULL"));
+        let has_partial_member_count_idx = sql.lines().any(|l| {
+            l.contains("idx_rooms_member_count") && l.contains("WHERE deleted_at IS NULL")
+        });
         assert!(
             has_partial_member_count_idx,
             "M-03: idx_rooms_member_count must have WHERE deleted_at IS NULL partial filter"
         );
     }
 }
-

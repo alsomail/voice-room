@@ -143,7 +143,10 @@ mod tests {
     #[test]
     fn gm06_gift_model_tier_range() {
         for tier in 1i16..=5i16 {
-            let gift = GiftModel { tier, ..make_gift() };
+            let gift = GiftModel {
+                tier,
+                ..make_gift()
+            };
             assert!(gift.tier >= 1 && gift.tier <= 5);
         }
     }

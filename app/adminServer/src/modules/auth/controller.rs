@@ -2,11 +2,7 @@ use axum::{extract::State, response::IntoResponse, Extension, Json};
 
 use crate::{
     bootstrap::AppState,
-    common::{
-        error::err_response,
-        response::ApiResponse,
-        RequestContext,
-    },
+    common::{error::err_response, response::ApiResponse, RequestContext},
     infrastructure::logging::extract_client_ip,
 };
 

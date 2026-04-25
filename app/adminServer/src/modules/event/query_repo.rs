@@ -147,8 +147,7 @@ impl EventQueryRepository for FakeEventQueryRepository {
                         }
                     }
                 };
-                let admin_ok = !filter.exclude_admin_prefix
-                    || !e.event_name.starts_with("admin_");
+                let admin_ok = !filter.exclude_admin_prefix || !e.event_name.starts_with("admin_");
                 user_match && in_time && name_match && admin_ok
             })
             .count() as i64;
@@ -179,8 +178,7 @@ impl EventQueryRepository for FakeEventQueryRepository {
                         }
                     }
                 };
-                let admin_ok = !filter.exclude_admin_prefix
-                    || !e.event_name.starts_with("admin_");
+                let admin_ok = !filter.exclude_admin_prefix || !e.event_name.starts_with("admin_");
                 in_time && name_match && admin_ok
             })
             .cloned()
@@ -275,10 +273,7 @@ mod tests {
         let items = repo.find_events(uid, &filter, 10, 0).await.unwrap();
 
         assert_eq!(items.len(), 2);
-        assert_eq!(
-            items[0].event_name, "event_new",
-            "最新事件应排在第一位"
-        );
+        assert_eq!(items[0].event_name, "event_new", "最新事件应排在第一位");
         assert_eq!(items[1].event_name, "event_old");
     }
 

@@ -23,17 +23,20 @@ use chrono::Utc;
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
+use voice_room_server::modules::auth::service::AuthService;
 use voice_room_server::modules::room::password::{
     verify_password, FakeRoomPasswordRedis, VerifyPasswordResult,
 };
 use voice_room_server::modules::room::service::RoomService;
 use voice_room_server::modules::room::FakeRoomRepository;
-use voice_room_server::room::{handler::{handle_join_room, JoinRoomDeps}, manager::RoomManager};
-use voice_room_server::modules::auth::service::AuthService;
+use voice_room_server::room::{
+    handler::{handle_join_room, JoinRoomDeps},
+    manager::RoomManager,
+};
+use voice_room_server::stats::FakeStatsService;
 use voice_room_server::ws::registry::{ConnectionHandle, ConnectionRegistry};
 use voice_room_shared::auth::room_access::encode_room_access_token;
 use voice_room_shared::models::room::RoomModel;
-use voice_room_server::stats::FakeStatsService;
 
 const TEST_JWT_SECRET: &str = "test-jwt-secret";
 const BCRYPT_COST: u32 = 4;
@@ -99,8 +102,8 @@ fn build_ws_deps(
     registry: &Arc<ConnectionRegistry>,
 ) -> JoinRoomDeps {
     use voice_room_server::infrastructure::redis_store::FakeCodeStore;
-    use voice_room_server::modules::auth::repository::FakeUserRepository;
     use voice_room_server::infrastructure::third_party::sms::MockSmsProvider;
+    use voice_room_server::modules::auth::repository::FakeUserRepository;
 
     let auth_service = Arc::new(AuthService::new(
         Arc::new(FakeUserRepository::default()),
@@ -183,10 +186,21 @@ async fn pr26_02_valid_token_joins_password_room() {
         "access_token": token,
     }));
 
-    let response = handle_join_room(payload, Some("msg-pr02".to_string()), conn_id, user_id, &deps).await;
+    let response = handle_join_room(
+        payload,
+        Some("msg-pr02".to_string()),
+        conn_id,
+        user_id,
+        &deps,
+    )
+    .await;
     let json: serde_json::Value = serde_json::from_str(&response).unwrap();
 
-    assert_eq!(json["code"], 0, "PR26-02: 有效 token 应成功进入, got {}", json["code"]);
+    assert_eq!(
+        json["code"], 0,
+        "PR26-02: 有效 token 应成功进入, got {}",
+        json["code"]
+    );
     assert_eq!(json["type"], "JoinRoomResult");
 }
 
@@ -205,12 +219,20 @@ async fn pr26_03_no_token_password_room_returns_40104() {
     // 不携带 access_token
     let payload = Some(serde_json::json!({ "room_id": room_id.to_string() }));
 
-    let response = handle_join_room(payload, Some("msg-pr03".to_string()), conn_id, user_id, &deps).await;
+    let response = handle_join_room(
+        payload,
+        Some("msg-pr03".to_string()),
+        conn_id,
+        user_id,
+        &deps,
+    )
+    .await;
     let json: serde_json::Value = serde_json::from_str(&response).unwrap();
 
     assert_eq!(
         json["code"], 40104,
-        "PR26-03: 无 token 进密码房应返回 40104, got {}", json["code"]
+        "PR26-03: 无 token 进密码房应返回 40104, got {}",
+        json["code"]
     );
 }
 
@@ -236,12 +258,13 @@ async fn pr26_04_expired_token_returns_40105() {
         exp: now_secs - 10,
         iss: "voiceroom-room-access".to_string(),
     };
-    use jsonwebtoken::{encode, Header, EncodingKey};
+    use jsonwebtoken::{encode, EncodingKey, Header};
     let expired_token = encode(
         &Header::default(),
         &claims,
         &EncodingKey::from_secret(TEST_JWT_SECRET.as_bytes()),
-    ).expect("encode expired token");
+    )
+    .expect("encode expired token");
 
     let (conn_id, _rx) = register_connection(&registry, user_id);
 
@@ -250,12 +273,20 @@ async fn pr26_04_expired_token_returns_40105() {
         "access_token": expired_token,
     }));
 
-    let response = handle_join_room(payload, Some("msg-pr04".to_string()), conn_id, user_id, &deps).await;
+    let response = handle_join_room(
+        payload,
+        Some("msg-pr04".to_string()),
+        conn_id,
+        user_id,
+        &deps,
+    )
+    .await;
     let json: serde_json::Value = serde_json::from_str(&response).unwrap();
 
     assert_eq!(
         json["code"], 40105,
-        "PR26-04: 过期 token 应返回 40105, got {}", json["code"]
+        "PR26-04: 过期 token 应返回 40105, got {}",
+        json["code"]
     );
 }
 
@@ -375,17 +406,45 @@ async fn pr26_09_remaining_attempts_decrements() {
     let room = make_password_room(room_id, "123456");
     let redis = FakeRoomPasswordRedis::default();
 
-    let r1 = verify_password(&room, "000000", user_id, &redis, TEST_JWT_SECRET).await.unwrap();
-    assert_eq!(r1, VerifyPasswordResult::WrongPassword { remaining_attempts: 4 });
+    let r1 = verify_password(&room, "000000", user_id, &redis, TEST_JWT_SECRET)
+        .await
+        .unwrap();
+    assert_eq!(
+        r1,
+        VerifyPasswordResult::WrongPassword {
+            remaining_attempts: 4
+        }
+    );
 
-    let r2 = verify_password(&room, "000000", user_id, &redis, TEST_JWT_SECRET).await.unwrap();
-    assert_eq!(r2, VerifyPasswordResult::WrongPassword { remaining_attempts: 3 });
+    let r2 = verify_password(&room, "000000", user_id, &redis, TEST_JWT_SECRET)
+        .await
+        .unwrap();
+    assert_eq!(
+        r2,
+        VerifyPasswordResult::WrongPassword {
+            remaining_attempts: 3
+        }
+    );
 
-    let r3 = verify_password(&room, "000000", user_id, &redis, TEST_JWT_SECRET).await.unwrap();
-    assert_eq!(r3, VerifyPasswordResult::WrongPassword { remaining_attempts: 2 });
+    let r3 = verify_password(&room, "000000", user_id, &redis, TEST_JWT_SECRET)
+        .await
+        .unwrap();
+    assert_eq!(
+        r3,
+        VerifyPasswordResult::WrongPassword {
+            remaining_attempts: 2
+        }
+    );
 
-    let r4 = verify_password(&room, "000000", user_id, &redis, TEST_JWT_SECRET).await.unwrap();
-    assert_eq!(r4, VerifyPasswordResult::WrongPassword { remaining_attempts: 1 });
+    let r4 = verify_password(&room, "000000", user_id, &redis, TEST_JWT_SECRET)
+        .await
+        .unwrap();
+    assert_eq!(
+        r4,
+        VerifyPasswordResult::WrongPassword {
+            remaining_attempts: 1
+        }
+    );
 }
 
 // ─── PR26-10: 并发 5 次错误仅创建一次锁定 key ────────────────────────────────
@@ -410,7 +469,14 @@ async fn pr26_10_concurrent_failures_only_one_lock_key() {
         let room_clone = Arc::clone(&room);
         let redis_clone = Arc::clone(&redis);
         let h = tokio::spawn(async move {
-            verify_password(&*room_clone, "wrong", user_id, &*redis_clone, TEST_JWT_SECRET).await
+            verify_password(
+                &*room_clone,
+                "wrong",
+                user_id,
+                &*redis_clone,
+                TEST_JWT_SECRET,
+            )
+            .await
         });
         handles.push(h);
     }
@@ -440,16 +506,25 @@ async fn pr26_11_correct_password_clears_fail_key() {
     }
 
     let fail_key = format!("pwd_fail:{user_id}:{room_id}");
-    assert!(redis.key_exists(&fail_key), "PR26-11: 失败 3 次后 fail key 应存在");
+    assert!(
+        redis.key_exists(&fail_key),
+        "PR26-11: 失败 3 次后 fail key 应存在"
+    );
 
     // 正确密码
     let result = verify_password(&room, "123456", user_id, &redis, TEST_JWT_SECRET)
         .await
         .unwrap();
-    assert!(matches!(result, VerifyPasswordResult::Token(_)), "PR26-11: 正确密码应返回 Token");
+    assert!(
+        matches!(result, VerifyPasswordResult::Token(_)),
+        "PR26-11: 正确密码应返回 Token"
+    );
 
     // fail key 应被清除
-    assert!(!redis.key_exists(&fail_key), "PR26-11: 成功后 fail key 应被清除");
+    assert!(
+        !redis.key_exists(&fail_key),
+        "PR26-11: 成功后 fail key 应被清除"
+    );
 }
 
 // ─── PR26-12: B 房间 token 不能进入 A 房间（room_id 校验）───────────────────
@@ -476,11 +551,19 @@ async fn pr26_12_token_for_other_room_returns_40106() {
         "access_token": token_for_b,
     }));
 
-    let response = handle_join_room(payload, Some("msg-pr12".to_string()), conn_id, user_id, &deps).await;
+    let response = handle_join_room(
+        payload,
+        Some("msg-pr12".to_string()),
+        conn_id,
+        user_id,
+        &deps,
+    )
+    .await;
     let json: serde_json::Value = serde_json::from_str(&response).unwrap();
 
     assert_eq!(
         json["code"], 40106,
-        "PR26-12: B 房间 token 不能进入 A 房间，应返回 40106, got {}", json["code"]
+        "PR26-12: B 房间 token 不能进入 A 房间，应返回 40106, got {}",
+        json["code"]
     );
 }

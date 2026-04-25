@@ -8,11 +8,7 @@ use voice_room_shared::jwt::token::{decode_token, AdminClaims};
 
 use crate::{
     bootstrap::AppState,
-    common::{
-        auth::AdminAuthContext,
-        error::AppError,
-        RequestContext,
-    },
+    common::{auth::AdminAuthContext, error::AppError, RequestContext},
 };
 
 /// Axum `FromRequestParts` 实现：从 `Authorization: Bearer <token>` 头提取并校验
@@ -56,8 +52,8 @@ pub fn extract_admin_auth_context(
         .strip_prefix("Bearer ")
         .ok_or(AppError::Unauthorized)?;
 
-    let claims: AdminClaims =
-        decode_token(token, jwt_secret.as_bytes(), "voiceroom-admin").map_err(|e| {
+    let claims: AdminClaims = decode_token(token, jwt_secret.as_bytes(), "voiceroom-admin")
+        .map_err(|e| {
             if e.kind() == &ErrorKind::ExpiredSignature {
                 AppError::TokenExpired
             } else {

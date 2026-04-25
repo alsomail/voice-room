@@ -20,8 +20,8 @@ use crate::{
 
 use super::{
     dto::{
-        CreateGiftRequest, GiftResponse, ListGiftsQuery, ListGiftsResponse,
-        UpdateGiftRequest, UploadGiftFileResponse,
+        CreateGiftRequest, GiftResponse, ListGiftsQuery, ListGiftsResponse, UpdateGiftRequest,
+        UploadGiftFileResponse,
     },
     service::{validate_file_upload, GiftService},
 };
@@ -50,7 +50,12 @@ pub async fn list_gifts_handler(
         Ok((total, gifts)) => {
             let items: Vec<GiftResponse> = gifts.into_iter().map(GiftResponse::from).collect();
             ApiResponse::ok(
-                ListGiftsResponse { total, page, size, items },
+                ListGiftsResponse {
+                    total,
+                    page,
+                    size,
+                    items,
+                },
                 req_ctx.request_id(),
             )
             .into_response()
@@ -224,9 +229,9 @@ pub async fn upload_gift_file_handler(
             Ok(None) => break,
             Err(e) => {
                 return err_response(
-                    crate::common::error::AppError::ValidationError(
-                        format!("multipart 解析失败: {e}"),
-                    ),
+                    crate::common::error::AppError::ValidationError(format!(
+                        "multipart 解析失败: {e}"
+                    )),
                     req_ctx.request_id(),
                 );
             }
@@ -235,17 +240,15 @@ pub async fn upload_gift_file_handler(
         let name = field.name().unwrap_or("").to_string();
         match name.as_str() {
             "file" => {
-                file_content_type = field
-                    .content_type()
-                    .map(|ct| ct.to_string());
+                file_content_type = field.content_type().map(|ct| ct.to_string());
                 file_name = field.file_name().map(|n| n.to_string());
                 match field.bytes().await {
                     Ok(bytes) => file_data = Some(bytes.to_vec()),
                     Err(e) => {
                         return err_response(
-                            crate::common::error::AppError::ValidationError(
-                                format!("读取文件失败: {e}"),
-                            ),
+                            crate::common::error::AppError::ValidationError(format!(
+                                "读取文件失败: {e}"
+                            )),
                             req_ctx.request_id(),
                         );
                     }

@@ -1,11 +1,13 @@
 package com.voice.room.android.feature.room
 
+import com.voice.room.android.R
 import com.voice.room.android.data.local.FakeKickCooldownStore
 import com.voice.room.android.data.local.InMemoryKickCooldownStore
 import com.voice.room.android.data.room.FakeRoomRepository
 import com.voice.room.android.core.ws.FakeWebSocketClient
 import com.voice.room.android.data.room.MicSlotData
 import com.voice.room.android.data.room.RoomSnapshot
+import com.voice.room.android.util.UiText
 import com.voice.room.android.utils.FakeClock
 import com.voice.room.android.utils.MainDispatcherRule
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -63,10 +65,17 @@ class HallViewModelKickCooldownTest {
                 "Should emit ShowToast when cooldown active",
                 toastEvents.isNotEmpty()
             )
-            // Toast 消息应包含剩余秒数提示
+            // Toast 消息应使用国际化资源（缺陷 #4）
+            val text = toastEvents.first().text
+            assertTrue("Toast text should be UiText.StringResource", text is UiText.StringResource)
+            assertEquals(
+                "Toast should reference R.string.hall_kick_cooldown_seconds",
+                R.string.hall_kick_cooldown_seconds,
+                (text as UiText.StringResource).resId,
+            )
             assertTrue(
-                "Toast message should mention remaining seconds",
-                toastEvents.first().message.contains("秒")
+                "Toast args should contain remaining seconds",
+                text.args.isNotEmpty()
             )
             // 不应该有 NavigateToRoom 事件
             assertFalse(

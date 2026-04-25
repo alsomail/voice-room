@@ -1,7 +1,4 @@
-use std::{
-    collections::HashMap,
-    sync::Mutex,
-};
+use std::{collections::HashMap, sync::Mutex};
 
 use async_trait::async_trait;
 use redis::{aio::MultiplexedConnection, AsyncCommands, Client as RedisClient, Script};
@@ -182,7 +179,8 @@ impl SmsCodeStore for RedisCodeStore {
     async fn is_in_cooldown(&self, phone: &str) -> Result<bool, AppError> {
         let mut conn = self.conn.clone();
         let key = format!("{SMS_COOLDOWN_KEY}{phone}");
-        conn.exists(&key).await
+        conn.exists(&key)
+            .await
             .map_err(|e| AppError::RedisError(e.to_string()))
     }
 
@@ -242,7 +240,10 @@ impl SmsCodeStore for FakeCodeStore {
 
     async fn verify_and_consume(&self, phone: &str, input: &str) -> Result<(), AppError> {
         let mut inner = self.inner.lock().unwrap();
-        let stored = inner.codes.get(phone).cloned()
+        let stored = inner
+            .codes
+            .get(phone)
+            .cloned()
             .ok_or(AppError::VerificationCodeExpired)?;
         let attempts = inner.attempts.entry(phone.to_string()).or_insert(0);
         if *attempts >= MAX_ATTEMPTS {
@@ -259,12 +260,25 @@ impl SmsCodeStore for FakeCodeStore {
     }
 
     async fn is_in_cooldown(&self, phone: &str) -> Result<bool, AppError> {
-        Ok(*self.inner.lock().unwrap().cooldowns.get(phone).unwrap_or(&false))
+        Ok(*self
+            .inner
+            .lock()
+            .unwrap()
+            .cooldowns
+            .get(phone)
+            .unwrap_or(&false))
     }
 
     async fn daily_count(&self, phone: &str, today: &str) -> Result<u64, AppError> {
         let key = format!("{phone}:{today}");
-        Ok(self.inner.lock().unwrap().daily.get(&key).copied().unwrap_or(0))
+        Ok(self
+            .inner
+            .lock()
+            .unwrap()
+            .daily
+            .get(&key)
+            .copied()
+            .unwrap_or(0))
     }
 
     async fn revoke_code(&self, phone: &str) -> Result<(), AppError> {
@@ -286,7 +300,11 @@ impl FakeCodeStore {
 
     /// 测试辅助：设置冷却状态
     pub fn set_cooldown(&self, phone: &str, value: bool) {
-        self.inner.lock().unwrap().cooldowns.insert(phone.to_string(), value);
+        self.inner
+            .lock()
+            .unwrap()
+            .cooldowns
+            .insert(phone.to_string(), value);
     }
 
     /// 测试辅助：设置当日次数
@@ -311,10 +329,16 @@ mod tests {
         store.seed_code("+8613800138000", "123456");
 
         // 第一次：成功消费
-        store.verify_and_consume("+8613800138000", "123456").await.unwrap();
+        store
+            .verify_and_consume("+8613800138000", "123456")
+            .await
+            .unwrap();
 
         // 第二次：同一 OTP 必须拒绝（验证原子性契约）
-        let err = store.verify_and_consume("+8613800138000", "123456").await.unwrap_err();
+        let err = store
+            .verify_and_consume("+8613800138000", "123456")
+            .await
+            .unwrap_err();
         assert!(
             matches!(err, AppError::VerificationCodeExpired),
             "second call with same code must return Expired, got: {err:?}"
@@ -328,14 +352,23 @@ mod tests {
         store.seed_code("+8613800138001", "999999");
 
         // 先错后对：错误的不消耗
-        let err = store.verify_and_consume("+8613800138001", "000000").await.unwrap_err();
+        let err = store
+            .verify_and_consume("+8613800138001", "000000")
+            .await
+            .unwrap_err();
         assert!(matches!(err, AppError::InvalidVerificationCode));
 
         // 正确的可以消耗
-        store.verify_and_consume("+8613800138001", "999999").await.unwrap();
+        store
+            .verify_and_consume("+8613800138001", "999999")
+            .await
+            .unwrap();
 
         // 此后不可再用
-        let err2 = store.verify_and_consume("+8613800138001", "999999").await.unwrap_err();
+        let err2 = store
+            .verify_and_consume("+8613800138001", "999999")
+            .await
+            .unwrap_err();
         assert!(matches!(err2, AppError::VerificationCodeExpired));
     }
 
@@ -370,12 +403,22 @@ mod tests {
 
         // code 已撤销
         let err = store.verify_and_consume(phone, "999999").await.unwrap_err();
-        assert!(matches!(err, AppError::VerificationCodeExpired), "code must be gone after revoke");
+        assert!(
+            matches!(err, AppError::VerificationCodeExpired),
+            "code must be gone after revoke"
+        );
 
         // cooldown 已清除
-        assert!(!store.is_in_cooldown(phone).await.unwrap(), "cooldown must be cleared after revoke");
+        assert!(
+            !store.is_in_cooldown(phone).await.unwrap(),
+            "cooldown must be cleared after revoke"
+        );
 
         // daily count 保留（防滥用）
-        assert_eq!(store.daily_count(phone, today).await.unwrap(), 1, "daily count must remain after revoke");
+        assert_eq!(
+            store.daily_count(phone, today).await.unwrap(),
+            1,
+            "daily count must remain after revoke"
+        );
     }
 }

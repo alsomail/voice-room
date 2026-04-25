@@ -131,7 +131,10 @@ async fn ev01_migration_idempotent_with_first_partition() {
     .fetch_one(&pool)
     .await
     .expect("table re-check");
-    assert!(table_still_exists, "events table should still exist after idempotent re-check");
+    assert!(
+        table_still_exists,
+        "events table should still exist after idempotent re-check"
+    );
 }
 
 // ─── EV02: 100 events 批量写入 <200ms ───────────────────────────────────────────
@@ -166,11 +169,17 @@ async fn ev02_100_events_batch_write_under_200ms() {
         .collect();
 
     let start = Instant::now();
-    let result = writer.persist(batch, None).await.expect("persist should succeed");
+    let result = writer
+        .persist(batch, None)
+        .await
+        .expect("persist should succeed");
     let elapsed = start.elapsed();
 
     assert_eq!(result.received, 100, "all 100 events should be received");
-    assert!(result.rejected_indices.is_empty(), "no events should be rejected");
+    assert!(
+        result.rejected_indices.is_empty(),
+        "no events should be rejected"
+    );
     assert!(
         elapsed < Duration::from_millis(200),
         "batch write of 100 events should complete in <200ms, took {:?}",
@@ -231,12 +240,11 @@ async fn ev03_101_events_returns_rejected_index_100() {
     assert_eq!(rejected, vec![100usize], "index 100 should be rejected");
 
     // 验证前 100 条已写入数据库
-    let count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM events WHERE event_name LIKE 'ev03_event_%'",
-    )
-    .fetch_one(&pool)
-    .await
-    .expect("count query");
+    let count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM events WHERE event_name LIKE 'ev03_event_%'")
+            .fetch_one(&pool)
+            .await
+            .expect("count query");
     assert_eq!(count, 100, "exactly 100 events should be in DB");
 }
 
@@ -300,7 +308,10 @@ async fn ev04c_db_stores_truncated_properties() {
         network_type: None,
     }];
 
-    let result = writer.persist(batch, None).await.expect("persist should succeed");
+    let result = writer
+        .persist(batch, None)
+        .await
+        .expect("persist should succeed");
     assert_eq!(result.received, 1);
 
     // 查询 DB 验证 properties 已被截断
@@ -383,7 +394,10 @@ async fn ev06_empty_device_id_returns_40002() {
 
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     let json = body_json(response).await;
-    assert_eq!(json["code"], 40002, "missing device_id should return code 40002");
+    assert_eq!(
+        json["code"], 40002,
+        "missing device_id should return code 40002"
+    );
 }
 
 /// EV06b: device_id 字段缺失返回 40002
@@ -414,7 +428,10 @@ async fn ev06b_missing_device_id_field_returns_40002() {
 
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     let json = body_json(response).await;
-    assert_eq!(json["code"], 40002, "missing device_id field should return code 40002");
+    assert_eq!(
+        json["code"], 40002,
+        "missing device_id field should return code 40002"
+    );
 }
 
 // ─── EV07: JWT user_id 覆盖 ─────────────────────────────────────────────────────
@@ -429,11 +446,19 @@ fn ev07_jwt_override_logic_unit_test() {
 
     // JWT 存在时应覆盖 request user_id
     let resolved = resolve_user_id(Some(req_uid), Some(jwt_uid));
-    assert_eq!(resolved, Some(jwt_uid), "JWT user_id should override request user_id");
+    assert_eq!(
+        resolved,
+        Some(jwt_uid),
+        "JWT user_id should override request user_id"
+    );
 
     // JWT 不存在时使用 request user_id
     let resolved_no_jwt = resolve_user_id(Some(req_uid), None);
-    assert_eq!(resolved_no_jwt, Some(req_uid), "without JWT, request user_id should be used");
+    assert_eq!(
+        resolved_no_jwt,
+        Some(req_uid),
+        "without JWT, request user_id should be used"
+    );
 
     // 两者都为 None
     let resolved_both_none = resolve_user_id(None, None);
@@ -533,7 +558,10 @@ async fn ev08_partition_scheduler_creates_tomorrow_partition() {
     .await
     .expect("partition existence check");
 
-    assert!(exists, "partition {partition_name} should exist after creation");
+    assert!(
+        exists,
+        "partition {partition_name} should exist after creation"
+    );
 }
 
 // ─── EV09: scheduler 补偿创建 ───────────────────────────────────────────────────
@@ -634,13 +662,11 @@ async fn ev10_concurrent_writes_no_data_loss() {
     assert_eq!(total_received, 1000, "total received should be 1000");
 
     // 验证 DB 中记录数
-    let db_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM events WHERE session_id = $1",
-    )
-    .bind(&test_session)
-    .fetch_one(&pool)
-    .await
-    .expect("count query");
+    let db_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM events WHERE session_id = $1")
+        .bind(&test_session)
+        .fetch_one(&pool)
+        .await
+        .expect("count query");
 
     assert_eq!(db_count, 1000, "DB should have exactly 1000 events");
 }

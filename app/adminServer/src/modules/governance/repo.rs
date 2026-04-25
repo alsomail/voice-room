@@ -255,7 +255,9 @@ impl GovernanceRepo for PgGovernanceRepo {
         limit: i64,
         offset: i64,
     ) -> Result<(i64, Vec<KickLogItem>), AppError> {
-        let from = filter.from.unwrap_or_else(|| Utc::now() - chrono::Duration::days(7));
+        let from = filter
+            .from
+            .unwrap_or_else(|| Utc::now() - chrono::Duration::days(7));
         let to = filter.to.unwrap_or_else(Utc::now);
 
         let count: (i64,) = sqlx::query_as(
@@ -323,7 +325,9 @@ impl GovernanceRepo for PgGovernanceRepo {
         limit: i64,
         offset: i64,
     ) -> Result<(i64, Vec<MuteLogItem>), AppError> {
-        let from = filter.from.unwrap_or_else(|| Utc::now() - chrono::Duration::days(7));
+        let from = filter
+            .from
+            .unwrap_or_else(|| Utc::now() - chrono::Duration::days(7));
         let to = filter.to.unwrap_or_else(Utc::now);
 
         let count: (i64,) = sqlx::query_as(

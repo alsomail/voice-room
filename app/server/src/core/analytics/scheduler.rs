@@ -34,7 +34,10 @@ const RIYADH_OFFSET_HOURS: i64 = 3;
 ///
 /// # 分区范围
 /// `[date 00:00:00+03, (date+1) 00:00:00+03)`
-pub async fn create_partition_if_not_exists(pool: &PgPool, date: NaiveDate) -> Result<(), AppError> {
+pub async fn create_partition_if_not_exists(
+    pool: &PgPool,
+    date: NaiveDate,
+) -> Result<(), AppError> {
     let partition_name = format!("events_{}", date.format("%Y%m%d"));
 
     // 检查分区是否已存在（使用参数化查询，安全）

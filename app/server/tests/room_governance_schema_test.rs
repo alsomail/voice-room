@@ -253,9 +253,9 @@ fn s24_extra_mute_records_indexes_exist() {
 // ─────────────────────────────────────────────────────────────────────────────
 #[cfg(test)]
 mod room_model_governance_fields {
-    use voice_room_shared::models::RoomModel;
     use chrono::Utc;
     use uuid::Uuid;
+    use voice_room_shared::models::RoomModel;
 
     fn make_governance_room() -> RoomModel {
         RoomModel {
@@ -317,7 +317,7 @@ mod room_model_governance_fields {
             created_at: Utc::now(),
             updated_at: Utc::now(),
             deleted_at: None,
-            cover_url: String::new(),    // legacy: empty string
+            cover_url: String::new(),     // legacy: empty string
             category: "chat".to_string(), // legacy: default category
             announcement: None,
             admin_user_id: None,
@@ -343,9 +343,9 @@ mod room_model_governance_fields {
 // ─────────────────────────────────────────────────────────────────────────────
 #[cfg(test)]
 mod governance_models {
-    use voice_room_shared::models::governance::{RoomKickRecord, RoomMuteRecord, MuteType};
     use chrono::Utc;
     use uuid::Uuid;
+    use voice_room_shared::models::governance::{MuteType, RoomKickRecord, RoomMuteRecord};
 
     #[test]
     fn test_kick_record_construct_and_clone() {

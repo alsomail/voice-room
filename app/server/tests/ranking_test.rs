@@ -17,18 +17,17 @@
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use axum::{body::Body, http::{Request, StatusCode}};
+use axum::{
+    body::Body,
+    http::{Request, StatusCode},
+};
 use sqlx::{postgres::PgPoolOptions, PgPool};
 use tower::ServiceExt;
 use uuid::Uuid;
 
 use voice_room_server::{
     bootstrap::{build_app, AppState},
-    modules::ranking::{
-        service::RankingService,
-        scheduler::do_archive_day,
-        RankingType,
-    },
+    modules::ranking::{scheduler::do_archive_day, service::RankingService, RankingType},
 };
 
 // ─── 辅助函数 ──────────────────────────────────────────────────────────────────
@@ -59,15 +58,13 @@ async fn test_redis_conn(url: &str) -> Option<redis::aio::MultiplexedConnection>
 async fn insert_test_user(pool: &PgPool, nickname: &str) -> Uuid {
     let user_id = Uuid::new_v4();
     let phone = format!("+861{}", &user_id.to_string().replace('-', "")[..10]);
-    sqlx::query(
-        "INSERT INTO users (id, phone, nickname) VALUES ($1, $2, $3)",
-    )
-    .bind(user_id)
-    .bind(&phone)
-    .bind(nickname)
-    .execute(pool)
-    .await
-    .expect("insert_test_user");
+    sqlx::query("INSERT INTO users (id, phone, nickname) VALUES ($1, $2, $3)")
+        .bind(user_id)
+        .bind(&phone)
+        .bind(nickname)
+        .execute(pool)
+        .await
+        .expect("insert_test_user");
     user_id
 }
 
@@ -115,7 +112,10 @@ async fn r01_top_n_sorted_by_score_descending() {
         eprintln!("[SKIP] R01: DATABASE_URL or REDIS_URL not set");
         return;
     };
-    sqlx::migrate!("./migrations").run(&pool).await.expect("migrate");
+    sqlx::migrate!("./migrations")
+        .run(&pool)
+        .await
+        .expect("migrate");
 
     let mut conn = test_redis_conn(&redis_url).await.expect("redis connection");
 
@@ -150,10 +150,17 @@ async fn r01_top_n_sorted_by_score_descending() {
     }
     // 验证排名从 1 开始连续递增
     for (i, item) in result.items.iter().enumerate() {
-        assert_eq!(item.rank, (i + 1) as u32, "R01: rank should be 1-based consecutive");
+        assert_eq!(
+            item.rank,
+            (i + 1) as u32,
+            "R01: rank should be 1-based consecutive"
+        );
     }
     // 验证 Top 1 的分数最高（1000）
-    assert_eq!(result.items[0].score, 1000, "R01: top1 score should be 1000");
+    assert_eq!(
+        result.items[0].score, 1000,
+        "R01: top1 score should be 1000"
+    );
 
     // 清理
     del_key(&mut conn, &key).await;
@@ -168,7 +175,10 @@ async fn r02_viewer_not_in_list_rank_null() {
         eprintln!("[SKIP] R02: DATABASE_URL or REDIS_URL not set");
         return;
     };
-    sqlx::migrate!("./migrations").run(&pool).await.expect("migrate");
+    sqlx::migrate!("./migrations")
+        .run(&pool)
+        .await
+        .expect("migrate");
 
     let mut conn = test_redis_conn(&redis_url).await.expect("redis connection");
     let test_suffix = Uuid::new_v4().to_string().replace('-', "");
@@ -191,8 +201,14 @@ async fn r02_viewer_not_in_list_rank_null() {
         .await
         .expect("R02: top_by_key should succeed");
 
-    assert!(result.me.rank.is_none(), "R02: viewer not on list should have me.rank=null");
-    assert_eq!(result.me.score, 0, "R02: viewer not on list should have me.score=0");
+    assert!(
+        result.me.rank.is_none(),
+        "R02: viewer not on list should have me.rank=null"
+    );
+    assert_eq!(
+        result.me.score, 0,
+        "R02: viewer not on list should have me.score=0"
+    );
 
     del_key(&mut conn, &key).await;
 }
@@ -206,7 +222,10 @@ async fn r03_viewer_rank_42() {
         eprintln!("[SKIP] R03: DATABASE_URL or REDIS_URL not set");
         return;
     };
-    sqlx::migrate!("./migrations").run(&pool).await.expect("migrate");
+    sqlx::migrate!("./migrations")
+        .run(&pool)
+        .await
+        .expect("migrate");
 
     let mut conn = test_redis_conn(&redis_url).await.expect("redis connection");
     let test_suffix = Uuid::new_v4().to_string().replace('-', "");
@@ -237,8 +256,15 @@ async fn r03_viewer_rank_42() {
         .expect("R03: top_by_key should succeed");
 
     assert!(result.me.rank.is_some(), "R03: viewer should have a rank");
-    assert_eq!(result.me.rank.unwrap(), 42, "R03: viewer should be at rank 42");
-    assert_eq!(result.me.score, viewer_score as i64, "R03: viewer score should match");
+    assert_eq!(
+        result.me.rank.unwrap(),
+        42,
+        "R03: viewer should be at rank 42"
+    );
+    assert_eq!(
+        result.me.score, viewer_score as i64,
+        "R03: viewer score should match"
+    );
 
     del_key(&mut conn, &key).await;
 }
@@ -252,7 +278,10 @@ async fn r04_top3_medals() {
         eprintln!("[SKIP] R04: DATABASE_URL or REDIS_URL not set");
         return;
     };
-    sqlx::migrate!("./migrations").run(&pool).await.expect("migrate");
+    sqlx::migrate!("./migrations")
+        .run(&pool)
+        .await
+        .expect("migrate");
 
     let mut conn = test_redis_conn(&redis_url).await.expect("redis connection");
     let test_suffix = Uuid::new_v4().to_string().replace('-', "");
@@ -272,21 +301,27 @@ async fn r04_top3_medals() {
         .await
         .expect("R04: top_by_key should succeed");
 
-    assert!(result.items.len() >= 4, "R04: should return at least 4 items");
+    assert!(
+        result.items.len() >= 4,
+        "R04: should return at least 4 items"
+    );
 
     // Top1 = gold
     assert_eq!(
-        result.items[0].medal.as_deref(), Some("gold"),
+        result.items[0].medal.as_deref(),
+        Some("gold"),
         "R04: rank1 should have gold medal"
     );
     // Top2 = silver
     assert_eq!(
-        result.items[1].medal.as_deref(), Some("silver"),
+        result.items[1].medal.as_deref(),
+        Some("silver"),
         "R04: rank2 should have silver medal"
     );
     // Top3 = bronze
     assert_eq!(
-        result.items[2].medal.as_deref(), Some("bronze"),
+        result.items[2].medal.as_deref(),
+        Some("bronze"),
         "R04: rank3 should have bronze medal"
     );
     // Top4 = null
@@ -402,7 +437,11 @@ async fn r07_archive_creates_ranking_archive_key() {
     {
         use redis::AsyncCommands;
         let exists: bool = conn.exists(&archive_key).await.expect("R07: exists check");
-        assert!(exists, "R07: archive key {} should exist after archive", archive_key);
+        assert!(
+            exists,
+            "R07: archive key {} should exist after archive",
+            archive_key
+        );
 
         // 验证 archive key 中有数据
         let count: i64 = conn.zcard(&archive_key).await.expect("R07: zcard");
@@ -423,7 +462,10 @@ async fn r08_response_time_under_100ms() {
         eprintln!("[SKIP] R08: DATABASE_URL or REDIS_URL not set");
         return;
     };
-    sqlx::migrate!("./migrations").run(&pool).await.expect("migrate");
+    sqlx::migrate!("./migrations")
+        .run(&pool)
+        .await
+        .expect("migrate");
 
     let mut conn = test_redis_conn(&redis_url).await.expect("redis connection");
     let test_suffix = Uuid::new_v4().to_string().replace('-', "");
@@ -492,8 +534,14 @@ async fn r05b_missing_type_returns_40003() {
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::BAD_REQUEST, "R05b: missing type should return 400");
-    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    assert_eq!(
+        response.status(),
+        StatusCode::BAD_REQUEST,
+        "R05b: missing type should return 400"
+    );
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
     assert_eq!(json["code"], 40003, "R05b: error code should be 40003");
 }
@@ -512,7 +560,11 @@ async fn r_auth_required() {
         )
         .await
         .unwrap();
-    assert_eq!(response.status(), StatusCode::UNAUTHORIZED, "ranking API should require JWT");
+    assert_eq!(
+        response.status(),
+        StatusCode::UNAUTHORIZED,
+        "ranking API should require JWT"
+    );
 }
 
 /// 补充测试：limit=0 → 40003
@@ -534,8 +586,14 @@ async fn r06b_limit_zero_returns_40003() {
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::BAD_REQUEST, "R06b: limit=0 should return 400");
-    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    assert_eq!(
+        response.status(),
+        StatusCode::BAD_REQUEST,
+        "R06b: limit=0 should return 400"
+    );
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
     assert_eq!(json["code"], 40003, "R06b: error code should be 40003");
 }

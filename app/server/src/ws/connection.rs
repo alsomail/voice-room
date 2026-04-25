@@ -19,19 +19,19 @@ use uuid::Uuid;
 use super::registry::{ConnectionHandle, ConnectionRegistry};
 use crate::core::analytics::writer::EventWriterPort;
 use crate::modules::auth::service::AuthService;
-use crate::modules::events::ws::{ReportEventDeps, handle_report_event};
-use crate::modules::gift::send_gift::{SendGiftDeps, SendGiftServicePort, handle_send_gift};
+use crate::modules::events::ws::{handle_report_event, ReportEventDeps};
+use crate::modules::gift::send_gift::{handle_send_gift, SendGiftDeps, SendGiftServicePort};
 use crate::modules::governance::force_mic::{
-    ForceLeaveMicDeps, ForceTakeMicDeps, handle_force_leave_mic, handle_force_take_mic,
+    handle_force_leave_mic, handle_force_take_mic, ForceLeaveMicDeps, ForceTakeMicDeps,
 };
-use crate::modules::governance::kick::{KickAuditDb, KickDeps, KickRedis, handle_kick};
-use crate::modules::governance::mute::{MuteDb, MuteDeps, MuteRedis, handle_mute, handle_unmute};
+use crate::modules::governance::kick::{handle_kick, KickAuditDb, KickDeps, KickRedis};
+use crate::modules::governance::mute::{handle_mute, handle_unmute, MuteDb, MuteDeps, MuteRedis};
 use crate::modules::governance::transfer::{
-    TransferAdminDeps, TransferAdminRepo, handle_transfer_admin,
+    handle_transfer_admin, TransferAdminDeps, TransferAdminRepo,
 };
 use crate::modules::room::service::RoomService;
-use crate::room::handler::{JoinRoomDeps, LeaveRoomDeps};
 use crate::room::handler::do_leave_room;
+use crate::room::handler::{JoinRoomDeps, LeaveRoomDeps};
 use crate::room::RoomManager;
 use crate::stats::StatsPort;
 
@@ -65,10 +65,7 @@ pub struct OutgoingMessage {
 ///
 /// - `"ping"` → 更新 last_heartbeat，回复 `"pong"`（msg_id 一致）
 /// - 其他类型 → 记录警告，返回 `None`（不 panic）
-pub fn handle_text_message(
-    text: &str,
-    last_heartbeat: &Arc<RwLock<Instant>>,
-) -> Option<String> {
+pub fn handle_text_message(text: &str, last_heartbeat: &Arc<RwLock<Instant>>) -> Option<String> {
     let msg: IncomingMessage = match serde_json::from_str(text) {
         Ok(m) => m,
         Err(e) => {
@@ -516,6 +513,9 @@ mod tests {
         let bad_json = r#"{not valid json"#;
 
         let result = handle_text_message(bad_json, &hb);
-        assert!(result.is_none(), "malformed JSON should return None, not panic");
+        assert!(
+            result.is_none(),
+            "malformed JSON should return None, not panic"
+        );
     }
 }

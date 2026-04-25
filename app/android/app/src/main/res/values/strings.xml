@@ -9,4 +9,20 @@
     <string name="status_label">Bootstrap Status</string>
     <string name="warning_label">Physical Device Warnings</string>
     <string name="no_warning">No warnings</string>
+
+    <!-- ─── 模块2：房间大厅 / 创建房间（缺陷 #4 i18n）──────────────────────────── -->
+    <!-- HallViewModel -->
+    <string name="hall_load_failed">Network error. Please try again.</string>
+    <string name="hall_room_not_found">Room not found.</string>
+    <string name="hall_password_unknown_error">Password verification failed. Please try again.</string>
+    <string name="hall_kick_cooldown_seconds">You can\'t enter this room yet. %1$d seconds remaining.</string>
+
+    <!-- CreateRoomViewModel -->
+    <string name="create_room_failed">Failed to create room. Please try again.</string>
+    <string name="create_room_title_empty">Room title cannot be empty.</string>
+    <string name="create_room_title_too_long">Room title is limited to %1$d characters (currently %2$d).</string>
+    <string name="create_room_password_required">Password rooms must set a password.</string>
+
+    <!-- 密码弹窗（PasswordInputDialog）— 把 seconds 转成 minutes 显示 -->
+    <string name="password_locked_minutes">Locked. Try again in %1$d minutes.</string>
 </resources>

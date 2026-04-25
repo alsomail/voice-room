@@ -94,13 +94,11 @@ impl WalletService {
         }
 
         // 更新用户余额
-        sqlx::query(
-            "UPDATE users SET diamond_balance = $1, updated_at = now() WHERE id = $2",
-        )
-        .bind(new_balance)
-        .bind(user_id)
-        .execute(&mut **txn)
-        .await?;
+        sqlx::query("UPDATE users SET diamond_balance = $1, updated_at = now() WHERE id = $2")
+            .bind(new_balance)
+            .bind(user_id)
+            .execute(&mut **txn)
+            .await?;
 
         // 写入流水记录
         sqlx::query(

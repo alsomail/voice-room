@@ -41,12 +41,7 @@ pub const KICK_COOLDOWN_SECS: i64 = 600;
 #[async_trait]
 pub trait KickRedis: Send + Sync {
     /// 设置踢出冷却 key：`kicked:{room_id}:{user_id}`，TTL = KICK_COOLDOWN_SECS。
-    async fn set_kicked(
-        &self,
-        room_id: Uuid,
-        user_id: Uuid,
-        reason: &str,
-    ) -> Result<(), AppError>;
+    async fn set_kicked(&self, room_id: Uuid, user_id: Uuid, reason: &str) -> Result<(), AppError>;
 
     /// 查询冷却剩余秒数；key 不存在或已过期则返回 None。
     async fn get_kick_remaining_sec(
@@ -59,12 +54,7 @@ pub trait KickRedis: Send + Sync {
 /// Blanket impl：允许 `Arc<T: KickRedis>` 直接用作 `&dyn KickRedis`
 #[async_trait]
 impl<T: KickRedis + ?Sized> KickRedis for Arc<T> {
-    async fn set_kicked(
-        &self,
-        room_id: Uuid,
-        user_id: Uuid,
-        reason: &str,
-    ) -> Result<(), AppError> {
+    async fn set_kicked(&self, room_id: Uuid, user_id: Uuid, reason: &str) -> Result<(), AppError> {
         (**self).set_kicked(room_id, user_id, reason).await
     }
 
@@ -158,12 +148,7 @@ impl FakeKickRedis {
 
 #[async_trait]
 impl KickRedis for FakeKickRedis {
-    async fn set_kicked(
-        &self,
-        room_id: Uuid,
-        user_id: Uuid,
-        reason: &str,
-    ) -> Result<(), AppError> {
+    async fn set_kicked(&self, room_id: Uuid, user_id: Uuid, reason: &str) -> Result<(), AppError> {
         let key = Self::kick_key(room_id, user_id);
         let mut guard = self.data.lock().unwrap();
         guard.insert(
@@ -270,12 +255,7 @@ impl RealKickRedis {
 
 #[async_trait]
 impl KickRedis for RealKickRedis {
-    async fn set_kicked(
-        &self,
-        room_id: Uuid,
-        user_id: Uuid,
-        reason: &str,
-    ) -> Result<(), AppError> {
+    async fn set_kicked(&self, room_id: Uuid, user_id: Uuid, reason: &str) -> Result<(), AppError> {
         use redis::AsyncCommands;
         let key = format!("kicked:{room_id}:{user_id}");
         let mut conn = self
@@ -513,11 +493,7 @@ pub async fn handle_kick(
     // ── 10. 获取操作者昵称（用于 UserKicked 广播）──────────────────────────────
     let operator_nickname = room_manager
         .get_room(room_id)
-        .and_then(|s| {
-            s.members
-                .get(&operator_user_id)
-                .map(|m| m.nickname.clone())
-        })
+        .and_then(|s| s.members.get(&operator_user_id).map(|m| m.nickname.clone()))
         .unwrap_or_else(|| "admin".to_string());
 
     // ── 11. 获取目标用户的全部 WS 连接 ────────────────────────────────────────

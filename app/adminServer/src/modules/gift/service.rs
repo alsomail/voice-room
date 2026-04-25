@@ -144,11 +144,7 @@ impl GiftService {
             admin_id: "system".to_string(),
             ts: chrono::Utc::now().timestamp(),
         };
-        if let Err(e) = self
-            .event_publisher
-            .publish("admin:events", event)
-            .await
-        {
+        if let Err(e) = self.event_publisher.publish("admin:events", event).await {
             tracing::warn!(error = %e, "gift service: failed to publish cache invalidate event");
         }
     }
@@ -173,9 +169,7 @@ pub fn validate_create_request(req: &CreateGiftRequest) -> Result<(), AppError> 
 
     // price >= 1 (GC09)
     if req.price < 1 {
-        return Err(AppError::ValidationError(
-            "price 必须 >= 1".to_string(),
-        ));
+        return Err(AppError::ValidationError("price 必须 >= 1".to_string()));
     }
 
     // tier ∈ [1,5] (GC10)
@@ -211,11 +205,11 @@ pub fn validate_create_request(req: &CreateGiftRequest) -> Result<(), AppError> 
     }
 
     // icon_url 必须指向受控目录或 CDN 白名单前缀（MEDIUM-1）
-    const ALLOWED_URL_PREFIXES: &[&str] = &[
-        "/uploads/gifts/",
-        "https://cdn.your-domain.com/",
-    ];
-    if !ALLOWED_URL_PREFIXES.iter().any(|p| req.icon_url.starts_with(p)) {
+    const ALLOWED_URL_PREFIXES: &[&str] = &["/uploads/gifts/", "https://cdn.your-domain.com/"];
+    if !ALLOWED_URL_PREFIXES
+        .iter()
+        .any(|p| req.icon_url.starts_with(p))
+    {
         return Err(AppError::ValidationError(
             "icon_url 必须指向受控目录 /uploads/gifts/ 或 CDN 白名单前缀".to_string(),
         ));
@@ -223,7 +217,10 @@ pub fn validate_create_request(req: &CreateGiftRequest) -> Result<(), AppError> 
 
     // animation_url 白名单校验（可选字段，若传入则校验，R2 修复）
     if let Some(ref animation_url) = req.animation_url {
-        if !ALLOWED_URL_PREFIXES.iter().any(|p| animation_url.starts_with(p)) {
+        if !ALLOWED_URL_PREFIXES
+            .iter()
+            .any(|p| animation_url.starts_with(p))
+        {
             return Err(AppError::ValidationError(
                 "animation_url 必须指向受控目录 /uploads/gifts/ 或 CDN 白名单前缀".to_string(),
             ));
@@ -273,10 +270,7 @@ pub fn validate_update_request(req: &UpdateGiftRequest) -> Result<(), AppError> 
 
     // icon_url 白名单校验（若传入，MEDIUM-1）
     if let Some(ref icon_url) = req.icon_url {
-        const ALLOWED_URL_PREFIXES: &[&str] = &[
-            "/uploads/gifts/",
-            "https://cdn.your-domain.com/",
-        ];
+        const ALLOWED_URL_PREFIXES: &[&str] = &["/uploads/gifts/", "https://cdn.your-domain.com/"];
         if !ALLOWED_URL_PREFIXES.iter().any(|p| icon_url.starts_with(p)) {
             return Err(AppError::ValidationError(
                 "icon_url 必须指向受控目录 /uploads/gifts/ 或 CDN 白名单前缀".to_string(),
@@ -286,11 +280,11 @@ pub fn validate_update_request(req: &UpdateGiftRequest) -> Result<(), AppError> 
 
     // animation_url 白名单校验（若传入，R2 修复）
     if let Some(ref animation_url) = req.animation_url {
-        const ALLOWED_URL_PREFIXES: &[&str] = &[
-            "/uploads/gifts/",
-            "https://cdn.your-domain.com/",
-        ];
-        if !ALLOWED_URL_PREFIXES.iter().any(|p| animation_url.starts_with(p)) {
+        const ALLOWED_URL_PREFIXES: &[&str] = &["/uploads/gifts/", "https://cdn.your-domain.com/"];
+        if !ALLOWED_URL_PREFIXES
+            .iter()
+            .any(|p| animation_url.starts_with(p))
+        {
             return Err(AppError::ValidationError(
                 "animation_url 必须指向受控目录 /uploads/gifts/ 或 CDN 白名单前缀".to_string(),
             ));
@@ -305,12 +299,7 @@ pub fn validate_update_request(req: &UpdateGiftRequest) -> Result<(), AppError> 
 /// 白名单：`image/png`, `image/jpeg`, `image/webp`, `application/json`（Lottie）
 /// 大小限制：图片 ≤ 1MB，Lottie ≤ 2MB
 pub fn validate_file_upload(content_type: &str, data_len: usize) -> Result<(), AppError> {
-    const ALLOWED: &[&str] = &[
-        "image/png",
-        "image/jpeg",
-        "image/webp",
-        "application/json",
-    ];
+    const ALLOWED: &[&str] = &["image/png", "image/jpeg", "image/webp", "application/json"];
     if !ALLOWED.contains(&content_type) {
         return Err(AppError::ValidationError(format!(
             "不支持的文件类型: {content_type}，白名单: image/png, image/jpeg, image/webp, application/json"
@@ -339,9 +328,7 @@ mod tests {
     use uuid::Uuid;
     use voice_room_shared::models::gift::GiftModel;
 
-    fn make_service(
-        fake_repo: Arc<FakeGiftRepository>,
-    ) -> GiftService {
+    fn make_service(fake_repo: Arc<FakeGiftRepository>) -> GiftService {
         GiftService::new(
             fake_repo,
             Arc::new(NoopEventPublisher::default()),
@@ -408,8 +395,14 @@ mod tests {
         let svc = make_service(repo.clone());
 
         svc.create_gift(valid_create_req("rose_01")).await.unwrap();
-        let err = svc.create_gift(valid_create_req("rose_01")).await.unwrap_err();
-        assert!(matches!(err, AppError::DuplicateCode(_)), "GS-02: 重复 code 应返回 DuplicateCode");
+        let err = svc
+            .create_gift(valid_create_req("rose_01"))
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(err, AppError::DuplicateCode(_)),
+            "GS-02: 重复 code 应返回 DuplicateCode"
+        );
     }
 
     // ── GS-03: price=0 → ValidationError ────────────────────────────────────
@@ -420,7 +413,10 @@ mod tests {
         let mut req = valid_create_req("test_01");
         req.price = 0;
         let err = svc.create_gift(req).await.unwrap_err();
-        assert!(matches!(err, AppError::ValidationError(_)), "GS-03: price=0 应返回 ValidationError");
+        assert!(
+            matches!(err, AppError::ValidationError(_)),
+            "GS-03: price=0 应返回 ValidationError"
+        );
     }
 
     // ── GS-04: tier=6 → ValidationError ─────────────────────────────────────
@@ -431,7 +427,10 @@ mod tests {
         let mut req = valid_create_req("test_02");
         req.tier = 6;
         let err = svc.create_gift(req).await.unwrap_err();
-        assert!(matches!(err, AppError::ValidationError(_)), "GS-04: tier=6 应返回 ValidationError");
+        assert!(
+            matches!(err, AppError::ValidationError(_)),
+            "GS-04: tier=6 应返回 ValidationError"
+        );
     }
 
     // ── GS-05: 更新 is_active=false 切换下架 ─────────────────────────────────
@@ -461,7 +460,10 @@ mod tests {
         let repo = Arc::new(FakeGiftRepository::default());
         let svc = make_service(repo);
         let err = svc.delete_gift(Uuid::new_v4()).await.unwrap_err();
-        assert!(matches!(err, AppError::NotFound(_)), "GS-06: 删除不存在礼物应返回 NotFound");
+        assert!(
+            matches!(err, AppError::NotFound(_)),
+            "GS-06: 删除不存在礼物应返回 NotFound"
+        );
     }
 
     // ── GS-07: 软删后再次删除 → NotFound ─────────────────────────────────────
@@ -469,11 +471,17 @@ mod tests {
     async fn gs07_double_delete_returns_not_found() {
         let repo = Arc::new(FakeGiftRepository::default());
         let svc = make_service(repo.clone());
-        let gift = svc.create_gift(valid_create_req("delete_me")).await.unwrap();
+        let gift = svc
+            .create_gift(valid_create_req("delete_me"))
+            .await
+            .unwrap();
 
         svc.delete_gift(gift.id).await.unwrap();
         let err = svc.delete_gift(gift.id).await.unwrap_err();
-        assert!(matches!(err, AppError::NotFound(_)), "GS-07: 重复软删应返回 NotFound");
+        assert!(
+            matches!(err, AppError::NotFound(_)),
+            "GS-07: 重复软删应返回 NotFound"
+        );
     }
 
     // ── GS-08: list 默认不含 inactive ────────────────────────────────────────
@@ -503,7 +511,10 @@ mod tests {
     #[test]
     fn gs10_validate_file_upload_non_whitelist_returns_error() {
         let err = validate_file_upload("image/gif", 100).unwrap_err();
-        assert!(matches!(err, AppError::ValidationError(_)), "GS-10: gif 应返回 ValidationError");
+        assert!(
+            matches!(err, AppError::ValidationError(_)),
+            "GS-10: gif 应返回 ValidationError"
+        );
         let err2 = validate_file_upload("application/pdf", 100).unwrap_err();
         assert!(matches!(err2, AppError::ValidationError(_)));
     }
@@ -513,7 +524,10 @@ mod tests {
     fn gs11_validate_file_upload_size_limit() {
         // 图片 >1MB
         let err = validate_file_upload("image/png", 1024 * 1024 + 1).unwrap_err();
-        assert!(matches!(err, AppError::ValidationError(_)), "GS-11: 图片超限应返回 ValidationError");
+        assert!(
+            matches!(err, AppError::ValidationError(_)),
+            "GS-11: 图片超限应返回 ValidationError"
+        );
 
         // Lottie ≤2MB 允许
         assert!(validate_file_upload("application/json", 2 * 1024 * 1024).is_ok());
@@ -728,18 +742,30 @@ mod tests {
     fn gs12_validate_create_request_boundaries() {
         // 空 code
         let mut req = valid_create_req("");
-        assert!(validate_create_request(&req).is_err(), "GS-12: 空 code 应失败");
+        assert!(
+            validate_create_request(&req).is_err(),
+            "GS-12: 空 code 应失败"
+        );
 
         // code 含特殊字符
         req.code = "rose-01".to_string();
-        assert!(validate_create_request(&req).is_err(), "GS-12: code 含连字符应失败");
+        assert!(
+            validate_create_request(&req).is_err(),
+            "GS-12: code 含连字符应失败"
+        );
 
         // 合法 code
         req.code = "rose_01".to_string();
-        assert!(validate_create_request(&req).is_ok(), "GS-12: 合法 code 应通过");
+        assert!(
+            validate_create_request(&req).is_ok(),
+            "GS-12: 合法 code 应通过"
+        );
 
         // 超长 code (33字符)
         req.code = "a".repeat(33);
-        assert!(validate_create_request(&req).is_err(), "GS-12: 超长 code 应失败");
+        assert!(
+            validate_create_request(&req).is_err(),
+            "GS-12: 超长 code 应失败"
+        );
     }
 }

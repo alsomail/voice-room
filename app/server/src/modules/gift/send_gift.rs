@@ -30,8 +30,7 @@ use tokio::sync::mpsc;
 use uuid::Uuid;
 
 use crate::{
-    modules::wallet::broadcaster::BalanceEvent,
-    room::manager::RoomManager,
+    modules::wallet::broadcaster::BalanceEvent, room::manager::RoomManager,
     ws::registry::ConnectionRegistry,
 };
 
@@ -128,12 +127,17 @@ impl GiftSendService {
         balance_tx: mpsc::Sender<BalanceEvent>,
         redis_url: String,
     ) -> Self {
-        let redis_client = redis::Client::open(redis_url)
-            .unwrap_or_else(|e| {
-                tracing::warn!("GiftSendService: failed to open redis client: {e}");
-                redis::Client::open("redis://127.0.0.1:6379").expect("fallback redis client")
-            });
-        Self { pool, registry, room_manager, balance_tx, redis_client }
+        let redis_client = redis::Client::open(redis_url).unwrap_or_else(|e| {
+            tracing::warn!("GiftSendService: failed to open redis client: {e}");
+            redis::Client::open("redis://127.0.0.1:6379").expect("fallback redis client")
+        });
+        Self {
+            pool,
+            registry,
+            room_manager,
+            balance_tx,
+            redis_client,
+        }
     }
 
     /// 核心事务逻辑（供 send() 调用）
@@ -151,11 +155,15 @@ impl GiftSendService {
         msg_id: &str,
     ) -> Result<Uuid, SendGiftError> {
         let total = price * count as i64;
-        let mut txn = self.pool.begin().await.map_err(|e| SendGiftError::Internal(e.to_string()))?;
+        let mut txn = self
+            .pool
+            .begin()
+            .await
+            .map_err(|e| SendGiftError::Internal(e.to_string()))?;
 
         // a) SELECT ... FOR UPDATE 锁定发送者行
         let current_balance: i64 = sqlx::query_scalar(
-            "SELECT diamond_balance FROM users WHERE id = $1 AND deleted_at IS NULL FOR UPDATE"
+            "SELECT diamond_balance FROM users WHERE id = $1 AND deleted_at IS NULL FOR UPDATE",
         )
         .bind(sender_id)
         .fetch_optional(&mut *txn)
@@ -171,18 +179,16 @@ impl GiftSendService {
         let new_balance = current_balance - total;
 
         // c) 扣减发送者余额
-        sqlx::query(
-            "UPDATE users SET diamond_balance = $1, updated_at = now() WHERE id = $2"
-        )
-        .bind(new_balance)
-        .bind(sender_id)
-        .execute(&mut *txn)
-        .await
-        .map_err(|e| SendGiftError::Internal(e.to_string()))?;
+        sqlx::query("UPDATE users SET diamond_balance = $1, updated_at = now() WHERE id = $2")
+            .bind(new_balance)
+            .bind(sender_id)
+            .execute(&mut *txn)
+            .await
+            .map_err(|e| SendGiftError::Internal(e.to_string()))?;
 
         // d) 增加接收者魅力值
         sqlx::query(
-            "UPDATE users SET charm_balance = charm_balance + $1, updated_at = now() WHERE id = $2"
+            "UPDATE users SET charm_balance = charm_balance + $1, updated_at = now() WHERE id = $2",
         )
         .bind(total)
         .bind(receiver_id)
@@ -195,7 +201,7 @@ impl GiftSendService {
         sqlx::query(
             "INSERT INTO gift_records \
              (id, sender_id, receiver_id, room_id, gift_id, count, total_price, msg_id) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)"
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
         )
         .bind(gift_record_id)
         .bind(sender_id)
@@ -216,7 +222,7 @@ impl GiftSendService {
         sqlx::query(
             "INSERT INTO wallet_transactions \
              (user_id, type, amount, balance_after, ref_id, reason) \
-             VALUES ($1, 'gift_send', $2, $3, $4, 'gift_send')"
+             VALUES ($1, 'gift_send', $2, $3, $4, 'gift_send')",
         )
         .bind(sender_id)
         .bind(-total)
@@ -226,7 +232,9 @@ impl GiftSendService {
         .await
         .map_err(|e| SendGiftError::Internal(e.to_string()))?;
 
-        txn.commit().await.map_err(|e| SendGiftError::Internal(e.to_string()))?;
+        txn.commit()
+            .await
+            .map_err(|e| SendGiftError::Internal(e.to_string()))?;
 
         // 事务提交成功后通知 BalanceBroadcaster（[M-1] 改用 send().await 避免静默丢弃）
         let event = BalanceEvent {
@@ -237,7 +245,10 @@ impl GiftSendService {
             ref_id: Some(gift_record_id),
         };
         if let Err(e) = self.balance_tx.send(event).await {
-            tracing::warn!("GiftSendService: balance event channel closed, event dropped: {:?}", e);
+            tracing::warn!(
+                "GiftSendService: balance event channel closed, event dropped: {:?}",
+                e
+            );
         }
 
         Ok(gift_record_id)
@@ -252,7 +263,12 @@ impl SendGiftServicePort for GiftSendService {
         room_id: Uuid,
         payload: SendGiftPayload,
     ) -> Result<SendGiftResult, SendGiftError> {
-        let SendGiftPayload { gift_id, receiver_id, count, msg_id } = payload;
+        let SendGiftPayload {
+            gift_id,
+            receiver_id,
+            count,
+            msg_id,
+        } = payload;
 
         // ── 1. 校验 count ────────────────────────────────────────────────────
         if !(1..=9999).contains(&count) {
@@ -260,7 +276,9 @@ impl SendGiftServicePort for GiftSendService {
         }
 
         // ── 2. 校验发送者在房间 ──────────────────────────────────────────────
-        let room_state = self.room_manager.get_room(room_id)
+        let room_state = self
+            .room_manager
+            .get_room(room_id)
             .ok_or(SendGiftError::SenderNotInRoom)?;
         if !room_state.members.contains_key(&sender_id) {
             return Err(SendGiftError::SenderNotInRoom);
@@ -268,7 +286,7 @@ impl SendGiftServicePort for GiftSendService {
 
         // ── 3. 幂等检查 ──────────────────────────────────────────────────────
         let existing: Option<(Uuid, i64)> = sqlx::query_as(
-            "SELECT id, total_price FROM gift_records WHERE sender_id = $1 AND msg_id = $2 LIMIT 1"
+            "SELECT id, total_price FROM gift_records WHERE sender_id = $1 AND msg_id = $2 LIMIT 1",
         )
         .bind(sender_id)
         .bind(&msg_id)
@@ -293,7 +311,7 @@ impl SendGiftServicePort for GiftSendService {
         // ── 4. 查询 gift（必须 active）并获取全部展示字段 ──────────────────
         let gift_row = sqlx::query_as::<_, (i64, i16, String, String, String, Option<String>)>(
             "SELECT price, effect_level, code, name_ar, icon_url, animation_url \
-             FROM gifts WHERE id = $1 AND is_active = true AND is_deleted = false"
+             FROM gifts WHERE id = $1 AND is_active = true AND is_deleted = false",
         )
         .bind(gift_id)
         .fetch_optional(&self.pool)
@@ -305,7 +323,10 @@ impl SendGiftServicePort for GiftSendService {
 
         // ── 5. 校验接收者在麦上 ──────────────────────────────────────────────
         let receiver_on_mic = {
-            let slots = room_state.mic_slots.read().unwrap_or_else(|e| e.into_inner());
+            let slots = room_state
+                .mic_slots
+                .read()
+                .unwrap_or_else(|e| e.into_inner());
             slots.contains(&Some(receiver_id))
         };
         if !receiver_on_mic {
@@ -314,30 +335,38 @@ impl SendGiftServicePort for GiftSendService {
 
         // ── 5.5 查询 sender/receiver 用户信息（用于广播 payload，[H-1]）──────
         let sender_info: Option<(String, Option<String>)> = sqlx::query_as(
-            "SELECT nickname, avatar FROM users WHERE id = $1 AND deleted_at IS NULL"
+            "SELECT nickname, avatar FROM users WHERE id = $1 AND deleted_at IS NULL",
         )
         .bind(sender_id)
         .fetch_optional(&self.pool)
         .await
         .map_err(|e| SendGiftError::Internal(e.to_string()))?;
-        let (sender_nickname, sender_avatar) = sender_info
-            .unwrap_or_else(|| (sender_id.to_string(), None));
+        let (sender_nickname, sender_avatar) =
+            sender_info.unwrap_or_else(|| (sender_id.to_string(), None));
 
         let receiver_info: Option<(String, Option<String>)> = sqlx::query_as(
-            "SELECT nickname, avatar FROM users WHERE id = $1 AND deleted_at IS NULL"
+            "SELECT nickname, avatar FROM users WHERE id = $1 AND deleted_at IS NULL",
         )
         .bind(receiver_id)
         .fetch_optional(&self.pool)
         .await
         .map_err(|e| SendGiftError::Internal(e.to_string()))?;
-        let (receiver_nickname, receiver_avatar) = receiver_info
-            .unwrap_or_else(|| (receiver_id.to_string(), None));
+        let (receiver_nickname, receiver_avatar) =
+            receiver_info.unwrap_or_else(|| (receiver_id.to_string(), None));
 
         // ── 6-f. 执行事务 ────────────────────────────────────────────────────
         let total = price * count as i64;
-        let gift_record_id = self.execute_transaction(
-            sender_id, receiver_id, room_id, gift_id, price, count, &msg_id
-        ).await?;
+        let gift_record_id = self
+            .execute_transaction(
+                sender_id,
+                receiver_id,
+                room_id,
+                gift_id,
+                price,
+                count,
+                &msg_id,
+            )
+            .await?;
 
         // ── 7. 更新 Redis 榜单（非阻断，失败只记录 warn）───────────────────
         match self.redis_client.get_multiplexed_async_connection().await {
@@ -345,7 +374,10 @@ impl SendGiftServicePort for GiftSendService {
                 ranking::update_rankings(&mut conn, receiver_id, sender_id, total).await;
             }
             Err(e) => {
-                tracing::warn!("GiftSendService: redis connect failed, rankings not updated: {}", e);
+                tracing::warn!(
+                    "GiftSendService: redis connect failed, rankings not updated: {}",
+                    e
+                );
             }
         }
 
@@ -371,7 +403,10 @@ impl SendGiftServicePort for GiftSendService {
             let _ = sender_ch.send(broadcast_msg.clone());
         }
 
-        Ok(SendGiftResult { gift_record_id, total_price: total })
+        Ok(SendGiftResult {
+            gift_record_id,
+            total_price: total,
+        })
     }
 }
 
@@ -452,7 +487,8 @@ pub async fn handle_send_gift(
         None => return send_gift_error_response(msg_id, 40002, "missing payload"),
     };
 
-    let gift_id = match payload_val.get("gift_id")
+    let gift_id = match payload_val
+        .get("gift_id")
         .and_then(|v| v.as_str())
         .and_then(|s| Uuid::parse_str(s).ok())
     {
@@ -460,7 +496,8 @@ pub async fn handle_send_gift(
         None => return send_gift_error_response(msg_id, 40002, "invalid or missing gift_id"),
     };
 
-    let receiver_id = match payload_val.get("receiver_id")
+    let receiver_id = match payload_val
+        .get("receiver_id")
         .and_then(|v| v.as_str())
         .and_then(|s| Uuid::parse_str(s).ok())
     {
@@ -468,7 +505,8 @@ pub async fn handle_send_gift(
         None => return send_gift_error_response(msg_id, 40002, "invalid or missing receiver_id"),
     };
 
-    let count = match payload_val.get("count")
+    let count = match payload_val
+        .get("count")
         .and_then(|v| v.as_i64())
         .map(|v| v as i32)
     {
@@ -489,13 +527,29 @@ pub async fn handle_send_gift(
         msg_id: msg_id.clone().unwrap_or_else(|| Uuid::new_v4().to_string()),
     };
 
-    match deps.send_gift_service.send(user_id, room_id, payload_struct).await {
-        Ok(result) => build_send_gift_result_response(msg_id, result.gift_record_id, result.total_price),
-        Err(SendGiftError::InvalidCount) => send_gift_error_response(msg_id, 40001, "invalid count: must be 1-9999"),
-        Err(SendGiftError::SenderNotInRoom) => send_gift_error_response(msg_id, 40400, "sender not in room"),
-        Err(SendGiftError::GiftUnavailable) => send_gift_error_response(msg_id, 40402, "gift not found or inactive"),
-        Err(SendGiftError::ReceiverUnavailable) => send_gift_error_response(msg_id, 40403, "receiver not on mic"),
-        Err(SendGiftError::InsufficientBalance) => send_gift_error_response(msg_id, 40290, "insufficient balance"),
+    match deps
+        .send_gift_service
+        .send(user_id, room_id, payload_struct)
+        .await
+    {
+        Ok(result) => {
+            build_send_gift_result_response(msg_id, result.gift_record_id, result.total_price)
+        }
+        Err(SendGiftError::InvalidCount) => {
+            send_gift_error_response(msg_id, 40001, "invalid count: must be 1-9999")
+        }
+        Err(SendGiftError::SenderNotInRoom) => {
+            send_gift_error_response(msg_id, 40400, "sender not in room")
+        }
+        Err(SendGiftError::GiftUnavailable) => {
+            send_gift_error_response(msg_id, 40402, "gift not found or inactive")
+        }
+        Err(SendGiftError::ReceiverUnavailable) => {
+            send_gift_error_response(msg_id, 40403, "receiver not on mic")
+        }
+        Err(SendGiftError::InsufficientBalance) => {
+            send_gift_error_response(msg_id, 40290, "insufficient balance")
+        }
         Err(SendGiftError::Internal(e)) => {
             tracing::error!("SendGift internal error: {}", e);
             send_gift_error_response(msg_id, 50000, "internal error")
@@ -504,7 +558,11 @@ pub async fn handle_send_gift(
 }
 
 /// 构建 SendGiftResult 成功响应 JSON
-fn build_send_gift_result_response(msg_id: Option<String>, gift_record_id: Uuid, total_price: i64) -> String {
+fn build_send_gift_result_response(
+    msg_id: Option<String>,
+    gift_record_id: Uuid,
+    total_price: i64,
+) -> String {
     let resp = serde_json::json!({
         "type": "SendGiftResult",
         "msg_id": msg_id,
@@ -564,10 +622,17 @@ impl SendGiftServicePort for FakeSendGiftService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::Instant;
     use std::sync::RwLock;
+    use std::time::Instant;
 
-    fn make_registry_with_connection(user_id: Uuid, room_id: Uuid) -> (Arc<ConnectionRegistry>, Uuid, mpsc::UnboundedReceiver<String>) {
+    fn make_registry_with_connection(
+        user_id: Uuid,
+        room_id: Uuid,
+    ) -> (
+        Arc<ConnectionRegistry>,
+        Uuid,
+        mpsc::UnboundedReceiver<String>,
+    ) {
         let registry = Arc::new(ConnectionRegistry::new());
         let conn_id = Uuid::new_v4();
         let (tx, rx) = mpsc::unbounded_channel::<String>();
@@ -591,17 +656,22 @@ mod tests {
     #[tokio::test]
     async fn sgu02_fake_service_returns_ok() {
         let svc = FakeSendGiftService;
-        let result = svc.send(
-            Uuid::new_v4(),
-            Uuid::new_v4(),
-            SendGiftPayload {
-                gift_id: Uuid::new_v4(),
-                receiver_id: Uuid::new_v4(),
-                count: 1,
-                msg_id: "test".to_string(),
-            },
-        ).await;
-        assert!(result.is_ok(), "SGU02: FakeSendGiftService should return Ok");
+        let result = svc
+            .send(
+                Uuid::new_v4(),
+                Uuid::new_v4(),
+                SendGiftPayload {
+                    gift_id: Uuid::new_v4(),
+                    receiver_id: Uuid::new_v4(),
+                    count: 1,
+                    msg_id: "test".to_string(),
+                },
+            )
+            .await;
+        assert!(
+            result.is_ok(),
+            "SGU02: FakeSendGiftService should return Ok"
+        );
     }
 
     // SGU03: handle_send_gift 缺失 payload → code 40002
@@ -616,9 +686,13 @@ mod tests {
             registry,
         };
 
-        let response = handle_send_gift(None, Some("msg-1".to_string()), conn_id, user_id, &deps).await;
+        let response =
+            handle_send_gift(None, Some("msg-1".to_string()), conn_id, user_id, &deps).await;
         let json: serde_json::Value = serde_json::from_str(&response).unwrap();
-        assert_eq!(json["code"], 40002, "SGU03: missing payload should return code 40002");
+        assert_eq!(
+            json["code"], 40002,
+            "SGU03: missing payload should return code 40002"
+        );
     }
 
     // SGU04: handle_send_gift 缺失 gift_id → code 40002
@@ -638,9 +712,19 @@ mod tests {
             "count": 1
             // gift_id 缺失
         });
-        let response = handle_send_gift(Some(payload), Some("msg-2".to_string()), conn_id, user_id, &deps).await;
+        let response = handle_send_gift(
+            Some(payload),
+            Some("msg-2".to_string()),
+            conn_id,
+            user_id,
+            &deps,
+        )
+        .await;
         let json: serde_json::Value = serde_json::from_str(&response).unwrap();
-        assert_eq!(json["code"], 40002, "SGU04: missing gift_id should return code 40002");
+        assert_eq!(
+            json["code"], 40002,
+            "SGU04: missing gift_id should return code 40002"
+        );
     }
 
     // SGU05: handle_send_gift 发送者不在任何房间 → code 40400
@@ -655,7 +739,7 @@ mod tests {
         registry.register(crate::ws::registry::ConnectionHandle {
             connection_id: conn_id,
             user_id,
-            room_id: None,  // 不在任何房间
+            room_id: None, // 不在任何房间
             sender: tx,
             last_heartbeat: Arc::new(RwLock::new(Instant::now())),
         });
@@ -670,9 +754,19 @@ mod tests {
             "receiver_id": Uuid::new_v4().to_string(),
             "count": 1
         });
-        let response = handle_send_gift(Some(payload), Some("msg-3".to_string()), conn_id, user_id, &deps).await;
+        let response = handle_send_gift(
+            Some(payload),
+            Some("msg-3".to_string()),
+            conn_id,
+            user_id,
+            &deps,
+        )
+        .await;
         let json: serde_json::Value = serde_json::from_str(&response).unwrap();
-        assert_eq!(json["code"], 40400, "SGU05: sender not in room should return code 40400");
+        assert_eq!(
+            json["code"], 40400,
+            "SGU05: sender not in room should return code 40400"
+        );
     }
 
     // SGU06: handle_send_gift 成功 → code 0，含 gift_record_id
@@ -692,49 +786,89 @@ mod tests {
             "receiver_id": Uuid::new_v4().to_string(),
             "count": 1
         });
-        let response = handle_send_gift(Some(payload), Some("msg-4".to_string()), conn_id, user_id, &deps).await;
+        let response = handle_send_gift(
+            Some(payload),
+            Some("msg-4".to_string()),
+            conn_id,
+            user_id,
+            &deps,
+        )
+        .await;
         let json: serde_json::Value = serde_json::from_str(&response).unwrap();
         assert_eq!(json["code"], 0, "SGU06: success should return code 0");
-        assert!(json["payload"]["gift_record_id"].is_string(), "SGU06: response should contain gift_record_id");
+        assert!(
+            json["payload"]["gift_record_id"].is_string(),
+            "SGU06: response should contain gift_record_id"
+        );
     }
 
     // SGU07: build_gift_received_msg 包含 TDS 规定的全部字段（[H-1] 更新）
     #[test]
     fn sgu07_build_gift_received_msg_contains_required_fields() {
         let msg = build_gift_received_msg(
-            Uuid::new_v4(),         // gift_record_id
-            Uuid::new_v4(),         // sender_id
-            "Alice",                // sender_nickname
-            Some("https://cdn.example.com/alice.png"), // sender_avatar
-            Uuid::new_v4(),         // receiver_id
-            "Bob",                  // receiver_nickname
-            None,                   // receiver_avatar
-            Uuid::new_v4(),         // gift_id
-            "castle_01",            // gift_code
-            "قصر",                  // gift_name
-            "https://cdn.example.com/castle.png",      // gift_icon_url
+            Uuid::new_v4(),                             // gift_record_id
+            Uuid::new_v4(),                             // sender_id
+            "Alice",                                    // sender_nickname
+            Some("https://cdn.example.com/alice.png"),  // sender_avatar
+            Uuid::new_v4(),                             // receiver_id
+            "Bob",                                      // receiver_nickname
+            None,                                       // receiver_avatar
+            Uuid::new_v4(),                             // gift_id
+            "castle_01",                                // gift_code
+            "قصر",                                      // gift_name
+            "https://cdn.example.com/castle.png",       // gift_icon_url
             Some("https://cdn.example.com/castle.mp4"), // gift_animation_url
-            4i16,                   // gift_effect_level
-            2,                      // count
-            1040,                   // total_price
+            4i16,                                       // gift_effect_level
+            2,                                          // count
+            1040,                                       // total_price
         );
         let json: serde_json::Value = serde_json::from_str(&msg).unwrap();
-        assert_eq!(json["type"], "GiftReceived", "SGU07: type should be GiftReceived");
+        assert_eq!(
+            json["type"], "GiftReceived",
+            "SGU07: type should be GiftReceived"
+        );
         assert_eq!(json["payload"]["count"], 2, "SGU07: count should be 2");
-        assert_eq!(json["payload"]["total_price"], 1040, "SGU07: total_price should be 1040");
+        assert_eq!(
+            json["payload"]["total_price"], 1040,
+            "SGU07: total_price should be 1040"
+        );
         assert!(json["msg_id"].is_string(), "SGU07: should have msg_id");
         // 验证 sender 字段
-        assert_eq!(json["payload"]["sender"]["nickname"], "Alice", "SGU07: sender nickname");
-        assert_eq!(json["payload"]["sender"]["avatar"], "https://cdn.example.com/alice.png", "SGU07: sender avatar");
+        assert_eq!(
+            json["payload"]["sender"]["nickname"], "Alice",
+            "SGU07: sender nickname"
+        );
+        assert_eq!(
+            json["payload"]["sender"]["avatar"], "https://cdn.example.com/alice.png",
+            "SGU07: sender avatar"
+        );
         // 验证 receiver 字段
-        assert_eq!(json["payload"]["receiver"]["nickname"], "Bob", "SGU07: receiver nickname");
-        assert!(json["payload"]["receiver"]["avatar"].is_null(), "SGU07: receiver avatar null");
+        assert_eq!(
+            json["payload"]["receiver"]["nickname"], "Bob",
+            "SGU07: receiver nickname"
+        );
+        assert!(
+            json["payload"]["receiver"]["avatar"].is_null(),
+            "SGU07: receiver avatar null"
+        );
         // 验证 gift 字段
-        assert_eq!(json["payload"]["gift"]["code"], "castle_01", "SGU07: gift code");
+        assert_eq!(
+            json["payload"]["gift"]["code"], "castle_01",
+            "SGU07: gift code"
+        );
         assert_eq!(json["payload"]["gift"]["name"], "قصر", "SGU07: gift name");
-        assert_eq!(json["payload"]["gift"]["icon_url"], "https://cdn.example.com/castle.png", "SGU07: gift icon_url");
-        assert_eq!(json["payload"]["gift"]["animation_url"], "https://cdn.example.com/castle.mp4", "SGU07: gift animation_url");
-        assert_eq!(json["payload"]["gift"]["effect_level"], 4, "SGU07: gift effect_level");
+        assert_eq!(
+            json["payload"]["gift"]["icon_url"], "https://cdn.example.com/castle.png",
+            "SGU07: gift icon_url"
+        );
+        assert_eq!(
+            json["payload"]["gift"]["animation_url"], "https://cdn.example.com/castle.mp4",
+            "SGU07: gift animation_url"
+        );
+        assert_eq!(
+            json["payload"]["gift"]["effect_level"], 4,
+            "SGU07: gift effect_level"
+        );
     }
 
     // SGU08: SendGiftError 实现 Debug（for assertions）

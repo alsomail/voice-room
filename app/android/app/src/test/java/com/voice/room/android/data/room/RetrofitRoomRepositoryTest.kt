@@ -257,12 +257,16 @@ class RetrofitRoomRepositoryTest {
     }
 
     // ─────────────────────────────────────────────
-    // VP02: verifyPassword 42910 + remaining_minutes null → fallback 30
+    // VP02: verifyPassword 42910 + locked_remaining_sec null → fallback 1800 (秒)
+    //
+    // 缺陷 #1 修复：协议契约字段为 `locked_remaining_sec`（秒），不是
+    // `remaining_minutes`。Android 客户端必须读取秒，并且 fallback 与服务端
+    // LOCK_TTL_SECS=1800 对齐（=30 分钟），否则锁定时长被压成 1/60。
     // ─────────────────────────────────────────────
 
     @Test
-    fun `VP02 verifyPassword 42910 with null remaining_minutes falls back to 30`() = runTest {
-        // 构造 remaining_minutes 缺失的错误响应
+    fun `VP02 verifyPassword 42910 with null locked_remaining_sec falls back to 1800 seconds`() = runTest {
+        // 构造 locked_remaining_sec 缺失的错误响应
         val errorJson = """{"code":42910,"message":"locked","data":{},"request_id":"req-vp02"}"""
         val service = object : RoomApiService {
             override suspend fun getRooms(page: Int, size: Int) =
@@ -283,9 +287,40 @@ class RetrofitRoomRepositoryTest {
         val ex = result.exceptionOrNull()
         assertTrue("Expected PasswordLockedException", ex is PasswordLockedException)
         assertEquals(
-            "remaining_minutes null should fallback to 30",
-            30,
-            (ex as PasswordLockedException).remainingMinutes
+            "locked_remaining_sec null should fallback to 1800 seconds (= 30 minutes)",
+            1800,
+            (ex as PasswordLockedException).remainingSeconds
+        )
+    }
+
+    // ─────────────────────────────────────────────
+    // VP02b: 服务端返回的 locked_remaining_sec 应作为秒被原样保留（缺陷 #1 回归）
+    // ─────────────────────────────────────────────
+
+    @Test
+    fun `VP02b verifyPassword 42910 reads locked_remaining_sec field as seconds`() = runTest {
+        val errorJson = """{"code":42910,"message":"locked","data":{"locked_remaining_sec":600},"request_id":"req-vp02b"}"""
+        val service = object : RoomApiService {
+            override suspend fun getRooms(page: Int, size: Int) =
+                throw UnsupportedOperationException()
+            override suspend fun createRoom(request: CreateRoomRequest) =
+                throw UnsupportedOperationException()
+            override suspend fun verifyPassword(
+                roomId: String,
+                request: VerifyPasswordRequest
+            ): Response<ApiResponse<VerifyPasswordResponseData>> =
+                Response.error(400, errorJson.toResponseBody())
+        }
+        val repo = RetrofitRoomRepository(service)
+
+        val result = repo.verifyPassword("room-001", "wrongpwd")
+
+        val ex = result.exceptionOrNull()
+        assertTrue(ex is PasswordLockedException)
+        assertEquals(
+            "remainingSeconds should equal server's locked_remaining_sec (600 seconds = 10 minutes)",
+            600,
+            (ex as PasswordLockedException).remainingSeconds
         )
     }
 }

@@ -68,11 +68,7 @@ impl AdminAuthService {
         // Step 1: 查账号
         // 账号不存在时仍调用 verify_password(DUMMY_HASH) 保证恒定时间响应，
         // 防止攻击者通过响应时间（< 1ms vs ~300ms）枚举有效用户名。
-        let admin = match self
-            .admin_repo
-            .find_by_username(username)
-            .await?
-        {
+        let admin = match self.admin_repo.find_by_username(username).await? {
             Some(admin) => admin,
             None => {
                 // 恒定时间保护：即使账号不存在也执行一次 bcrypt 计算
@@ -98,20 +94,12 @@ impl AdminAuthService {
 
         // Step 5: 更新 last_login_at（非关键操作，失败只记录警告）
         let now_dt = Utc::now();
-        if let Err(e) = self
-            .admin_repo
-            .update_last_login_at(admin.id, now_dt)
-            .await
-        {
+        if let Err(e) = self.admin_repo.update_last_login_at(admin.id, now_dt).await {
             tracing::warn!(admin_id = %admin.id, error = %e, "failed to update last_login_at");
         }
 
         // Step 6: 写入审计日志（非关键操作，失败只记录警告）
-        if let Err(e) = self
-            .log_repo
-            .insert_login_log(admin.id, ip_addr)
-            .await
-        {
+        if let Err(e) = self.log_repo.insert_login_log(admin.id, ip_addr).await {
             tracing::warn!(admin_id = %admin.id, error = %e, "failed to insert admin login log");
         }
 
@@ -210,7 +198,10 @@ mod tests {
     async fn login_account_not_found_returns_invalid_credentials() {
         let (svc, _, _) = test_service();
         // 仓库为空，账号不存在
-        let err = svc.login("ghost_user", "anypassword", None).await.unwrap_err();
+        let err = svc
+            .login("ghost_user", "anypassword", None)
+            .await
+            .unwrap_err();
         assert!(
             matches!(err, AppError::InvalidAdminCredentials),
             "账号不存在时必须返回 InvalidAdminCredentials (40106)，实际: {err:?}"
@@ -269,9 +260,8 @@ mod tests {
         let resp = svc.login("op_user", "pass1234", None).await.unwrap();
 
         // 解码 JWT，验证 exp - iat ≈ 604800（7 天）
-        let claims: AdminClaims =
-            decode_token(&resp.token, b"test-jwt-secret", "voiceroom-admin")
-                .expect("token 必须可以用签名密钥解码");
+        let claims: AdminClaims = decode_token(&resp.token, b"test-jwt-secret", "voiceroom-admin")
+            .expect("token 必须可以用签名密钥解码");
         let duration = claims.exp.saturating_sub(claims.iat);
         assert!(
             duration >= 604798 && duration <= 604802,
@@ -293,9 +283,8 @@ mod tests {
 
         let resp = svc.login("finance_mgr", "secure_pass", None).await.unwrap();
 
-        let claims: AdminClaims =
-            decode_token(&resp.token, b"test-jwt-secret", "voiceroom-admin")
-                .expect("token 必须可解码");
+        let claims: AdminClaims = decode_token(&resp.token, b"test-jwt-secret", "voiceroom-admin")
+            .expect("token 必须可解码");
         assert_eq!(claims.role, "finance", "JWT 必须包含正确的 role 字段");
         assert_eq!(
             claims.iss, "voiceroom-admin",

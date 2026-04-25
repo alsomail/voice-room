@@ -236,7 +236,11 @@ pub async fn handle_transfer_admin(
 
     // ── 3. 权限校验：仅房主可操作 ──────────────────────────────────────────────
     if room.owner_id != operator_user_id {
-        return transfer_error(msg_id, 40301, "permission denied: only owner can transfer admin");
+        return transfer_error(
+            msg_id,
+            40301,
+            "permission denied: only owner can transfer admin",
+        );
     }
 
     let previous_admin_id = room.admin_user_id;
@@ -250,7 +254,10 @@ pub async fn handle_transfer_admin(
         }
 
         // ── 5a. DB 原子更新 admin_user_id ─────────────────────────────────────
-        if let Err(e) = room_repo.set_admin_user_id(room_id, Some(target_user_id)).await {
+        if let Err(e) = room_repo
+            .set_admin_user_id(room_id, Some(target_user_id))
+            .await
+        {
             tracing::error!("set_admin_user_id failed: {e}");
             return transfer_error(msg_id, 50000, "internal error");
         }

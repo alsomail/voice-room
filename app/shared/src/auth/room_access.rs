@@ -47,7 +47,11 @@ pub fn encode_room_access_token(
         exp: iat + ROOM_ACCESS_EXPIRY_SECS,
         iss: ROOM_ACCESS_ISS.to_string(),
     };
-    encode(&Header::default(), &claims, &EncodingKey::from_secret(secret))
+    encode(
+        &Header::default(),
+        &claims,
+        &EncodingKey::from_secret(secret),
+    )
 }
 
 /// 解码并验证 room access token
@@ -82,8 +86,7 @@ mod tests {
 
         let token =
             encode_room_access_token(user_id, room_id, TEST_SECRET).expect("encode should succeed");
-        let claims =
-            decode_room_access_token(&token, TEST_SECRET).expect("decode should succeed");
+        let claims = decode_room_access_token(&token, TEST_SECRET).expect("decode should succeed");
 
         assert_eq!(claims.sub, user_id.to_string());
         assert_eq!(claims.room_id, room_id.to_string());
@@ -123,9 +126,13 @@ mod tests {
             exp: iat - 1, // 已过期
             iss: ROOM_ACCESS_ISS.to_string(),
         };
-        use jsonwebtoken::{encode, Header, EncodingKey};
-        let token = encode(&Header::default(), &claims, &EncodingKey::from_secret(TEST_SECRET))
-            .expect("encode");
+        use jsonwebtoken::{encode, EncodingKey, Header};
+        let token = encode(
+            &Header::default(),
+            &claims,
+            &EncodingKey::from_secret(TEST_SECRET),
+        )
+        .expect("encode");
         let result = decode_room_access_token(&token, TEST_SECRET);
         assert!(result.is_err(), "expired token should fail decode");
     }
@@ -142,9 +149,13 @@ mod tests {
             exp: iat + 3600,
             iss: "wrong-issuer".to_string(), // 错误 iss
         };
-        use jsonwebtoken::{encode, Header, EncodingKey};
-        let token = encode(&Header::default(), &claims, &EncodingKey::from_secret(TEST_SECRET))
-            .expect("encode");
+        use jsonwebtoken::{encode, EncodingKey, Header};
+        let token = encode(
+            &Header::default(),
+            &claims,
+            &EncodingKey::from_secret(TEST_SECRET),
+        )
+        .expect("encode");
         let result = decode_room_access_token(&token, TEST_SECRET);
         assert!(result.is_err(), "wrong iss should fail decode");
     }

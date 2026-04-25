@@ -79,7 +79,9 @@ pub async fn get_ranking(
         Some("day") | None => Period::Day,
         Some(other) => {
             return err_response(
-                AppError::ValidationError(format!("invalid period: {other:?}; must be 'day' or 'week'")),
+                AppError::ValidationError(format!(
+                    "invalid period: {other:?}; must be 'day' or 'week'"
+                )),
                 rc.request_id(),
             );
         }
@@ -89,9 +91,7 @@ pub async fn get_ranking(
     let limit = query.limit.unwrap_or(50);
     if !(1..=100).contains(&limit) {
         return err_response(
-            AppError::ValidationError(format!(
-                "limit must be between 1 and 100, got {limit}"
-            )),
+            AppError::ValidationError(format!("limit must be between 1 and 100, got {limit}")),
             rc.request_id(),
         );
     }
@@ -103,11 +103,7 @@ pub async fn get_ranking(
         .top(ty, period, limit as usize, Some(ctx.user_id))
         .await
     {
-        Ok(data) => (
-            StatusCode::OK,
-            Json(ApiResponse::ok(data, rc.request_id())),
-        )
-            .into_response(),
+        Ok(data) => (StatusCode::OK, Json(ApiResponse::ok(data, rc.request_id()))).into_response(),
         Err(e) => err_response(e, rc.request_id()),
     }
 }
@@ -119,14 +115,20 @@ mod tests {
     #[test]
     fn limit_range_101_is_invalid() {
         let limit: u32 = 101;
-        assert!(!(1..=100).contains(&limit), "101 should be out of 1-100 range");
+        assert!(
+            !(1..=100).contains(&limit),
+            "101 should be out of 1-100 range"
+        );
     }
 
     /// H-02: limit 范围检查逻辑（0 超出范围）
     #[test]
     fn limit_range_0_is_invalid() {
         let limit: u32 = 0;
-        assert!(!(1..=100).contains(&limit), "0 should be out of 1-100 range");
+        assert!(
+            !(1..=100).contains(&limit),
+            "0 should be out of 1-100 range"
+        );
     }
 
     /// H-03: limit 1-100 合法

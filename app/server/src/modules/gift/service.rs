@@ -16,8 +16,8 @@ use std::{
 };
 
 use async_trait::async_trait;
-use tokio::sync::Mutex;
 use chrono::Utc;
+use tokio::sync::Mutex;
 
 use crate::common::error::AppError;
 
@@ -176,14 +176,86 @@ impl Default for FakeGiftService {
 #[cfg(any(test, feature = "test-utils"))]
 impl FakeGiftService {
     const PRESET_GIFTS: &'static [FakeGiftData] = &[
-        FakeGiftData { code: "rose_01",      name_en: "Rose",           name_ar: "وردة",              icon_url: "/assets/gifts/rose.png",       price: 1,    tier: 1, effect_level: 1, sort_order: 10 },
-        FakeGiftData { code: "coffee_01",    name_en: "Arabic Coffee",  name_ar: "قهوة عربية",        icon_url: "/assets/gifts/coffee.png",     price: 10,   tier: 2, effect_level: 2, sort_order: 20 },
-        FakeGiftData { code: "kaaba_01",     name_en: "Kaaba Candle",   name_ar: "شمعة الكعبة",       icon_url: "/assets/gifts/kaaba.png",      price: 10,   tier: 2, effect_level: 2, sort_order: 21 },
-        FakeGiftData { code: "camel_01",     name_en: "Desert Camel",   name_ar: "جمل",               icon_url: "/assets/gifts/camel.png",      price: 66,   tier: 3, effect_level: 3, sort_order: 30 },
-        FakeGiftData { code: "falcon_01",    name_en: "Golden Falcon",  name_ar: "صقر ذهبي",          icon_url: "/assets/gifts/falcon.png",     price: 88,   tier: 3, effect_level: 3, sort_order: 31 },
-        FakeGiftData { code: "moon_786",     name_en: "Bismillah Moon", name_ar: "هلال بسم الله",     icon_url: "/assets/gifts/moon786.png",    price: 786,  tier: 4, effect_level: 4, sort_order: 40 },
-        FakeGiftData { code: "castle_01",    name_en: "Royal Castle",   name_ar: "قصر ملكي",          icon_url: "/assets/gifts/castle.png",     price: 520,  tier: 4, effect_level: 4, sort_order: 41 },
-        FakeGiftData { code: "diamond_ring", name_en: "Diamond Ring",   name_ar: "خاتم الماس",        icon_url: "/assets/gifts/diamond.png",    price: 1314, tier: 5, effect_level: 5, sort_order: 50 },
+        FakeGiftData {
+            code: "rose_01",
+            name_en: "Rose",
+            name_ar: "وردة",
+            icon_url: "/assets/gifts/rose.png",
+            price: 1,
+            tier: 1,
+            effect_level: 1,
+            sort_order: 10,
+        },
+        FakeGiftData {
+            code: "coffee_01",
+            name_en: "Arabic Coffee",
+            name_ar: "قهوة عربية",
+            icon_url: "/assets/gifts/coffee.png",
+            price: 10,
+            tier: 2,
+            effect_level: 2,
+            sort_order: 20,
+        },
+        FakeGiftData {
+            code: "kaaba_01",
+            name_en: "Kaaba Candle",
+            name_ar: "شمعة الكعبة",
+            icon_url: "/assets/gifts/kaaba.png",
+            price: 10,
+            tier: 2,
+            effect_level: 2,
+            sort_order: 21,
+        },
+        FakeGiftData {
+            code: "camel_01",
+            name_en: "Desert Camel",
+            name_ar: "جمل",
+            icon_url: "/assets/gifts/camel.png",
+            price: 66,
+            tier: 3,
+            effect_level: 3,
+            sort_order: 30,
+        },
+        FakeGiftData {
+            code: "falcon_01",
+            name_en: "Golden Falcon",
+            name_ar: "صقر ذهبي",
+            icon_url: "/assets/gifts/falcon.png",
+            price: 88,
+            tier: 3,
+            effect_level: 3,
+            sort_order: 31,
+        },
+        FakeGiftData {
+            code: "moon_786",
+            name_en: "Bismillah Moon",
+            name_ar: "هلال بسم الله",
+            icon_url: "/assets/gifts/moon786.png",
+            price: 786,
+            tier: 4,
+            effect_level: 4,
+            sort_order: 40,
+        },
+        FakeGiftData {
+            code: "castle_01",
+            name_en: "Royal Castle",
+            name_ar: "قصر ملكي",
+            icon_url: "/assets/gifts/castle.png",
+            price: 520,
+            tier: 4,
+            effect_level: 4,
+            sort_order: 41,
+        },
+        FakeGiftData {
+            code: "diamond_ring",
+            name_en: "Diamond Ring",
+            name_ar: "خاتم الماس",
+            icon_url: "/assets/gifts/diamond.png",
+            price: 1314,
+            tier: 5,
+            effect_level: 5,
+            sort_order: 50,
+        },
     ];
 }
 
@@ -255,7 +327,11 @@ mod tests {
     async fn gs01_fake_service_returns_8_gifts() {
         let svc = FakeGiftService::default();
         let data = svc.list_active("ar").await.unwrap();
-        assert_eq!(data.items.len(), 8, "GS01: FakeGiftService should return 8 gifts");
+        assert_eq!(
+            data.items.len(),
+            8,
+            "GS01: FakeGiftService should return 8 gifts"
+        );
     }
 
     // GS02: FakeGiftService lang=ar 返回阿拉伯语名称
@@ -273,7 +349,10 @@ mod tests {
         let svc = FakeGiftService::default();
         let data = svc.list_active("en").await.unwrap();
         let rose = data.items.iter().find(|i| i.code == "rose_01").unwrap();
-        assert_eq!(rose.name, "Rose", "GS03: en lang should return English name");
+        assert_eq!(
+            rose.name, "Rose",
+            "GS03: en lang should return English name"
+        );
     }
 
     // GS04: FakeGiftService 返回的 version 是有效的时间戳字符串
@@ -281,7 +360,10 @@ mod tests {
     async fn gs04_fake_service_version_is_timestamp_string() {
         let svc = FakeGiftService::default();
         let data = svc.list_active("ar").await.unwrap();
-        let version_ts: i64 = data.version.parse().expect("GS04: version should be parseable as i64 timestamp");
+        let version_ts: i64 = data
+            .version
+            .parse()
+            .expect("GS04: version should be parseable as i64 timestamp");
         assert!(version_ts > 0, "GS04: version timestamp should be positive");
     }
 
@@ -291,7 +373,10 @@ mod tests {
         let svc = FakeGiftService::default();
         let data = svc.list_active("ar").await.unwrap();
         // rose_01 tier=1 应在第一位
-        assert_eq!(data.items[0].code, "rose_01", "GS05: rose_01 (tier=1) should be first");
+        assert_eq!(
+            data.items[0].code, "rose_01",
+            "GS05: rose_01 (tier=1) should be first"
+        );
         // diamond_ring tier=5 应在最后
         assert_eq!(
             data.items.last().unwrap().code,
@@ -329,7 +414,11 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(10)).await;
 
         let _ = service.list_active("ar").await.unwrap();
-        assert_eq!(repo.call_count(), 2, "GS07: after expiry, should query repo again");
+        assert_eq!(
+            repo.call_count(),
+            2,
+            "GS07: after expiry, should query repo again"
+        );
     }
 
     // GS08: GiftService lang=en 返回英文名称
@@ -340,7 +429,10 @@ mod tests {
         let service = GiftService::new(repo);
 
         let data = service.list_active("en").await.unwrap();
-        assert_eq!(data.items[0].name, "Rose", "GS08: en should return English name");
+        assert_eq!(
+            data.items[0].name, "Rose",
+            "GS08: en should return English name"
+        );
     }
 
     // GS09: GiftService lang=ar 返回阿拉伯语名称
@@ -351,7 +443,10 @@ mod tests {
         let service = GiftService::new(repo);
 
         let data = service.list_active("ar").await.unwrap();
-        assert_eq!(data.items[0].name, "وردة", "GS09: ar should return Arabic name");
+        assert_eq!(
+            data.items[0].name, "وردة",
+            "GS09: ar should return Arabic name"
+        );
     }
 
     // GS10: GiftService invalidate_all 清除缓存后再次查询 repo
@@ -370,7 +465,11 @@ mod tests {
 
         // 再次查询 — 应重新查询 repo
         let _ = service.list_active("ar").await.unwrap();
-        assert_eq!(repo.call_count(), 2, "GS10: after invalidation, should query repo again");
+        assert_eq!(
+            repo.call_count(),
+            2,
+            "GS10: after invalidation, should query repo again"
+        );
     }
 
     // GS11: FakeGiftService 满足 Arc<dyn GiftServicePort> 约束

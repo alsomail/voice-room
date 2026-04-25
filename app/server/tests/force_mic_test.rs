@@ -17,11 +17,11 @@ use tokio::sync::mpsc;
 use uuid::Uuid;
 
 use voice_room_server::modules::governance::force_mic::{
-    ForceLeaveMicDeps, ForceTakeMicDeps, handle_force_leave_mic, handle_force_take_mic,
+    handle_force_leave_mic, handle_force_take_mic, ForceLeaveMicDeps, ForceTakeMicDeps,
 };
 use voice_room_server::modules::governance::mute::{FakeMuteRedis, MuteRedis};
-use voice_room_server::modules::room::FakeRoomRepository;
 use voice_room_server::modules::room::service::RoomService;
+use voice_room_server::modules::room::FakeRoomRepository;
 use voice_room_server::room::manager::RoomManager;
 use voice_room_server::room::state::MemberInfo;
 use voice_room_server::ws::registry::{ConnectionHandle, ConnectionRegistry};
@@ -79,8 +79,10 @@ fn register_connection(
 /// 向 room_manager 注册成员
 fn add_member(room_manager: &Arc<RoomManager>, room_id: Uuid, user_id: Uuid, nickname: &str) {
     let room = room_manager.get_or_create_room(room_id);
-    room.members
-        .insert(user_id, MemberInfo::new(user_id, nickname.to_string(), None));
+    room.members.insert(
+        user_id,
+        MemberInfo::new(user_id, nickname.to_string(), None),
+    );
 }
 
 /// 构建 ForceTakeMicDeps
@@ -166,14 +168,25 @@ async fn fm30_07_owner_force_take_mic_success() {
     .await;
 
     let v: serde_json::Value = serde_json::from_str(&resp).unwrap();
-    assert_eq!(v["type"], "ForceTakeMicResult", "FM30-07: type should be ForceTakeMicResult");
+    assert_eq!(
+        v["type"], "ForceTakeMicResult",
+        "FM30-07: type should be ForceTakeMicResult"
+    );
     assert_eq!(v["code"], 0, "FM30-07: should succeed");
-    assert_eq!(v["payload"]["mic_index"], 2, "FM30-07: mic_index should be 2");
+    assert_eq!(
+        v["payload"]["mic_index"], 2,
+        "FM30-07: mic_index should be 2"
+    );
 
     // 验证广播 MicTaken 含 forced_by
-    let broadcast = rx_owner.try_recv().expect("FM30-07: should receive MicTaken broadcast");
+    let broadcast = rx_owner
+        .try_recv()
+        .expect("FM30-07: should receive MicTaken broadcast");
     let bv: serde_json::Value = serde_json::from_str(&broadcast).unwrap();
-    assert_eq!(bv["type"], "MicTaken", "FM30-07: broadcast type should be MicTaken");
+    assert_eq!(
+        bv["type"], "MicTaken",
+        "FM30-07: broadcast type should be MicTaken"
+    );
     assert_eq!(
         bv["payload"]["forced_by"],
         owner_id.to_string(),
@@ -184,12 +197,19 @@ async fn fm30_07_owner_force_take_mic_success() {
         target_id.to_string(),
         "FM30-07: user_id should be target"
     );
-    assert_eq!(bv["payload"]["mic_index"], 2, "FM30-07: mic_index should be 2");
+    assert_eq!(
+        bv["payload"]["mic_index"], 2,
+        "FM30-07: mic_index should be 2"
+    );
 
     // 验证内存状态更新
     let room_state = room_manager.get_room(room_id).unwrap();
     let slots = room_state.mic_slots_snapshot();
-    assert_eq!(slots[2], Some(target_id), "FM30-07: slot 2 should be occupied by target");
+    assert_eq!(
+        slots[2],
+        Some(target_id),
+        "FM30-07: slot 2 should be occupied by target"
+    );
 }
 
 /// FM30-08: 麦位被占 → 40907
@@ -221,7 +241,10 @@ async fn fm30_08_occupied_slot_returns_40907() {
     .await;
 
     let v: serde_json::Value = serde_json::from_str(&resp).unwrap();
-    assert_eq!(v["code"], 40907, "FM30-08: occupied slot should return 40907");
+    assert_eq!(
+        v["code"], 40907,
+        "FM30-08: occupied slot should return 40907"
+    );
 }
 
 /// FM30-09: target 被禁麦 → 40306
@@ -256,7 +279,10 @@ async fn fm30_09_muted_target_returns_40306() {
     .await;
 
     let v: serde_json::Value = serde_json::from_str(&resp).unwrap();
-    assert_eq!(v["code"], 40306, "FM30-09: muted target should return 40306");
+    assert_eq!(
+        v["code"], 40306,
+        "FM30-09: muted target should return 40306"
+    );
 }
 
 /// FM30-10: ForceLeaveMic 麦上用户 → 广播 MicLeft { forced_by }
@@ -291,7 +317,10 @@ async fn fm30_10_force_leave_mic_success() {
     .await;
 
     let v: serde_json::Value = serde_json::from_str(&resp).unwrap();
-    assert_eq!(v["type"], "ForceLeaveMicResult", "FM30-10: type should be ForceLeaveMicResult");
+    assert_eq!(
+        v["type"], "ForceLeaveMicResult",
+        "FM30-10: type should be ForceLeaveMicResult"
+    );
     assert_eq!(v["code"], 0, "FM30-10: should succeed");
 
     // 验证麦位已释放
@@ -305,14 +334,23 @@ async fn fm30_10_force_leave_mic_success() {
             .try_recv()
             .unwrap_or_else(|_| panic!("FM30-10: {name} should receive MicLeft broadcast"));
         let bv: serde_json::Value = serde_json::from_str(&msg).unwrap();
-        assert_eq!(bv["type"], "MicLeft", "FM30-10: {name} should receive MicLeft");
-        assert_eq!(bv["payload"]["forced"], true, "FM30-10: {name} forced should be true");
+        assert_eq!(
+            bv["type"], "MicLeft",
+            "FM30-10: {name} should receive MicLeft"
+        );
+        assert_eq!(
+            bv["payload"]["forced"], true,
+            "FM30-10: {name} forced should be true"
+        );
         assert_eq!(
             bv["payload"]["forced_by"],
             owner_id.to_string(),
             "FM30-10: {name} forced_by should be owner"
         );
-        assert_eq!(bv["payload"]["mic_index"], 0, "FM30-10: {name} mic_index should be 0");
+        assert_eq!(
+            bv["payload"]["mic_index"], 0,
+            "FM30-10: {name} mic_index should be 0"
+        );
     };
 
     check_broadcast("owner", &mut rx_owner);
@@ -345,7 +383,10 @@ async fn fm30_11_force_leave_not_on_mic_returns_40404() {
     .await;
 
     let v: serde_json::Value = serde_json::from_str(&resp).unwrap();
-    assert_eq!(v["code"], 40404, "FM30-11: target not on mic should return 40404");
+    assert_eq!(
+        v["code"], 40404,
+        "FM30-11: target not on mic should return 40404"
+    );
 }
 
 /// FM30-12: 管理员 ForceLeaveMic 房主 → 40302
@@ -377,7 +418,10 @@ async fn fm30_12_admin_cannot_force_leave_owner() {
     .await;
 
     let v: serde_json::Value = serde_json::from_str(&resp).unwrap();
-    assert_eq!(v["code"], 40302, "FM30-12: admin cannot force owner off mic, should return 40302");
+    assert_eq!(
+        v["code"], 40302,
+        "FM30-12: admin cannot force owner off mic, should return 40302"
+    );
 
     // 验证房主还在麦上
     let room_state = room_manager.get_room(room_id).unwrap();
@@ -412,7 +456,12 @@ async fn fm30_13_regular_user_force_mic_returns_40301() {
     let mute_redis = Arc::new(FakeMuteRedis::default());
 
     // ForceTakeMic by regular user → 40301
-    let take_deps = make_force_take_deps(&room_manager_take, &room_service_take, mute_redis, &registry);
+    let take_deps = make_force_take_deps(
+        &room_manager_take,
+        &room_service_take,
+        mute_redis,
+        &registry,
+    );
     let resp_take = handle_force_take_mic(
         take_mic_payload(room_id, target_id, 3),
         Some("msg-13a".to_string()),
@@ -422,7 +471,10 @@ async fn fm30_13_regular_user_force_mic_returns_40301() {
     .await;
 
     let vt: serde_json::Value = serde_json::from_str(&resp_take).unwrap();
-    assert_eq!(vt["code"], 40301, "FM30-13: regular user ForceTakeMic should return 40301");
+    assert_eq!(
+        vt["code"], 40301,
+        "FM30-13: regular user ForceTakeMic should return 40301"
+    );
 
     // ForceLeaveMic by regular user → 40301
     let leave_deps = make_force_leave_deps(&room_manager_leave, &room_service_leave, &registry);
@@ -435,5 +487,8 @@ async fn fm30_13_regular_user_force_mic_returns_40301() {
     .await;
 
     let vl: serde_json::Value = serde_json::from_str(&resp_leave).unwrap();
-    assert_eq!(vl["code"], 40301, "FM30-13: regular user ForceLeaveMic should return 40301");
+    assert_eq!(
+        vl["code"], 40301,
+        "FM30-13: regular user ForceLeaveMic should return 40301"
+    );
 }

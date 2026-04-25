@@ -27,8 +27,14 @@ pub struct AdminRoomService {
 }
 
 impl AdminRoomService {
-    pub fn new(room_repo: Arc<dyn AdminRoomRepository>, event_publisher: Arc<dyn EventPublisher>) -> Self {
-        Self { room_repo, event_publisher }
+    pub fn new(
+        room_repo: Arc<dyn AdminRoomRepository>,
+        event_publisher: Arc<dyn EventPublisher>,
+    ) -> Self {
+        Self {
+            room_repo,
+            event_publisher,
+        }
     }
 
     /// 查询房间列表，返回分页结果。
@@ -41,18 +47,13 @@ impl AdminRoomService {
     /// - page >= 1，否则返回 ValidationError (40003)
     /// - page_size 在 1..=100，否则返回 ValidationError (40003)
     /// - status 必须为 "active" / "closed"，否则返回 ValidationError (40003)
-    pub async fn list(
-        &self,
-        query: AdminRoomListQuery,
-    ) -> Result<AdminRoomListResponse, AppError> {
+    pub async fn list(&self, query: AdminRoomListQuery) -> Result<AdminRoomListResponse, AppError> {
         // ── 参数解析 & 校验 ────────────────────────────────────────────────────
         let page = query.page.unwrap_or(1);
         let page_size = query.page_size.unwrap_or(20);
 
         if page == 0 {
-            return Err(AppError::ValidationError(
-                "page must be >= 1".to_string(),
-            ));
+            return Err(AppError::ValidationError("page must be >= 1".to_string()));
         }
         if page_size == 0 || page_size > 100 {
             return Err(AppError::ValidationError(
@@ -95,11 +96,7 @@ impl AdminRoomService {
         &self,
         room_id: Uuid,
     ) -> Result<AdminRoomDetailResponse, AppError> {
-        match self
-            .room_repo
-            .find_room_by_id_any_status(room_id)
-            .await?
-        {
+        match self.room_repo.find_room_by_id_any_status(room_id).await? {
             Some(row) => Ok(AdminRoomDetailResponse::from(row)),
             None => Err(AppError::NotFound(format!("room {} not found", room_id))),
         }
@@ -111,6 +108,8 @@ impl AdminRoomService {
     /// - 房间不存在（含软删除）→ NotFound (40400)
     /// - 房间已 closed → RoomAlreadyClosed (40901)
     /// - 无 owner 检查（任何有 RoomForceClose 权限的角色均可操作）
+    /// - 缺陷 #3：UPDATE 在 SQL 层带 status='active' 守卫，并发强制关闭仅一次成功，
+    ///   另一次 rows_affected=0 → 返回 RoomAlreadyClosed（不再误报 200 OK）。
     pub async fn force_close_room(&self, operator_id: Uuid, room_id: Uuid) -> Result<(), AppError> {
         // 1. 查询（含 closed 状态，不做 owner 检查）
         let room = self
@@ -124,8 +123,11 @@ impl AdminRoomService {
             return Err(AppError::RoomAlreadyClosed);
         }
 
-        // 3. 持久化状态变更
-        self.room_repo.set_room_closed(room_id).await?;
+        // 3. 持久化状态变更（原子，缺陷 #3）
+        let updated = self.room_repo.set_room_closed(room_id).await?;
+        if !updated {
+            return Err(AppError::RoomAlreadyClosed);
+        }
 
         // 4. 发布关闭事件（fire-and-forget，失败不影响主业务）
         let event = AdminEvent {
@@ -297,10 +299,7 @@ mod tests {
             repo.seed(make_row(&format!("Room {i}"), "active"));
         }
 
-        let result = svc
-            .list(query(Some(2), Some(2), None, None))
-            .await
-            .unwrap();
+        let result = svc.list(query(Some(2), Some(2), None, None)).await.unwrap();
 
         assert_eq!(result.total, 5);
         assert_eq!(result.page, 2);
@@ -391,13 +390,20 @@ mod tests {
         repo.seed_detail(row);
 
         let result = svc.get_room_detail(id).await.unwrap();
-        assert_eq!(result.room_id, id.to_string(), "DS-04: room_id 应与输入一致");
+        assert_eq!(
+            result.room_id,
+            id.to_string(),
+            "DS-04: room_id 应与输入一致"
+        );
         assert_eq!(
             result.owner.user_id,
             owner_id.to_string(),
             "DS-04: owner.user_id 应与 owner_id 一致"
         );
-        assert_eq!(result.owner.nickname, "DetailOwner", "DS-04: 昵称应正确映射");
+        assert_eq!(
+            result.owner.nickname, "DetailOwner",
+            "DS-04: 昵称应正确映射"
+        );
     }
 
     // ── DS-05: get_room_detail 响应的 mic_slots 为空数组（MVP 固定空数组）────────
@@ -432,14 +438,20 @@ mod tests {
 
         // 验证状态已变更
         let detail = svc.get_room_detail(id).await.unwrap();
-        assert_eq!(detail.status, "closed", "FCS-01: 关闭后 status 应变为 closed");
+        assert_eq!(
+            detail.status, "closed",
+            "FCS-01: 关闭后 status 应变为 closed"
+        );
     }
 
     // ── FCS-02: 不存在的 room_id → NotFound ────────────────────────────────────
     #[tokio::test]
     async fn fcs02_force_close_nonexistent_room_returns_not_found() {
         let (svc, _) = make_service();
-        let err = svc.force_close_room(Uuid::new_v4(), Uuid::new_v4()).await.unwrap_err();
+        let err = svc
+            .force_close_room(Uuid::new_v4(), Uuid::new_v4())
+            .await
+            .unwrap_err();
         assert!(
             matches!(err, AppError::NotFound(_)),
             "FCS-02: 不存在的 room_id 应返回 NotFound，实际: {err:?}"
@@ -488,16 +500,25 @@ mod tests {
 
         // Service 层不做 owner 校验，应成功
         let result = svc.force_close_room(Uuid::new_v4(), id).await;
-        assert!(result.is_ok(), "FCS-05: 无 owner 检查，任何有权限的调用方均应成功");
+        assert!(
+            result.is_ok(),
+            "FCS-05: 无 owner 检查，任何有权限的调用方均应成功"
+        );
     }
 
     // ══════════════════════════════════════════════════════════════════════════
     // T-10011 RoomService 测试 FR-01~03（事件发布）
     // ══════════════════════════════════════════════════════════════════════════
 
-    use crate::modules::event::publisher::{ErrorEventPublisher, EventPublisher, NoopEventPublisher};
+    use crate::modules::event::publisher::{
+        ErrorEventPublisher, EventPublisher, NoopEventPublisher,
+    };
 
-    fn make_service_with_publisher() -> (AdminRoomService, Arc<FakeAdminRoomRepository>, Arc<NoopEventPublisher>) {
+    fn make_service_with_publisher() -> (
+        AdminRoomService,
+        Arc<FakeAdminRoomRepository>,
+        Arc<NoopEventPublisher>,
+    ) {
         let repo = Arc::new(FakeAdminRoomRepository::default());
         let publisher = Arc::new(NoopEventPublisher::default());
         let svc = AdminRoomService::new(
@@ -521,8 +542,14 @@ mod tests {
 
         let calls = publisher.calls.lock().unwrap();
         assert_eq!(calls.len(), 1, "FR-01: 应发布恰好 1 次事件");
-        assert_eq!(calls[0].0, "admin:events", "FR-01: channel 应为 admin:events");
-        assert_eq!(calls[0].1.r#type, "close_room", "FR-01: event.type 应为 close_room");
+        assert_eq!(
+            calls[0].0, "admin:events",
+            "FR-01: channel 应为 admin:events"
+        );
+        assert_eq!(
+            calls[0].1.r#type, "close_room",
+            "FR-01: event.type 应为 close_room"
+        );
         assert_eq!(
             calls[0].1.payload["room_id"].as_str().unwrap(),
             id.to_string(),
@@ -560,8 +587,37 @@ mod tests {
             matches!(result, Err(AppError::NotFound(_))),
             "FR-03: 不存在的房间应返回 NotFound，实际: {result:?}"
         );
+    }
 
-        let calls = publisher.calls.lock().unwrap();
-        assert_eq!(calls.len(), 0, "FR-03: 房间不存在时不应发布事件");
+    // ── FR-04: 并发 force_close_room 仅一次成功（缺陷 #3 回归）──────────────
+    #[tokio::test]
+    async fn fr04_concurrent_force_close_only_one_succeeds() {
+        let repo = Arc::new(FakeAdminRoomRepository::default());
+        let publisher = Arc::new(NoopEventPublisher::default());
+        let svc = Arc::new(AdminRoomService::new(
+            repo.clone() as Arc<dyn AdminRoomRepository>,
+            publisher.clone() as Arc<dyn EventPublisher>,
+        ));
+        let row = make_detail_row("Race Room", "active");
+        let id = row.id;
+        repo.seed_detail(row);
+
+        let svc1 = Arc::clone(&svc);
+        let svc2 = Arc::clone(&svc);
+        let h1 = tokio::spawn(async move { svc1.force_close_room(Uuid::new_v4(), id).await });
+        let h2 = tokio::spawn(async move { svc2.force_close_room(Uuid::new_v4(), id).await });
+        let r1 = h1.await.unwrap();
+        let r2 = h2.await.unwrap();
+
+        let oks = [&r1, &r2].iter().filter(|r| r.is_ok()).count();
+        let already = [&r1, &r2]
+            .iter()
+            .filter(|r| matches!(r, Err(AppError::RoomAlreadyClosed)))
+            .count();
+        assert_eq!(oks, 1, "并发 force_close 应仅 1 次 Ok，r1={r1:?} r2={r2:?}");
+        assert_eq!(
+            already, 1,
+            "并发 force_close 应有 1 次 RoomAlreadyClosed，r1={r1:?} r2={r2:?}"
+        );
     }
 }

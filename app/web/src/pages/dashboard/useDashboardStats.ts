@@ -8,7 +8,7 @@
  *   - 导出 { stats, loading, error, refresh, lastUpdatedAt }
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   adminGetRooms,
   adminGetStatsOverview,
@@ -108,9 +108,12 @@ export function useDashboardStats(): UseDashboardStatsReturn {
   }, []);
 
   // [M-02] 每次 effect 建立独立的 AbortController；卸载时 abort() 取消飞行中请求
-  // [M-03] 删除冗余的 fetchDataRef，直接依赖 fetchData（其引用永远稳定）
+  // [缺陷 #6] refresh() 必须与 effect 共享同一个 controller，且能取消上一次手动 refresh
+  const controllerRef = useRef<AbortController | null>(null);
+
   useEffect(() => {
     const abortController = new AbortController();
+    controllerRef.current = abortController;
 
     void fetchData(abortController.signal);
 
@@ -120,12 +123,20 @@ export function useDashboardStats(): UseDashboardStatsReturn {
 
     return () => {
       abortController.abort();
+      if (controllerRef.current === abortController) {
+        controllerRef.current = null;
+      }
       clearInterval(timer);
     };
   }, [fetchData]);
 
+  // [缺陷 #6] 手动 refresh：先 abort 上一次飞行中请求，再发起新请求
+  // 避免连续点击 refresh 时旧请求晚到覆盖新数据，或与 effect 中请求竞态
   const refresh = useCallback(() => {
-    void fetchData();
+    controllerRef.current?.abort();
+    const controller = new AbortController();
+    controllerRef.current = controller;
+    void fetchData(controller.signal);
   }, [fetchData]);
 
   return { stats, loading, error, refresh, lastUpdatedAt };

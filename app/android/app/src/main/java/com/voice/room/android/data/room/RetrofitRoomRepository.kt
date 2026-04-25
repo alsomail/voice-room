@@ -143,9 +143,12 @@ class RetrofitRoomRepository(
                                 throw PasswordWrongException(remaining)
                             }
                             42910 -> {
-                                val minutes = (errBody.data?.get("remaining_minutes") as? Double)
-                                    ?.toInt() ?: 30
-                                throw PasswordLockedException(minutes)
+                                // 缺陷 #1 修复：服务端返回字段为 `locked_remaining_sec`（秒），
+                                // 之前误读为 `remaining_minutes` 且当 minutes 处理 → 锁定时长被压成 1/60。
+                                // 默认值同步对齐 LOCK_TTL_SECS = 1800 秒（= 30 分钟）。
+                                val secs = (errBody.data?.get("locked_remaining_sec") as? Double)
+                                    ?.toInt() ?: 1800
+                                throw PasswordLockedException(secs)
                             }
                             40400 -> throw RoomNotFoundException()
                             else  -> throw ApiException(errBody.code, errBody.message)

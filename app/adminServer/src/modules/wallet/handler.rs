@@ -62,16 +62,12 @@ pub async fn adjust_balance_handler(
 }
 
 /// 参数校验：amount、reason 合法性检查
-fn validate_request(
-    req: &AdjustBalanceRequest,
-) -> Result<(), crate::common::error::AppError> {
+fn validate_request(req: &AdjustBalanceRequest) -> Result<(), crate::common::error::AppError> {
     use crate::common::error::AppError;
 
     // amount 不能为 0
     if req.amount == 0 {
-        return Err(AppError::ValidationError(
-            "amount 不能为 0".to_string(),
-        ));
+        return Err(AppError::ValidationError("amount 不能为 0".to_string()));
     }
 
     // amount 绝对值不能超过 10,000,000

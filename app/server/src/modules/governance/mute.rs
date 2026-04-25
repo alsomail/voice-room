@@ -53,12 +53,8 @@ pub trait MuteRedis: Send + Sync {
     ) -> Result<(), AppError>;
 
     /// 删除禁麦/禁言 key（解除禁麦/禁言）。
-    async fn del_mute(
-        &self,
-        mute_type: &str,
-        room_id: Uuid,
-        user_id: Uuid,
-    ) -> Result<(), AppError>;
+    async fn del_mute(&self, mute_type: &str, room_id: Uuid, user_id: Uuid)
+        -> Result<(), AppError>;
 
     /// 查询禁麦/禁言剩余秒数；key 不存在或已过期则返回 None。
     async fn get_mute_ttl(
@@ -135,7 +131,14 @@ impl<T: MuteDb + ?Sized> MuteDb for Arc<T> {
         reason: &str,
     ) -> Result<(), AppError> {
         (**self)
-            .insert_mute_record(room_id, operator_id, target_id, mute_type, duration_sec, reason)
+            .insert_mute_record(
+                room_id,
+                operator_id,
+                target_id,
+                mute_type,
+                duration_sec,
+                reason,
+            )
             .await
     }
 }
@@ -315,8 +318,8 @@ pub struct RealMuteRedis {
 
 impl RealMuteRedis {
     pub fn new(redis_url: &str) -> Result<Self, AppError> {
-        let client = redis::Client::open(redis_url)
-            .map_err(|e| AppError::RedisError(e.to_string()))?;
+        let client =
+            redis::Client::open(redis_url).map_err(|e| AppError::RedisError(e.to_string()))?;
         Ok(Self { client })
     }
 }
@@ -582,7 +585,13 @@ pub async fn handle_mute(
         .filter(|s| *s == "mic" || *s == "chat")
     {
         Some(t) => t.to_string(),
-        None => return mute_error(msg_id, 40002, "missing or invalid type (must be 'mic' or 'chat')"),
+        None => {
+            return mute_error(
+                msg_id,
+                40002,
+                "missing or invalid type (must be 'mic' or 'chat')",
+            )
+        }
     };
 
     // ── 4. 解析 duration_sec ──────────────────────────────────────────────────
@@ -615,9 +624,7 @@ pub async fn handle_mute(
         return mute_error(
             msg_id,
             40002,
-            &format!(
-                "duration_sec must be 0 or in [{MUTE_DURATION_MIN}, {MUTE_DURATION_MAX}]"
-            ),
+            &format!("duration_sec must be 0 or in [{MUTE_DURATION_MIN}, {MUTE_DURATION_MAX}]"),
         );
     }
 
@@ -848,7 +855,10 @@ async fn do_unmute_internal(
     from_mute_cmd: bool,
 ) -> String {
     // 删 Redis key
-    if let Err(e) = mute_redis.del_mute(mute_type, room_id, target_user_id).await {
+    if let Err(e) = mute_redis
+        .del_mute(mute_type, room_id, target_user_id)
+        .await
+    {
         tracing::error!("del_mute failed: {e}");
         if from_mute_cmd {
             return mute_error(msg_id, 50000, "redis error");

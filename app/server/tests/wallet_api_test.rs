@@ -124,7 +124,10 @@ async fn b01_unauthenticated_balance_returns_401() {
     );
 
     let body = body_json(response).await;
-    assert_eq!(body["code"], 40101, "Error code should be 40101 (Unauthorized)");
+    assert_eq!(
+        body["code"], 40101,
+        "Error code should be 40101 (Unauthorized)"
+    );
 }
 
 // ─── B02: 已登录初始用户返回 diamond_balance=0 ────────────────────────────────
@@ -242,7 +245,15 @@ async fn b04_filter_by_type_returns_only_matching() {
     {
         let mut txn = pool.begin().await.expect("begin txn");
         let balance_after = wallet_service
-            .apply_delta(&mut txn, user_id, 1000, WalletTxnType::AdminAdjust, None, None, None)
+            .apply_delta(
+                &mut txn,
+                user_id,
+                1000,
+                WalletTxnType::AdminAdjust,
+                None,
+                None,
+                None,
+            )
             .await
             .expect("apply recharge delta");
         txn.commit().await.expect("commit recharge");
@@ -259,7 +270,15 @@ async fn b04_filter_by_type_returns_only_matching() {
     {
         let mut txn = pool.begin().await.expect("begin txn");
         let balance_after = wallet_service
-            .apply_delta(&mut txn, user_id, -100, WalletTxnType::GiftSend, None, None, None)
+            .apply_delta(
+                &mut txn,
+                user_id,
+                -100,
+                WalletTxnType::GiftSend,
+                None,
+                None,
+                None,
+            )
             .await
             .expect("apply gift_send delta");
         txn.commit().await.expect("commit gift_send");
@@ -295,10 +314,16 @@ async fn b04_filter_by_type_returns_only_matching() {
     assert_eq!(response.status(), StatusCode::OK);
     let body = body_json(response).await;
     assert_eq!(body["code"], 0);
-    assert_eq!(body["data"]["total"], 1, "Should have 1 gift_send transaction");
+    assert_eq!(
+        body["data"]["total"], 1,
+        "Should have 1 gift_send transaction"
+    );
     let items = body["data"]["items"].as_array().unwrap();
     assert_eq!(items.len(), 1);
-    assert_eq!(items[0]["type"], "gift_send", "Transaction type should be gift_send");
+    assert_eq!(
+        items[0]["type"], "gift_send",
+        "Transaction type should be gift_send"
+    );
     assert_eq!(items[0]["amount"], -100, "Amount should be -100");
 }
 
@@ -335,7 +360,15 @@ async fn b05_apply_delta_triggers_ws_balance_updated_within_500ms() {
     {
         let mut txn = pool.begin().await.expect("begin txn");
         let balance_after = wallet_service
-            .apply_delta(&mut txn, user_id, 1000, WalletTxnType::AdminAdjust, None, None, None)
+            .apply_delta(
+                &mut txn,
+                user_id,
+                1000,
+                WalletTxnType::AdminAdjust,
+                None,
+                None,
+                None,
+            )
             .await
             .expect("initial recharge");
         txn.commit().await.expect("commit recharge");
@@ -355,7 +388,15 @@ async fn b05_apply_delta_triggers_ws_balance_updated_within_500ms() {
     {
         let mut txn = pool.begin().await.expect("begin txn");
         let balance_after = wallet_service
-            .apply_delta(&mut txn, user_id, -100, WalletTxnType::GiftSend, None, None, None)
+            .apply_delta(
+                &mut txn,
+                user_id,
+                -100,
+                WalletTxnType::GiftSend,
+                None,
+                None,
+                None,
+            )
             .await
             .expect("apply delta");
         txn.commit().await.expect("commit delta");
@@ -375,7 +416,10 @@ async fn b05_apply_delta_triggers_ws_balance_updated_within_500ms() {
         .expect("WS channel should not be closed");
 
     let value: serde_json::Value = serde_json::from_str(&msg).unwrap();
-    assert_eq!(value["type"], "BalanceUpdated", "Message type should be BalanceUpdated");
+    assert_eq!(
+        value["type"], "BalanceUpdated",
+        "Message type should be BalanceUpdated"
+    );
     assert_eq!(
         value["payload"]["diamond_balance"], 900,
         "Balance after should be 900"
@@ -386,7 +430,9 @@ async fn b05_apply_delta_triggers_ws_balance_updated_within_500ms() {
         "Reason should be gift_send"
     );
     // MEDIUM-2: BalanceUpdated 必须包含 msg_id
-    let msg_id = value["msg_id"].as_str().expect("msg_id must be present in BalanceUpdated");
+    let msg_id = value["msg_id"]
+        .as_str()
+        .expect("msg_id must be present in BalanceUpdated");
     Uuid::parse_str(msg_id).expect("msg_id must be a valid UUID");
 }
 
@@ -423,7 +469,15 @@ async fn b06_multi_connection_same_user_all_receive_push() {
     // 充值（外部事务）
     let mut txn = pool.begin().await.expect("begin txn");
     let balance_after = wallet_service
-        .apply_delta(&mut txn, user_id, 500, WalletTxnType::AdminAdjust, None, None, None)
+        .apply_delta(
+            &mut txn,
+            user_id,
+            500,
+            WalletTxnType::AdminAdjust,
+            None,
+            None,
+            None,
+        )
         .await
         .expect("apply delta");
     txn.commit().await.expect("commit");
@@ -449,10 +503,22 @@ async fn b06_multi_connection_same_user_all_receive_push() {
     let v1: serde_json::Value = serde_json::from_str(&msg1).unwrap();
     let v2: serde_json::Value = serde_json::from_str(&msg2).unwrap();
 
-    assert_eq!(v1["type"], "BalanceUpdated", "conn1 should receive BalanceUpdated");
-    assert_eq!(v2["type"], "BalanceUpdated", "conn2 should receive BalanceUpdated");
-    assert_eq!(v1["payload"]["diamond_balance"], 500, "conn1 balance should be 500");
-    assert_eq!(v2["payload"]["diamond_balance"], 500, "conn2 balance should be 500");
+    assert_eq!(
+        v1["type"], "BalanceUpdated",
+        "conn1 should receive BalanceUpdated"
+    );
+    assert_eq!(
+        v2["type"], "BalanceUpdated",
+        "conn2 should receive BalanceUpdated"
+    );
+    assert_eq!(
+        v1["payload"]["diamond_balance"], 500,
+        "conn1 balance should be 500"
+    );
+    assert_eq!(
+        v2["payload"]["diamond_balance"], 500,
+        "conn2 balance should be 500"
+    );
     // MEDIUM-2: 每条消息都应该有 msg_id
     Uuid::parse_str(v1["msg_id"].as_str().unwrap()).expect("conn1 msg_id must be valid UUID");
     Uuid::parse_str(v2["msg_id"].as_str().unwrap()).expect("conn2 msg_id must be valid UUID");
@@ -538,7 +604,15 @@ async fn b08_apply_delta_negative_balance_rolls_back() {
     // HIGH-1: 用户初始余额为 0，尝试扣款 -100 应失败（外部事务自动回滚）
     let mut txn = pool.begin().await.expect("begin txn");
     let result = wallet_service
-        .apply_delta(&mut txn, user_id, -100, WalletTxnType::GiftSend, None, None, None)
+        .apply_delta(
+            &mut txn,
+            user_id,
+            -100,
+            WalletTxnType::GiftSend,
+            None,
+            None,
+            None,
+        )
         .await;
     // apply_delta 失败时 txn 仍持有，drop 时自动回滚
     drop(txn);
@@ -546,23 +620,20 @@ async fn b08_apply_delta_negative_balance_rolls_back() {
     assert!(result.is_err(), "Applying negative delta should fail");
 
     // 验证余额未变
-    let balance: i64 = sqlx::query_scalar(
-        "SELECT diamond_balance FROM users WHERE id = $1",
-    )
-    .bind(user_id)
-    .fetch_one(&pool)
-    .await
-    .unwrap();
+    let balance: i64 = sqlx::query_scalar("SELECT diamond_balance FROM users WHERE id = $1")
+        .bind(user_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     assert_eq!(balance, 0, "Balance should remain 0 after failed delta");
 
     // 验证无流水记录
-    let count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM wallet_transactions WHERE user_id = $1",
-    )
-    .bind(user_id)
-    .fetch_one(&pool)
-    .await
-    .unwrap();
+    let count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM wallet_transactions WHERE user_id = $1")
+            .bind(user_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
     assert_eq!(count, 0, "No transaction should be written after rollback");
 
     // 验证无 WS 推送（50ms 内不应收到任何消息）
@@ -595,7 +666,11 @@ async fn b09_invalid_pagination_returns_40003() {
             .await
             .unwrap();
 
-        assert_eq!(response.status(), StatusCode::BAD_REQUEST, "page=0 should return 400");
+        assert_eq!(
+            response.status(),
+            StatusCode::BAD_REQUEST,
+            "page=0 should return 400"
+        );
         let body = body_json(response).await;
         assert_eq!(body["code"], 40003, "page=0 should return error code 40003");
     }
@@ -615,8 +690,15 @@ async fn b09_invalid_pagination_returns_40003() {
             .await
             .unwrap();
 
-        assert_eq!(response.status(), StatusCode::BAD_REQUEST, "size=200 should return 400");
+        assert_eq!(
+            response.status(),
+            StatusCode::BAD_REQUEST,
+            "size=200 should return 400"
+        );
         let body = body_json(response).await;
-        assert_eq!(body["code"], 40003, "size=200 should return error code 40003");
+        assert_eq!(
+            body["code"], 40003,
+            "size=200 should return error code 40003"
+        );
     }
 }

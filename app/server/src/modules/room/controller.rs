@@ -1,9 +1,17 @@
-use axum::{extract::{Path, Query, State}, http::StatusCode, response::IntoResponse, Extension, Json};
+use axum::{
+    extract::{Path, Query, State},
+    http::StatusCode,
+    response::IntoResponse,
+    Extension, Json,
+};
 use serde::Serialize;
 
 use crate::{
     bootstrap::AppState,
-    common::{auth::AuthContext, error::AppError, error::err_response, response::ApiResponse, RequestContext},
+    common::{
+        auth::AuthContext, error::err_response, error::AppError, response::ApiResponse,
+        RequestContext,
+    },
     modules::room::password::{verify_password, VerifyPasswordResult},
     ws::broadcaster::{broadcast_room_info_updated, RoomInfoUpdatedPayload},
 };
@@ -135,7 +143,11 @@ pub async fn patch_room(
         }
     };
 
-    match state.room_service.patch_room(room_id, ctx.user_id, req).await {
+    match state
+        .room_service
+        .patch_room(room_id, ctx.user_id, req)
+        .await
+    {
         Ok(resp) => {
             // 广播 RoomInfoUpdated 到房间内所有 WS 连接
             let payload = RoomInfoUpdatedPayload {

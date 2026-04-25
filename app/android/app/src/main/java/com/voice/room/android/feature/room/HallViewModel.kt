@@ -3,6 +3,7 @@ package com.voice.room.android.feature.room
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.voice.room.android.R
 import com.voice.room.android.data.local.InMemoryKickCooldownStore
 import com.voice.room.android.data.local.KickCooldownStore
 import com.voice.room.android.domain.room.IRoomRepository
@@ -12,6 +13,7 @@ import com.voice.room.android.domain.room.RoomNotFoundException
 import com.voice.room.android.domain.room.RoomsPage
 import com.voice.room.android.feature.room.governance.Clock
 import com.voice.room.android.feature.room.governance.SystemClock
+import com.voice.room.android.util.UiText
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -87,7 +89,8 @@ class HallViewModel(
                     _uiState.update {
                         it.copy(
                             isLoading = false,
-                            error = "网络异常，请稍后重试",
+                            // 缺陷 #4：使用 UiText（@StringRes）而非中文字面量
+                            error = UiText.of(R.string.hall_load_failed),
                             rooms = emptyList()
                         )
                     }
@@ -96,10 +99,22 @@ class HallViewModel(
     }
 
     /**
-     * 下拉刷新：重置列表并从第 1 页重新加载
+     * 下拉刷新：重置列表 + 分页元数据，并从第 1 页重新加载。
+     *
+     * 缺陷 #5 修复：之前仅清空 [HallUiState.rooms]，未重置
+     * [HallUiState.currentPage]、[HallUiState.totalItems]、[HallUiState.hasMore]，
+     * 导致刷新后若新结果首页为空（或更短），分页器仍认为存在历史页 → 上拉无效 / 状态错乱。
      */
     fun refresh() {
-        _uiState.update { it.copy(rooms = emptyList()) }
+        _uiState.update {
+            it.copy(
+                rooms = emptyList(),
+                currentPage = 1,
+                totalItems = 0,
+                hasMore = false,
+                error = null,
+            )
+        }
         loadRooms(page = 1)
     }
 
@@ -158,15 +173,19 @@ class HallViewModel(
 
                         is PasswordLockedException ->
                             _passwordDialogState.value =
-                                PasswordDialogState.Locked(error.remainingMinutes)
+                                // 缺陷 #1：服务端契约字段为秒数 → state 也用秒
+                                PasswordDialogState.Locked(error.remainingSeconds)
 
                         is RoomNotFoundException -> {
-                            _hallEvents.trySend(HallEvent.ShowToast("房间不存在"))
+                            // 缺陷 #4：使用 UiText 占位
+                            _hallEvents.trySend(HallEvent.ShowToast(UiText.of(R.string.hall_room_not_found)))
                             _passwordDialogState.value = null
                         }
 
                         else ->
-                            _hallEvents.trySend(HallEvent.ShowToast("网络错误，请重试"))
+                            _hallEvents.trySend(
+                                HallEvent.ShowToast(UiText.of(R.string.hall_password_unknown_error))
+                            )
                     }
                 }
         }
@@ -190,7 +209,12 @@ class HallViewModel(
         val nowMs = clock.currentTimeMillis()
         if (untilMs > nowMs) {
             val remainingSec = ((untilMs - nowMs) / 1000L).coerceAtLeast(1L)
-            _hallEvents.trySend(HallEvent.ShowToast("你暂时不能进入此房间，还剩 ${remainingSec} 秒"))
+            // 缺陷 #4：使用 UiText 占位（i18n），消息体在 UI 层格式化
+            _hallEvents.trySend(
+                HallEvent.ShowToast(
+                    UiText.of(R.string.hall_kick_cooldown_seconds, remainingSec.toInt())
+                )
+            )
             return
         }
         _hallEvents.trySend(HallEvent.NavigateToRoom(roomId, accessToken = null))

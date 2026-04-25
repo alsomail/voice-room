@@ -67,11 +67,15 @@ mod tests {
             "ts": 1700000000
         }"#;
 
-        let event: AdminEvent = serde_json::from_str(json)
-            .expect("ban_user JSON should deserialize successfully");
+        let event: AdminEvent =
+            serde_json::from_str(json).expect("ban_user JSON should deserialize successfully");
 
         match event {
-            AdminEvent::BanUser { payload, admin_id, ts } => {
+            AdminEvent::BanUser {
+                payload,
+                admin_id,
+                ts,
+            } => {
                 assert_eq!(
                     payload.user_id.to_string(),
                     "00000000-0000-0000-0000-000000000001",
@@ -98,20 +102,21 @@ mod tests {
             "ts": 1700000001
         }"#;
 
-        let event: AdminEvent = serde_json::from_str(json)
-            .expect("close_room JSON should deserialize successfully");
+        let event: AdminEvent =
+            serde_json::from_str(json).expect("close_room JSON should deserialize successfully");
 
         match event {
-            AdminEvent::CloseRoom { payload, admin_id, ts } => {
+            AdminEvent::CloseRoom {
+                payload,
+                admin_id,
+                ts,
+            } => {
                 assert_eq!(
                     payload.room_id.to_string(),
                     "00000000-0000-0000-0000-000000000002",
                     "room_id should match"
                 );
-                assert_eq!(
-                    admin_id.to_string(),
-                    "00000000-0000-0000-0000-000000000099"
-                );
+                assert_eq!(admin_id.to_string(), "00000000-0000-0000-0000-000000000099");
                 assert_eq!(ts, 1700000001);
             }
             other => panic!("expected CloseRoom, got {:?}", other),
@@ -132,12 +137,13 @@ mod tests {
             .expect("broadcast_notice JSON should deserialize successfully");
 
         match event {
-            AdminEvent::BroadcastNotice { payload, admin_id, ts } => {
+            AdminEvent::BroadcastNotice {
+                payload,
+                admin_id,
+                ts,
+            } => {
                 assert_eq!(payload.message, "System maintenance at 10pm");
-                assert_eq!(
-                    admin_id.to_string(),
-                    "00000000-0000-0000-0000-000000000099"
-                );
+                assert_eq!(admin_id.to_string(), "00000000-0000-0000-0000-000000000099");
                 assert_eq!(ts, 1700000002);
             }
             other => panic!("expected BroadcastNotice, got {:?}", other),

@@ -24,7 +24,10 @@ use uuid::Uuid;
 
 use crate::common::error::AppError;
 
-use super::{assign_medal, MeInfo, RankingItem, RankingResult, RankingType, Period, current_key, current_period_key};
+use super::{
+    assign_medal, current_key, current_period_key, MeInfo, Period, RankingItem, RankingResult,
+    RankingType,
+};
 
 // ─── RankingServicePort trait ─────────────────────────────────────────────────
 
@@ -131,26 +134,23 @@ impl RankingService {
             let viewer_str = viewer_id.to_string();
 
             // ZREVRANK 返回 0-based rank；未在 ZSet 中时返回 nil
-            let zrevrank: Option<u64> = conn
-                .zrevrank(key, &viewer_str)
-                .await
-                .unwrap_or(None);
+            let zrevrank: Option<u64> = conn.zrevrank(key, &viewer_str).await.unwrap_or(None);
 
-            let zscore: Option<f64> = conn
-                .zscore(key, &viewer_str)
-                .await
-                .unwrap_or(None);
+            let zscore: Option<f64> = conn.zscore(key, &viewer_str).await.unwrap_or(None);
 
             MeInfo {
                 rank: zrevrank.map(|r| (r + 1) as u32),
                 score: zscore.map(|s| s as i64).unwrap_or(0),
             }
         } else {
-            MeInfo { rank: None, score: 0 }
+            MeInfo {
+                rank: None,
+                score: 0,
+            }
         };
 
         Ok(RankingResult {
-            ty: "charm".to_string(),  // placeholder; top() 会覆盖
+            ty: "charm".to_string(),   // placeholder; top() 会覆盖
             period: "day".to_string(), // placeholder; top() 会覆盖
             period_key: String::new(), // placeholder; top() 会覆盖
             items,
@@ -227,7 +227,10 @@ impl RankingServicePort for FakeRankingService {
             period: period.as_key_segment().to_string(),
             period_key: chrono::Utc::now().format("%Y-%m-%d").to_string(),
             items: vec![],
-            me: MeInfo { rank: None, score: 0 },
+            me: MeInfo {
+                rank: None,
+                score: 0,
+            },
         })
     }
 }

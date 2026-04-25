@@ -1,5 +1,7 @@
 package com.voice.room.android.feature.room
 
+import com.voice.room.android.util.UiText
+
 /**
  * 创建房间表单 UI 状态 (T-30036)
  *
@@ -20,7 +22,7 @@ package com.voice.room.android.feature.room
  * @param passwordEnabled 是否开启密码房
  * @param password        密码（6 位纯数字，仅 [passwordEnabled]=true 时校验）
  * @param submitting      正在提交（true 时按钮禁用）
- * @param error           错误信息（校验失败或 API 失败）
+ * @param error           错误信息（缺陷 #4：改为 [UiText]，禁止特定语言字面量）
  * @param navigatedRoomId 非 null 时代表创建成功，UI 应导航到该房间
  */
 data class CreateRoomFormState(
@@ -31,7 +33,7 @@ data class CreateRoomFormState(
     val passwordEnabled: Boolean = false,
     val password: String = "",
     val submitting: Boolean = false,
-    val error: String? = null,
+    val error: UiText? = null,
     val navigatedRoomId: String? = null
 ) {
     /**
@@ -47,3 +49,4 @@ data class CreateRoomFormState(
              && coverUrl.isNotEmpty()
              && !submitting
 }
+

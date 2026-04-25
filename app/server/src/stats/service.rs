@@ -222,8 +222,8 @@ impl StatsPort for FakeStatsService {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
     use std::sync::atomic::Ordering;
+    use std::sync::Arc;
 
     use uuid::Uuid;
 
@@ -242,7 +242,10 @@ mod tests {
         svc.user_online(uid).await.unwrap();
 
         let count = svc.get_online_count().await.unwrap();
-        assert_eq!(count, 1, "online count should be 1 after one user comes online");
+        assert_eq!(
+            count, 1,
+            "online count should be 1 after one user comes online"
+        );
     }
 
     // ST02: 同一用戶多次 online，count 仍為 1（HLL 去重）
@@ -287,7 +290,10 @@ mod tests {
         svc.user_join_room(rid).await.unwrap();
 
         let count = svc.get_active_room_count().await.unwrap();
-        assert_eq!(count, 1, "active room count should be 1 after joining one room");
+        assert_eq!(
+            count, 1,
+            "active room count should be 1 after joining one room"
+        );
     }
 
     // ST05: user_leave_room 後 get_active_room_count 返回 0
@@ -300,7 +306,10 @@ mod tests {
         svc.user_leave_room(rid).await.unwrap();
 
         let count = svc.get_active_room_count().await.unwrap();
-        assert_eq!(count, 0, "active room count should be 0 after leaving the room");
+        assert_eq!(
+            count, 0,
+            "active room count should be 0 after leaving the room"
+        );
     }
 
     // ST06: 同一 room 被 join 兩次後 count 為 1（Set 冪等）
@@ -326,7 +335,10 @@ mod tests {
 
         let result = svc.take_snapshot().await;
 
-        assert!(result.is_ok(), "take_snapshot must not return an error on FakeStatsService");
+        assert!(
+            result.is_ok(),
+            "take_snapshot must not return an error on FakeStatsService"
+        );
         assert_eq!(
             svc.snapshot_calls.load(Ordering::Relaxed),
             1,

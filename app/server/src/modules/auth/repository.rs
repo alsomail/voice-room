@@ -1,9 +1,9 @@
 use async_trait::async_trait;
 #[cfg(any(test, feature = "test-utils"))]
 use chrono::Utc;
+use sqlx::PgPool;
 #[cfg(any(test, feature = "test-utils"))]
 use std::{collections::HashMap, sync::Mutex};
-use sqlx::PgPool;
 use uuid::Uuid;
 use voice_room_shared::models::user::UserModel;
 
@@ -135,12 +135,7 @@ impl UserRepository for FakeUserRepository {
         let guard = self.users.lock().unwrap();
         let result = ids
             .iter()
-            .filter_map(|id| {
-                guard
-                    .get(id)
-                    .filter(|u| u.deleted_at.is_none())
-                    .cloned()
-            })
+            .filter_map(|id| guard.get(id).filter(|u| u.deleted_at.is_none()).cloned())
             .collect();
         Ok(result)
     }

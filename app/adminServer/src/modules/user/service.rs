@@ -6,7 +6,10 @@ use crate::common::error::AppError;
 use crate::modules::event::publisher::{AdminEvent, EventPublisher};
 
 use super::{
-    dto::{AdminBanUserRequest, AdminBanUserResponse, AdminUserDetailResponse, AdminUserFilter, AdminUserItem, AdminUserListQuery, AdminUserListResponse},
+    dto::{
+        AdminBanUserRequest, AdminBanUserResponse, AdminUserDetailResponse, AdminUserFilter,
+        AdminUserItem, AdminUserListQuery, AdminUserListResponse,
+    },
     repository::AdminUserRepository,
 };
 
@@ -25,8 +28,14 @@ pub struct AdminUserService {
 }
 
 impl AdminUserService {
-    pub fn new(user_repo: Arc<dyn AdminUserRepository>, event_publisher: Arc<dyn EventPublisher>) -> Self {
-        Self { user_repo, event_publisher }
+    pub fn new(
+        user_repo: Arc<dyn AdminUserRepository>,
+        event_publisher: Arc<dyn EventPublisher>,
+    ) -> Self {
+        Self {
+            user_repo,
+            event_publisher,
+        }
     }
 
     /// 查询用户列表，返回分页结果。
@@ -239,7 +248,10 @@ mod tests {
         repo.seed(make_row("13800000001", "Alice", false));
         repo.seed(make_row("13800000002", "Bob", false));
 
-        let result = svc.list_users(query(None, None, None, None, None)).await.unwrap();
+        let result = svc
+            .list_users(query(None, None, None, None, None))
+            .await
+            .unwrap();
 
         assert_eq!(result.total, 2, "S-01: total 应为 2");
         assert_eq!(result.page, 1, "S-01: page 默认为 1");
@@ -290,7 +302,10 @@ mod tests {
     async fn s04_empty_result_total_zero_items_empty() {
         let (svc, _) = make_service();
 
-        let result = svc.list_users(query(None, None, None, None, None)).await.unwrap();
+        let result = svc
+            .list_users(query(None, None, None, None, None))
+            .await
+            .unwrap();
 
         assert_eq!(result.total, 0, "S-04: 空仓库 total 应为 0");
         assert!(result.items.is_empty(), "S-04: 空仓库 items 应为空");
@@ -316,14 +331,23 @@ mod tests {
         repo.seed(make_row("111", "Normal", false));
         repo.seed(make_row("222", "Banned", true));
 
-        let result = svc.list_users(query(None, None, None, None, None)).await.unwrap();
+        let result = svc
+            .list_users(query(None, None, None, None, None))
+            .await
+            .unwrap();
 
         assert_eq!(result.items.len(), 2, "S-06: 应有 2 条 items");
         // 验证 is_banned → status 映射
         let normal_item = result.items.iter().find(|i| i.phone == "111").unwrap();
         let banned_item = result.items.iter().find(|i| i.phone == "222").unwrap();
-        assert_eq!(normal_item.status, "normal", "S-06: is_banned=false 应映射为 normal");
-        assert_eq!(banned_item.status, "banned", "S-06: is_banned=true 应映射为 banned");
+        assert_eq!(
+            normal_item.status, "normal",
+            "S-06: is_banned=false 应映射为 normal"
+        );
+        assert_eq!(
+            banned_item.status, "banned",
+            "S-06: is_banned=true 应映射为 banned"
+        );
     }
 
     // ── 额外：page clamp（page=0 → 1）────────────────────────────────────────
@@ -426,9 +450,18 @@ mod tests {
         );
         assert_eq!(result.coin_balance, 1000, "SD-01: coin_balance 应正确");
         assert_eq!(result.vip_level, 2, "SD-01: vip_level 应正确");
-        assert_eq!(result.status, "normal", "SD-01: is_banned=false → status='normal'");
-        assert!(result.recharge_records.is_empty(), "SD-01: recharge_records MVP 应为空数组");
-        assert!(result.consume_records.is_empty(), "SD-01: consume_records MVP 应为空数组");
+        assert_eq!(
+            result.status, "normal",
+            "SD-01: is_banned=false → status='normal'"
+        );
+        assert!(
+            result.recharge_records.is_empty(),
+            "SD-01: recharge_records MVP 应为空数组"
+        );
+        assert!(
+            result.consume_records.is_empty(),
+            "SD-01: consume_records MVP 应为空数组"
+        );
         assert!(result.devices.is_empty(), "SD-01: devices MVP 应为空数组");
     }
 
@@ -462,7 +495,10 @@ mod tests {
         });
 
         let result = svc.get_user_detail(id).await.unwrap();
-        assert_eq!(result.status, "banned", "SD-03: is_banned=true → status 应为 'banned'");
+        assert_eq!(
+            result.status, "banned",
+            "SD-03: is_banned=true → status 应为 'banned'"
+        );
     }
 
     // ── SD-04: DB 错误 → get_user_detail 透传 AppError::DatabaseError (HTTP 500) ──
@@ -514,8 +550,15 @@ mod tests {
             created_at: Utc::now(),
         });
 
-        let result = svc.ban_user(Uuid::new_v4(), id, ban_req("ban")).await.unwrap();
-        assert_eq!(result.id, id.to_string(), "SB-01: 返回的 id 应与用户 id 一致");
+        let result = svc
+            .ban_user(Uuid::new_v4(), id, ban_req("ban"))
+            .await
+            .unwrap();
+        assert_eq!(
+            result.id,
+            id.to_string(),
+            "SB-01: 返回的 id 应与用户 id 一致"
+        );
         assert_eq!(result.status, "banned", "SB-01: 封禁后 status 应为 banned");
 
         // 验证 update_ban_status 已被调用（通过 find_user_by_id 查验状态）
@@ -539,8 +582,15 @@ mod tests {
             created_at: Utc::now(),
         });
 
-        let result = svc.ban_user(Uuid::new_v4(), id, ban_req("unban")).await.unwrap();
-        assert_eq!(result.id, id.to_string(), "SB-02: 返回的 id 应与用户 id 一致");
+        let result = svc
+            .ban_user(Uuid::new_v4(), id, ban_req("unban"))
+            .await
+            .unwrap();
+        assert_eq!(
+            result.id,
+            id.to_string(),
+            "SB-02: 返回的 id 应与用户 id 一致"
+        );
         assert_eq!(result.status, "normal", "SB-02: 解封后 status 应为 normal");
     }
 
@@ -550,7 +600,10 @@ mod tests {
         let (svc, _) = make_service();
         let nonexistent_id = Uuid::new_v4();
 
-        let err = svc.ban_user(Uuid::new_v4(), nonexistent_id, ban_req("ban")).await.unwrap_err();
+        let err = svc
+            .ban_user(Uuid::new_v4(), nonexistent_id, ban_req("ban"))
+            .await
+            .unwrap_err();
         assert!(
             matches!(err, AppError::UserNotFound(_)),
             "SB-03: 用户不存在应返回 UserNotFound，实际: {err:?}"
@@ -573,7 +626,10 @@ mod tests {
             created_at: Utc::now(),
         });
 
-        let err = svc.ban_user(Uuid::new_v4(), id, ban_req("ban")).await.unwrap_err();
+        let err = svc
+            .ban_user(Uuid::new_v4(), id, ban_req("ban"))
+            .await
+            .unwrap_err();
         assert!(
             matches!(err, AppError::UserAlreadyBanned),
             "SB-04: 重复 ban 应返回 UserAlreadyBanned (409)，实际: {err:?}"
@@ -596,7 +652,10 @@ mod tests {
             created_at: Utc::now(),
         });
 
-        let err = svc.ban_user(Uuid::new_v4(), id, ban_req("unban")).await.unwrap_err();
+        let err = svc
+            .ban_user(Uuid::new_v4(), id, ban_req("unban"))
+            .await
+            .unwrap_err();
         assert!(
             matches!(err, AppError::UserAlreadyNormal),
             "SB-05: 重复 unban 应返回 UserAlreadyNormal (409)，实际: {err:?}"
@@ -607,9 +666,15 @@ mod tests {
     // T-10011 Service 测试 SB-06~08（事件发布）
     // ════════════════════════════════════════════════════════════════════════
 
-    use crate::modules::event::publisher::{ErrorEventPublisher, EventPublisher, NoopEventPublisher};
+    use crate::modules::event::publisher::{
+        ErrorEventPublisher, EventPublisher, NoopEventPublisher,
+    };
 
-    fn make_service_with_publisher() -> (AdminUserService, Arc<FakeAdminUserRepository>, Arc<NoopEventPublisher>) {
+    fn make_service_with_publisher() -> (
+        AdminUserService,
+        Arc<FakeAdminUserRepository>,
+        Arc<NoopEventPublisher>,
+    ) {
         let repo = Arc::new(FakeAdminUserRepository::default());
         let publisher = Arc::new(NoopEventPublisher::default());
         let svc = AdminUserService::new(
@@ -641,8 +706,14 @@ mod tests {
 
         let calls = publisher.calls.lock().unwrap();
         assert_eq!(calls.len(), 1, "SB-06: 应发布恰好 1 次事件");
-        assert_eq!(calls[0].0, "admin:events", "SB-06: channel 应为 admin:events");
-        assert_eq!(calls[0].1.r#type, "ban_user", "SB-06: event.type 应为 ban_user");
+        assert_eq!(
+            calls[0].0, "admin:events",
+            "SB-06: channel 应为 admin:events"
+        );
+        assert_eq!(
+            calls[0].1.r#type, "ban_user",
+            "SB-06: event.type 应为 ban_user"
+        );
         assert_eq!(
             calls[0].1.admin_id,
             operator_id.to_string(),
@@ -672,7 +743,10 @@ mod tests {
 
         let calls = publisher.calls.lock().unwrap();
         assert_eq!(calls.len(), 1, "SB-07: 应发布恰好 1 次事件");
-        assert_eq!(calls[0].1.r#type, "unban_user", "SB-07: event.type 应为 unban_user");
+        assert_eq!(
+            calls[0].1.r#type, "unban_user",
+            "SB-07: event.type 应为 unban_user"
+        );
     }
 
     // ── SB-08: 使用 ErrorEventPublisher 时 ban_user 仍返回 Ok（fire-and-forget）──

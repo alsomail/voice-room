@@ -50,9 +50,7 @@ impl EventQueryService {
         let to = if let Some(to_str) = &params.to {
             to_str
                 .parse::<chrono::DateTime<Utc>>()
-                .map_err(|_| {
-                    AppError::ValidationError(format!("invalid 'to': '{}'", to_str))
-                })?
+                .map_err(|_| AppError::ValidationError(format!("invalid 'to': '{}'", to_str)))?
         } else {
             now
         };
@@ -61,9 +59,7 @@ impl EventQueryService {
         let from = if let Some(from_str) = &params.from {
             from_str
                 .parse::<chrono::DateTime<Utc>>()
-                .map_err(|_| {
-                    AppError::ValidationError(format!("invalid 'from': '{}'", from_str))
-                })?
+                .map_err(|_| AppError::ValidationError(format!("invalid 'from': '{}'", from_str)))?
         } else {
             now - Duration::hours(24)
         };
@@ -78,9 +74,7 @@ impl EventQueryService {
         // ── limit 校验：=0 → 400/40003 / >100 → 400/40003 ───────────────────
         let limit_raw = params.limit.unwrap_or(20);
         if limit_raw == 0 {
-            return Err(AppError::ValidationError(
-                "limit must be >= 1".to_string(),
-            ));
+            return Err(AppError::ValidationError("limit must be >= 1".to_string()));
         }
         if limit_raw > 100 {
             return Err(AppError::ValidationError(
@@ -90,9 +84,7 @@ impl EventQueryService {
         let limit = limit_raw;
         let page_raw = params.page.unwrap_or(1);
         if page_raw == 0 {
-            return Err(AppError::ValidationError(
-                "page must be >= 1".to_string(),
-            ));
+            return Err(AppError::ValidationError("page must be >= 1".to_string()));
         }
         let page = page_raw;
         let offset = ((page - 1) as i64) * (limit as i64);
@@ -185,9 +177,9 @@ mod tests {
     async fn eq01_normal_query_returns_sorted_by_server_ts_desc() {
         let repo = Arc::new(FakeEventQueryRepository::default());
         // 插入 3 条事件，时间错落
-        repo.push(make_row("event_old", 3600));      // 1h 前
-        repo.push(make_row("event_mid", 1800));      // 30m 前
-        repo.push(make_row("event_new", 60));        // 1m 前
+        repo.push(make_row("event_old", 3600)); // 1h 前
+        repo.push(make_row("event_mid", 1800)); // 30m 前
+        repo.push(make_row("event_new", 60)); // 1m 前
 
         let service = EventQueryService::new(repo);
         let now = Utc::now();
@@ -207,9 +199,18 @@ mod tests {
         assert_eq!(resp.total, 3, "EQ01: total 应为 3");
         assert_eq!(resp.items.len(), 3, "EQ01: items 长度应为 3");
         // 验证按 server_ts 倒序排列
-        let ts0 = resp.items[0].server_ts.parse::<chrono::DateTime<Utc>>().unwrap();
-        let ts1 = resp.items[1].server_ts.parse::<chrono::DateTime<Utc>>().unwrap();
-        let ts2 = resp.items[2].server_ts.parse::<chrono::DateTime<Utc>>().unwrap();
+        let ts0 = resp.items[0]
+            .server_ts
+            .parse::<chrono::DateTime<Utc>>()
+            .unwrap();
+        let ts1 = resp.items[1]
+            .server_ts
+            .parse::<chrono::DateTime<Utc>>()
+            .unwrap();
+        let ts2 = resp.items[2]
+            .server_ts
+            .parse::<chrono::DateTime<Utc>>()
+            .unwrap();
         assert!(
             ts0 >= ts1 && ts1 >= ts2,
             "EQ01: items 应按 server_ts DESC 排序"
@@ -233,9 +234,7 @@ mod tests {
             limit: Some(20),
         };
 
-        let result = service
-            .query_events(Uuid::new_v4(), params, false)
-            .await;
+        let result = service.query_events(Uuid::new_v4(), params, false).await;
 
         assert!(
             matches!(result, Err(AppError::ValidationError(_))),
@@ -259,9 +258,7 @@ mod tests {
             limit: Some(20),
         };
 
-        let result = service
-            .query_events(Uuid::new_v4(), params, false)
-            .await;
+        let result = service.query_events(Uuid::new_v4(), params, false).await;
 
         assert!(result.is_ok(), "EQ02b: 刚好 30 天不应报错");
     }
@@ -347,9 +344,7 @@ mod tests {
             limit: Some(101),
         };
 
-        let result = service
-            .query_events(Uuid::new_v4(), params, false)
-            .await;
+        let result = service.query_events(Uuid::new_v4(), params, false).await;
 
         assert!(
             matches!(result, Err(AppError::ValidationError(_))),
@@ -443,10 +438,7 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(
-            resp.total, 0,
-            "EQ05b: cs 查 admin_login 应返回空（被过滤）"
-        );
+        assert_eq!(resp.total, 0, "EQ05b: cs 查 admin_login 应返回空（被过滤）");
         assert!(resp.items.is_empty());
     }
 
@@ -501,10 +493,7 @@ mod tests {
         assert_eq!(p1.total, 5, "EQ07: total 应为 5");
         assert_eq!(p1.items.len(), 2, "EQ07: page1 应有 2 条");
         assert_eq!(p2.items.len(), 2, "EQ07: page2 应有 2 条");
-        assert_ne!(
-            p1.items[0].id, p2.items[0].id,
-            "EQ07: 两页的第一条不应相同"
-        );
+        assert_ne!(p1.items[0].id, p2.items[0].id, "EQ07: 两页的第一条不应相同");
     }
 
     // ── EQ08: 响应时间 <300ms（本地填充 10K events 测试）────────────────
@@ -686,7 +675,11 @@ mod tests {
         };
 
         let result = service.query_events(Uuid::new_v4(), params, false).await;
-        assert!(result.is_ok(), "HIGH-2c: limit=1 应为合法值，got: {:?}", result);
+        assert!(
+            result.is_ok(),
+            "HIGH-2c: limit=1 应为合法值，got: {:?}",
+            result
+        );
     }
 
     /// HIGH-2d: page=1（合法下界）不报错
@@ -705,7 +698,11 @@ mod tests {
         };
 
         let result = service.query_events(Uuid::new_v4(), params, false).await;
-        assert!(result.is_ok(), "HIGH-2d: page=1 应为合法值，got: {:?}", result);
+        assert!(
+            result.is_ok(),
+            "HIGH-2d: page=1 应为合法值，got: {:?}",
+            result
+        );
     }
 
     /// super_admin（filter_admin_events=false）可以看到 admin_* 事件

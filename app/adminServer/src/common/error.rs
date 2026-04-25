@@ -90,21 +90,17 @@ impl AppError {
 
     pub(crate) fn http_status(&self) -> StatusCode {
         match self {
-            AppError::InvalidAdminCredentials
-            | AppError::Unauthorized
-            | AppError::TokenExpired => StatusCode::UNAUTHORIZED,
+            AppError::InvalidAdminCredentials | AppError::Unauthorized | AppError::TokenExpired => {
+                StatusCode::UNAUTHORIZED
+            }
             AppError::AccountDisabled | AppError::Forbidden => StatusCode::FORBIDDEN,
             AppError::NotFound(_) => StatusCode::NOT_FOUND,
             AppError::UserNotFound(_) => StatusCode::NOT_FOUND,
             AppError::RoomAlreadyClosed => StatusCode::CONFLICT,
             AppError::UserAlreadyBanned | AppError::UserAlreadyNormal => StatusCode::CONFLICT,
             AppError::DuplicateCode(_) => StatusCode::CONFLICT,
-            AppError::ValidationError(_) | AppError::InsufficientBalance => {
-                StatusCode::BAD_REQUEST
-            }
-            AppError::DatabaseError(_) | AppError::Internal(_) => {
-                StatusCode::INTERNAL_SERVER_ERROR
-            }
+            AppError::ValidationError(_) | AppError::InsufficientBalance => StatusCode::BAD_REQUEST,
+            AppError::DatabaseError(_) | AppError::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 

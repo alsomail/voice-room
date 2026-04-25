@@ -88,9 +88,7 @@ impl RoomService {
         // 防止数据污染和后续进入逻辑误判。
         if req.room_type == "password" {
             let pwd = req.password.as_deref().ok_or_else(|| {
-                AppError::ValidationError(
-                    "password is required for password rooms".to_string(),
-                )
+                AppError::ValidationError("password is required for password rooms".to_string())
             })?;
             validator::validate_password(pwd)?;
         }
@@ -145,20 +143,17 @@ impl RoomService {
     /// - size 默认 20，范围 1–100
     ///
     /// 返回：total / page / size / items（按 member_count DESC, created_at DESC）
-    pub async fn list_rooms(&self, query: RoomListQuery) -> Result<RoomListResponse, AppError> {        // ── 1. 默认值 ────────────────────────────────────────────────────────
+    pub async fn list_rooms(&self, query: RoomListQuery) -> Result<RoomListResponse, AppError> {
+        // ── 1. 默认值 ────────────────────────────────────────────────────────
         let page = query.page.unwrap_or(1);
         let size = query.size.unwrap_or(20);
 
         // ── 2. 参数校验 ──────────────────────────────────────────────────────
         if page < 1 {
-            return Err(AppError::ValidationError(
-                "page must be >= 1".to_string(),
-            ));
+            return Err(AppError::ValidationError("page must be >= 1".to_string()));
         }
         if size < 1 {
-            return Err(AppError::ValidationError(
-                "size must be >= 1".to_string(),
-            ));
+            return Err(AppError::ValidationError("size must be >= 1".to_string()));
         }
         if size > 100 {
             return Err(AppError::ValidationError(format!(
@@ -197,7 +192,10 @@ impl RoomService {
     ///
     /// - room_id 在 active 房间中存在：返回完整 RoomDetailResponse（含 owner、mic_slots）
     /// - 不存在 / closed / soft-deleted：返回 NotFound
-    pub async fn get_room_detail(&self, room_id: uuid::Uuid) -> Result<RoomDetailResponse, AppError> {
+    pub async fn get_room_detail(
+        &self,
+        room_id: uuid::Uuid,
+    ) -> Result<RoomDetailResponse, AppError> {
         let row = self
             .room_repo
             .find_room_by_id(room_id)
@@ -251,12 +249,9 @@ impl RoomService {
     /// 1. find_room_any_status → None 则 NotFound（软删除或根本不存在）
     /// 2. owner_id != current_user_id → Forbidden
     /// 3. status == "closed" → RoomAlreadyClosed
-    /// 4. 执行 set_room_closed
-    pub async fn close_room(
-        &self,
-        room_id: Uuid,
-        current_user_id: Uuid,
-    ) -> Result<(), AppError> {
+    /// 4. 在 SQL 层带 status='active' 守卫执行 UPDATE，rows_affected=0 → 并发关闭，
+    ///    返回 RoomAlreadyClosed（保证并发场景下只有一次成功）。
+    pub async fn close_room(&self, room_id: Uuid, current_user_id: Uuid) -> Result<(), AppError> {
         // ── 1. 查询房间（不过滤 status，只排除软删除）──────────────────────────
         let room = self
             .room_repo
@@ -276,8 +271,12 @@ impl RoomService {
             return Err(AppError::RoomAlreadyClosed);
         }
 
-        // ── 4. 执行关闭 ────────────────────────────────────────────────────────
-        self.room_repo.set_room_closed(room_id).await?;
+        // ── 4. 原子化执行关闭：SQL 层带 status='active' 守卫（缺陷 #3 修复）──
+        let updated = self.room_repo.set_room_closed(room_id).await?;
+        if !updated {
+            // 已被并发关闭（或在 step 1~4 间被改状态）→ 返回 RoomAlreadyClosed
+            return Err(AppError::RoomAlreadyClosed);
+        }
 
         Ok(())
     }
@@ -353,11 +352,14 @@ impl RoomService {
         // ── 8. 执行 partial update ───────────────────────────────────────────
         let updated = self
             .room_repo
-            .update_room_fields(room_id, RoomFieldsUpdate {
-                title: req.title,
-                announcement: req.announcement,
-                category: req.category,
-            })
+            .update_room_fields(
+                room_id,
+                RoomFieldsUpdate {
+                    title: req.title,
+                    announcement: req.announcement,
+                    category: req.category,
+                },
+            )
             .await?;
 
         Ok(PatchRoomResponse {
@@ -437,7 +439,10 @@ mod tests {
         assert!(!resp.room_id.is_empty(), "room_id should not be empty");
         assert_eq!(resp.title, "My Room");
         assert_eq!(resp.room_type, "normal");
-        assert!(!resp.created_at.is_empty(), "created_at should not be empty");
+        assert!(
+            !resp.created_at.is_empty(),
+            "created_at should not be empty"
+        );
         // created_at 应是合法的 RFC3339 时间戳
         assert!(
             resp.created_at.contains('T'),
@@ -531,10 +536,7 @@ mod tests {
             announcement: None,
         };
 
-        let err = svc
-            .create_room(Uuid::new_v4(), req)
-            .await
-            .unwrap_err();
+        let err = svc.create_room(Uuid::new_v4(), req).await.unwrap_err();
         assert!(
             matches!(err, AppError::ValidationError(_)),
             "expected ValidationError, got: {err:?}"
@@ -568,8 +570,7 @@ mod tests {
         let hash = room.password_hash.expect("password_hash should be Some");
 
         // bcrypt::verify 应该返回 true
-        let valid =
-            bcrypt::verify("123456", &hash).expect("bcrypt verify should not fail");
+        let valid = bcrypt::verify("123456", &hash).expect("bcrypt verify should not fail");
         assert!(valid, "bcrypt hash should verify against original password");
 
         // 确保明文没有被存储
@@ -591,10 +592,7 @@ mod tests {
             announcement: None,
         };
 
-        let err = svc
-            .create_room(Uuid::new_v4(), req)
-            .await
-            .unwrap_err();
+        let err = svc.create_room(Uuid::new_v4(), req).await.unwrap_err();
         assert!(
             matches!(err, AppError::ValidationError(_)),
             "expected ValidationError for invalid room_type, got: {err:?}"
@@ -641,8 +639,12 @@ mod tests {
         let owner_a = Uuid::new_v4();
         let owner_b = Uuid::new_v4();
 
-        svc.create_room(owner_a, normal_req("Room A")).await.unwrap();
-        svc.create_room(owner_b, normal_req("Room B")).await.unwrap();
+        svc.create_room(owner_a, normal_req("Room A"))
+            .await
+            .unwrap();
+        svc.create_room(owner_b, normal_req("Room B"))
+            .await
+            .unwrap();
         // 两个都应成功
     }
 
@@ -779,12 +781,18 @@ mod tests {
         seed_room_with_owner(&repo, o3, "Room C", 10, 2);
 
         let resp = svc
-            .list_rooms(RoomListQuery { page: None, size: None })
+            .list_rooms(RoomListQuery {
+                page: None,
+                size: None,
+            })
             .await
             .unwrap();
 
         assert_eq!(resp.items.len(), 3);
-        assert_eq!(resp.items[0].member_count, 20, "first should be most popular");
+        assert_eq!(
+            resp.items[0].member_count, 20,
+            "first should be most popular"
+        );
         assert_eq!(resp.items[1].member_count, 10);
         assert_eq!(resp.items[2].member_count, 5);
     }
@@ -818,7 +826,10 @@ mod tests {
         }
 
         let resp = svc
-            .list_rooms(RoomListQuery { page: Some(2), size: Some(10) })
+            .list_rooms(RoomListQuery {
+                page: Some(2),
+                size: Some(10),
+            })
             .await
             .unwrap();
 
@@ -862,7 +873,10 @@ mod tests {
         });
 
         let resp = svc
-            .list_rooms(RoomListQuery { page: None, size: None })
+            .list_rooms(RoomListQuery {
+                page: None,
+                size: None,
+            })
             .await
             .unwrap();
 
@@ -902,7 +916,10 @@ mod tests {
         });
 
         let resp = svc
-            .list_rooms(RoomListQuery { page: None, size: None })
+            .list_rooms(RoomListQuery {
+                page: None,
+                size: None,
+            })
             .await
             .unwrap();
 
@@ -918,7 +935,10 @@ mod tests {
     async fn l05_defaults_page1_size20() {
         let (svc, _) = make_list_service();
         let resp = svc
-            .list_rooms(RoomListQuery { page: None, size: None })
+            .list_rooms(RoomListQuery {
+                page: None,
+                size: None,
+            })
             .await
             .unwrap();
 
@@ -939,12 +959,19 @@ mod tests {
         }
 
         let resp = svc
-            .list_rooms(RoomListQuery { page: Some(5), size: Some(10) })
+            .list_rooms(RoomListQuery {
+                page: Some(5),
+                size: Some(10),
+            })
             .await
             .unwrap();
 
         assert_eq!(resp.total, 2, "total must reflect full count");
-        assert_eq!(resp.items.len(), 0, "page beyond range must return empty items");
+        assert_eq!(
+            resp.items.len(),
+            0,
+            "page beyond range must return empty items"
+        );
     }
 
     // ── L-07: size=101 返回 ValidationError ──────────────────────────────
@@ -954,7 +981,10 @@ mod tests {
     async fn l07_size_101_returns_validation_error() {
         let (svc, _) = make_list_service();
         let err = svc
-            .list_rooms(RoomListQuery { page: None, size: Some(101) })
+            .list_rooms(RoomListQuery {
+                page: None,
+                size: Some(101),
+            })
             .await
             .unwrap_err();
         assert!(
@@ -970,7 +1000,10 @@ mod tests {
     async fn l08_size_0_returns_validation_error() {
         let (svc, _) = make_list_service();
         let err = svc
-            .list_rooms(RoomListQuery { page: None, size: Some(0) })
+            .list_rooms(RoomListQuery {
+                page: None,
+                size: Some(0),
+            })
             .await
             .unwrap_err();
         assert!(
@@ -986,7 +1019,10 @@ mod tests {
     async fn l09_page_0_returns_validation_error() {
         let (svc, _) = make_list_service();
         let err = svc
-            .list_rooms(RoomListQuery { page: Some(0), size: None })
+            .list_rooms(RoomListQuery {
+                page: Some(0),
+                size: None,
+            })
             .await
             .unwrap_err();
         assert!(
@@ -1010,7 +1046,10 @@ mod tests {
         seed_room_with_owner(&repo, owner, "King's Room", 99, 0);
 
         let resp = svc
-            .list_rooms(RoomListQuery { page: None, size: None })
+            .list_rooms(RoomListQuery {
+                page: None,
+                size: None,
+            })
             .await
             .unwrap();
 
@@ -1029,7 +1068,10 @@ mod tests {
     async fn l11_size_100_boundary_max_ok() {
         let (svc, _) = make_list_service();
         let resp = svc
-            .list_rooms(RoomListQuery { page: Some(1), size: Some(100) })
+            .list_rooms(RoomListQuery {
+                page: Some(1),
+                size: Some(100),
+            })
             .await
             .unwrap();
         assert_eq!(resp.size, 100);
@@ -1042,7 +1084,10 @@ mod tests {
     async fn l12_size_1_boundary_min_ok() {
         let (svc, _) = make_list_service();
         let resp = svc
-            .list_rooms(RoomListQuery { page: Some(1), size: Some(1) })
+            .list_rooms(RoomListQuery {
+                page: Some(1),
+                size: Some(1),
+            })
             .await
             .unwrap();
         assert_eq!(resp.size, 1);
@@ -1063,18 +1108,24 @@ mod tests {
         repo.seed_user(o3, "Newest".into(), None);
 
         // 全部 member_count=10，created_at 递增（offset 越大越新）
-        seed_room_with_owner(&repo, o1, "Old Room", 10, -200);   // oldest
-        seed_room_with_owner(&repo, o2, "Mid Room", 10, -100);   // middle
-        seed_room_with_owner(&repo, o3, "New Room", 10, 0);      // newest
+        seed_room_with_owner(&repo, o1, "Old Room", 10, -200); // oldest
+        seed_room_with_owner(&repo, o2, "Mid Room", 10, -100); // middle
+        seed_room_with_owner(&repo, o3, "New Room", 10, 0); // newest
 
         let resp = svc
-            .list_rooms(RoomListQuery { page: None, size: None })
+            .list_rooms(RoomListQuery {
+                page: None,
+                size: None,
+            })
             .await
             .unwrap();
 
         assert_eq!(resp.items.len(), 3);
         // 最新创建的应该排在最前面
-        assert_eq!(resp.items[0].title, "New Room", "newest first when member_count tied");
+        assert_eq!(
+            resp.items[0].title, "New Room",
+            "newest first when member_count tied"
+        );
         assert_eq!(resp.items[1].title, "Mid Room");
         assert_eq!(resp.items[2].title, "Old Room");
     }
@@ -1325,7 +1376,10 @@ mod tests {
         let room_id = seed_room_close(&repo, owner_id, "active", None);
 
         let result = svc.close_room(room_id, owner_id).await;
-        assert!(result.is_ok(), "owner should be able to close active room, got: {result:?}");
+        assert!(
+            result.is_ok(),
+            "owner should be able to close active room, got: {result:?}"
+        );
     }
 
     // ── U-C-02: 不存在的 room_id → NotFound ─────────────────────────────────
@@ -1335,7 +1389,10 @@ mod tests {
     async fn uc02_nonexistent_room_returns_not_found() {
         let (svc, _) = make_close_service();
         let nonexistent_id = Uuid::new_v4();
-        let err = svc.close_room(nonexistent_id, Uuid::new_v4()).await.unwrap_err();
+        let err = svc
+            .close_room(nonexistent_id, Uuid::new_v4())
+            .await
+            .unwrap_err();
         assert!(
             matches!(err, AppError::NotFound(_)),
             "expected NotFound for nonexistent room_id, got: {err:?}"
@@ -1391,7 +1448,39 @@ mod tests {
         );
     }
 
-    // ── U-C-07: 关闭后 find_room_by_id 返回 None ────────────────────────────
+    // ── U-C-08: 并发关闭只有一次成功（缺陷 #3 修复回归）──────────────────────
+    //
+    // 模拟 owner + admin 同时调用 close_room：第一次成功，第二次得到 RoomAlreadyClosed
+    // （而不是误报 200 OK）。
+    #[tokio::test]
+    async fn uc08_concurrent_close_only_one_succeeds() {
+        let (svc, repo) = make_close_service();
+        let svc = Arc::new(svc);
+        let owner_id = Uuid::new_v4();
+        let room_id = seed_room_close(&repo, owner_id, "active", None);
+
+        let svc1 = Arc::clone(&svc);
+        let svc2 = Arc::clone(&svc);
+        let h1 = tokio::spawn(async move { svc1.close_room(room_id, owner_id).await });
+        let h2 = tokio::spawn(async move { svc2.close_room(room_id, owner_id).await });
+        let r1 = h1.await.unwrap();
+        let r2 = h2.await.unwrap();
+
+        let oks = [&r1, &r2].iter().filter(|r| r.is_ok()).count();
+        let already = [&r1, &r2]
+            .iter()
+            .filter(|r| matches!(r, Err(AppError::RoomAlreadyClosed)))
+            .count();
+        assert_eq!(
+            oks, 1,
+            "exactly one concurrent close should succeed, got r1={r1:?} r2={r2:?}"
+        );
+        assert_eq!(
+            already, 1,
+            "the other concurrent close must return RoomAlreadyClosed, got r1={r1:?} r2={r2:?}"
+        );
+    }
+
 
     /// U-C-07: close_room 成功后，find_room_by_id（只查 active）应返回 None
     #[tokio::test]
@@ -1433,7 +1522,10 @@ mod tests {
             announcement: Some("欢迎来到中东夜话~".to_string()),
         };
         let resp = svc.create_room(Uuid::new_v4(), req).await.unwrap();
-        assert!(!resp.room_id.is_empty(), "CR25-01: room_id should not be empty");
+        assert!(
+            !resp.room_id.is_empty(),
+            "CR25-01: room_id should not be empty"
+        );
         assert_eq!(resp.title, "中东夜话");
     }
 
@@ -1631,9 +1723,16 @@ mod tests {
         };
 
         let resp = svc.patch_room(room_id, owner_id, req).await.unwrap();
-        assert_eq!(resp.room_id, room_id.to_string(), "PR25-08: room_id must match");
+        assert_eq!(
+            resp.room_id,
+            room_id.to_string(),
+            "PR25-08: room_id must match"
+        );
         assert_eq!(resp.title, "新标题", "PR25-08: title should be updated");
-        assert_eq!(resp.category, "music", "PR25-08: category should be updated");
+        assert_eq!(
+            resp.category, "music",
+            "PR25-08: category should be updated"
+        );
         assert_eq!(
             resp.announcement.as_deref(),
             Some("欢迎来到新房间"),
@@ -1655,10 +1754,7 @@ mod tests {
             category: None,
         };
 
-        let err = svc
-            .patch_room(room_id, other_user, req)
-            .await
-            .unwrap_err();
+        let err = svc.patch_room(room_id, other_user, req).await.unwrap_err();
         assert!(
             matches!(err, AppError::Forbidden(_)),
             "PR25-09: non-owner should get Forbidden, got: {err:?}"
@@ -1724,8 +1820,7 @@ mod tests {
             "PR25-12: empty string announcement should clear it (None)"
         );
         assert_eq!(
-            resp.has_password,
-            false,
+            resp.has_password, false,
             "PR25-12: normal room should have has_password=false"
         );
     }

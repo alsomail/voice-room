@@ -74,9 +74,7 @@ impl AuditService {
         let size_raw = query.size.unwrap_or(20);
 
         if size_raw > 100 {
-            return Err(AppError::ValidationError(
-                "size must be <= 100".to_string(),
-            ));
+            return Err(AppError::ValidationError("size must be <= 100".to_string()));
         }
         let size = size_raw.max(1);
 

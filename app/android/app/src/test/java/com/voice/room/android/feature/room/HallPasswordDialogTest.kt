@@ -1,9 +1,11 @@
 package com.voice.room.android.feature.room
 
+import com.voice.room.android.R
 import com.voice.room.android.data.room.FakeRoomRepository
 import com.voice.room.android.domain.room.PasswordLockedException
 import com.voice.room.android.domain.room.PasswordWrongException
 import com.voice.room.android.domain.room.RoomNotFoundException
+import com.voice.room.android.util.UiText
 import com.voice.room.android.utils.MainDispatcherRule
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
@@ -107,7 +109,7 @@ class HallPasswordDialogTest {
         runTest(mainDispatcherRule.testDispatcher) {
             val fakeRepo = FakeRoomRepository().apply {
                 verifyPasswordResult =
-                    Result.failure(PasswordLockedException(remainingMinutes = 5))
+                    Result.failure(PasswordLockedException(remainingSeconds = 300))
             }
             val viewModel = HallViewModel(fakeRepo)
             advanceUntilIdle()
@@ -123,15 +125,15 @@ class HallPasswordDialogTest {
         }
 
     // ─────────────────────────────────────────────
-    // P38-04: Locked.remainingMinutes 值正确
+    // P38-04: Locked.remainingSeconds 值正确（缺陷 #1：单位由分钟改为秒）
     // ─────────────────────────────────────────────
 
     @Test
-    fun `P38-04 Locked state contains correct remainingMinutes`() =
+    fun `P38-04 Locked state contains correct remainingSeconds`() =
         runTest(mainDispatcherRule.testDispatcher) {
             val fakeRepo = FakeRoomRepository().apply {
                 verifyPasswordResult =
-                    Result.failure(PasswordLockedException(remainingMinutes = 10))
+                    Result.failure(PasswordLockedException(remainingSeconds = 600))
             }
             val viewModel = HallViewModel(fakeRepo)
             advanceUntilIdle()
@@ -143,9 +145,9 @@ class HallPasswordDialogTest {
             val state = viewModel.passwordDialogState.value
             assertTrue(state is PasswordDialogState.Locked)
             assertEquals(
-                "remainingMinutes should be 10",
-                10,
-                (state as PasswordDialogState.Locked).remainingMinutes
+                "remainingSeconds should be 600 (= 10 minutes)",
+                600,
+                (state as PasswordDialogState.Locked).remainingSeconds
             )
         }
 
@@ -220,7 +222,7 @@ class HallPasswordDialogTest {
             // 先让 repo 返回 PasswordLockedException，使 state 变为 Locked
             val fakeRepo = FakeRoomRepository().apply {
                 verifyPasswordResult =
-                    Result.failure(PasswordLockedException(remainingMinutes = 30))
+                    Result.failure(PasswordLockedException(remainingSeconds = 1800))
             }
             val viewModel = HallViewModel(fakeRepo)
             advanceUntilIdle()
@@ -275,14 +277,18 @@ class HallPasswordDialogTest {
                 viewModel.passwordDialogState.value
             )
             assertNotNull("Should have received a toast event", toastEvent)
-            assertTrue(
-                "Toast message should mention room not found",
-                toastEvent!!.message.contains("房间不存在")
+            // 缺陷 #4：Toast 文案改为 UiText（@StringRes）；断言 resId 而非中文字面量
+            val text = toastEvent!!.text
+            assertTrue(text is UiText.StringResource)
+            assertEquals(
+                "Toast should reference R.string.hall_room_not_found",
+                R.string.hall_room_not_found,
+                (text as UiText.StringResource).resId
             )
         }
 
     // ─────────────────────────────────────────────
-    // 边界：未知错误 → Toast "网络错误，请重试"
+    // 边界：未知错误 → Toast 国际化资源（缺陷 #4）
     // ─────────────────────────────────────────────
 
     @Test
@@ -308,6 +314,11 @@ class HallPasswordDialogTest {
             collectJob.cancel()
 
             assertNotNull("Should have received a toast", toastEvent)
-            assertEquals("网络错误，请重试", toastEvent!!.message)
+            val text = toastEvent!!.text
+            assertTrue(text is UiText.StringResource)
+            assertEquals(
+                R.string.hall_password_unknown_error,
+                (text as UiText.StringResource).resId
+            )
         }
 }

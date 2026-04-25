@@ -1,6 +1,10 @@
 use std::sync::Arc;
 
-use axum::{middleware, routing::{get, post, put}, Router};
+use axum::{
+    middleware,
+    routing::{get, post, put},
+    Router,
+};
 
 use crate::{
     infrastructure::logging::request_context_middleware,
@@ -9,18 +13,16 @@ use crate::{
         repository::AuditRepository,
         service::{AuditLogger, AuditService},
     },
-    modules::auth::{controller::login_handler, repository::AdminLogRepository, AdminAuthService},
     modules::auth::repository::AdminRepository,
+    modules::auth::{controller::login_handler, repository::AdminLogRepository, AdminAuthService},
     modules::event::{
-        list_user_events_handler,
-        publisher::EventPublisher,
-        query_repo::EventQueryRepository,
+        list_user_events_handler, publisher::EventPublisher, query_repo::EventQueryRepository,
         query_service::EventQueryService,
     },
     modules::gift::{
         handler::{
-            create_gift_handler, delete_gift_handler, list_gifts_handler,
-            update_gift_handler, upload_gift_file_handler,
+            create_gift_handler, delete_gift_handler, list_gifts_handler, update_gift_handler,
+            upload_gift_file_handler,
         },
         repo::GiftRepository,
         service::GiftService,
@@ -34,18 +36,13 @@ use crate::{
         controller::{force_close_room_handler, get_room_detail_handler, list_rooms_handler},
         AdminRoomRepository, AdminRoomService,
     },
-    modules::stats::{
-        controller::stats_overview_handler,
-        AdminStatsRepository, AdminStatsService,
-    },
+    modules::stats::{controller::stats_overview_handler, AdminStatsRepository, AdminStatsService},
     modules::user::{
         controller::{ban_user_handler, get_user_handler, list_users_handler},
         AdminUserRepository, AdminUserService,
     },
     modules::wallet::{
-        handler::adjust_balance_handler,
-        repository::WalletRepository,
-        service::WalletService,
+        handler::adjust_balance_handler, repository::WalletRepository, service::WalletService,
     },
 };
 
@@ -132,6 +129,9 @@ impl AppState {
     }
 
     /// 用于单元/集成测试的空状态（无预置管理员、无预置房间、无预置用户）。
+    ///
+    /// 缺陷 #8：限制 cfg(test) 或 `test-utils` feature 才编译，避免 Fake 进入生产二进制。
+    #[cfg(any(test, feature = "test-utils"))]
     pub fn for_test() -> Self {
         use crate::modules::audit::repository::FakeAuditRepository;
         use crate::modules::auth::repository::{FakeAdminLogRepository, FakeAdminRepository};
@@ -196,14 +196,8 @@ pub fn build_app(state: AppState) -> Router {
         )
         .route("/api/v1/admin/gifts/upload", post(upload_gift_file_handler))
         // ── T-10016: 治理日志查询 ──────────────────────────────────────────────
-        .route(
-            "/api/v1/admin/governance/kicks",
-            get(list_kicks_handler),
-        )
-        .route(
-            "/api/v1/admin/governance/mutes",
-            get(list_mutes_handler),
-        )
+        .route("/api/v1/admin/governance/kicks", get(list_kicks_handler))
+        .route("/api/v1/admin/governance/mutes", get(list_mutes_handler))
         .layer(middleware::from_fn(request_context_middleware))
         .with_state(state)
 }
@@ -213,12 +207,12 @@ pub fn build_app(state: AppState) -> Router {
 /// 构建含 RBAC 测试路由的 App（仅用于集成测试）。
 #[cfg(test)]
 pub fn build_test_app_rbac(state: AppState) -> Router {
-    use axum::{routing::get, Extension, Json};
     use crate::common::{
         auth::{AdminAuthContext, Permission},
         error::err_response,
         RequestContext,
     };
+    use axum::{routing::get, Extension, Json};
 
     /// 任意合法 JWT 即可访问，返回 admin_id 和 role（用于验证注入）
     async fn protected_handler(
@@ -628,7 +622,11 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
         let json = body_json(response).await;
-        assert_eq!(json["code"].as_i64().unwrap(), 40101, "无 token 错误码必须是 40101");
+        assert_eq!(
+            json["code"].as_i64().unwrap(),
+            40101,
+            "无 token 错误码必须是 40101"
+        );
         assert_eq!(
             json["request_id"].as_str().unwrap(),
             "req-no-token",
@@ -701,7 +699,11 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
         let json = body_json(response).await;
-        assert_eq!(json["code"].as_i64().unwrap(), 40102, "过期 token 错误码必须是 40102");
+        assert_eq!(
+            json["code"].as_i64().unwrap(),
+            40102,
+            "过期 token 错误码必须是 40102"
+        );
     }
 
     // ── I-11: 合法 token → 200，注入 admin_id 和 role ─────────────────────
@@ -728,7 +730,10 @@ mod tests {
         assert_eq!(json["role"].as_str().unwrap(), "operator");
         // admin_id 是有效 UUID
         let admin_id_str = json["admin_id"].as_str().unwrap();
-        assert!(uuid::Uuid::parse_str(admin_id_str).is_ok(), "admin_id 必须是合法 UUID");
+        assert!(
+            uuid::Uuid::parse_str(admin_id_str).is_ok(),
+            "admin_id 必须是合法 UUID"
+        );
     }
 
     // ── I-12: super_admin 可访问 finance 端点 ────────────────────────────────
@@ -939,7 +944,11 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
         let json = body_json(resp).await;
         assert_eq!(json["code"].as_i64().unwrap(), 0);
-        assert_eq!(json["data"]["total"].as_i64().unwrap(), 2, "L-01: 应返回全部 2 个房间");
+        assert_eq!(
+            json["data"]["total"].as_i64().unwrap(),
+            2,
+            "L-01: 应返回全部 2 个房间"
+        );
     }
 
     // ── L-02: ?status=active → 仅 active ────────────────────────────────────
@@ -955,7 +964,11 @@ mod tests {
         let resp = get_rooms(app, &token, "?status=active").await;
         assert_eq!(resp.status(), StatusCode::OK);
         let json = body_json(resp).await;
-        assert_eq!(json["data"]["total"].as_i64().unwrap(), 2, "L-02: active 过滤应返回 2 个");
+        assert_eq!(
+            json["data"]["total"].as_i64().unwrap(),
+            2,
+            "L-02: active 过滤应返回 2 个"
+        );
         for item in json["data"]["items"].as_array().unwrap() {
             assert_eq!(item["status"].as_str().unwrap(), "active");
         }
@@ -973,7 +986,11 @@ mod tests {
         let resp = get_rooms(app, &token, "?status=closed").await;
         assert_eq!(resp.status(), StatusCode::OK);
         let json = body_json(resp).await;
-        assert_eq!(json["data"]["total"].as_i64().unwrap(), 1, "L-03: closed 过滤应返回 1 个");
+        assert_eq!(
+            json["data"]["total"].as_i64().unwrap(),
+            1,
+            "L-03: closed 过滤应返回 1 个"
+        );
         assert_eq!(
             json["data"]["items"][0]["status"].as_str().unwrap(),
             "closed"
@@ -1009,7 +1026,11 @@ mod tests {
         let resp = get_rooms(app, &token, "?keyword=xyz_no_match").await;
         assert_eq!(resp.status(), StatusCode::OK);
         let json = body_json(resp).await;
-        assert_eq!(json["data"]["total"].as_i64().unwrap(), 0, "L-05: 无匹配时 total=0");
+        assert_eq!(
+            json["data"]["total"].as_i64().unwrap(),
+            0,
+            "L-05: 无匹配时 total=0"
+        );
         assert!(
             json["data"]["items"].as_array().unwrap().is_empty(),
             "L-05: 无匹配时 items=[]"
@@ -1028,9 +1049,21 @@ mod tests {
         let resp = get_rooms(app, &token, "?page=2&page_size=2").await;
         assert_eq!(resp.status(), StatusCode::OK);
         let json = body_json(resp).await;
-        assert_eq!(json["data"]["page"].as_i64().unwrap(), 2, "L-06: page 应为 2");
-        assert_eq!(json["data"]["page_size"].as_i64().unwrap(), 2, "L-06: page_size 应为 2");
-        assert_eq!(json["data"]["total"].as_i64().unwrap(), 5, "L-06: total 应为 5");
+        assert_eq!(
+            json["data"]["page"].as_i64().unwrap(),
+            2,
+            "L-06: page 应为 2"
+        );
+        assert_eq!(
+            json["data"]["page_size"].as_i64().unwrap(),
+            2,
+            "L-06: page_size 应为 2"
+        );
+        assert_eq!(
+            json["data"]["total"].as_i64().unwrap(),
+            5,
+            "L-06: total 应为 5"
+        );
         assert_eq!(
             json["data"]["items"].as_array().unwrap().len(),
             2,
@@ -1047,7 +1080,10 @@ mod tests {
         let resp = get_rooms(app, &token, "").await;
         let json = body_json(resp).await;
         let item = &json["data"]["items"][0];
-        assert!(item["status"].as_str().is_some(), "L-09: items 中每条必须含 status 字段");
+        assert!(
+            item["status"].as_str().is_some(),
+            "L-09: items 中每条必须含 status 字段"
+        );
         assert_eq!(item["status"].as_str().unwrap(), "active");
     }
 
@@ -1061,8 +1097,14 @@ mod tests {
         let json = body_json(resp).await;
         let item = &json["data"]["items"][0];
 
-        assert!(item["owner_id"].as_str().is_some(), "L-10: 必须包含 owner_id");
-        assert!(item["owner_nickname"].as_str().is_some(), "L-10: 必须包含 owner_nickname");
+        assert!(
+            item["owner_id"].as_str().is_some(),
+            "L-10: 必须包含 owner_id"
+        );
+        assert!(
+            item["owner_nickname"].as_str().is_some(),
+            "L-10: 必须包含 owner_nickname"
+        );
         // owner_avatar 可以为 null（本测试 make_room_row 返回 Some）
         assert!(
             !item["owner_nickname"].as_str().unwrap().is_empty(),
@@ -1085,9 +1127,17 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED, "E-01: 无 token 应返回 401");
+        assert_eq!(
+            resp.status(),
+            StatusCode::UNAUTHORIZED,
+            "E-01: 无 token 应返回 401"
+        );
         let json = body_json(resp).await;
-        assert_eq!(json["code"].as_i64().unwrap(), 40101, "E-01: 错误码应为 40101");
+        assert_eq!(
+            json["code"].as_i64().unwrap(),
+            40101,
+            "E-01: 错误码应为 40101"
+        );
     }
 
     // ── E-02: C 端 JWT（iss="voiceroom"）→ 401/40101 ─────────────────────────
@@ -1097,9 +1147,17 @@ mod tests {
         let app = room_app(vec![]);
         let resp = get_rooms(app, &app_token, "").await;
 
-        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED, "E-02: C 端 JWT 应返回 401");
+        assert_eq!(
+            resp.status(),
+            StatusCode::UNAUTHORIZED,
+            "E-02: C 端 JWT 应返回 401"
+        );
         let json = body_json(resp).await;
-        assert_eq!(json["code"].as_i64().unwrap(), 40101, "E-02: 错误码应为 40101");
+        assert_eq!(
+            json["code"].as_i64().unwrap(),
+            40101,
+            "E-02: 错误码应为 40101"
+        );
     }
 
     // ── E-03: 过期 JWT → 401/40102 ───────────────────────────────────────────
@@ -1109,9 +1167,17 @@ mod tests {
         let app = room_app(vec![]);
         let resp = get_rooms(app, &expired_token, "").await;
 
-        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED, "E-03: 过期 JWT 应返回 401");
+        assert_eq!(
+            resp.status(),
+            StatusCode::UNAUTHORIZED,
+            "E-03: 过期 JWT 应返回 401"
+        );
         let json = body_json(resp).await;
-        assert_eq!(json["code"].as_i64().unwrap(), 40102, "E-03: 错误码应为 40102");
+        assert_eq!(
+            json["code"].as_i64().unwrap(),
+            40102,
+            "E-03: 错误码应为 40102"
+        );
     }
 
     // ── E-04: finance 角色无 RoomRead 权限 → 403/40301 ───────────────────────
@@ -1121,9 +1187,17 @@ mod tests {
         let app = room_app(vec![]);
         let resp = get_rooms(app, &finance_token, "").await;
 
-        assert_eq!(resp.status(), StatusCode::FORBIDDEN, "E-04: finance 角色应返回 403");
+        assert_eq!(
+            resp.status(),
+            StatusCode::FORBIDDEN,
+            "E-04: finance 角色应返回 403"
+        );
         let json = body_json(resp).await;
-        assert_eq!(json["code"].as_i64().unwrap(), 40301, "E-04: 错误码应为 40301");
+        assert_eq!(
+            json["code"].as_i64().unwrap(),
+            40301,
+            "E-04: 错误码应为 40301"
+        );
     }
 
     // ── E-05: page=0 → 400/40003 ─────────────────────────────────────────────
@@ -1133,9 +1207,17 @@ mod tests {
         let app = room_app(vec![]);
         let resp = get_rooms(app, &token, "?page=0").await;
 
-        assert_eq!(resp.status(), StatusCode::BAD_REQUEST, "E-05: page=0 应返回 400");
+        assert_eq!(
+            resp.status(),
+            StatusCode::BAD_REQUEST,
+            "E-05: page=0 应返回 400"
+        );
         let json = body_json(resp).await;
-        assert_eq!(json["code"].as_i64().unwrap(), 40003, "E-05: 错误码应为 40003");
+        assert_eq!(
+            json["code"].as_i64().unwrap(),
+            40003,
+            "E-05: 错误码应为 40003"
+        );
     }
 
     // ── E-06: page_size=0 → 400/40003 ────────────────────────────────────────
@@ -1145,9 +1227,17 @@ mod tests {
         let app = room_app(vec![]);
         let resp = get_rooms(app, &token, "?page_size=0").await;
 
-        assert_eq!(resp.status(), StatusCode::BAD_REQUEST, "E-06: page_size=0 应返回 400");
+        assert_eq!(
+            resp.status(),
+            StatusCode::BAD_REQUEST,
+            "E-06: page_size=0 应返回 400"
+        );
         let json = body_json(resp).await;
-        assert_eq!(json["code"].as_i64().unwrap(), 40003, "E-06: 错误码应为 40003");
+        assert_eq!(
+            json["code"].as_i64().unwrap(),
+            40003,
+            "E-06: 错误码应为 40003"
+        );
     }
 
     // ── E-07: page_size=101 → 400/40003 ──────────────────────────────────────
@@ -1157,9 +1247,17 @@ mod tests {
         let app = room_app(vec![]);
         let resp = get_rooms(app, &token, "?page_size=101").await;
 
-        assert_eq!(resp.status(), StatusCode::BAD_REQUEST, "E-07: page_size=101 应返回 400");
+        assert_eq!(
+            resp.status(),
+            StatusCode::BAD_REQUEST,
+            "E-07: page_size=101 应返回 400"
+        );
         let json = body_json(resp).await;
-        assert_eq!(json["code"].as_i64().unwrap(), 40003, "E-07: 错误码应为 40003");
+        assert_eq!(
+            json["code"].as_i64().unwrap(),
+            40003,
+            "E-07: 错误码应为 40003"
+        );
     }
 
     // ── E-08: status=invalid → 400/40003 ─────────────────────────────────────
@@ -1169,9 +1267,17 @@ mod tests {
         let app = room_app(vec![]);
         let resp = get_rooms(app, &token, "?status=invalid").await;
 
-        assert_eq!(resp.status(), StatusCode::BAD_REQUEST, "E-08: 非法 status 应返回 400");
+        assert_eq!(
+            resp.status(),
+            StatusCode::BAD_REQUEST,
+            "E-08: 非法 status 应返回 400"
+        );
         let json = body_json(resp).await;
-        assert_eq!(json["code"].as_i64().unwrap(), 40003, "E-08: 错误码应为 40003");
+        assert_eq!(
+            json["code"].as_i64().unwrap(),
+            40003,
+            "E-08: 错误码应为 40003"
+        );
     }
 
     // ── 额外：super_admin 可访问房间列表 ──────────────────────────────────────
@@ -1275,11 +1381,7 @@ mod tests {
     }
 
     /// 发起认证 GET /api/v1/admin/rooms/{id} 请求
-    async fn get_room_detail(
-        app: axum::Router,
-        token: &str,
-        id: &str,
-    ) -> axum::response::Response {
+    async fn get_room_detail(app: axum::Router, token: &str, id: &str) -> axum::response::Response {
         app.oneshot(
             Request::builder()
                 .method("GET")
@@ -1302,7 +1404,11 @@ mod tests {
         let app = detail_app(vec![row]);
 
         let resp = get_room_detail(app, &token, &id.to_string()).await;
-        assert_eq!(resp.status(), StatusCode::OK, "D-01: 已存在 active 房间应返回 200");
+        assert_eq!(
+            resp.status(),
+            StatusCode::OK,
+            "D-01: 已存在 active 房间应返回 200"
+        );
         let json = body_json(resp).await;
         assert_eq!(json["code"].as_i64().unwrap(), 0);
         assert_eq!(json["data"]["room_id"].as_str().unwrap(), id.to_string());
@@ -1319,7 +1425,11 @@ mod tests {
         let app = detail_app(vec![row]);
 
         let resp = get_room_detail(app, &token, &id.to_string()).await;
-        assert_eq!(resp.status(), StatusCode::OK, "D-02: closed 房间后台也应返回 200");
+        assert_eq!(
+            resp.status(),
+            StatusCode::OK,
+            "D-02: closed 房间后台也应返回 200"
+        );
         let json = body_json(resp).await;
         assert_eq!(json["data"]["status"].as_str().unwrap(), "closed");
     }
@@ -1332,9 +1442,17 @@ mod tests {
         let nonexistent_id = Uuid::new_v4().to_string();
 
         let resp = get_room_detail(app, &token, &nonexistent_id).await;
-        assert_eq!(resp.status(), StatusCode::NOT_FOUND, "D-03: 不存在的房间应返回 404");
+        assert_eq!(
+            resp.status(),
+            StatusCode::NOT_FOUND,
+            "D-03: 不存在的房间应返回 404"
+        );
         let json = body_json(resp).await;
-        assert_eq!(json["code"].as_i64().unwrap(), 40400, "D-03: 错误码应为 40400");
+        assert_eq!(
+            json["code"].as_i64().unwrap(),
+            40400,
+            "D-03: 错误码应为 40400"
+        );
     }
 
     // ── D-04: 软删除的房间 → 404/40400 ──────────────────────────────────────
@@ -1346,9 +1464,17 @@ mod tests {
         let app = detail_app_with_deleted(row);
 
         let resp = get_room_detail(app, &token, &id.to_string()).await;
-        assert_eq!(resp.status(), StatusCode::NOT_FOUND, "D-04: 软删除房间应返回 404");
+        assert_eq!(
+            resp.status(),
+            StatusCode::NOT_FOUND,
+            "D-04: 软删除房间应返回 404"
+        );
         let json = body_json(resp).await;
-        assert_eq!(json["code"].as_i64().unwrap(), 40400, "D-04: 错误码应为 40400");
+        assert_eq!(
+            json["code"].as_i64().unwrap(),
+            40400,
+            "D-04: 错误码应为 40400"
+        );
     }
 
     // ── D-05: 无效 UUID 格式 → 400/40003 ─────────────────────────────────────
@@ -1358,9 +1484,17 @@ mod tests {
         let app = detail_app(vec![]);
 
         let resp = get_room_detail(app, &token, "not-a-uuid").await;
-        assert_eq!(resp.status(), StatusCode::BAD_REQUEST, "D-05: 无效 UUID 应返回 400");
+        assert_eq!(
+            resp.status(),
+            StatusCode::BAD_REQUEST,
+            "D-05: 无效 UUID 应返回 400"
+        );
         let json = body_json(resp).await;
-        assert_eq!(json["code"].as_i64().unwrap(), 40003, "D-05: 错误码应为 40003");
+        assert_eq!(
+            json["code"].as_i64().unwrap(),
+            40003,
+            "D-05: 错误码应为 40003"
+        );
     }
 
     // ── D-06: 无 Authorization → 401/40101 ───────────────────────────────────
@@ -1378,9 +1512,17 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED, "D-06: 无 token 应返回 401");
+        assert_eq!(
+            resp.status(),
+            StatusCode::UNAUTHORIZED,
+            "D-06: 无 token 应返回 401"
+        );
         let json = body_json(resp).await;
-        assert_eq!(json["code"].as_i64().unwrap(), 40101, "D-06: 错误码应为 40101");
+        assert_eq!(
+            json["code"].as_i64().unwrap(),
+            40101,
+            "D-06: 错误码应为 40101"
+        );
     }
 
     // ── D-07: finance 角色无 RoomRead 权限 → 403/40301 ───────────────────────
@@ -1392,9 +1534,17 @@ mod tests {
         let app = detail_app(vec![row]);
 
         let resp = get_room_detail(app, &finance_token, &id.to_string()).await;
-        assert_eq!(resp.status(), StatusCode::FORBIDDEN, "D-07: finance 角色应返回 403");
+        assert_eq!(
+            resp.status(),
+            StatusCode::FORBIDDEN,
+            "D-07: finance 角色应返回 403"
+        );
         let json = body_json(resp).await;
-        assert_eq!(json["code"].as_i64().unwrap(), 40301, "D-07: 错误码应为 40301");
+        assert_eq!(
+            json["code"].as_i64().unwrap(),
+            40301,
+            "D-07: 错误码应为 40301"
+        );
     }
 
     // ── D-08: 响应包含 owner 嵌套对象和 mic_slots=[] ────────────────────────
@@ -1476,7 +1626,11 @@ mod tests {
     /// 构建含详情数据的 App，同时返回 room_repo 和 audit_repo（用于 CA 审计验证测试）
     fn force_close_app_with_audit(
         detail_rows: Vec<AdminRoomDetailRow>,
-    ) -> (axum::Router, Arc<FakeAdminRoomRepository>, Arc<FakeAuditRepository>) {
+    ) -> (
+        axum::Router,
+        Arc<FakeAdminRoomRepository>,
+        Arc<FakeAuditRepository>,
+    ) {
         let admin_repo = Arc::new(FakeAdminRepository::default());
         let log_repo = Arc::new(FakeAdminLogRepository::default());
         let room_repo = Arc::new(FakeAdminRoomRepository::default());
@@ -1502,11 +1656,7 @@ mod tests {
     }
 
     /// 发起认证 DELETE /api/v1/admin/rooms/{id} 请求
-    async fn delete_room(
-        app: axum::Router,
-        token: &str,
-        id: &str,
-    ) -> axum::response::Response {
+    async fn delete_room(app: axum::Router, token: &str, id: &str) -> axum::response::Response {
         app.oneshot(
             Request::builder()
                 .method("DELETE")
@@ -1529,7 +1679,11 @@ mod tests {
         let (app, _) = force_close_app(vec![row]);
 
         let resp = delete_room(app, &token, &id.to_string()).await;
-        assert_eq!(resp.status(), StatusCode::OK, "FC-01: super_admin 关闭 active 房间应返回 200");
+        assert_eq!(
+            resp.status(),
+            StatusCode::OK,
+            "FC-01: super_admin 关闭 active 房间应返回 200"
+        );
         let json = body_json(resp).await;
         assert_eq!(json["code"].as_i64().unwrap(), 0, "FC-01: 成功 code 应为 0");
         assert!(json["data"].is_null(), "FC-01: 成功响应 data 应为 null");
@@ -1562,9 +1716,17 @@ mod tests {
         let nonexistent_id = Uuid::new_v4().to_string();
 
         let resp = delete_room(app, &token, &nonexistent_id).await;
-        assert_eq!(resp.status(), StatusCode::NOT_FOUND, "FC-03: 不存在的房间应返回 404");
+        assert_eq!(
+            resp.status(),
+            StatusCode::NOT_FOUND,
+            "FC-03: 不存在的房间应返回 404"
+        );
         let json = body_json(resp).await;
-        assert_eq!(json["code"].as_i64().unwrap(), 40400, "FC-03: 错误码应为 40400");
+        assert_eq!(
+            json["code"].as_i64().unwrap(),
+            40400,
+            "FC-03: 错误码应为 40400"
+        );
     }
 
     // ── FC-04: 有效 JWT + 已 closed 房间 → 409/40901 ────────────────────────────
@@ -1576,9 +1738,17 @@ mod tests {
         let (app, _) = force_close_app(vec![row]);
 
         let resp = delete_room(app, &token, &id.to_string()).await;
-        assert_eq!(resp.status(), StatusCode::CONFLICT, "FC-04: 已 closed 房间应返回 409");
+        assert_eq!(
+            resp.status(),
+            StatusCode::CONFLICT,
+            "FC-04: 已 closed 房间应返回 409"
+        );
         let json = body_json(resp).await;
-        assert_eq!(json["code"].as_i64().unwrap(), 40901, "FC-04: 错误码应为 40901");
+        assert_eq!(
+            json["code"].as_i64().unwrap(),
+            40901,
+            "FC-04: 错误码应为 40901"
+        );
     }
 
     // ── FC-05: 有效 JWT + 非法 UUID → 400/40003 ─────────────────────────────────
@@ -1588,9 +1758,17 @@ mod tests {
         let (app, _) = force_close_app(vec![]);
 
         let resp = delete_room(app, &token, "not-a-uuid").await;
-        assert_eq!(resp.status(), StatusCode::BAD_REQUEST, "FC-05: 非法 UUID 应返回 400");
+        assert_eq!(
+            resp.status(),
+            StatusCode::BAD_REQUEST,
+            "FC-05: 非法 UUID 应返回 400"
+        );
         let json = body_json(resp).await;
-        assert_eq!(json["code"].as_i64().unwrap(), 40003, "FC-05: 错误码应为 40003");
+        assert_eq!(
+            json["code"].as_i64().unwrap(),
+            40003,
+            "FC-05: 错误码应为 40003"
+        );
     }
 
     // ── FC-06: 无 Authorization → 401/40101 ──────────────────────────────────────
@@ -1611,9 +1789,17 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED, "FC-06: 无 token 应返回 401");
+        assert_eq!(
+            resp.status(),
+            StatusCode::UNAUTHORIZED,
+            "FC-06: 无 token 应返回 401"
+        );
         let json = body_json(resp).await;
-        assert_eq!(json["code"].as_i64().unwrap(), 40101, "FC-06: 错误码应为 40101");
+        assert_eq!(
+            json["code"].as_i64().unwrap(),
+            40101,
+            "FC-06: 错误码应为 40101"
+        );
     }
 
     // ── FC-07: finance 角色无 RoomForceClose 权限 → 403/40301 ────────────────────
@@ -1631,7 +1817,11 @@ mod tests {
             "FC-07: finance 角色应返回 403"
         );
         let json = body_json(resp).await;
-        assert_eq!(json["code"].as_i64().unwrap(), 40301, "FC-07: 错误码应为 40301");
+        assert_eq!(
+            json["code"].as_i64().unwrap(),
+            40301,
+            "FC-07: 错误码应为 40301"
+        );
     }
 
     // ── FC-07b: cs 角色无 RoomForceClose 权限 → 403/40301 ────────────────────────
@@ -1649,7 +1839,11 @@ mod tests {
             "FC-07b: cs 角色应返回 403（cs 无 RoomForceClose 权限）"
         );
         let json = body_json(resp).await;
-        assert_eq!(json["code"].as_i64().unwrap(), 40301, "FC-07b: 错误码应为 40301");
+        assert_eq!(
+            json["code"].as_i64().unwrap(),
+            40301,
+            "FC-07b: 错误码应为 40301"
+        );
     }
 
     // ── FC-08: 关闭后 GET detail → 200 + status=="closed"（跨接口联动测试）──────
@@ -1673,11 +1867,7 @@ mod tests {
             )
             .await
             .unwrap();
-        assert_eq!(
-            delete_resp.status(),
-            StatusCode::OK,
-            "FC-08: DELETE 应成功"
-        );
+        assert_eq!(delete_resp.status(), StatusCode::OK, "FC-08: DELETE 应成功");
 
         // Step 2: GET → 验证状态已变更为 closed
         let get_resp = app
@@ -1691,11 +1881,7 @@ mod tests {
             )
             .await
             .unwrap();
-        assert_eq!(
-            get_resp.status(),
-            StatusCode::OK,
-            "FC-08: GET 应返回 200"
-        );
+        assert_eq!(get_resp.status(), StatusCode::OK, "FC-08: GET 应返回 200");
         let json = body_json(get_resp).await;
         assert_eq!(
             json["data"]["status"].as_str().unwrap(),
@@ -1757,11 +1943,7 @@ mod tests {
     }
 
     /// 发起认证 GET /api/v1/admin/users 请求
-    async fn get_users(
-        app: axum::Router,
-        token: &str,
-        query: &str,
-    ) -> axum::response::Response {
+    async fn get_users(app: axum::Router, token: &str, query: &str) -> axum::response::Response {
         app.oneshot(
             Request::builder()
                 .method("GET")
@@ -1786,10 +1968,18 @@ mod tests {
         ]);
 
         let resp = get_users(app, &token, "").await;
-        assert_eq!(resp.status(), StatusCode::OK, "U-01: super_admin 应返回 200");
+        assert_eq!(
+            resp.status(),
+            StatusCode::OK,
+            "U-01: super_admin 应返回 200"
+        );
         let json = body_json(resp).await;
         assert_eq!(json["code"].as_i64().unwrap(), 0);
-        assert_eq!(json["data"]["total"].as_i64().unwrap(), 3, "U-01: total 应为 3");
+        assert_eq!(
+            json["data"]["total"].as_i64().unwrap(),
+            3,
+            "U-01: total 应为 3"
+        );
 
         // 验证按 created_at DESC：Bob(-10s) > Charlie(-20s) > Alice(-30s)
         let items = json["data"]["items"].as_array().unwrap();
@@ -1818,7 +2008,11 @@ mod tests {
         let resp = get_users(app, &token, "?phone=13800000001").await;
         assert_eq!(resp.status(), StatusCode::OK, "U-02: 应返回 200");
         let json = body_json(resp).await;
-        assert_eq!(json["data"]["total"].as_i64().unwrap(), 1, "U-02: 精确匹配应只有 1 个");
+        assert_eq!(
+            json["data"]["total"].as_i64().unwrap(),
+            1,
+            "U-02: 精确匹配应只有 1 个"
+        );
         assert_eq!(
             json["data"]["items"][0]["phone"].as_str().unwrap(),
             "13800000001",
@@ -1880,21 +2074,35 @@ mod tests {
         let token = make_jwt("test-secret", "operator");
         // 预置 10 条数据（offset 递减确保顺序可预测）
         let users: Vec<_> = (0..10)
-            .map(|i| make_user_row(
-                &format!("138000000{:02}", i),
-                &format!("User{:02}", i),
-                false,
-                i * 10,
-            ))
+            .map(|i| {
+                make_user_row(
+                    &format!("138000000{:02}", i),
+                    &format!("User{:02}", i),
+                    false,
+                    i * 10,
+                )
+            })
             .collect();
         let app = user_app(users);
 
         let resp = get_users(app, &token, "?page=2&size=5").await;
         assert_eq!(resp.status(), StatusCode::OK, "U-05: 应返回 200");
         let json = body_json(resp).await;
-        assert_eq!(json["data"]["total"].as_i64().unwrap(), 10, "U-05: total 应为 10");
-        assert_eq!(json["data"]["page"].as_i64().unwrap(), 2, "U-05: page 应为 2");
-        assert_eq!(json["data"]["size"].as_i64().unwrap(), 5, "U-05: size 应为 5");
+        assert_eq!(
+            json["data"]["total"].as_i64().unwrap(),
+            10,
+            "U-05: total 应为 10"
+        );
+        assert_eq!(
+            json["data"]["page"].as_i64().unwrap(),
+            2,
+            "U-05: page 应为 2"
+        );
+        assert_eq!(
+            json["data"]["size"].as_i64().unwrap(),
+            5,
+            "U-05: size 应为 5"
+        );
         assert_eq!(
             json["data"]["items"].as_array().unwrap().len(),
             5,
@@ -1911,7 +2119,11 @@ mod tests {
         let resp = get_users(app, &token, "?phone=00000000000").await;
         assert_eq!(resp.status(), StatusCode::OK, "U-06: 应返回 200");
         let json = body_json(resp).await;
-        assert_eq!(json["data"]["total"].as_i64().unwrap(), 0, "U-06: 无匹配 total 应为 0");
+        assert_eq!(
+            json["data"]["total"].as_i64().unwrap(),
+            0,
+            "U-06: 无匹配 total 应为 0"
+        );
         assert!(
             json["data"]["items"].as_array().unwrap().is_empty(),
             "U-06: 无匹配 items 应为 []"
@@ -1933,9 +2145,17 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED, "U-07: 无 token 应返回 401");
+        assert_eq!(
+            resp.status(),
+            StatusCode::UNAUTHORIZED,
+            "U-07: 无 token 应返回 401"
+        );
         let json = body_json(resp).await;
-        assert_eq!(json["code"].as_i64().unwrap(), 40101, "U-07: 错误码应为 40101");
+        assert_eq!(
+            json["code"].as_i64().unwrap(),
+            40101,
+            "U-07: 错误码应为 40101"
+        );
     }
 
     // ── U-08: finance 角色 JWT → 403，code=40301 ─────────────────────────────
@@ -1945,18 +2165,24 @@ mod tests {
         let app = user_app(vec![]);
 
         let resp = get_users(app, &token, "").await;
-        assert_eq!(resp.status(), StatusCode::FORBIDDEN, "U-08: finance 角色应返回 403");
+        assert_eq!(
+            resp.status(),
+            StatusCode::FORBIDDEN,
+            "U-08: finance 角色应返回 403"
+        );
         let json = body_json(resp).await;
-        assert_eq!(json["code"].as_i64().unwrap(), 40301, "U-08: 错误码应为 40301");
+        assert_eq!(
+            json["code"].as_i64().unwrap(),
+            40301,
+            "U-08: 错误码应为 40301"
+        );
     }
 
     // ── U-09: cs 角色 JWT → 200（cs 有 UserRead 权限）────────────────────────
     #[tokio::test]
     async fn u09_cs_role_returns_200() {
         let token = make_jwt("test-secret", "cs");
-        let app = user_app(vec![
-            make_user_row("111", "Normal", false, 10),
-        ]);
+        let app = user_app(vec![make_user_row("111", "Normal", false, 10)]);
 
         let resp = get_users(app, &token, "").await;
         assert_eq!(resp.status(), StatusCode::OK, "U-09: cs 角色应返回 200");
@@ -2020,11 +2246,7 @@ mod tests {
     }
 
     /// 发起认证 GET /api/v1/admin/users/:id 请求
-    async fn get_user_detail(
-        app: axum::Router,
-        token: &str,
-        id: &str,
-    ) -> axum::response::Response {
+    async fn get_user_detail(app: axum::Router, token: &str, id: &str) -> axum::response::Response {
         app.oneshot(
             Request::builder()
                 .method("GET")
@@ -2047,7 +2269,11 @@ mod tests {
         let app = user_detail_app(vec![row], vec![]);
 
         let resp = get_user_detail(app, &token, &user_id.to_string()).await;
-        assert_eq!(resp.status(), StatusCode::OK, "UD-01: super_admin 应返回 200");
+        assert_eq!(
+            resp.status(),
+            StatusCode::OK,
+            "UD-01: super_admin 应返回 200"
+        );
         let json = body_json(resp).await;
         assert_eq!(json["code"].as_i64().unwrap(), 0, "UD-01: code 应为 0");
         assert_eq!(
@@ -2066,11 +2292,17 @@ mod tests {
         );
         // 验证 MVP 空数组字段
         assert!(
-            json["data"]["recharge_records"].as_array().unwrap().is_empty(),
+            json["data"]["recharge_records"]
+                .as_array()
+                .unwrap()
+                .is_empty(),
             "UD-01: recharge_records 应为空数组"
         );
         assert!(
-            json["data"]["consume_records"].as_array().unwrap().is_empty(),
+            json["data"]["consume_records"]
+                .as_array()
+                .unwrap()
+                .is_empty(),
             "UD-01: consume_records 应为空数组"
         );
         assert!(
@@ -2087,9 +2319,17 @@ mod tests {
         let nonexistent_id = Uuid::new_v4().to_string();
 
         let resp = get_user_detail(app, &token, &nonexistent_id).await;
-        assert_eq!(resp.status(), StatusCode::NOT_FOUND, "UD-02: 用户不存在应返回 404");
+        assert_eq!(
+            resp.status(),
+            StatusCode::NOT_FOUND,
+            "UD-02: 用户不存在应返回 404"
+        );
         let json = body_json(resp).await;
-        assert_eq!(json["code"].as_i64().unwrap(), 40401, "UD-02: 错误码应为 40401");
+        assert_eq!(
+            json["code"].as_i64().unwrap(),
+            40401,
+            "UD-02: 错误码应为 40401"
+        );
     }
 
     // ── UD-03: finance 角色 JWT + 有效 UUID → 403，code=40301 ────────────────
@@ -2101,9 +2341,17 @@ mod tests {
         let app = user_detail_app(vec![row], vec![]);
 
         let resp = get_user_detail(app, &token, &user_id.to_string()).await;
-        assert_eq!(resp.status(), StatusCode::FORBIDDEN, "UD-03: finance 角色应返回 403");
+        assert_eq!(
+            resp.status(),
+            StatusCode::FORBIDDEN,
+            "UD-03: finance 角色应返回 403"
+        );
         let json = body_json(resp).await;
-        assert_eq!(json["code"].as_i64().unwrap(), 40301, "UD-03: 错误码应为 40301");
+        assert_eq!(
+            json["code"].as_i64().unwrap(),
+            40301,
+            "UD-03: 错误码应为 40301"
+        );
     }
 
     // ── UD-04: 路径参数为非法字符串 → 400/40003，非 500 ──────────────────────
@@ -2124,7 +2372,11 @@ mod tests {
             50000,
             "UD-04: 非法 UUID 不应返回 500"
         );
-        assert_eq!(json["code"].as_i64().unwrap(), 40003, "UD-04: 错误码应为 40003");
+        assert_eq!(
+            json["code"].as_i64().unwrap(),
+            40003,
+            "UD-04: 错误码应为 40003"
+        );
     }
 
     // ── UD-05: 无 Authorization 头 → 401，code=40101 ─────────────────────────
@@ -2145,9 +2397,17 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED, "UD-05: 无 token 应返回 401");
+        assert_eq!(
+            resp.status(),
+            StatusCode::UNAUTHORIZED,
+            "UD-05: 无 token 应返回 401"
+        );
         let json = body_json(resp).await;
-        assert_eq!(json["code"].as_i64().unwrap(), 40101, "UD-05: 错误码应为 40101");
+        assert_eq!(
+            json["code"].as_i64().unwrap(),
+            40101,
+            "UD-05: 错误码应为 40101"
+        );
     }
 
     // ── UD-06: 有效 UUID 但用户已软删除 → 404，code=40401 ────────────────────
@@ -2165,7 +2425,11 @@ mod tests {
             "UD-06: 已软删除用户应返回 404"
         );
         let json = body_json(resp).await;
-        assert_eq!(json["code"].as_i64().unwrap(), 40401, "UD-06: 错误码应为 40401");
+        assert_eq!(
+            json["code"].as_i64().unwrap(),
+            40401,
+            "UD-06: 错误码应为 40401"
+        );
     }
 
     // ════════════════════════════════════════════════════════════════════════
@@ -2173,9 +2437,7 @@ mod tests {
     // ════════════════════════════════════════════════════════════════════════
 
     /// 构建带预置用户数据的 App，同时返回 user_repo（用于多步联动测试）
-    fn ban_app(
-        users: Vec<AdminUserListRowUser>,
-    ) -> (axum::Router, Arc<FakeAdminUserRepository>) {
+    fn ban_app(users: Vec<AdminUserListRowUser>) -> (axum::Router, Arc<FakeAdminUserRepository>) {
         let admin_repo = Arc::new(FakeAdminRepository::default());
         let log_repo = Arc::new(FakeAdminLogRepository::default());
         let room_repo = Arc::new(FakeAdminRoomRepository::default());
@@ -2203,7 +2465,11 @@ mod tests {
     /// 构建带预置用户数据的 App，同时返回 user_repo 和 audit_repo（用于 CA 审计验证测试）
     fn ban_app_with_audit(
         users: Vec<AdminUserListRowUser>,
-    ) -> (axum::Router, Arc<FakeAdminUserRepository>, Arc<FakeAuditRepository>) {
+    ) -> (
+        axum::Router,
+        Arc<FakeAdminUserRepository>,
+        Arc<FakeAuditRepository>,
+    ) {
         let admin_repo = Arc::new(FakeAdminRepository::default());
         let log_repo = Arc::new(FakeAdminLogRepository::default());
         let room_repo = Arc::new(FakeAdminRoomRepository::default());
@@ -2314,9 +2580,17 @@ mod tests {
         )]);
 
         let resp = post_ban(app, &token, &user_id.to_string(), r#"{"action":"ban"}"#).await;
-        assert_eq!(resp.status(), StatusCode::CONFLICT, "UB-03: 重复 ban 应返回 409");
+        assert_eq!(
+            resp.status(),
+            StatusCode::CONFLICT,
+            "UB-03: 重复 ban 应返回 409"
+        );
         let json = body_json(resp).await;
-        assert_eq!(json["code"].as_i64().unwrap(), 40900, "UB-03: 错误码应为 40900");
+        assert_eq!(
+            json["code"].as_i64().unwrap(),
+            40900,
+            "UB-03: 错误码应为 40900"
+        );
     }
 
     // ── UB-04: 不存在的 UUID → 404，code=40401 ───────────────────────────────
@@ -2326,10 +2600,24 @@ mod tests {
         let nonexistent_id = Uuid::new_v4();
         let (app, _) = ban_app(vec![]);
 
-        let resp = post_ban(app, &token, &nonexistent_id.to_string(), r#"{"action":"ban"}"#).await;
-        assert_eq!(resp.status(), StatusCode::NOT_FOUND, "UB-04: 用户不存在应返回 404");
+        let resp = post_ban(
+            app,
+            &token,
+            &nonexistent_id.to_string(),
+            r#"{"action":"ban"}"#,
+        )
+        .await;
+        assert_eq!(
+            resp.status(),
+            StatusCode::NOT_FOUND,
+            "UB-04: 用户不存在应返回 404"
+        );
         let json = body_json(resp).await;
-        assert_eq!(json["code"].as_i64().unwrap(), 40401, "UB-04: 错误码应为 40401");
+        assert_eq!(
+            json["code"].as_i64().unwrap(),
+            40401,
+            "UB-04: 错误码应为 40401"
+        );
     }
 
     // ── UB-05: cs 角色 JWT + action=ban → 403，code=40301（无 UserWrite 权限）──
@@ -2345,9 +2633,17 @@ mod tests {
         )]);
 
         let resp = post_ban(app, &token, &user_id.to_string(), r#"{"action":"ban"}"#).await;
-        assert_eq!(resp.status(), StatusCode::FORBIDDEN, "UB-05: cs 角色应返回 403");
+        assert_eq!(
+            resp.status(),
+            StatusCode::FORBIDDEN,
+            "UB-05: cs 角色应返回 403"
+        );
         let json = body_json(resp).await;
-        assert_eq!(json["code"].as_i64().unwrap(), 40301, "UB-05: 错误码应为 40301");
+        assert_eq!(
+            json["code"].as_i64().unwrap(),
+            40301,
+            "UB-05: 错误码应为 40301"
+        );
     }
 
     // ── UB-06: 无 Authorization 头 → 401，code=40101 ─────────────────────────
@@ -2373,9 +2669,17 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED, "UB-06: 无 token 应返回 401");
+        assert_eq!(
+            resp.status(),
+            StatusCode::UNAUTHORIZED,
+            "UB-06: 无 token 应返回 401"
+        );
         let json = body_json(resp).await;
-        assert_eq!(json["code"].as_i64().unwrap(), 40101, "UB-06: 错误码应为 40101");
+        assert_eq!(
+            json["code"].as_i64().unwrap(),
+            40101,
+            "UB-06: 错误码应为 40101"
+        );
     }
 
     // ── UB-07: 无效 action（如 "kick"）→ 400，code=40003 ─────────────────────
@@ -2391,9 +2695,17 @@ mod tests {
         )]);
 
         let resp = post_ban(app, &token, &user_id.to_string(), r#"{"action":"kick"}"#).await;
-        assert_eq!(resp.status(), StatusCode::BAD_REQUEST, "UB-07: 无效 action 应返回 400");
+        assert_eq!(
+            resp.status(),
+            StatusCode::BAD_REQUEST,
+            "UB-07: 无效 action 应返回 400"
+        );
         let json = body_json(resp).await;
-        assert_eq!(json["code"].as_i64().unwrap(), 40003, "UB-07: 错误码应为 40003");
+        assert_eq!(
+            json["code"].as_i64().unwrap(),
+            40003,
+            "UB-07: 错误码应为 40003"
+        );
     }
 
     // ════════════════════════════════════════════════════════════════════════
@@ -2450,21 +2762,41 @@ mod tests {
         let app = stats_app(Arc::new(FakeAdminStatsRepository::default()));
 
         let resp = get_stats_overview(app, &token, "").await;
-        assert_eq!(resp.status(), StatusCode::OK, "US-01: super_admin 应返回 200");
+        assert_eq!(
+            resp.status(),
+            StatusCode::OK,
+            "US-01: super_admin 应返回 200"
+        );
         let json = body_json(resp).await;
         assert_eq!(json["code"].as_i64().unwrap(), 0, "US-01: code 应为 0");
 
         let data = &json["data"];
         assert!(data["dau"].is_number(), "US-01: dau 字段必须存在");
-        assert!(data["new_users"].is_number(), "US-01: new_users 字段必须存在");
-        assert_eq!(data["active_rooms"].as_i64().unwrap(), 0, "US-01: active_rooms MVP 值应为 0");
-        assert_eq!(data["online_users"].as_i64().unwrap(), 0, "US-01: online_users MVP 值应为 0");
-        assert!(data["date_range"]["start"].as_str().is_some(), "US-01: date_range.start 必须存在");
-        assert!(data["date_range"]["end"].as_str().is_some(), "US-01: date_range.end 必须存在");
+        assert!(
+            data["new_users"].is_number(),
+            "US-01: new_users 字段必须存在"
+        );
+        assert_eq!(
+            data["active_rooms"].as_i64().unwrap(),
+            0,
+            "US-01: active_rooms MVP 值应为 0"
+        );
+        assert_eq!(
+            data["online_users"].as_i64().unwrap(),
+            0,
+            "US-01: online_users MVP 值应为 0"
+        );
+        assert!(
+            data["date_range"]["start"].as_str().is_some(),
+            "US-01: date_range.start 必须存在"
+        );
+        assert!(
+            data["date_range"]["end"].as_str().is_some(),
+            "US-01: date_range.end 必须存在"
+        );
         // 无参数时 start == end（均为今天）
         assert_eq!(
-            data["date_range"]["start"],
-            data["date_range"]["end"],
+            data["date_range"]["start"], data["date_range"]["end"],
             "US-01: 无参数时 date_range.start 应等于 date_range.end"
         );
     }
@@ -2475,7 +2807,8 @@ mod tests {
         let token = make_jwt("test-secret", "super_admin");
         let app = stats_app(Arc::new(FakeAdminStatsRepository::default()));
 
-        let resp = get_stats_overview(app, &token, "?start_date=2024-01-01&end_date=2024-01-31").await;
+        let resp =
+            get_stats_overview(app, &token, "?start_date=2024-01-01&end_date=2024-01-31").await;
         assert_eq!(resp.status(), StatusCode::OK, "US-02: 应返回 200");
         let json = body_json(resp).await;
         assert_eq!(json["code"].as_i64().unwrap(), 0);
@@ -2498,9 +2831,17 @@ mod tests {
         let app = stats_app(Arc::new(FakeAdminStatsRepository::default()));
 
         let resp = get_stats_overview(app, &token, "").await;
-        assert_eq!(resp.status(), StatusCode::FORBIDDEN, "US-03: cs 角色应返回 403");
+        assert_eq!(
+            resp.status(),
+            StatusCode::FORBIDDEN,
+            "US-03: cs 角色应返回 403"
+        );
         let json = body_json(resp).await;
-        assert_eq!(json["code"].as_i64().unwrap(), 40301, "US-03: 错误码应为 40301");
+        assert_eq!(
+            json["code"].as_i64().unwrap(),
+            40301,
+            "US-03: 错误码应为 40301"
+        );
     }
 
     // ── US-04: 无 Authorization 头 → 401，code=40101 ─────────────────────────
@@ -2519,9 +2860,17 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED, "US-04: 无 token 应返回 401");
+        assert_eq!(
+            resp.status(),
+            StatusCode::UNAUTHORIZED,
+            "US-04: 无 token 应返回 401"
+        );
         let json = body_json(resp).await;
-        assert_eq!(json["code"].as_i64().unwrap(), 40101, "US-04: 错误码应为 40101");
+        assert_eq!(
+            json["code"].as_i64().unwrap(),
+            40101,
+            "US-04: 错误码应为 40101"
+        );
     }
 
     // ── US-05: super_admin JWT + start_date=invalid → 400，code=40003 ─────────
@@ -2531,9 +2880,17 @@ mod tests {
         let app = stats_app(Arc::new(FakeAdminStatsRepository::default()));
 
         let resp = get_stats_overview(app, &token, "?start_date=invalid").await;
-        assert_eq!(resp.status(), StatusCode::BAD_REQUEST, "US-05: 无效日期应返回 400");
+        assert_eq!(
+            resp.status(),
+            StatusCode::BAD_REQUEST,
+            "US-05: 无效日期应返回 400"
+        );
         let json = body_json(resp).await;
-        assert_eq!(json["code"].as_i64().unwrap(), 40003, "US-05: 错误码应为 40003");
+        assert_eq!(
+            json["code"].as_i64().unwrap(),
+            40003,
+            "US-05: 错误码应为 40003"
+        );
     }
 
     // ════════════════════════════════════════════════════════════════════════
@@ -2593,11 +2950,7 @@ mod tests {
     // ════════════════════════════════════════════════════════════════════════
 
     /// 发起认证 GET /api/v1/admin/logs 请求
-    async fn get_logs(
-        app: axum::Router,
-        token: &str,
-        query: &str,
-    ) -> axum::response::Response {
+    async fn get_logs(app: axum::Router, token: &str, query: &str) -> axum::response::Response {
         app.oneshot(
             Request::builder()
                 .method("GET")
@@ -2641,7 +2994,11 @@ mod tests {
         let app = build_app(AppState::for_test());
 
         let resp = get_logs(app, &token, "").await;
-        assert_eq!(resp.status(), StatusCode::OK, "UL-01: super_admin 应返回 200");
+        assert_eq!(
+            resp.status(),
+            StatusCode::OK,
+            "UL-01: super_admin 应返回 200"
+        );
         let json = body_json(resp).await;
         assert_eq!(json["code"].as_i64().unwrap(), 0, "UL-01: code 应为 0");
         assert!(
@@ -2679,7 +3036,11 @@ mod tests {
         let app = build_app(AppState::for_test());
 
         let resp = get_logs(app, &token, "?page=1&size=101").await;
-        assert_eq!(resp.status(), StatusCode::BAD_REQUEST, "UL-03: size=101 应返回 400");
+        assert_eq!(
+            resp.status(),
+            StatusCode::BAD_REQUEST,
+            "UL-03: size=101 应返回 400"
+        );
         let json = body_json(resp).await;
         assert_eq!(
             json["code"].as_i64().unwrap(),
@@ -2695,7 +3056,11 @@ mod tests {
         let app = build_app(AppState::for_test());
 
         let resp = get_logs(app, &token, "").await;
-        assert_eq!(resp.status(), StatusCode::FORBIDDEN, "UL-04: cs 角色应返回 403");
+        assert_eq!(
+            resp.status(),
+            StatusCode::FORBIDDEN,
+            "UL-04: cs 角色应返回 403"
+        );
         let json = body_json(resp).await;
         assert_eq!(
             json["code"].as_i64().unwrap(),
@@ -2720,7 +3085,11 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED, "UL-05: 无 token 应返回 401");
+        assert_eq!(
+            resp.status(),
+            StatusCode::UNAUTHORIZED,
+            "UL-05: 无 token 应返回 401"
+        );
         let json = body_json(resp).await;
         assert_eq!(
             json["code"].as_i64().unwrap(),
@@ -2775,7 +3144,10 @@ mod tests {
 
         let logs = audit_repo.get_logs();
         assert_eq!(logs.len(), 1, "CA-02: audit_repo 应有 1 条记录");
-        assert_eq!(logs[0].action, "unban_user", "CA-02: action 应为 unban_user");
+        assert_eq!(
+            logs[0].action, "unban_user",
+            "CA-02: action 应为 unban_user"
+        );
     }
 
     // ── CA-03: DELETE /rooms/:id 成功 → logs[0].action="close_room"，target_type="room" ─
@@ -2791,7 +3163,10 @@ mod tests {
 
         let logs = audit_repo.get_logs();
         assert_eq!(logs.len(), 1, "CA-03: audit_repo 应有 1 条记录");
-        assert_eq!(logs[0].action, "close_room", "CA-03: action 应为 close_room");
+        assert_eq!(
+            logs[0].action, "close_room",
+            "CA-03: action 应为 close_room"
+        );
         assert_eq!(
             logs[0].target_type,
             Some("room".to_string()),
@@ -2849,14 +3224,14 @@ mod tests {
             r#"{"action":"ban"}"#,
         )
         .await;
-        assert_eq!(resp.status(), StatusCode::NOT_FOUND, "CA-05: 用户不存在应返回 404");
+        assert_eq!(
+            resp.status(),
+            StatusCode::NOT_FOUND,
+            "CA-05: 用户不存在应返回 404"
+        );
 
         let logs = audit_repo.get_logs();
-        assert_eq!(
-            logs.len(),
-            0,
-            "CA-05: 业务失败时 audit_repo 不应有新记录"
-        );
+        assert_eq!(logs.len(), 0, "CA-05: 业务失败时 audit_repo 不应有新记录");
     }
 
     // ════════════════════════════════════════════════════════════════════════
@@ -2869,7 +3244,11 @@ mod tests {
     fn wallet_app(
         user_id: Uuid,
         initial_balance: i64,
-    ) -> (axum::Router, Arc<FakeWalletRepository>, Arc<NoopEventPublisher>) {
+    ) -> (
+        axum::Router,
+        Arc<FakeWalletRepository>,
+        Arc<NoopEventPublisher>,
+    ) {
         let admin_repo = Arc::new(FakeAdminRepository::default());
         let log_repo = Arc::new(FakeAdminLogRepository::default());
         let fake_wallet = Arc::new(FakeWalletRepository::default());
@@ -2903,9 +3282,7 @@ mod tests {
         app.oneshot(
             Request::builder()
                 .method("POST")
-                .uri(format!(
-                    "/api/v1/admin/users/{user_id}/wallet/adjust"
-                ))
+                .uri(format!("/api/v1/admin/users/{user_id}/wallet/adjust"))
                 .header("Authorization", format!("Bearer {token}"))
                 .header("content-type", "application/json")
                 .header("x-request-id", "test-wallet-req")
@@ -2969,17 +3346,22 @@ mod tests {
         // admin_log +1（事务内写入）
         let admin_logs = fake_wallet.get_admin_logs_written();
         assert_eq!(admin_logs.len(), 1, "WA01: admin_log 应有 1 条");
-        assert_eq!(admin_logs[0].action, "wallet_adjust", "WA01: action=wallet_adjust");
+        assert_eq!(
+            admin_logs[0].action, "wallet_adjust",
+            "WA01: action=wallet_adjust"
+        );
         assert_eq!(admin_logs[0].target_id, user_id, "WA01: target_id=user_id");
         assert_eq!(admin_logs[0].amount, 500, "WA01: admin_log amount=500");
 
         // Redis publish 命中
         let calls = fake_pub.calls.lock().unwrap();
         assert_eq!(calls.len(), 1, "WA01: Redis publish 应调用 1 次");
-        assert_eq!(calls[0].0, "admin:events", "WA01: channel 应为 admin:events");
         assert_eq!(
-            calls[0].1.r#type,
-            "balance_updated",
+            calls[0].0, "admin:events",
+            "WA01: channel 应为 admin:events"
+        );
+        assert_eq!(
+            calls[0].1.r#type, "balance_updated",
             "WA01: event.type 应为 balance_updated"
         );
         let payload = &calls[0].1.payload;
@@ -3039,7 +3421,11 @@ mod tests {
         )
         .await;
 
-        assert_eq!(resp.status(), StatusCode::BAD_REQUEST, "WA03: amount=0 应返回 400");
+        assert_eq!(
+            resp.status(),
+            StatusCode::BAD_REQUEST,
+            "WA03: amount=0 应返回 400"
+        );
         let json = body_json(resp).await;
         assert_eq!(
             json["code"].as_i64().unwrap(),
@@ -3063,7 +3449,11 @@ mod tests {
         )
         .await;
 
-        assert_eq!(resp.status(), StatusCode::BAD_REQUEST, "WA04: reason 空应返回 400");
+        assert_eq!(
+            resp.status(),
+            StatusCode::BAD_REQUEST,
+            "WA04: reason 空应返回 400"
+        );
         let json = body_json(resp).await;
         assert_eq!(
             json["code"].as_i64().unwrap(),
@@ -3088,7 +3478,11 @@ mod tests {
         )
         .await;
 
-        assert_eq!(resp.status(), StatusCode::NOT_FOUND, "WA05: 用户不存在应返回 404");
+        assert_eq!(
+            resp.status(),
+            StatusCode::NOT_FOUND,
+            "WA05: 用户不存在应返回 404"
+        );
         let json = body_json(resp).await;
         assert_eq!(
             json["code"].as_i64().unwrap(),
@@ -3113,7 +3507,11 @@ mod tests {
         .await;
 
         // HTTP 400 / 40204
-        assert_eq!(resp.status(), StatusCode::BAD_REQUEST, "WA06: 余额不足应返回 400");
+        assert_eq!(
+            resp.status(),
+            StatusCode::BAD_REQUEST,
+            "WA06: 余额不足应返回 400"
+        );
         let json = body_json(resp).await;
         assert_eq!(
             json["code"].as_i64().unwrap(),
@@ -3151,7 +3549,11 @@ mod tests {
         )
         .await;
 
-        assert_eq!(resp.status(), StatusCode::BAD_REQUEST, "WA07: 超限应返回 400");
+        assert_eq!(
+            resp.status(),
+            StatusCode::BAD_REQUEST,
+            "WA07: 超限应返回 400"
+        );
         let json = body_json(resp).await;
         assert_eq!(
             json["code"].as_i64().unwrap(),
@@ -3240,7 +3642,11 @@ mod tests {
         )
         .await;
 
-        assert_eq!(resp.status(), StatusCode::OK, "WA-finance: finance 应有权限调整");
+        assert_eq!(
+            resp.status(),
+            StatusCode::OK,
+            "WA-finance: finance 应有权限调整"
+        );
         assert_eq!(
             fake_wallet.get_balance(user_id),
             Some(500),
@@ -3257,7 +3663,11 @@ mod tests {
     /// 构建含预置礼物仓库的 App，同时返回 FakeGiftRepository 和 FakeAuditRepository（用于断言）。
     fn gift_app(
         gifts: Vec<voice_room_shared::models::gift::GiftModel>,
-    ) -> (axum::Router, Arc<FakeGiftRepository>, Arc<FakeAuditRepository>) {
+    ) -> (
+        axum::Router,
+        Arc<FakeGiftRepository>,
+        Arc<FakeAuditRepository>,
+    ) {
         let gift_repo = Arc::new(FakeGiftRepository::default());
         for g in gifts {
             gift_repo.seed(g);
@@ -3354,11 +3764,7 @@ mod tests {
         .unwrap()
     }
 
-    async fn delete_gift_req(
-        app: axum::Router,
-        token: &str,
-        id: &str,
-    ) -> axum::response::Response {
+    async fn delete_gift_req(app: axum::Router, token: &str, id: &str) -> axum::response::Response {
         app.oneshot(
             Request::builder()
                 .method("DELETE")
@@ -3397,10 +3803,7 @@ mod tests {
         );
         body.extend_from_slice(data);
         body.extend_from_slice(format!("\r\n--{boundary}--\r\n").as_bytes());
-        (
-            format!("multipart/form-data; boundary={boundary}"),
-            body,
-        )
+        (format!("multipart/form-data; boundary={boundary}"), body)
     }
 
     // ── GC01: POST 创建成功 → 201 + 返回 id ──────────────────────────────────
@@ -3435,9 +3838,7 @@ mod tests {
     #[tokio::test]
     async fn gc02_duplicate_code_returns_40900() {
         let token = make_jwt("test-secret", "operator");
-        let (app, _, _) = gift_app(vec![make_gift_model_for_test(
-            "rose_01", 1, 1, true, false,
-        )]);
+        let (app, _, _) = gift_app(vec![make_gift_model_for_test("rose_01", 1, 1, true, false)]);
 
         let resp = post_gift(
             app,
@@ -3446,7 +3847,11 @@ mod tests {
         )
         .await;
 
-        assert_eq!(resp.status(), StatusCode::CONFLICT, "GC02: 重复 code 应返回 409");
+        assert_eq!(
+            resp.status(),
+            StatusCode::CONFLICT,
+            "GC02: 重复 code 应返回 409"
+        );
         let json = body_json(resp).await;
         assert_eq!(
             json["code"].as_i64().unwrap(),
@@ -3474,7 +3879,10 @@ mod tests {
             1,
             "GC03: 默认应只返回 1 个 active 礼物"
         );
-        assert_eq!(json["data"]["items"][0]["code"].as_str().unwrap(), "active_01");
+        assert_eq!(
+            json["data"]["items"][0]["code"].as_str().unwrap(),
+            "active_01"
+        );
 
         // include_inactive=true 返回 active+inactive（不含已软删）
         let resp2 = get_gifts(app, &token, "?include_inactive=true").await;
@@ -3494,18 +3902,15 @@ mod tests {
         let gift_id = gift.id.to_string();
         let (app, gift_repo, _) = gift_app(vec![gift]);
 
-        let resp = put_gift(
-            app,
-            &token,
-            &gift_id,
-            r#"{"is_active":false}"#,
-        )
-        .await;
+        let resp = put_gift(app, &token, &gift_id, r#"{"is_active":false}"#).await;
 
         assert_eq!(resp.status(), StatusCode::OK, "GC04: 应返回 200");
         let json = body_json(resp).await;
         assert_eq!(json["code"].as_i64().unwrap(), 0);
-        assert!(!json["data"]["is_active"].as_bool().unwrap(), "GC04: is_active 应为 false");
+        assert!(
+            !json["data"]["is_active"].as_bool().unwrap(),
+            "GC04: is_active 应为 false"
+        );
 
         // 仓库中验证
         let gifts = gift_repo.get_all();
@@ -3577,7 +3982,11 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(resp.status(), StatusCode::BAD_REQUEST, "GC07: gif 应返回 400");
+        assert_eq!(
+            resp.status(),
+            StatusCode::BAD_REQUEST,
+            "GC07: gif 应返回 400"
+        );
         let json = body_json(resp).await;
         assert_eq!(json["code"].as_i64().unwrap(), 40003);
     }
@@ -3606,7 +4015,11 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(resp.status(), StatusCode::BAD_REQUEST, "GC08: >1MB 图片应返回 400");
+        assert_eq!(
+            resp.status(),
+            StatusCode::BAD_REQUEST,
+            "GC08: >1MB 图片应返回 400"
+        );
         let json = body_json(resp).await;
         assert_eq!(json["code"].as_i64().unwrap(), 40003);
     }
@@ -3624,9 +4037,17 @@ mod tests {
         )
         .await;
 
-        assert_eq!(resp.status(), StatusCode::BAD_REQUEST, "GC09: price=0 应返回 400");
+        assert_eq!(
+            resp.status(),
+            StatusCode::BAD_REQUEST,
+            "GC09: price=0 应返回 400"
+        );
         let json = body_json(resp).await;
-        assert_eq!(json["code"].as_i64().unwrap(), 40003, "GC09: 错误码应为 40003");
+        assert_eq!(
+            json["code"].as_i64().unwrap(),
+            40003,
+            "GC09: 错误码应为 40003"
+        );
     }
 
     // ── GC10: tier=6 → 40003 ─────────────────────────────────────────────────
@@ -3642,9 +4063,17 @@ mod tests {
         )
         .await;
 
-        assert_eq!(resp.status(), StatusCode::BAD_REQUEST, "GC10: tier=6 应返回 400");
+        assert_eq!(
+            resp.status(),
+            StatusCode::BAD_REQUEST,
+            "GC10: tier=6 应返回 400"
+        );
         let json = body_json(resp).await;
-        assert_eq!(json["code"].as_i64().unwrap(), 40003, "GC10: 错误码应为 40003");
+        assert_eq!(
+            json["code"].as_i64().unwrap(),
+            40003,
+            "GC10: 错误码应为 40003"
+        );
     }
 
     // ── GC11: 每次写操作 admin_logs +1 记录 ──────────────────────────────────
@@ -3718,7 +4147,9 @@ mod tests {
 
         let calls = publisher.calls.lock().unwrap();
         assert!(
-            calls.iter().any(|(_, e)| e.r#type == "gift_cache_invalidate"),
+            calls
+                .iter()
+                .any(|(_, e)| e.r#type == "gift_cache_invalidate"),
             "GC12: 应发布 gift_cache_invalidate 事件"
         );
     }
@@ -3737,7 +4168,11 @@ mod tests {
             )
             .await
             .unwrap();
-        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED, "GC-extra01: 无 Token 应返回 401");
+        assert_eq!(
+            resp.status(),
+            StatusCode::UNAUTHORIZED,
+            "GC-extra01: 无 Token 应返回 401"
+        );
     }
 
     // ── GC-extra-02: cs 角色无权访问 gifts → 403 ─────────────────────────────
@@ -3746,7 +4181,11 @@ mod tests {
         let token = make_jwt("test-secret", "cs");
         let (app, _, _) = gift_app(vec![]);
         let resp = get_gifts(app, &token, "").await;
-        assert_eq!(resp.status(), StatusCode::FORBIDDEN, "GC-extra02: cs 应返回 403");
+        assert_eq!(
+            resp.status(),
+            StatusCode::FORBIDDEN,
+            "GC-extra02: cs 应返回 403"
+        );
     }
 
     // ── GC-extra-03: PUT 不存在的礼物 → 404 ──────────────────────────────────
@@ -3756,7 +4195,11 @@ mod tests {
         let nonexistent_id = Uuid::new_v4().to_string();
         let (app, _, _) = gift_app(vec![]);
         let resp = put_gift(app, &token, &nonexistent_id, r#"{"price":99}"#).await;
-        assert_eq!(resp.status(), StatusCode::NOT_FOUND, "GC-extra03: 不存在礼物应返回 404");
+        assert_eq!(
+            resp.status(),
+            StatusCode::NOT_FOUND,
+            "GC-extra03: 不存在礼物应返回 404"
+        );
     }
 
     // ════════════════════════════════════════════════════════════════════════
@@ -3817,18 +4260,16 @@ mod tests {
             r#"{"code":"audit_detail_test","name_en":"Detail","name_ar":"تفاصيل","icon_url":"/uploads/gifts/detail.png","price":10,"tier":1,"is_active":true}"#,
         )
         .await;
-        assert_eq!(resp.status(), StatusCode::CREATED, "GC-review02: 创建应 201");
+        assert_eq!(
+            resp.status(),
+            StatusCode::CREATED,
+            "GC-review02: 创建应 201"
+        );
         let json = body_json(resp).await;
         let gift_id = json["data"]["id"].as_str().unwrap().to_string();
 
         // 执行 PUT 修改 price 和 is_active
-        let resp2 = put_gift(
-            app,
-            &token,
-            &gift_id,
-            r#"{"price":99,"is_active":false}"#,
-        )
-        .await;
+        let resp2 = put_gift(app, &token, &gift_id, r#"{"price":99,"is_active":false}"#).await;
         assert_eq!(resp2.status(), StatusCode::OK, "GC-review02: PUT 应 200");
 
         // 检查审计日志 detail 包含变更内容
@@ -3865,7 +4306,11 @@ mod tests {
             r#"{"code":"delete_audit_test","name_en":"DeleteMe","name_ar":"احذفني","icon_url":"/uploads/gifts/delete.png","price":5,"tier":1,"is_active":true}"#,
         )
         .await;
-        assert_eq!(resp.status(), StatusCode::CREATED, "GC-review03: 创建应 201");
+        assert_eq!(
+            resp.status(),
+            StatusCode::CREATED,
+            "GC-review03: 创建应 201"
+        );
         let json = body_json(resp).await;
         let gift_id = json["data"]["id"].as_str().unwrap().to_string();
 

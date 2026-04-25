@@ -17,15 +17,15 @@ pub mod handler;
 pub mod scheduler;
 pub mod service;
 
-pub use service::RankingServicePort;
+pub use routes::ranking_routes;
 #[cfg(any(test, feature = "test-utils"))]
 pub use service::FakeRankingService;
-pub use routes::ranking_routes;
+pub use service::RankingServicePort;
 
 mod routes {
-    use axum::{routing::get, Router};
-    use crate::bootstrap::AppState;
     use super::handler::get_ranking;
+    use crate::bootstrap::AppState;
+    use axum::{routing::get, Router};
 
     pub fn ranking_routes() -> Router<AppState> {
         Router::new().route("/api/v1/ranking", get(get_ranking))
@@ -157,7 +157,10 @@ mod tests {
     #[test]
     fn week_key_format() {
         let k = week_key(RankingType::Wealth);
-        assert!(k.starts_with("ranking:wealth:week:"), "wealth week key prefix");
+        assert!(
+            k.starts_with("ranking:wealth:week:"),
+            "wealth week key prefix"
+        );
     }
 
     #[test]
@@ -165,7 +168,10 @@ mod tests {
         let day = current_key(RankingType::Charm, Period::Day);
         assert!(day.contains(":day:"), "day period key should contain :day:");
         let week = current_key(RankingType::Wealth, Period::Week);
-        assert!(week.contains(":week:"), "week period key should contain :week:");
+        assert!(
+            week.contains(":week:"),
+            "week period key should contain :week:"
+        );
     }
 
     #[test]

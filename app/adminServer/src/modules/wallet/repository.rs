@@ -116,13 +116,11 @@ impl WalletRepository for PgWalletRepository {
         }
 
         // Step 3: 更新余额
-        sqlx::query(
-            "UPDATE users SET diamond_balance = $1, updated_at = now() WHERE id = $2",
-        )
-        .bind(new_balance)
-        .bind(user_id)
-        .execute(&mut *tx)
-        .await?;
+        sqlx::query("UPDATE users SET diamond_balance = $1, updated_at = now() WHERE id = $2")
+            .bind(new_balance)
+            .bind(user_id)
+            .execute(&mut *tx)
+            .await?;
 
         // Step 4: 插入 wallet_transactions
         sqlx::query(
@@ -319,12 +317,12 @@ mod tests {
             .unwrap();
 
         assert_eq!(new_balance, 700, "WR-03: 余额应为 700");
-        assert_eq!(repo.get_balance(uid), Some(700), "WR-03: get_balance 应反映更新");
         assert_eq!(
-            repo.get_transactions().len(),
-            1,
-            "WR-03: 流水记录应有 1 条"
+            repo.get_balance(uid),
+            Some(700),
+            "WR-03: get_balance 应反映更新"
         );
+        assert_eq!(repo.get_transactions().len(), 1, "WR-03: 流水记录应有 1 条");
         assert_eq!(
             repo.get_admin_logs_written().len(),
             1,
@@ -399,8 +397,16 @@ mod tests {
             matches!(err, AppError::DatabaseError(_)),
             "WR-07: 应返回 DatabaseError"
         );
-        assert_eq!(repo.get_balance(uid), Some(500), "WR-07: 余额应保持 500（原子回滚）");
+        assert_eq!(
+            repo.get_balance(uid),
+            Some(500),
+            "WR-07: 余额应保持 500（原子回滚）"
+        );
         assert_eq!(repo.get_transactions().len(), 0, "WR-07: 无流水记录");
-        assert_eq!(repo.get_admin_logs_written().len(), 0, "WR-07: 无 admin_log 记录");
+        assert_eq!(
+            repo.get_admin_logs_written().len(),
+            0,
+            "WR-07: 无 admin_log 记录"
+        );
     }
 }

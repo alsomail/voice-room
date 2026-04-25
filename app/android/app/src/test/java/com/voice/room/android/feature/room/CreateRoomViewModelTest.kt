@@ -2,9 +2,11 @@ package com.voice.room.android.feature.room
 
 import androidx.paging.PagingSource
 import androidx.paging.PagingState
+import com.voice.room.android.R
 import com.voice.room.android.domain.room.IRoomRepository
 import com.voice.room.android.domain.room.RoomItem
 import com.voice.room.android.domain.room.RoomsPage
+import com.voice.room.android.util.UiText
 import com.voice.room.android.utils.MainDispatcherRule
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
@@ -401,10 +403,12 @@ class CreateRoomViewModelTest {
                 "State should be Error on API failure, but was: $state",
                 state is CreateRoomUiState.Error
             )
+            // 缺陷 #4：错误文案改为 UiText（@StringRes），不再透传服务端原文（避免 i18n 漂移）
+            val text = (state as CreateRoomUiState.Error).message
+            assertTrue("Error.message should be UiText.StringResource", text is UiText.StringResource)
             assertEquals(
-                "Error message should match API error",
-                errorMessage,
-                (state as CreateRoomUiState.Error).message
+                R.string.create_room_failed,
+                (text as UiText.StringResource).resId,
             )
         }
 
@@ -440,9 +444,12 @@ class CreateRoomViewModelTest {
                 "State should be Error even when exception message is null, but was: $state",
                 state is CreateRoomUiState.Error
             )
-            assertTrue(
-                "Error message should not be empty",
-                (state as CreateRoomUiState.Error).message.isNotBlank()
+            // 缺陷 #4：fallback 也使用 R.string.create_room_failed
+            val text = (state as CreateRoomUiState.Error).message
+            assertTrue(text is UiText.StringResource)
+            assertEquals(
+                R.string.create_room_failed,
+                (text as UiText.StringResource).resId,
             )
         }
 
@@ -787,8 +794,7 @@ class CreateRoomViewModelTest {
     @Test
     fun `C36-08 submit api failure sets error in formState`() =
         runTest(mainDispatcherRule.testDispatcher) {
-            val errorMessage = "用户已有活跃房间"
-            val fakeRepo = FakeFailureRepository(errorMessage = errorMessage)
+            val fakeRepo = FakeFailureRepository(errorMessage = "用户已有活跃房间")
             val viewModel = CreateRoomViewModel(fakeRepo)
 
             viewModel.updateTitle("语音房 C36")
@@ -796,10 +802,13 @@ class CreateRoomViewModelTest {
             viewModel.submit()
             advanceUntilIdle()
 
+            // 缺陷 #4：error 改为 UiText（@StringRes）；断言 resId 而非中文字面量
+            val err = viewModel.formState.value.error
+            assertTrue("C36-08: error 应为 UiText.StringResource", err is UiText.StringResource)
             assertEquals(
-                "C36-08: API error → formState.error should contain error message",
-                errorMessage,
-                viewModel.formState.value.error
+                "C36-08: API 失败应使用 R.string.create_room_failed",
+                R.string.create_room_failed,
+                (err as UiText.StringResource).resId,
             )
         }
 

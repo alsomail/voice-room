@@ -6,11 +6,11 @@
 //! - `connection`  — 单连接生命周期与信令处理
 //! - `handler`     — Axum WS 升级处理器 (JWT 鉴权)
 
+pub mod broadcaster;
 pub mod connection;
 pub mod handler;
 pub mod heartbeat;
 pub mod registry;
-pub mod broadcaster;
 
 pub use handler::ws_handler;
 pub use registry::{ConnectionHandle, ConnectionRegistry};

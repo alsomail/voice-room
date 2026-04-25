@@ -115,10 +115,7 @@ pub fn truncate_properties(props: serde_json::Value) -> (serde_json::Value, bool
 /// 解析最终 user_id：JWT 存在时覆盖请求体值（不一致时 log warn）
 ///
 /// 返回最终使用的 user_id
-pub fn resolve_user_id(
-    request_user_id: Option<Uuid>,
-    jwt_user_id: Option<Uuid>,
-) -> Option<Uuid> {
+pub fn resolve_user_id(request_user_id: Option<Uuid>, jwt_user_id: Option<Uuid>) -> Option<Uuid> {
     match (request_user_id, jwt_user_id) {
         (Some(req_uid), Some(jwt_uid)) => {
             if req_uid != jwt_uid {
@@ -313,7 +310,11 @@ mod tests {
         let content = "x".repeat(8181);
         let props = serde_json::json!({"data": content});
         let serialized = serde_json::to_string(&props).unwrap();
-        assert_eq!(serialized.len(), 8192, "test setup: should be exactly 8192 bytes");
+        assert_eq!(
+            serialized.len(),
+            8192,
+            "test setup: should be exactly 8192 bytes"
+        );
         let (_, was_truncated) = truncate_properties(props);
         assert!(!was_truncated, "exactly 8KB should NOT be truncated");
     }

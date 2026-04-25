@@ -37,10 +37,8 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     // 读取必要环境变量
-    let database_url = std::env::var("DATABASE_URL")
-        .expect("DATABASE_URL must be set");
-    let jwt_secret = std::env::var("JWT_SECRET")
-        .expect("JWT_SECRET must be set");
+    let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    let jwt_secret = std::env::var("JWT_SECRET").expect("JWT_SECRET must be set");
     let port: u16 = std::env::var("PORT")
         .unwrap_or_else(|_| "8081".to_string())
         .parse()
@@ -62,7 +60,9 @@ async fn main() -> anyhow::Result<()> {
             Arc::new(RedisEventPublisher::new(client))
         }
         Err(_) => {
-            tracing::warn!("REDIS_URL not set, using NoopEventPublisher (events will not be published)");
+            tracing::warn!(
+                "REDIS_URL not set, using NoopEventPublisher (events will not be published)"
+            );
             Arc::new(NoopEventPublisher::default())
         }
     };

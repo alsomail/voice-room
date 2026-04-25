@@ -27,7 +27,10 @@ sealed class PasswordDialogState {
     /**
      * 账号已锁定（HTTP 42910）
      *
-     * @param remainingMinutes 距解锁剩余分钟数
+     * 缺陷 #1 修复：协议契约字段为 `locked_remaining_sec`（秒），
+     * 因此 UI 状态也改用秒为单位；显示分钟时由 UI 层做 `ceil(secs / 60)` 转换。
+     *
+     * @param remainingSeconds 距解锁剩余秒数
      */
-    data class Locked(val remainingMinutes: Int) : PasswordDialogState()
+    data class Locked(val remainingSeconds: Int) : PasswordDialogState()
 }

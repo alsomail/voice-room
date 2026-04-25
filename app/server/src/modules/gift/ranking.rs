@@ -97,17 +97,30 @@ mod tests {
     #[test]
     fn rk01_charm_day_key_format() {
         let key = charm_day_key();
-        assert!(key.starts_with("ranking:charm:day:"), "RK01: key should start with correct prefix");
+        assert!(
+            key.starts_with("ranking:charm:day:"),
+            "RK01: key should start with correct prefix"
+        );
         let date_part = key.strip_prefix("ranking:charm:day:").unwrap();
-        assert_eq!(date_part.len(), 10, "RK01: date part should be YYYY-MM-DD (10 chars)");
-        assert!(date_part.contains('-'), "RK01: date part should contain dashes");
+        assert_eq!(
+            date_part.len(),
+            10,
+            "RK01: date part should be YYYY-MM-DD (10 chars)"
+        );
+        assert!(
+            date_part.contains('-'),
+            "RK01: date part should contain dashes"
+        );
     }
 
     // RK02: charm_week_key 格式正确（YYYY-WW）
     #[test]
     fn rk02_charm_week_key_format() {
         let key = charm_week_key();
-        assert!(key.starts_with("ranking:charm:week:"), "RK02: key should start with correct prefix");
+        assert!(
+            key.starts_with("ranking:charm:week:"),
+            "RK02: key should start with correct prefix"
+        );
         let week_part = key.strip_prefix("ranking:charm:week:").unwrap();
         assert!(!week_part.is_empty(), "RK02: week part should not be empty");
     }
@@ -116,14 +129,20 @@ mod tests {
     #[test]
     fn rk03_wealth_day_key_format() {
         let key = wealth_day_key();
-        assert!(key.starts_with("ranking:wealth:day:"), "RK03: key should start with correct prefix");
+        assert!(
+            key.starts_with("ranking:wealth:day:"),
+            "RK03: key should start with correct prefix"
+        );
     }
 
     // RK04: wealth_week_key 格式正确
     #[test]
     fn rk04_wealth_week_key_format() {
         let key = wealth_week_key();
-        assert!(key.starts_with("ranking:wealth:week:"), "RK04: key should start with correct prefix");
+        assert!(
+            key.starts_with("ranking:wealth:week:"),
+            "RK04: key should start with correct prefix"
+        );
     }
 
     // RK05: 同日期两次调用返回相同 key

@@ -92,9 +92,9 @@ impl GiftRepoPort for FakeGiftRepo {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
     use super::*;
     use chrono::Utc;
+    use std::sync::Arc;
     use uuid::Uuid;
 
     fn make_gift(code: &str, tier: i16, sort_order: i32) -> GiftModel {

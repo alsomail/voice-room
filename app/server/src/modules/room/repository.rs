@@ -196,9 +196,11 @@ impl RoomRepository for PgRoomRepository {
     }
 
     async fn set_room_closed(&self, room_id: Uuid) -> Result<bool, AppError> {
+        // 关闭房间必须在 SQL 层做 status 守卫，保证并发关闭只有一次成功（缺陷 #3）。
+        // rows_affected = 1 → 本次成功；= 0 → 已被并发关闭 / 已 closed / 已软删除。
         let result = sqlx::query(
             "UPDATE rooms SET status = 'closed', updated_at = NOW() \
-             WHERE id = $1 AND deleted_at IS NULL",
+             WHERE id = $1 AND status = 'active' AND deleted_at IS NULL",
         )
         .bind(room_id)
         .execute(&self.pool)
@@ -241,7 +243,11 @@ impl RoomRepository for PgRoomRepository {
 }
 
 // ─── Fake 实现（内存，用于单元测试）─────────────────────────────────────────
+//
+// 缺陷 #8：限制为 cfg(test) 或显式 `test-utils` feature 才编译，
+// 防止生产二进制包含测试桩、且阻止生产代码误用 seed_* helpers。
 
+#[cfg(any(test, feature = "test-utils"))]
 #[derive(Default)]
 pub struct FakeRoomRepository {
     rooms: Mutex<HashMap<Uuid, RoomModel>>,
@@ -249,6 +255,7 @@ pub struct FakeRoomRepository {
     users: Mutex<HashMap<Uuid, (String, Option<String>)>>,
 }
 
+#[cfg(any(test, feature = "test-utils"))]
 impl FakeRoomRepository {
     /// 测试辅助：预置一个房间
     pub fn seed(&self, room: RoomModel) {
@@ -261,6 +268,7 @@ impl FakeRoomRepository {
     }
 }
 
+#[cfg(any(test, feature = "test-utils"))]
 #[async_trait]
 impl RoomRepository for FakeRoomRepository {
     async fn find_active_by_owner(&self, owner_id: Uuid) -> Result<Option<RoomModel>, AppError> {
@@ -269,9 +277,7 @@ impl RoomRepository for FakeRoomRepository {
             .lock()
             .unwrap()
             .values()
-            .find(|r| {
-                r.owner_id == owner_id && r.status == "active" && r.deleted_at.is_none()
-            })
+            .find(|r| r.owner_id == owner_id && r.status == "active" && r.deleted_at.is_none())
             .cloned())
     }
 
@@ -396,9 +402,10 @@ impl RoomRepository for FakeRoomRepository {
     }
 
     async fn set_room_closed(&self, room_id: Uuid) -> Result<bool, AppError> {
+        // 在锁内做 status 守卫：仅当 status="active" 才置为 closed，模拟 SQL 原子 UPDATE。
         let mut rooms = self.rooms.lock().unwrap();
         if let Some(room) = rooms.get_mut(&room_id) {
-            if room.deleted_at.is_none() {
+            if room.deleted_at.is_none() && room.status == "active" {
                 room.status = "closed".to_string();
                 room.updated_at = Utc::now();
                 return Ok(true);

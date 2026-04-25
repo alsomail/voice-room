@@ -87,11 +87,7 @@ pub struct ErrorEventPublisher;
 
 #[async_trait::async_trait]
 impl EventPublisher for ErrorEventPublisher {
-    async fn publish(
-        &self,
-        _channel: &str,
-        _event: AdminEvent,
-    ) -> Result<(), EventPublishError> {
+    async fn publish(&self, _channel: &str, _event: AdminEvent) -> Result<(), EventPublishError> {
         Err(EventPublishError::RedisError(
             "mock connection refused".to_string(),
         ))
@@ -120,11 +116,20 @@ mod tests {
 
         let result = publisher.publish("admin:events", event).await;
 
-        assert!(result.is_ok(), "EP-01: NoopEventPublisher.publish 应返回 Ok(())");
+        assert!(
+            result.is_ok(),
+            "EP-01: NoopEventPublisher.publish 应返回 Ok(())"
+        );
         let calls = publisher.calls.lock().unwrap();
         assert_eq!(calls.len(), 1, "EP-01: calls 长度应为 1");
-        assert_eq!(calls[0].0, "admin:events", "EP-01: channel 应为 admin:events");
-        assert_eq!(calls[0].1.r#type, "ban_user", "EP-01: event.type 应为 ban_user");
+        assert_eq!(
+            calls[0].0, "admin:events",
+            "EP-01: channel 应为 admin:events"
+        );
+        assert_eq!(
+            calls[0].1.r#type, "ban_user",
+            "EP-01: event.type 应为 ban_user"
+        );
     }
 
     // ── EP-02: ErrorEventPublisher::publish → Err(RedisError) ─────────────────
@@ -154,9 +159,15 @@ mod tests {
         let json_str = serde_json::to_string(&event).expect("序列化不应失败");
         let value: serde_json::Value = serde_json::from_str(&json_str).unwrap();
 
-        assert!(value["type"].as_str().is_some(), "EP-03: JSON 应含 type 字段");
+        assert!(
+            value["type"].as_str().is_some(),
+            "EP-03: JSON 应含 type 字段"
+        );
         assert_eq!(value["type"].as_str().unwrap(), "ban_user");
-        assert!(value["payload"].is_object(), "EP-03: JSON 应含 payload 字段");
+        assert!(
+            value["payload"].is_object(),
+            "EP-03: JSON 应含 payload 字段"
+        );
         assert_eq!(value["admin_id"].as_str().unwrap(), "admin-xyz");
         assert_eq!(value["ts"].as_i64().unwrap(), 1713312000);
     }

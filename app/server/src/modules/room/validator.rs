@@ -8,20 +8,11 @@
 use crate::common::error::AppError;
 
 /// 封面 URL 允许前缀白名单
-pub const COVER_PREFIX_ALLOW: &[&str] = &[
-    "/assets/covers/",
-    "https://cdn.voiceroom.example/covers/",
-];
+pub const COVER_PREFIX_ALLOW: &[&str] =
+    &["/assets/covers/", "https://cdn.voiceroom.example/covers/"];
 
 /// 允许的房间分类枚举（6 类）
-pub const VALID_CATEGORIES: &[&str] = &[
-    "chat",
-    "emotion",
-    "music",
-    "game",
-    "matchmaking",
-    "other",
-];
+pub const VALID_CATEGORIES: &[&str] = &["chat", "emotion", "music", "game", "matchmaking", "other"];
 
 /// 校验封面 URL：空串合法（无封面），否则必须匹配白名单前缀
 pub fn validate_cover_url(url: &str) -> Result<(), AppError> {
@@ -99,9 +90,7 @@ mod tests {
     /// V-03: CDN 白名单前缀合法
     #[test]
     fn v03_cdn_cover_prefix_is_valid() {
-        assert!(
-            validate_cover_url("https://cdn.voiceroom.example/covers/room1.jpg").is_ok()
-        );
+        assert!(validate_cover_url("https://cdn.voiceroom.example/covers/room1.jpg").is_ok());
     }
 
     /// V-04: 非白名单 URL 返回 ValidationError（CR25-05）

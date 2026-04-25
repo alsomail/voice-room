@@ -252,8 +252,14 @@ async fn g04_inactive_gifts_not_in_list() {
     // 所有返回的礼物都应该是激活状态的 (FakeGiftService 的约定)
     // 验证没有礼物的名称为空（空名称代表无效礼物）
     for item in &data.items {
-        assert!(!item.name.is_empty(), "G04: all returned gifts should have names");
-        assert!(item.price > 0, "G04: all returned gifts should have positive price");
+        assert!(
+            !item.name.is_empty(),
+            "G04: all returned gifts should have names"
+        );
+        assert!(
+            item.price > 0,
+            "G04: all returned gifts should have positive price"
+        );
     }
 }
 
@@ -316,14 +322,14 @@ async fn g05_response_time_under_50ms() {
 /// G06: GiftService 第一次调用查询 repo，第二次调用命中缓存（repo call_count 不变）
 #[tokio::test]
 async fn g06_gift_service_caches_second_request() {
+    use chrono::Utc;
     use std::sync::Arc;
+    use uuid::Uuid;
     use voice_room_server::modules::gift::{
         repo::FakeGiftRepo,
         service::{GiftService, GiftServicePort},
     };
     use voice_room_shared::models::gift::GiftModel;
-    use uuid::Uuid;
-    use chrono::Utc;
 
     // 准备预置礼物数据
     let gifts = vec![GiftModel {
@@ -366,14 +372,14 @@ async fn g06_gift_service_caches_second_request() {
 /// G06b: 不同 lang 分别缓存（ar 和 en 各自独立）
 #[tokio::test]
 async fn g06b_different_langs_cached_independently() {
+    use chrono::Utc;
     use std::sync::Arc;
+    use uuid::Uuid;
     use voice_room_server::modules::gift::{
         repo::FakeGiftRepo,
         service::{GiftService, GiftServicePort},
     };
     use voice_room_shared::models::gift::GiftModel;
-    use uuid::Uuid;
-    use chrono::Utc;
 
     let gifts = vec![GiftModel {
         id: Uuid::new_v4(),
@@ -397,7 +403,11 @@ async fn g06b_different_langs_cached_independently() {
 
     // 调用 ar
     let _ = service.list_active("ar").await.unwrap();
-    assert_eq!(fake_repo.call_count(), 1, "G06b: First ar call queries repo");
+    assert_eq!(
+        fake_repo.call_count(),
+        1,
+        "G06b: First ar call queries repo"
+    );
 
     // 调用 en（不同 lang，需要重新查询 repo — call_count 增加）
     let _ = service.list_active("en").await.unwrap();
@@ -436,7 +446,10 @@ async fn g07_gifts_sorted_by_tier_then_sort_order() {
     assert_eq!(response.status(), StatusCode::OK);
     let body = body_json(response).await;
     let items = body["data"]["items"].as_array().unwrap();
-    assert!(items.len() >= 2, "G07: need at least 2 gifts to verify ordering");
+    assert!(
+        items.len() >= 2,
+        "G07: need at least 2 gifts to verify ordering"
+    );
 
     // 验证 tier 非递减
     let mut prev_tier = 0i64;
@@ -517,11 +530,20 @@ async fn g_resp02_gift_item_has_required_fields() {
         assert!(item["id"].is_string(), "item must have id (string)");
         assert!(item["code"].is_string(), "item must have code (string)");
         assert!(item["name"].is_string(), "item must have name (string)");
-        assert!(item["icon_url"].is_string(), "item must have icon_url (string)");
+        assert!(
+            item["icon_url"].is_string(),
+            "item must have icon_url (string)"
+        );
         assert!(item["price"].is_number(), "item must have price (number)");
         assert!(item["tier"].is_number(), "item must have tier (number)");
-        assert!(item["effect_level"].is_number(), "item must have effect_level (number)");
-        assert!(item["sort_order"].is_number(), "item must have sort_order (number)");
+        assert!(
+            item["effect_level"].is_number(),
+            "item must have effect_level (number)"
+        );
+        assert!(
+            item["sort_order"].is_number(),
+            "item must have sort_order (number)"
+        );
         // animation_url can be null or string
         assert!(
             item["animation_url"].is_null() || item["animation_url"].is_string(),
@@ -588,7 +610,10 @@ async fn g_db01_migration_creates_8_gifts_in_db() {
         .expect("count query");
 
     let count: i64 = row.get("cnt");
-    assert_eq!(count, 8, "G_db01: gifts table should have exactly 8 seed records");
+    assert_eq!(
+        count, 8,
+        "G_db01: gifts table should have exactly 8 seed records"
+    );
 }
 
 /// G_db02: is_active=false 的礼物不在查询结果中（DB 级别）

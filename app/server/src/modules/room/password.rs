@@ -132,7 +132,14 @@ pub async fn verify_password(
         }
     };
 
-    let is_valid = bcrypt::verify(input_password, &hash)
+    // ⚠️ 必须使用 spawn_blocking — bcrypt::verify 是 CPU 密集同步调用，
+    // 在 async 路径直接调用会占用 Tokio worker 线程，导致 WS 心跳/HTTP P99 退化。
+    // 与同模块 service.rs:create_room 中 bcrypt::hash 的 spawn_blocking 用法保持一致。
+    let input_owned = input_password.to_string();
+    let hash_owned = hash.clone();
+    let is_valid = tokio::task::spawn_blocking(move || bcrypt::verify(&input_owned, &hash_owned))
+        .await
+        .map_err(|e| AppError::Internal(format!("bcrypt join error: {e}")))?
         .map_err(|e| AppError::Internal(format!("bcrypt error: {e}")))?;
 
     if is_valid {
@@ -201,17 +208,12 @@ impl FakeRoomPasswordRedis {
         let guard = self.data.lock().unwrap();
         guard
             .values()
-            .filter(|e| {
-                e.expires_at
-                    .map_or(true, |exp| Instant::now() < exp)
-            })
+            .filter(|e| e.expires_at.map_or(true, |exp| Instant::now() < exp))
             .count()
     }
 
     fn is_expired(entry: &FakeEntry) -> bool {
-        entry
-            .expires_at
-            .map_or(false, |exp| Instant::now() >= exp)
+        entry.expires_at.map_or(false, |exp| Instant::now() >= exp)
     }
 }
 
@@ -264,9 +266,7 @@ impl RoomPasswordRedis for FakeRoomPasswordRedis {
             key.to_string(),
             FakeEntry {
                 value: value.to_string(),
-                expires_at: Some(
-                    Instant::now() + std::time::Duration::from_secs(ex_secs as u64),
-                ),
+                expires_at: Some(Instant::now() + std::time::Duration::from_secs(ex_secs as u64)),
             },
         );
         Ok(true)
@@ -376,8 +376,8 @@ impl RoomPasswordRedis for RealRoomPasswordRedis {
             .await
             .map_err(|e| AppError::RedisError(e.to_string()))?;
         match ttl {
-            -2 => Ok(None),       // key 不存在
-            -1 => Ok(Some(0)),    // key 存在但无 TTL（不应发生在此业务场景）
+            -2 => Ok(None),    // key 不存在
+            -1 => Ok(Some(0)), // key 存在但无 TTL（不应发生在此业务场景）
             n if n >= 0 => Ok(Some(n)),
             _ => Ok(None),
         }
@@ -491,7 +491,8 @@ mod tests {
                 .unwrap();
             assert!(
                 matches!(result, VerifyPasswordResult::WrongPassword { remaining_attempts } if remaining_attempts == (MAX_FAIL_COUNT - i) as u32),
-                "第 {i} 次失败应返回 WrongPassword, remaining={}", MAX_FAIL_COUNT - i
+                "第 {i} 次失败应返回 WrongPassword, remaining={}",
+                MAX_FAIL_COUNT - i
             );
         }
 
@@ -531,7 +532,10 @@ mod tests {
         match result {
             VerifyPasswordResult::Locked { remaining_sec } => {
                 assert!(remaining_sec > 0, "remaining_sec 应 > 0");
-                assert!(remaining_sec <= LOCK_TTL_SECS, "remaining_sec 应 <= {LOCK_TTL_SECS}");
+                assert!(
+                    remaining_sec <= LOCK_TTL_SECS,
+                    "remaining_sec 应 <= {LOCK_TTL_SECS}"
+                );
             }
             other => panic!("锁定后应返回 Locked, got {other:?}"),
         }
@@ -706,6 +710,82 @@ mod tests {
             VerifyPasswordResult::WrongPassword {
                 remaining_attempts: 4
             }
+        );
+    }
+
+    // ── PR26-12: bcrypt 不阻塞 Tokio runtime（多线程并发不饿死调度）─────────
+    //
+    // 缺陷修复回归测试（GlobalReview 第 1 轮 缺陷 #2）：
+    // verify_password 内部必须使用 spawn_blocking 包装 bcrypt::verify，
+    // 否则在 multi_thread runtime 上多并发会占满 worker，
+    // 导致同时进行的 yield 任务被饿死。
+    //
+    // 测试方法：在 worker_threads=2 的 runtime 上同时跑：
+    //   - 4 个 verify_password（如果阻塞，就会占满全部 worker 线程）
+    //   - 1 个 tokio::time::sleep(short) — 必须能在合理时间内被调度
+    // 若 bcrypt::verify 同步阻塞，sleep 任务的完成时间将远超 sleep 设定值。
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn pr26_12_bcrypt_does_not_block_tokio_runtime() {
+        use std::sync::Arc;
+        use std::time::Instant;
+
+        // 使用较高 cost 让单次 bcrypt 耗时明显（~100–200ms）
+        let pw = "correct-password";
+        let hash = bcrypt::hash(pw, 10).expect("bcrypt hash");
+        let room = Arc::new(RoomModel {
+            id: Uuid::new_v4(),
+            owner_id: Uuid::new_v4(),
+            title: "block-test".to_string(),
+            room_type: "password".to_string(),
+            member_count: 0,
+            status: "active".to_string(),
+            password_hash: Some(hash),
+            max_members: 50,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+            deleted_at: None,
+            cover_url: String::new(),
+            category: "chat".to_string(),
+            announcement: None,
+            admin_user_id: None,
+        });
+        let redis = Arc::new(FakeRoomPasswordRedis::default());
+
+        // 记录 sleep 完成耗时 —— 若 bcrypt 阻塞 worker，sleep 会延后被唤醒
+        let sleep_start = Instant::now();
+        let sleep_handle = tokio::spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+            sleep_start.elapsed()
+        });
+
+        // 同时发起 4 个 verify_password 充分占用 worker（=2）
+        let mut verify_handles = Vec::new();
+        for _ in 0..4 {
+            let r = Arc::clone(&room);
+            let rd = Arc::clone(&redis);
+            let user_id = Uuid::new_v4();
+            verify_handles.push(tokio::spawn(async move {
+                verify_password(&r, "correct-password", user_id, &rd, TEST_SECRET).await
+            }));
+        }
+
+        let sleep_elapsed = sleep_handle.await.expect("sleep task");
+        for h in verify_handles {
+            let res = h.await.expect("verify task");
+            assert!(
+                matches!(res.unwrap(), VerifyPasswordResult::Token(_)),
+                "verify should succeed"
+            );
+        }
+
+        // 若 bcrypt 仍阻塞 runtime，sleep 至少要等到 1 个 worker 空出
+        // （bcrypt cost=10 单次 ~100ms+），sleep_elapsed 会 ≥ 100ms。
+        // spawn_blocking 后 sleep 应在 ~20ms 附近完成；放宽到 80ms 兜底 CI 抖动。
+        assert!(
+            sleep_elapsed.as_millis() < 80,
+            "sleep should not be starved by bcrypt; elapsed={:?} \
+             (suggests bcrypt::verify blocks Tokio runtime)",
+            sleep_elapsed
         );
     }
 }

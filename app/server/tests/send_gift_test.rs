@@ -17,9 +17,9 @@
 //! 运行前提：DATABASE_URL 指向可用 PostgreSQL 实例（REDIS_URL 可选）。
 //! 未设置时测试自动跳过。
 
+use sqlx::{postgres::PgPoolOptions, PgPool, Row};
 use std::sync::Arc;
 use std::time::Duration;
-use sqlx::{postgres::PgPoolOptions, PgPool, Row};
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
@@ -54,7 +54,7 @@ async fn insert_test_user(pool: &PgPool, balance: i64) -> Uuid {
     let phone = format!("+86{}", &user_id.to_string().replace('-', "")[..11]);
     sqlx::query(
         "INSERT INTO users (id, phone, nickname, diamond_balance) \
-         VALUES ($1, $2, $3, $4)"
+         VALUES ($1, $2, $3, $4)",
     )
     .bind(user_id)
     .bind(&phone)
@@ -71,7 +71,7 @@ async fn insert_test_room(pool: &PgPool, owner_id: Uuid) -> Uuid {
     let room_id = Uuid::new_v4();
     sqlx::query(
         "INSERT INTO rooms (id, owner_id, title, status) \
-         VALUES ($1, $2, $3, 'active')"
+         VALUES ($1, $2, $3, 'active')",
     )
     .bind(room_id)
     .bind(owner_id)
@@ -84,10 +84,12 @@ async fn insert_test_room(pool: &PgPool, owner_id: Uuid) -> Uuid {
 
 /// 获取 gifts 表中最便宜的活跃礼物（迁移后有种子数据）
 async fn get_active_gift(pool: &PgPool) -> (Uuid, i64) {
-    let row = sqlx::query("SELECT id, price FROM gifts WHERE is_active = true ORDER BY price ASC LIMIT 1")
-        .fetch_one(pool)
-        .await
-        .expect("get active gift");
+    let row = sqlx::query(
+        "SELECT id, price FROM gifts WHERE is_active = true ORDER BY price ASC LIMIT 1",
+    )
+    .fetch_one(pool)
+    .await
+    .expect("get active gift");
     (row.get("id"), row.get("price"))
 }
 
@@ -120,14 +122,12 @@ async fn count_wallet_txns(pool: &PgPool, user_id: Uuid) -> i64 {
 
 /// 查询 gift_records 数量（by sender + msg_id）
 async fn count_gift_records_by_msg(pool: &PgPool, sender_id: Uuid, msg_id: &str) -> i64 {
-    sqlx::query_scalar(
-        "SELECT COUNT(*) FROM gift_records WHERE sender_id = $1 AND msg_id = $2"
-    )
-    .bind(sender_id)
-    .bind(msg_id)
-    .fetch_one(pool)
-    .await
-    .expect("count gift_records")
+    sqlx::query_scalar("SELECT COUNT(*) FROM gift_records WHERE sender_id = $1 AND msg_id = $2")
+        .bind(sender_id)
+        .bind(msg_id)
+        .fetch_one(pool)
+        .await
+        .expect("count gift_records")
 }
 
 /// 构建 GiftSendService（含内存 ConnectionRegistry + RoomManager）
@@ -143,7 +143,11 @@ fn make_service(
 }
 
 /// 注册用户到房间（内存状态）
-fn join_room(registry: &ConnectionRegistry, room_state: &RoomState, user_id: Uuid) -> (Uuid, mpsc::UnboundedReceiver<String>) {
+fn join_room(
+    registry: &ConnectionRegistry,
+    room_state: &RoomState,
+    user_id: Uuid,
+) -> (Uuid, mpsc::UnboundedReceiver<String>) {
     let connection_id = Uuid::new_v4();
     let (tx, rx) = mpsc::unbounded_channel::<String>();
     use std::sync::RwLock;
@@ -156,12 +160,15 @@ fn join_room(registry: &ConnectionRegistry, room_state: &RoomState, user_id: Uui
         last_heartbeat: Arc::new(RwLock::new(Instant::now())),
     });
     use voice_room_server::room::state::MemberInfo;
-    room_state.members.insert(user_id, MemberInfo {
+    room_state.members.insert(
         user_id,
-        nickname: format!("User_{}", &user_id.to_string()[..8]),
-        avatar: None,
-        joined_at: chrono::Utc::now(),
-    });
+        MemberInfo {
+            user_id,
+            nickname: format!("User_{}", &user_id.to_string()[..8]),
+            avatar: None,
+            joined_at: chrono::Utc::now(),
+        },
+    );
     (connection_id, rx)
 }
 
@@ -184,7 +191,9 @@ async fn insert_inactive_test_gift(pool: &PgPool) -> Uuid {
 
 /// 让接收者上麦
 fn take_mic(room_state: &RoomState, user_id: Uuid, slot: usize) {
-    room_state.take_mic_slot(slot, user_id).expect("take_mic_slot should succeed");
+    room_state
+        .take_mic_slot(slot, user_id)
+        .expect("take_mic_slot should succeed");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -196,7 +205,10 @@ async fn sg01_send_gift_success_updates_all_tables() {
         eprintln!("[SKIP] sg01: DATABASE_URL not set");
         return;
     };
-    sqlx::migrate!("./migrations").run(&pool).await.expect("migrate");
+    sqlx::migrate!("./migrations")
+        .run(&pool)
+        .await
+        .expect("migrate");
 
     let sender_id = insert_test_user(&pool, 10_000).await;
     let receiver_id = insert_test_user(&pool, 0).await;
@@ -213,29 +225,56 @@ async fn sg01_send_gift_success_updates_all_tables() {
     take_mic(&room_state, receiver_id, 0);
 
     let (balance_tx, _balance_rx) = mpsc::channel::<BalanceEvent>(64);
-    let svc = make_service(pool.clone(), registry, room_manager, balance_tx, redis_url());
+    let svc = make_service(
+        pool.clone(),
+        registry,
+        room_manager,
+        balance_tx,
+        redis_url(),
+    );
 
     let msg_id = Uuid::new_v4().to_string();
     let count = 2i32;
     let total = price * count as i64;
 
-    let result = svc.send(
-        sender_id,
-        room_id,
-        SendGiftPayload { gift_id, receiver_id, count, msg_id: msg_id.clone() },
-    ).await;
+    let result = svc
+        .send(
+            sender_id,
+            room_id,
+            SendGiftPayload {
+                gift_id,
+                receiver_id,
+                count,
+                msg_id: msg_id.clone(),
+            },
+        )
+        .await;
 
-    assert!(result.is_ok(), "SG01: send should succeed, got: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "SG01: send should succeed, got: {:?}",
+        result.err()
+    );
     let res = result.unwrap();
-    assert_eq!(res.total_price, total, "SG01: total_price should equal price * count");
+    assert_eq!(
+        res.total_price, total,
+        "SG01: total_price should equal price * count"
+    );
 
     // 验证发送者余额减少
     let sender_balance = get_diamond_balance(&pool, sender_id).await;
-    assert_eq!(sender_balance, 10_000 - total, "SG01: sender diamond_balance should decrease");
+    assert_eq!(
+        sender_balance,
+        10_000 - total,
+        "SG01: sender diamond_balance should decrease"
+    );
 
     // 验证接收者魅力值增加
     let recv_charm = get_charm_balance(&pool, receiver_id).await;
-    assert_eq!(recv_charm, total, "SG01: receiver charm_balance should increase");
+    assert_eq!(
+        recv_charm, total,
+        "SG01: receiver charm_balance should increase"
+    );
 
     // 验证 gift_records +1
     let records_count = count_gift_records_by_msg(&pool, sender_id, &msg_id).await;
@@ -243,7 +282,10 @@ async fn sg01_send_gift_success_updates_all_tables() {
 
     // 验证 wallet_transactions +1
     let txn_count = count_wallet_txns(&pool, sender_id).await;
-    assert_eq!(txn_count, 1, "SG01: wallet_transactions should have 1 entry");
+    assert_eq!(
+        txn_count, 1,
+        "SG01: wallet_transactions should have 1 entry"
+    );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -255,7 +297,10 @@ async fn sg02_gift_received_broadcast_reaches_all_room_members() {
         eprintln!("[SKIP] sg02: DATABASE_URL not set");
         return;
     };
-    sqlx::migrate!("./migrations").run(&pool).await.expect("migrate");
+    sqlx::migrate!("./migrations")
+        .run(&pool)
+        .await
+        .expect("migrate");
 
     let sender_id = insert_test_user(&pool, 10_000).await;
     let receiver_id = insert_test_user(&pool, 0).await;
@@ -274,12 +319,27 @@ async fn sg02_gift_received_broadcast_reaches_all_room_members() {
     take_mic(&room_state, receiver_id, 0);
 
     let (balance_tx, _balance_rx) = mpsc::channel::<BalanceEvent>(64);
-    let svc = make_service(pool.clone(), registry, room_manager, balance_tx, redis_url());
+    let svc = make_service(
+        pool.clone(),
+        registry,
+        room_manager,
+        balance_tx,
+        redis_url(),
+    );
 
     let msg_id = Uuid::new_v4().to_string();
-    svc.send(sender_id, room_id, SendGiftPayload { gift_id, receiver_id, count: 1, msg_id })
-        .await
-        .expect("SG02: send should succeed");
+    svc.send(
+        sender_id,
+        room_id,
+        SendGiftPayload {
+            gift_id,
+            receiver_id,
+            count: 1,
+            msg_id,
+        },
+    )
+    .await
+    .expect("SG02: send should succeed");
 
     // 所有房间成员应收到 GiftReceived 广播
     let check_gift_received = |rx: &mut mpsc::UnboundedReceiver<String>, label: &str| {
@@ -290,7 +350,11 @@ async fn sg02_gift_received_broadcast_reaches_all_room_members() {
                 break;
             }
         }
-        assert!(found, "SG02: {} should receive GiftReceived broadcast", label);
+        assert!(
+            found,
+            "SG02: {} should receive GiftReceived broadcast",
+            label
+        );
     };
 
     check_gift_received(&mut sender_rx, "sender");
@@ -307,7 +371,10 @@ async fn sg03_sender_receives_balance_updated() {
         eprintln!("[SKIP] sg03: DATABASE_URL not set");
         return;
     };
-    sqlx::migrate!("./migrations").run(&pool).await.expect("migrate");
+    sqlx::migrate!("./migrations")
+        .run(&pool)
+        .await
+        .expect("migrate");
 
     let sender_id = insert_test_user(&pool, 10_000).await;
     let receiver_id = insert_test_user(&pool, 0).await;
@@ -324,12 +391,27 @@ async fn sg03_sender_receives_balance_updated() {
     take_mic(&room_state, receiver_id, 0);
 
     let (balance_tx, mut balance_rx) = mpsc::channel::<BalanceEvent>(64);
-    let svc = make_service(pool.clone(), registry, room_manager, balance_tx, redis_url());
+    let svc = make_service(
+        pool.clone(),
+        registry,
+        room_manager,
+        balance_tx,
+        redis_url(),
+    );
 
     let msg_id = Uuid::new_v4().to_string();
-    svc.send(sender_id, room_id, SendGiftPayload { gift_id, receiver_id, count: 1, msg_id })
-        .await
-        .expect("SG03: send should succeed");
+    svc.send(
+        sender_id,
+        room_id,
+        SendGiftPayload {
+            gift_id,
+            receiver_id,
+            count: 1,
+            msg_id,
+        },
+    )
+    .await
+    .expect("SG03: send should succeed");
 
     // 发送者应收到 BalanceUpdated 事件
     let event = tokio::time::timeout(Duration::from_millis(500), balance_rx.recv())
@@ -338,8 +420,15 @@ async fn sg03_sender_receives_balance_updated() {
         .expect("SG03: channel should not be closed");
 
     assert_eq!(event.user_id, sender_id, "SG03: event should be for sender");
-    assert_eq!(event.delta, -price, "SG03: delta should be -price (count=1)");
-    assert_eq!(event.balance_after, 10_000 - price, "SG03: balance_after should be updated");
+    assert_eq!(
+        event.delta, -price,
+        "SG03: delta should be -price (count=1)"
+    );
+    assert_eq!(
+        event.balance_after,
+        10_000 - price,
+        "SG03: balance_after should be updated"
+    );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -355,7 +444,10 @@ async fn sg04_redis_ranking_zincrby_updated() {
         eprintln!("[SKIP] sg04: REDIS_URL not set");
         return;
     };
-    sqlx::migrate!("./migrations").run(&pool).await.expect("migrate");
+    sqlx::migrate!("./migrations")
+        .run(&pool)
+        .await
+        .expect("migrate");
 
     let sender_id = insert_test_user(&pool, 10_000).await;
     let receiver_id = insert_test_user(&pool, 0).await;
@@ -372,28 +464,51 @@ async fn sg04_redis_ranking_zincrby_updated() {
     take_mic(&room_state, receiver_id, 0);
 
     let (balance_tx, _balance_rx) = mpsc::channel::<BalanceEvent>(64);
-    let svc = make_service(pool.clone(), registry, room_manager, balance_tx, Some(r_url.clone()));
+    let svc = make_service(
+        pool.clone(),
+        registry,
+        room_manager,
+        balance_tx,
+        Some(r_url.clone()),
+    );
 
     let count = 2i32;
     let total = price * count as i64;
     let msg_id = Uuid::new_v4().to_string();
 
-    svc.send(sender_id, room_id, SendGiftPayload { gift_id, receiver_id, count, msg_id })
-        .await
-        .expect("SG04: send should succeed");
+    svc.send(
+        sender_id,
+        room_id,
+        SendGiftPayload {
+            gift_id,
+            receiver_id,
+            count,
+            msg_id,
+        },
+    )
+    .await
+    .expect("SG04: send should succeed");
 
     // 验证 Redis 魅力榜
     let client = redis::Client::open(r_url).expect("redis client");
-    let mut conn = client.get_multiplexed_async_connection().await.expect("redis conn");
+    let mut conn = client
+        .get_multiplexed_async_connection()
+        .await
+        .expect("redis conn");
     use redis::AsyncCommands;
 
     let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
     let charm_key = format!("ranking:charm:day:{}", today);
-    let score: Option<f64> = conn.zscore(&charm_key, receiver_id.to_string()).await.ok().flatten();
+    let score: Option<f64> = conn
+        .zscore(&charm_key, receiver_id.to_string())
+        .await
+        .ok()
+        .flatten();
     assert!(score.is_some(), "SG04: charm ranking key should exist");
     // [C-1] 修复：charm_day 改为纯 ZINCRBY，score 必须精确等于 total（不能双倍）
     assert_eq!(
-        score.unwrap(), total as f64,
+        score.unwrap(),
+        total as f64,
         "SG04: charm score must equal total exactly (pure ZINCRBY, no double-counting)"
     );
 }
@@ -407,7 +522,10 @@ async fn sg05_insufficient_balance_rolls_back_entire_transaction() {
         eprintln!("[SKIP] sg05: DATABASE_URL not set");
         return;
     };
-    sqlx::migrate!("./migrations").run(&pool).await.expect("migrate");
+    sqlx::migrate!("./migrations")
+        .run(&pool)
+        .await
+        .expect("migrate");
 
     let sender_id = insert_test_user(&pool, 1).await; // 余额仅 1 钻
     let receiver_id = insert_test_user(&pool, 0).await;
@@ -428,26 +546,43 @@ async fn sg05_insufficient_balance_rolls_back_entire_transaction() {
     take_mic(&room_state, receiver_id, 0);
 
     let (balance_tx, _balance_rx) = mpsc::channel::<BalanceEvent>(64);
-    let svc = make_service(pool.clone(), registry, room_manager, balance_tx, redis_url());
+    let svc = make_service(
+        pool.clone(),
+        registry,
+        room_manager,
+        balance_tx,
+        redis_url(),
+    );
 
     // count=9999 确保 total > 1
     let count = 9999i32;
     let msg_id = Uuid::new_v4().to_string();
 
-    let result = svc.send(
-        sender_id,
-        room_id,
-        SendGiftPayload { gift_id, receiver_id, count, msg_id },
-    ).await;
+    let result = svc
+        .send(
+            sender_id,
+            room_id,
+            SendGiftPayload {
+                gift_id,
+                receiver_id,
+                count,
+                msg_id,
+            },
+        )
+        .await;
 
     assert!(
         matches!(result, Err(SendGiftError::InsufficientBalance)),
-        "SG05: should return InsufficientBalance, got: {:?}", result
+        "SG05: should return InsufficientBalance, got: {:?}",
+        result
     );
 
     // 验证余额未变
     let balance = get_diamond_balance(&pool, sender_id).await;
-    assert_eq!(balance, 1, "SG05: balance should be unchanged after rollback");
+    assert_eq!(
+        balance, 1,
+        "SG05: balance should be unchanged after rollback"
+    );
 
     // 验证 gift_records 未新增
     let records: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM gift_records WHERE sender_id = $1")
@@ -455,15 +590,24 @@ async fn sg05_insufficient_balance_rolls_back_entire_transaction() {
         .fetch_one(&pool)
         .await
         .unwrap();
-    assert_eq!(records, 0, "SG05: no gift_records should be created on failure");
+    assert_eq!(
+        records, 0,
+        "SG05: no gift_records should be created on failure"
+    );
 
     // 验证 wallet_transactions 未新增
     let txns = count_wallet_txns(&pool, sender_id).await;
-    assert_eq!(txns, 0, "SG05: no wallet_transactions should be created on failure");
+    assert_eq!(
+        txns, 0,
+        "SG05: no wallet_transactions should be created on failure"
+    );
 
     // 验证 receiver charm_balance 未变
     let charm = get_charm_balance(&pool, receiver_id).await;
-    assert_eq!(charm, 0, "SG05: receiver charm_balance should be 0 after rollback");
+    assert_eq!(
+        charm, 0,
+        "SG05: receiver charm_balance should be 0 after rollback"
+    );
 
     // 验证发送者的 price*count 没有扣除 - 忽略 price 变量
     let _ = price;
@@ -478,7 +622,10 @@ async fn sg06_idempotent_second_send_returns_same_result_no_double_deduction() {
         eprintln!("[SKIP] sg06: DATABASE_URL not set");
         return;
     };
-    sqlx::migrate!("./migrations").run(&pool).await.expect("migrate");
+    sqlx::migrate!("./migrations")
+        .run(&pool)
+        .await
+        .expect("migrate");
 
     let sender_id = insert_test_user(&pool, 10_000).await;
     let receiver_id = insert_test_user(&pool, 0).await;
@@ -495,10 +642,21 @@ async fn sg06_idempotent_second_send_returns_same_result_no_double_deduction() {
     take_mic(&room_state, receiver_id, 0);
 
     let (balance_tx, _balance_rx) = mpsc::channel::<BalanceEvent>(64);
-    let svc = make_service(pool.clone(), registry, room_manager, balance_tx, redis_url());
+    let svc = make_service(
+        pool.clone(),
+        registry,
+        room_manager,
+        balance_tx,
+        redis_url(),
+    );
 
     let msg_id = Uuid::new_v4().to_string();
-    let payload = SendGiftPayload { gift_id, receiver_id, count: 1, msg_id: msg_id.clone() };
+    let payload = SendGiftPayload {
+        gift_id,
+        receiver_id,
+        count: 1,
+        msg_id: msg_id.clone(),
+    };
 
     // 第一次发送
     let first = svc.send(sender_id, room_id, payload.clone()).await;
@@ -507,7 +665,10 @@ async fn sg06_idempotent_second_send_returns_same_result_no_double_deduction() {
 
     // 第二次发送（相同 msg_id）
     let second = svc.send(sender_id, room_id, payload).await;
-    assert!(second.is_ok(), "SG06: second send with same msg_id should return Ok (idempotent)");
+    assert!(
+        second.is_ok(),
+        "SG06: second send with same msg_id should return Ok (idempotent)"
+    );
     let second_result = second.unwrap();
 
     // 两次结果应相同
@@ -522,7 +683,11 @@ async fn sg06_idempotent_second_send_returns_same_result_no_double_deduction() {
 
     // 余额只扣一次
     let balance = get_diamond_balance(&pool, sender_id).await;
-    assert_eq!(balance, 10_000 - price, "SG06: balance should be deducted only once");
+    assert_eq!(
+        balance,
+        10_000 - price,
+        "SG06: balance should be deducted only once"
+    );
 
     // gift_records 只有一条
     let records = count_gift_records_by_msg(&pool, sender_id, &msg_id).await;
@@ -538,7 +703,10 @@ async fn sg07_receiver_not_on_mic_returns_receiver_unavailable() {
         eprintln!("[SKIP] sg07: DATABASE_URL not set");
         return;
     };
-    sqlx::migrate!("./migrations").run(&pool).await.expect("migrate");
+    sqlx::migrate!("./migrations")
+        .run(&pool)
+        .await
+        .expect("migrate");
 
     let sender_id = insert_test_user(&pool, 10_000).await;
     let receiver_id = insert_test_user(&pool, 0).await;
@@ -555,17 +723,31 @@ async fn sg07_receiver_not_on_mic_returns_receiver_unavailable() {
     // receiver_id 在房间但没有上麦
 
     let (balance_tx, _balance_rx) = mpsc::channel::<BalanceEvent>(64);
-    let svc = make_service(pool.clone(), registry, room_manager, balance_tx, redis_url());
+    let svc = make_service(
+        pool.clone(),
+        registry,
+        room_manager,
+        balance_tx,
+        redis_url(),
+    );
 
-    let result = svc.send(
-        sender_id,
-        room_id,
-        SendGiftPayload { gift_id, receiver_id, count: 1, msg_id: Uuid::new_v4().to_string() },
-    ).await;
+    let result = svc
+        .send(
+            sender_id,
+            room_id,
+            SendGiftPayload {
+                gift_id,
+                receiver_id,
+                count: 1,
+                msg_id: Uuid::new_v4().to_string(),
+            },
+        )
+        .await;
 
     assert!(
         matches!(result, Err(SendGiftError::ReceiverUnavailable)),
-        "SG07: should return ReceiverUnavailable when receiver not on mic, got: {:?}", result
+        "SG07: should return ReceiverUnavailable when receiver not on mic, got: {:?}",
+        result
     );
 
     // 余额不变
@@ -582,7 +764,10 @@ async fn sg08_inactive_gift_returns_gift_unavailable() {
         eprintln!("[SKIP] sg08: DATABASE_URL not set");
         return;
     };
-    sqlx::migrate!("./migrations").run(&pool).await.expect("migrate");
+    sqlx::migrate!("./migrations")
+        .run(&pool)
+        .await
+        .expect("migrate");
 
     // [L-1] 修复：使用专用下架测试礼物（UUID 隔离），避免修改种子数据造成状态污染
     let gift_id = insert_inactive_test_gift(&pool).await;
@@ -601,13 +786,26 @@ async fn sg08_inactive_gift_returns_gift_unavailable() {
     take_mic(&room_state, receiver_id, 0);
 
     let (balance_tx, _balance_rx) = mpsc::channel::<BalanceEvent>(64);
-    let svc = make_service(pool.clone(), registry, room_manager, balance_tx, redis_url());
+    let svc = make_service(
+        pool.clone(),
+        registry,
+        room_manager,
+        balance_tx,
+        redis_url(),
+    );
 
-    let result = svc.send(
-        sender_id,
-        room_id,
-        SendGiftPayload { gift_id, receiver_id, count: 1, msg_id: Uuid::new_v4().to_string() },
-    ).await;
+    let result = svc
+        .send(
+            sender_id,
+            room_id,
+            SendGiftPayload {
+                gift_id,
+                receiver_id,
+                count: 1,
+                msg_id: Uuid::new_v4().to_string(),
+            },
+        )
+        .await;
 
     // 清理专用测试礼物（即使断言失败也不影响其他测试，因为是独立 UUID）
     let _ = sqlx::query("DELETE FROM gifts WHERE id = $1")
@@ -617,7 +815,8 @@ async fn sg08_inactive_gift_returns_gift_unavailable() {
 
     assert!(
         matches!(result, Err(SendGiftError::GiftUnavailable)),
-        "SG08: should return GiftUnavailable for inactive gift, got: {:?}", result
+        "SG08: should return GiftUnavailable for inactive gift, got: {:?}",
+        result
     );
 }
 
@@ -630,7 +829,10 @@ async fn sg09_invalid_count_returns_error() {
         eprintln!("[SKIP] sg09: DATABASE_URL not set");
         return;
     };
-    sqlx::migrate!("./migrations").run(&pool).await.expect("migrate");
+    sqlx::migrate!("./migrations")
+        .run(&pool)
+        .await
+        .expect("migrate");
 
     let sender_id = insert_test_user(&pool, 10_000).await;
     let receiver_id = insert_test_user(&pool, 0).await;
@@ -647,28 +849,50 @@ async fn sg09_invalid_count_returns_error() {
     take_mic(&room_state, receiver_id, 0);
 
     let (balance_tx, _balance_rx) = mpsc::channel::<BalanceEvent>(64);
-    let svc = make_service(pool.clone(), registry.clone(), room_manager.clone(), balance_tx.clone(), redis_url());
+    let svc = make_service(
+        pool.clone(),
+        registry.clone(),
+        room_manager.clone(),
+        balance_tx.clone(),
+        redis_url(),
+    );
 
     // count = 0 → InvalidCount
-    let result_zero = svc.send(
-        sender_id,
-        room_id,
-        SendGiftPayload { gift_id, receiver_id, count: 0, msg_id: Uuid::new_v4().to_string() },
-    ).await;
+    let result_zero = svc
+        .send(
+            sender_id,
+            room_id,
+            SendGiftPayload {
+                gift_id,
+                receiver_id,
+                count: 0,
+                msg_id: Uuid::new_v4().to_string(),
+            },
+        )
+        .await;
     assert!(
         matches!(result_zero, Err(SendGiftError::InvalidCount)),
-        "SG09: count=0 should return InvalidCount, got: {:?}", result_zero
+        "SG09: count=0 should return InvalidCount, got: {:?}",
+        result_zero
     );
 
     // count = 10000 → InvalidCount
-    let result_max = svc.send(
-        sender_id,
-        room_id,
-        SendGiftPayload { gift_id, receiver_id, count: 10_000, msg_id: Uuid::new_v4().to_string() },
-    ).await;
+    let result_max = svc
+        .send(
+            sender_id,
+            room_id,
+            SendGiftPayload {
+                gift_id,
+                receiver_id,
+                count: 10_000,
+                msg_id: Uuid::new_v4().to_string(),
+            },
+        )
+        .await;
     assert!(
         matches!(result_max, Err(SendGiftError::InvalidCount)),
-        "SG09: count=10000 should return InvalidCount, got: {:?}", result_max
+        "SG09: count=10000 should return InvalidCount, got: {:?}",
+        result_max
     );
 }
 
@@ -681,7 +905,10 @@ async fn sg10_concurrent_20_requests_no_over_deduction() {
         eprintln!("[SKIP] sg10: DATABASE_URL not set");
         return;
     };
-    sqlx::migrate!("./migrations").run(&pool).await.expect("migrate");
+    sqlx::migrate!("./migrations")
+        .run(&pool)
+        .await
+        .expect("migrate");
 
     // 给发送者足够的余额（20次，每次1礼，单价1），余额=20
     let sender_id = insert_test_user(&pool, 20).await;
@@ -690,10 +917,11 @@ async fn sg10_concurrent_20_requests_no_over_deduction() {
     let room_id = insert_test_room(&pool, owner_id).await;
 
     // 找到价格=1的礼物（rose_01）
-    let gift_row = sqlx::query("SELECT id, price FROM gifts WHERE price = 1 AND is_active = true LIMIT 1")
-        .fetch_optional(&pool)
-        .await
-        .expect("query gift");
+    let gift_row =
+        sqlx::query("SELECT id, price FROM gifts WHERE price = 1 AND is_active = true LIMIT 1")
+            .fetch_optional(&pool)
+            .await
+            .expect("query gift");
     let Some(gift_row) = gift_row else {
         eprintln!("[SKIP] sg10: no gift with price=1 found");
         return;
@@ -711,7 +939,13 @@ async fn sg10_concurrent_20_requests_no_over_deduction() {
     take_mic(&room_state, receiver_id, 0);
 
     let (balance_tx, _balance_rx) = mpsc::channel::<BalanceEvent>(256);
-    let svc = Arc::new(make_service(pool.clone(), registry, room_manager, balance_tx, redis_url()));
+    let svc = Arc::new(make_service(
+        pool.clone(),
+        registry,
+        room_manager,
+        balance_tx,
+        redis_url(),
+    ));
 
     // 并发 20 个请求（每个不同 msg_id）
     let mut handles = Vec::new();
@@ -722,8 +956,14 @@ async fn sg10_concurrent_20_requests_no_over_deduction() {
             svc.send(
                 sender_id,
                 room_id,
-                SendGiftPayload { gift_id, receiver_id, count: 1, msg_id },
-            ).await
+                SendGiftPayload {
+                    gift_id,
+                    receiver_id,
+                    count: 1,
+                    msg_id,
+                },
+            )
+            .await
         });
         handles.push(h);
     }
@@ -739,12 +979,21 @@ async fn sg10_concurrent_20_requests_no_over_deduction() {
     }
 
     // 成功次数应等于初始余额（20），每次扣 1
-    assert_eq!(successes, 20, "SG10: exactly 20 should succeed (balance=20, price=1)");
-    assert_eq!(insufficient, 0, "SG10: no insufficient balance since balance=20 and 20 requests");
+    assert_eq!(
+        successes, 20,
+        "SG10: exactly 20 should succeed (balance=20, price=1)"
+    );
+    assert_eq!(
+        insufficient, 0,
+        "SG10: no insufficient balance since balance=20 and 20 requests"
+    );
 
     // 最终余额应为 0（无超扣）
     let final_balance = get_diamond_balance(&pool, sender_id).await;
-    assert_eq!(final_balance, 0, "SG10: final balance should be exactly 0 after 20 successful deductions");
+    assert_eq!(
+        final_balance, 0,
+        "SG10: final balance should be exactly 0 after 20 successful deductions"
+    );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -756,7 +1005,10 @@ async fn sg11_sender_not_in_room_returns_error() {
         eprintln!("[SKIP] sg11: DATABASE_URL not set");
         return;
     };
-    sqlx::migrate!("./migrations").run(&pool).await.expect("migrate");
+    sqlx::migrate!("./migrations")
+        .run(&pool)
+        .await
+        .expect("migrate");
 
     let sender_id = insert_test_user(&pool, 10_000).await;
     let receiver_id = insert_test_user(&pool, 0).await;
@@ -773,17 +1025,31 @@ async fn sg11_sender_not_in_room_returns_error() {
     take_mic(&room_state, receiver_id, 0);
 
     let (balance_tx, _balance_rx) = mpsc::channel::<BalanceEvent>(64);
-    let svc = make_service(pool.clone(), registry, room_manager, balance_tx, redis_url());
+    let svc = make_service(
+        pool.clone(),
+        registry,
+        room_manager,
+        balance_tx,
+        redis_url(),
+    );
 
-    let result = svc.send(
-        sender_id,
-        room_id,
-        SendGiftPayload { gift_id, receiver_id, count: 1, msg_id: Uuid::new_v4().to_string() },
-    ).await;
+    let result = svc
+        .send(
+            sender_id,
+            room_id,
+            SendGiftPayload {
+                gift_id,
+                receiver_id,
+                count: 1,
+                msg_id: Uuid::new_v4().to_string(),
+            },
+        )
+        .await;
 
     assert!(
         matches!(result, Err(SendGiftError::SenderNotInRoom)),
-        "SG11: should return SenderNotInRoom when sender not in room, got: {:?}", result
+        "SG11: should return SenderNotInRoom when sender not in room, got: {:?}",
+        result
     );
 }
 
@@ -797,28 +1063,40 @@ async fn sg12_migration_006_is_idempotent() {
         return;
     };
 
-    sqlx::migrate!("./migrations").run(&pool).await.expect("sg12: first migration run");
-    sqlx::migrate!("./migrations").run(&pool).await.expect("sg12: second migration run (idempotent)");
+    sqlx::migrate!("./migrations")
+        .run(&pool)
+        .await
+        .expect("sg12: first migration run");
+    sqlx::migrate!("./migrations")
+        .run(&pool)
+        .await
+        .expect("sg12: second migration run (idempotent)");
 
     // 验证 gift_records 表存在
     let table_exists: bool = sqlx::query_scalar(
         "SELECT EXISTS(SELECT 1 FROM information_schema.tables \
-         WHERE table_schema = 'public' AND table_name = 'gift_records')"
+         WHERE table_schema = 'public' AND table_name = 'gift_records')",
     )
     .fetch_one(&pool)
     .await
     .expect("sg12: check table exists");
 
-    assert!(table_exists, "sg12: gift_records table should exist after migration");
+    assert!(
+        table_exists,
+        "sg12: gift_records table should exist after migration"
+    );
 
     // 验证 charm_balance 列存在
     let col_exists: bool = sqlx::query_scalar(
         "SELECT EXISTS(SELECT 1 FROM information_schema.columns \
-         WHERE table_name = 'users' AND column_name = 'charm_balance')"
+         WHERE table_name = 'users' AND column_name = 'charm_balance')",
     )
     .fetch_one(&pool)
     .await
     .expect("sg12: check column exists");
 
-    assert!(col_exists, "sg12: users.charm_balance column should exist after migration");
+    assert!(
+        col_exists,
+        "sg12: users.charm_balance column should exist after migration"
+    );
 }

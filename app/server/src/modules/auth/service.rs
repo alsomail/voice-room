@@ -160,10 +160,7 @@ pub fn validate_phone(phone: &str) -> Result<(), AppError> {
     let stripped = phone
         .strip_prefix('+')
         .ok_or(AppError::InvalidPhoneNumber)?;
-    if stripped.len() < 6
-        || stripped.len() > 14
-        || !stripped.chars().all(|c| c.is_ascii_digit())
-    {
+    if stripped.len() < 6 || stripped.len() > 14 || !stripped.chars().all(|c| c.is_ascii_digit()) {
         return Err(AppError::InvalidPhoneNumber);
     }
     Ok(())
@@ -208,9 +205,7 @@ mod tests {
     use uuid::Uuid;
     use voice_room_shared::models::user::UserModel;
 
-    use crate::infrastructure::{
-        redis_store::FakeCodeStore, third_party::sms::MockSmsProvider,
-    };
+    use crate::infrastructure::{redis_store::FakeCodeStore, third_party::sms::MockSmsProvider};
     use crate::modules::auth::repository::FakeUserRepository;
 
     fn test_service() -> (AuthService, Arc<FakeCodeStore>, Arc<FakeUserRepository>) {
@@ -425,8 +420,14 @@ mod tests {
 
         // daily count 保留 1：save_code 已消耗日额度（防止无限重试滥用 SMS API）
         let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
-        let count = code_store.daily_count("+8613800138000", &today).await.unwrap();
-        assert_eq!(count, 1, "daily count must increment even on SMS failure to prevent abuse");
+        let count = code_store
+            .daily_count("+8613800138000", &today)
+            .await
+            .unwrap();
+        assert_eq!(
+            count, 1,
+            "daily count must increment even on SMS failure to prevent abuse"
+        );
     }
 
     // ── H-01: 同一 OTP 只能被消费一次（行为契约 / 防双重登录）────────────────

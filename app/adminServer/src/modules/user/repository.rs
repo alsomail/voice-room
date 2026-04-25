@@ -142,10 +142,10 @@ pub struct FakeAdminUserRepository {
 impl FakeAdminUserRepository {
     /// 预置一条未删除的用户行（供 list 测试）。
     pub fn seed(&self, row: AdminUserListRow) {
-        self.entries
-            .lock()
-            .unwrap()
-            .push(FakeUserEntry { row, deleted_at: None });
+        self.entries.lock().unwrap().push(FakeUserEntry {
+            row,
+            deleted_at: None,
+        });
     }
 
     /// 预置一条已软删除的用户行（用于 R-06 测试）。
@@ -216,7 +216,9 @@ impl AdminUserRepository for FakeAdminUserRepository {
 
     async fn update_ban_status(&self, id: Uuid, is_banned: bool) -> Result<bool, AppError> {
         if *self.force_update_ban_error.lock().unwrap() {
-            return Err(AppError::DatabaseError("injected update ban error".to_string()));
+            return Err(AppError::DatabaseError(
+                "injected update ban error".to_string(),
+            ));
         }
         let mut guard = self.entries.lock().unwrap();
         match guard
@@ -383,9 +385,15 @@ mod tests {
             ..Default::default()
         };
         let count_banned = repo.count_users(&banned_filter).await.unwrap();
-        assert_eq!(count_banned, 1, "R-04: is_banned=true 应只返回 1 个封禁用户");
+        assert_eq!(
+            count_banned, 1,
+            "R-04: is_banned=true 应只返回 1 个封禁用户"
+        );
         let rows_banned = repo.find_users(&banned_filter, 0, 10).await.unwrap();
-        assert!(rows_banned[0].is_banned, "R-04: 封禁过滤返回的用户应 is_banned=true");
+        assert!(
+            rows_banned[0].is_banned,
+            "R-04: 封禁过滤返回的用户应 is_banned=true"
+        );
 
         // 只过滤正常用户
         let normal_filter = AdminUserFilter {
@@ -536,7 +544,10 @@ mod tests {
         repo.seed_deleted(deleted_row);
 
         let result = repo.find_user_by_id(id).await.unwrap();
-        assert!(result.is_none(), "RD-03: 软删除的用户应返回 None（deleted_at IS NOT NULL）");
+        assert!(
+            result.is_none(),
+            "RD-03: 软删除的用户应返回 None（deleted_at IS NOT NULL）"
+        );
     }
 
     // ════════════════════════════════════════════════════════════════════════
@@ -602,6 +613,9 @@ mod tests {
         let nonexistent_id = Uuid::new_v4();
 
         let result = repo.update_ban_status(nonexistent_id, true).await.unwrap();
-        assert!(!result, "RB-03: 不存在的 UUID update_ban_status 应返回 false（0 affected rows）");
+        assert!(
+            !result,
+            "RB-03: 不存在的 UUID update_ban_status 应返回 false（0 affected rows）"
+        );
     }
 }

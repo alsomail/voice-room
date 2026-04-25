@@ -6,7 +6,10 @@ use serde::Serialize;
 use crate::{
     common::RequestContext,
     core::analytics::writer::EventWriterPort,
-    infrastructure::{logging::request_context_middleware, redis_store::SmsCodeStore, third_party::sms::SmsProvider},
+    infrastructure::{
+        logging::request_context_middleware, redis_store::SmsCodeStore,
+        third_party::sms::SmsProvider,
+    },
     modules::{
         auth::{auth_routes, repository::UserRepository, service::AuthService},
         events::events_routes,
@@ -215,7 +218,9 @@ impl AppState {
 
     /// 測試輔助：注入預置數據的 FakeRoomRepository（用于集成測試 T-00009）
     #[cfg(any(test, feature = "test-utils"))]
-    pub fn for_test_with_room_repo(room_repo: Arc<crate::modules::room::FakeRoomRepository>) -> Self {
+    pub fn for_test_with_room_repo(
+        room_repo: Arc<crate::modules::room::FakeRoomRepository>,
+    ) -> Self {
         use crate::core::analytics::writer::FakeEventWriter;
         use crate::infrastructure::{
             redis_store::FakeCodeStore, third_party::sms::MockSmsProvider,
@@ -244,9 +249,7 @@ impl AppState {
     /// 測試輔助：注入真實 WalletService（DB 集成測試 T-00018）
     /// LOW-1: 参数类型改为 Arc<dyn WalletServicePort>（接口抽象，而非具体类型）
     #[cfg(any(test, feature = "test-utils"))]
-    pub fn for_test_with_wallet(
-        wallet_service: Arc<dyn WalletServicePort>,
-    ) -> Self {
+    pub fn for_test_with_wallet(wallet_service: Arc<dyn WalletServicePort>) -> Self {
         use crate::core::analytics::writer::FakeEventWriter;
         use crate::infrastructure::{
             redis_store::FakeCodeStore, third_party::sms::MockSmsProvider,
@@ -274,9 +277,7 @@ impl AppState {
 
     /// 測試輔助：注入真實 EventWriter（DB 集成測試 T-00022）
     #[cfg(any(test, feature = "test-utils"))]
-    pub fn for_test_with_event_writer(
-        event_writer: Arc<dyn EventWriterPort>,
-    ) -> Self {
+    pub fn for_test_with_event_writer(event_writer: Arc<dyn EventWriterPort>) -> Self {
         use crate::infrastructure::{
             redis_store::FakeCodeStore, third_party::sms::MockSmsProvider,
         };
@@ -588,7 +589,11 @@ mod tests {
         let owner_id = Uuid::new_v4();
         let room_id = Uuid::new_v4();
 
-        repo.seed_user(owner_id, "Owner User".to_string(), Some("https://img.example.com/av.png".to_string()));
+        repo.seed_user(
+            owner_id,
+            "Owner User".to_string(),
+            Some("https://img.example.com/av.png".to_string()),
+        );
         let now = Utc::now();
         repo.seed(RoomModel {
             id: room_id,
@@ -1055,7 +1060,10 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::CONFLICT);
         let json = body_json(response).await;
-        assert_eq!(json["code"], 40901, "room already closed code must be 40901");
+        assert_eq!(
+            json["code"], 40901,
+            "room already closed code must be 40901"
+        );
     }
 
     /// I-C-05: 有效 JWT + /api/v1/rooms/not-a-uuid → 400 / code=40003
@@ -1182,7 +1190,11 @@ mod tests {
             )
             .await
             .unwrap();
-        assert_eq!(close_resp.status(), StatusCode::OK, "close must succeed first");
+        assert_eq!(
+            close_resp.status(),
+            StatusCode::OK,
+            "close must succeed first"
+        );
 
         // 再 GET 该房间 → 应返回 404
         let get_resp = app

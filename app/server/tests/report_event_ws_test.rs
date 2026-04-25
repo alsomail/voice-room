@@ -18,7 +18,7 @@ use uuid::Uuid;
 
 use voice_room_server::{
     core::analytics::writer::{EventInput, FakeEventWriter},
-    modules::events::ws::{ReportEventDeps, handle_report_event},
+    modules::events::ws::{handle_report_event, ReportEventDeps},
 };
 
 // ─── 辅助函数 ──────────────────────────────────────────────────────────────────
@@ -71,21 +71,32 @@ async fn re01_single_event_returns_code0_received1() {
     )
     .await;
 
-    let json: serde_json::Value = serde_json::from_str(&response).expect("response must be valid JSON");
+    let json: serde_json::Value =
+        serde_json::from_str(&response).expect("response must be valid JSON");
 
-    assert_eq!(json["type"], "EventReportAck", "type should be EventReportAck");
+    assert_eq!(
+        json["type"], "EventReportAck",
+        "type should be EventReportAck"
+    );
     assert_eq!(json["msg_id"], "msg-re01", "msg_id must echo");
     assert_eq!(json["code"], 0, "code should be 0 on success");
     assert_eq!(json["payload"]["received"], 1, "received should be 1");
     assert_eq!(
-        json["payload"]["rejected_indices"].as_array().unwrap().len(),
+        json["payload"]["rejected_indices"]
+            .as_array()
+            .unwrap()
+            .len(),
         0,
         "no rejected indices"
     );
 
     // 验证 FakeEventWriter 存储了 1 条事件
     let stored = fake.stored.lock().unwrap();
-    assert_eq!(stored.len(), 1, "FakeEventWriter should have stored 1 event");
+    assert_eq!(
+        stored.len(),
+        1,
+        "FakeEventWriter should have stored 1 event"
+    );
 }
 
 // ─── RE02: 50 events → received=50, code=0 ─────────────────────────────────
@@ -110,7 +121,10 @@ async fn re02_50_events_returns_received50() {
     assert_eq!(json["code"], 0);
     assert_eq!(json["payload"]["received"], 50);
     assert_eq!(
-        json["payload"]["rejected_indices"].as_array().unwrap().len(),
+        json["payload"]["rejected_indices"]
+            .as_array()
+            .unwrap()
+            .len(),
         0
     );
 
@@ -138,16 +152,30 @@ async fn re03_101_events_batch_too_large_writes_100() {
     let json: serde_json::Value = serde_json::from_str(&response).unwrap();
 
     assert_eq!(json["type"], "EventReportAck");
-    assert_eq!(json["code"], 40204, "should return BATCH_TOO_LARGE code 40204");
-    assert_eq!(json["payload"]["received"], 100, "first 100 should be written");
+    assert_eq!(
+        json["code"], 40204,
+        "should return BATCH_TOO_LARGE code 40204"
+    );
+    assert_eq!(
+        json["payload"]["received"], 100,
+        "first 100 should be written"
+    );
 
     let rejected: Vec<usize> =
         serde_json::from_value(json["payload"]["rejected_indices"].clone()).unwrap();
-    assert_eq!(rejected, vec![100usize], "only index 100 should be rejected");
+    assert_eq!(
+        rejected,
+        vec![100usize],
+        "only index 100 should be rejected"
+    );
 
     // 验证 FakeEventWriter 存储了前 100 条
     let stored = fake.stored.lock().unwrap();
-    assert_eq!(stored.len(), 100, "FakeEventWriter should have stored exactly 100 events");
+    assert_eq!(
+        stored.len(),
+        100,
+        "FakeEventWriter should have stored exactly 100 events"
+    );
 }
 
 // ─── RE04: server_ts 覆盖 client_ts ─────────────────────────────────────────

@@ -120,10 +120,17 @@ pub async fn ban_user_handler(
     }
 
     // 在移交所有权前捕获需要的字段
-    let action_str = if req.action == "ban" { "ban_user" } else { "unban_user" };
+    let action_str = if req.action == "ban" {
+        "ban_user"
+    } else {
+        "unban_user"
+    };
     let ip = extract_ip(&headers);
 
-    let result = state.user_service.ban_user(ctx.admin_id, user_id, req).await;
+    let result = state
+        .user_service
+        .ban_user(ctx.admin_id, user_id, req)
+        .await;
 
     // 业务成功后写入审计日志（fire-and-forget：失败仅 warn，不影响响应）
     if result.is_ok() {

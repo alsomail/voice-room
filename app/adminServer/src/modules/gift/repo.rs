@@ -98,11 +98,9 @@ impl GiftRepository for PgGiftRepository {
         size: i64,
     ) -> Result<(i64, Vec<GiftModel>), sqlx::Error> {
         let count: (i64,) = if include_inactive {
-            sqlx::query_as(
-                "SELECT COUNT(*) FROM gifts WHERE is_deleted = false",
-            )
-            .fetch_one(&self.pool)
-            .await?
+            sqlx::query_as("SELECT COUNT(*) FROM gifts WHERE is_deleted = false")
+                .fetch_one(&self.pool)
+                .await?
         } else {
             sqlx::query_as(
                 "SELECT COUNT(*) FROM gifts WHERE is_deleted = false AND is_active = true",
@@ -243,7 +241,10 @@ impl GiftRepository for FakeGiftRepository {
 
     async fn find_by_code(&self, code: &str) -> Result<Option<GiftModel>, sqlx::Error> {
         let gifts = self.gifts.lock().unwrap();
-        Ok(gifts.iter().find(|g| g.code == code && !g.is_deleted).cloned())
+        Ok(gifts
+            .iter()
+            .find(|g| g.code == code && !g.is_deleted)
+            .cloned())
     }
 
     async fn list(
@@ -432,7 +433,10 @@ mod tests {
         repo.seed(make_gift("deleted_01", true, true));
 
         let (total, items) = repo.list(true, 1, 20).await.unwrap();
-        assert_eq!(total, 2, "GR-04: include_inactive 应返回 active+inactive（不含软删）");
+        assert_eq!(
+            total, 2,
+            "GR-04: include_inactive 应返回 active+inactive（不含软删）"
+        );
         assert!(items.iter().all(|g| !g.is_deleted));
     }
 

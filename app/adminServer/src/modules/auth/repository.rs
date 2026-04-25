@@ -1,7 +1,4 @@
-use std::{
-    collections::HashMap,
-    sync::Mutex,
-};
+use std::{collections::HashMap, sync::Mutex};
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -74,13 +71,11 @@ impl AdminRepository for PgAdminRepository {
         admin_id: Uuid,
         time: DateTime<Utc>,
     ) -> Result<(), AppError> {
-        sqlx::query(
-            "UPDATE admins SET last_login_at = $1, updated_at = $1 WHERE id = $2",
-        )
-        .bind(time)
-        .bind(admin_id)
-        .execute(&self.pool)
-        .await?;
+        sqlx::query("UPDATE admins SET last_login_at = $1, updated_at = $1 WHERE id = $2")
+            .bind(time)
+            .bind(admin_id)
+            .execute(&self.pool)
+            .await?;
         Ok(())
     }
 }

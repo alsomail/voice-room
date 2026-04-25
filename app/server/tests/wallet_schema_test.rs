@@ -110,11 +110,10 @@ async fn w03_negative_diamond_balance_rejected_by_check_constraint() {
     let user_id: Uuid = row.get("id");
 
     // 尝试将 diamond_balance 设为 -1
-    let result =
-        sqlx::query("UPDATE users SET diamond_balance = -1 WHERE id = $1")
-            .bind(user_id)
-            .execute(&mut *tx)
-            .await;
+    let result = sqlx::query("UPDATE users SET diamond_balance = -1 WHERE id = $1")
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await;
 
     // 断言：应返回错误，且错误码为 23514（check_violation）
     let err = result.expect_err("Negative diamond_balance should be rejected by CHECK constraint");
@@ -164,8 +163,7 @@ async fn w04_negative_balance_after_in_wallet_txn_rejected() {
     .execute(&mut *tx)
     .await;
 
-    let err = result
-        .expect_err("balance_after = -5 should be rejected by CHECK constraint");
+    let err = result.expect_err("balance_after = -5 should be rejected by CHECK constraint");
     let err_str = err.to_string();
     assert!(
         err_str.contains("23514") || err_str.contains("check"),
@@ -244,14 +242,13 @@ async fn w06_existing_users_have_zero_diamond_balance_after_migration() {
         .expect("insert legacy users");
 
     // 查询这两个用户的 diamond_balance，应均为 0
-    let rows = sqlx::query(
-        "SELECT diamond_balance FROM users WHERE phone IN ($1, $2) ORDER BY phone",
-    )
-    .bind(&phone1)
-    .bind(&phone2)
-    .fetch_all(&mut *tx)
-    .await
-    .expect("fetch legacy users");
+    let rows =
+        sqlx::query("SELECT diamond_balance FROM users WHERE phone IN ($1, $2) ORDER BY phone")
+            .bind(&phone1)
+            .bind(&phone2)
+            .fetch_all(&mut *tx)
+            .await
+            .expect("fetch legacy users");
 
     assert_eq!(rows.len(), 2, "Should find both legacy users");
     for row in &rows {
@@ -339,7 +336,13 @@ async fn w08_all_txn_types_accepted_by_db() {
         .expect("insert user");
     let user_id: Uuid = row.get("id");
 
-    let types = ["gift_send", "gift_receive", "admin_adjust", "recharge", "refund"];
+    let types = [
+        "gift_send",
+        "gift_receive",
+        "admin_adjust",
+        "recharge",
+        "refund",
+    ];
     for txn_type in &types {
         let result = sqlx::query(
             r#"INSERT INTO wallet_transactions

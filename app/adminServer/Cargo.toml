@@ -23,6 +23,16 @@ voice-room-shared = { path = "../shared" }
 redis = { version = "0.27", features = ["tokio-comp", "aio"] }
 toml = "0.8"
 
+[features]
+# 测试辅助：暴露 Fake 类型和 AppState::for_test* 方法，供集成测试使用。
+# 缺陷 #8：默认不启用，避免 Fake 代码进入生产二进制。
+test-utils = []
+
 [dev-dependencies]
 bcrypt.workspace = true
 tower = "0.5"
+
+# 集成测试启用 test-utils（缺陷 #8）
+[[test]]
+name = "governance_logs_test"
+required-features = ["test-utils"]

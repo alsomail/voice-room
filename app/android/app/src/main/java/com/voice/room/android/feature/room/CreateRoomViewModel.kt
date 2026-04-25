@@ -5,8 +5,10 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.voice.room.android.R
 import com.voice.room.android.VoiceRoomApplication
 import com.voice.room.android.domain.room.IRoomRepository
+import com.voice.room.android.util.UiText
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -87,9 +89,10 @@ class CreateRoomViewModel(
                 .onSuccess { roomId ->
                     _uiState.value = CreateRoomUiState.Success(roomId)
                 }
-                .onFailure { error ->
+                .onFailure { _ ->
+                    // 缺陷 #4：i18n 文案占位（不再依赖 error.message 的中文 / 服务端原文）
                     _uiState.value = CreateRoomUiState.Error(
-                        error.message?.takeIf { it.isNotBlank() } ?: "创建失败，请稍后重试"
+                        UiText.of(R.string.create_room_failed)
                     )
                 }
         }
@@ -169,11 +172,12 @@ class CreateRoomViewModel(
                 announcement = s.announcement.ifBlank { null }
             ).onSuccess { roomId ->
                 _formState.update { it.copy(submitting = false, navigatedRoomId = roomId) }
-            }.onFailure { error ->
+            }.onFailure { _ ->
                 _formState.update {
                     it.copy(
                         submitting = false,
-                        error = error.message?.takeIf { msg -> msg.isNotBlank() } ?: "创建失败，请稍后重试"
+                        // 缺陷 #4：i18n 文案占位
+                        error = UiText.of(R.string.create_room_failed),
                     )
                 }
             }
@@ -187,20 +191,24 @@ class CreateRoomViewModel(
     /**
      * 客户端校验
      *
-     * @return 校验错误文案（null 表示通过）
+     * 缺陷 #4 修复：返回 [UiText]（@StringRes + format args）而非中文字面量。
+     *
+     * @return 校验错误占位（null 表示通过）
      */
-    private fun validate(title: String, type: String, password: String?): String? {
+    private fun validate(title: String, type: String, password: String?): UiText? {
         // 标题不能为空
-        if (title.isBlank()) return "房间标题不能为空"
+        if (title.isBlank()) return UiText.of(R.string.create_room_title_empty)
 
         // 标题不超过 30 个 Unicode 字符
         // codePointCount 精确计算 Unicode 字符数（含 emoji 等多码点字符）
         val charCount = title.codePointCount(0, title.length)
-        if (charCount > MAX_TITLE_LENGTH) return "房间标题不能超过 $MAX_TITLE_LENGTH 个字符（当前 $charCount）"
+        if (charCount > MAX_TITLE_LENGTH) {
+            return UiText.of(R.string.create_room_title_too_long, MAX_TITLE_LENGTH, charCount)
+        }
 
         // 密码房必须提供密码
         if (type == ROOM_TYPE_PASSWORD && password.isNullOrBlank()) {
-            return "密码房间必须设置密码"
+            return UiText.of(R.string.create_room_password_required)
         }
 
         return null

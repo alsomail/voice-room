@@ -39,8 +39,7 @@ impl FakeUsersRepo {
     }
 
     fn add(&mut self, id: Uuid, nickname: &str) {
-        self.users
-            .insert(id, (nickname.to_string(), None));
+        self.users.insert(id, (nickname.to_string(), None));
     }
 }
 
@@ -87,10 +86,7 @@ impl FakeRoomsRepo {
 
 #[async_trait]
 impl MembersRoomRepo for FakeRoomsRepo {
-    async fn find_room_owner(
-        &self,
-        room_id: Uuid,
-    ) -> Result<Option<RoomOwnerInfo>, AppError> {
+    async fn find_room_owner(&self, room_id: Uuid) -> Result<Option<RoomOwnerInfo>, AppError> {
         Ok(self.rooms.get(&room_id).cloned())
     }
 }
@@ -98,11 +94,7 @@ impl MembersRoomRepo for FakeRoomsRepo {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 /// 向 RoomManager 中添加指定数量的成员，joined_at 依次递减（第 0 个最早）
-fn seed_members(
-    manager: &RoomManager,
-    room_id: Uuid,
-    count: usize,
-) -> Vec<Uuid> {
+fn seed_members(manager: &RoomManager, room_id: Uuid, count: usize) -> Vec<Uuid> {
     let state = manager.get_or_create_room(room_id);
     let mut ids = Vec::with_capacity(count);
     for i in 0..count {
@@ -175,9 +167,10 @@ async fn m27_02_page_zero_returns_validation_error() {
 
     // 把 owner 加入房间
     let state = manager.get_or_create_room(room_id);
-    state
-        .members
-        .insert(caller_id, MemberInfo::new(caller_id, "Owner".to_string(), None));
+    state.members.insert(
+        caller_id,
+        MemberInfo::new(caller_id, "Owner".to_string(), None),
+    );
 
     let mut room_repo = FakeRoomsRepo::new();
     room_repo.add(room_id, owner_id, None);
@@ -247,12 +240,14 @@ async fn m27_04_mic_users_always_on_top() {
     // 添加 2 名麦上用户，占 slot 2 和 slot 5
     let mic_user_1 = Uuid::new_v4();
     let mic_user_2 = Uuid::new_v4();
-    state
-        .members
-        .insert(mic_user_1, MemberInfo::new(mic_user_1, "OnMic1".to_string(), None));
-    state
-        .members
-        .insert(mic_user_2, MemberInfo::new(mic_user_2, "OnMic2".to_string(), None));
+    state.members.insert(
+        mic_user_1,
+        MemberInfo::new(mic_user_1, "OnMic1".to_string(), None),
+    );
+    state.members.insert(
+        mic_user_2,
+        MemberInfo::new(mic_user_2, "OnMic2".to_string(), None),
+    );
     state.take_mic_slot(2, mic_user_1).unwrap();
     state.take_mic_slot(5, mic_user_2).unwrap();
 
@@ -316,12 +311,14 @@ async fn m27_05_sorting_slot_asc_then_joined_at_desc() {
     // 添加麦上用户：slot=1 和 slot=0
     let slot0_uid = Uuid::new_v4();
     let slot1_uid = Uuid::new_v4();
-    state
-        .members
-        .insert(slot0_uid, MemberInfo::new(slot0_uid, "Slot0".to_string(), None));
-    state
-        .members
-        .insert(slot1_uid, MemberInfo::new(slot1_uid, "Slot1".to_string(), None));
+    state.members.insert(
+        slot0_uid,
+        MemberInfo::new(slot0_uid, "Slot0".to_string(), None),
+    );
+    state.members.insert(
+        slot1_uid,
+        MemberInfo::new(slot1_uid, "Slot1".to_string(), None),
+    );
     state.take_mic_slot(0, slot0_uid).unwrap();
     state.take_mic_slot(1, slot1_uid).unwrap();
 
@@ -382,7 +379,9 @@ async fn m27_06_role_calculation_correct() {
         (admin_id, "Admin"),
         (member_id, "Member"),
     ] {
-        state.members.insert(uid, MemberInfo::new(uid, name.to_string(), None));
+        state
+            .members
+            .insert(uid, MemberInfo::new(uid, name.to_string(), None));
     }
 
     let mut room_repo = FakeRoomsRepo::new();
@@ -405,9 +404,21 @@ async fn m27_06_role_calculation_correct() {
             .expect("user should be in result")
     };
 
-    assert_eq!(find_role(owner_id), "owner", "M27-06: owner_id must have role=owner");
-    assert_eq!(find_role(admin_id), "admin", "M27-06: admin_user_id must have role=admin");
-    assert_eq!(find_role(member_id), "member", "M27-06: other must have role=member");
+    assert_eq!(
+        find_role(owner_id),
+        "owner",
+        "M27-06: owner_id must have role=owner"
+    );
+    assert_eq!(
+        find_role(admin_id),
+        "admin",
+        "M27-06: admin_user_id must have role=admin"
+    );
+    assert_eq!(
+        find_role(member_id),
+        "member",
+        "M27-06: other must have role=member"
+    );
 }
 
 // ─── M27-07: 非成员请求 → 403 ────────────────────────────────────────────────
@@ -462,7 +473,9 @@ async fn m27_08_muted_mic_and_chat_fields_correct() {
         (chat_muted_id, "ChatMuted"),
         (normal_id, "Normal"),
     ] {
-        state.members.insert(uid, MemberInfo::new(uid, name.to_string(), None));
+        state
+            .members
+            .insert(uid, MemberInfo::new(uid, name.to_string(), None));
     }
 
     // 设置禁麦/禁言

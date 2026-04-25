@@ -4,10 +4,7 @@ use chrono::{Duration, Utc};
 use serde::Serialize;
 use uuid::Uuid;
 
-use crate::{
-    common::error::AppError,
-    modules::audit::service::AuditLogger,
-};
+use crate::{common::error::AppError, modules::audit::service::AuditLogger};
 
 use super::repo::{GovernanceFilter, GovernanceRepo, KickLogItem, MuteLogItem};
 
@@ -102,9 +99,7 @@ impl GovernanceService {
         // page 校验：< 1（包含负值与 0）→ 40003；默认 1
         let page = params.page.unwrap_or(1);
         if page < 1 {
-            return Err(AppError::ValidationError(
-                "page must be >= 1".to_string(),
-            ));
+            return Err(AppError::ValidationError("page must be >= 1".to_string()));
         }
 
         // limit 校验：> 100 → 截断为 100；默认 20
@@ -168,7 +163,12 @@ impl GovernanceService {
             )
             .await;
 
-        Ok(KicksResponse { total, page, limit, items })
+        Ok(KicksResponse {
+            total,
+            page,
+            limit,
+            items,
+        })
     }
 
     /// 查询禁言记录。
@@ -205,7 +205,12 @@ impl GovernanceService {
             )
             .await;
 
-        Ok(MutesResponse { total, page, limit, items })
+        Ok(MutesResponse {
+            total,
+            page,
+            limit,
+            items,
+        })
     }
 }
 
@@ -214,8 +219,7 @@ impl GovernanceService {
 mod tests {
     use super::*;
     use crate::modules::{
-        audit::repository::FakeAuditRepository,
-        governance::repo::FakeGovernanceRepo,
+        audit::repository::FakeAuditRepository, governance::repo::FakeGovernanceRepo,
     };
     use chrono::Duration;
     use std::sync::Arc;
@@ -269,7 +273,10 @@ mod tests {
             limit: Some(20),
             ..Default::default()
         };
-        assert!(service.query_kicks(params, Uuid::new_v4(), None).await.is_ok());
+        assert!(service
+            .query_kicks(params, Uuid::new_v4(), None)
+            .await
+            .is_ok());
     }
 
     /// SV-03: page=0 → ValidationError
@@ -291,7 +298,10 @@ mod tests {
         let service = make_service();
         let mut params = default_params();
         params.limit = Some(999);
-        let resp = service.query_kicks(params, Uuid::new_v4(), None).await.unwrap();
+        let resp = service
+            .query_kicks(params, Uuid::new_v4(), None)
+            .await
+            .unwrap();
         assert_eq!(resp.limit, 100, "SV-04: limit 应截断为 100");
     }
 
@@ -300,7 +310,10 @@ mod tests {
     async fn sv05_default_params_ok() {
         let service = make_service();
         let params = GovernanceQueryParams::default();
-        let resp = service.query_kicks(params, Uuid::new_v4(), None).await.unwrap();
+        let resp = service
+            .query_kicks(params, Uuid::new_v4(), None)
+            .await
+            .unwrap();
         assert_eq!(resp.page, 1);
         assert_eq!(resp.limit, 20);
     }
@@ -311,11 +324,11 @@ mod tests {
         let repo = Arc::new(FakeGovernanceRepo::default());
         let audit_repo = Arc::new(FakeAuditRepository::default());
         let admin_id = Uuid::new_v4();
-        let service = GovernanceService::new(
-            repo,
-            Arc::new(AuditLogger::new(audit_repo.clone())),
-        );
-        service.query_kicks(default_params(), admin_id, None).await.unwrap();
+        let service = GovernanceService::new(repo, Arc::new(AuditLogger::new(audit_repo.clone())));
+        service
+            .query_kicks(default_params(), admin_id, None)
+            .await
+            .unwrap();
         let logs = audit_repo.get_logs();
         assert_eq!(logs.len(), 1);
         assert_eq!(logs[0].action, "query_kick_records");
@@ -327,11 +340,11 @@ mod tests {
     async fn sv07_audit_log_written_for_mutes() {
         let repo = Arc::new(FakeGovernanceRepo::default());
         let audit_repo = Arc::new(FakeAuditRepository::default());
-        let service = GovernanceService::new(
-            repo,
-            Arc::new(AuditLogger::new(audit_repo.clone())),
-        );
-        service.query_mutes(default_params(), Uuid::new_v4(), None).await.unwrap();
+        let service = GovernanceService::new(repo, Arc::new(AuditLogger::new(audit_repo.clone())));
+        service
+            .query_mutes(default_params(), Uuid::new_v4(), None)
+            .await
+            .unwrap();
         let logs = audit_repo.get_logs();
         assert_eq!(logs[0].action, "query_mute_records");
     }

@@ -3,10 +3,7 @@ use std::sync::Arc;
 use tokio::{net::TcpListener, signal};
 use voice_room_server::{
     bootstrap::{build_app, AppState},
-    core::analytics::{
-        scheduler::start_partition_scheduler,
-        writer::EventWriter,
-    },
+    core::analytics::{scheduler::start_partition_scheduler, writer::EventWriter},
     infrastructure::{
         config::ServerSettings,
         database::create_pool,
@@ -21,7 +18,7 @@ use voice_room_server::{
         room::{password::RealRoomPasswordRedis, repository::PgRoomRepository},
         wallet::{broadcaster::BalanceBroadcaster, service::WalletService},
     },
-    stats::{StatsService, snapshot_task::start_snapshot_task},
+    stats::{snapshot_task::start_snapshot_task, StatsService},
 };
 
 #[tokio::main]
@@ -71,10 +68,9 @@ async fn main() -> anyhow::Result<()> {
         };
 
     // 创建 BalanceBroadcaster channel
-    let (balance_tx, balance_rx) =
-        tokio::sync::mpsc::channel::<voice_room_server::modules::wallet::broadcaster::BalanceEvent>(
-            256,
-        );
+    let (balance_tx, balance_rx) = tokio::sync::mpsc::channel::<
+        voice_room_server::modules::wallet::broadcaster::BalanceEvent,
+    >(256);
     let wallet_service = Arc::new(WalletService::new(pool.clone(), balance_tx.clone()));
     let gift_service = Arc::new(GiftService::new_with_pool(pool.clone()));
 
@@ -127,7 +123,10 @@ async fn main() -> anyhow::Result<()> {
 
     // spawn 週期快照 task（每 60s 寫一次 Redis snapshot）
     let stats_for_snapshot = state.stats_service.clone();
-    tokio::spawn(start_snapshot_task(stats_for_snapshot, snapshot_shutdown_rx));
+    tokio::spawn(start_snapshot_task(
+        stats_for_snapshot,
+        snapshot_shutdown_rx,
+    ));
 
     // 启动 Ranking 定时归档任务（T-00021）
     let ranking_shutdown = snapshot_shutdown_tx.subscribe();

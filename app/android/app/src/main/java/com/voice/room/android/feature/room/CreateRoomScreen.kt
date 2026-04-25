@@ -76,14 +76,16 @@ fun CreateRoomScreen(
 ) {
     val state by viewModel.formState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     // HIGH-02：内置封面选择器显隐状态（R1 修复：CoverPickerBottomSheet 直接集成在此）
     var showCoverPicker by remember { mutableStateOf(false) }
 
     // 错误时弹 Snackbar（C36-08）
+    // 缺陷 #4：error 是 UiText，需要 Context 解析为当前 locale 字符串
     LaunchedEffect(state.error) {
         state.error?.let { msg ->
-            snackbarHostState.showSnackbar(msg)
+            snackbarHostState.showSnackbar(msg.asString(context))
         }
     }
 

@@ -230,11 +230,7 @@ pub struct LeaveRoomDeps {
 /// 核心离开逻辑（9 步），主动离开与断线共享此路径。
 ///
 /// 任何静默返回点均视为非错误（用户不在房间是正常状态）。
-pub async fn do_leave_room(
-    connection_id: Uuid,
-    user_id: Uuid,
-    deps: &LeaveRoomDeps,
-) {
+pub async fn do_leave_room(connection_id: Uuid, user_id: Uuid, deps: &LeaveRoomDeps) {
     // 1. 获取 room_id，None 则用户不在任何房间，静默返回
     let room_id = match deps.registry.get_room_id(connection_id) {
         Some(id) => id,
@@ -591,7 +587,11 @@ pub async fn handle_send_message(
     {
         Some(c) => c,
         None => {
-            return send_message_error_response(msg_id, 40002, "content is required and must not be empty");
+            return send_message_error_response(
+                msg_id,
+                40002,
+                "content is required and must not be empty",
+            );
         }
     };
 
@@ -840,7 +840,13 @@ mod tests {
         let stats: Arc<dyn StatsPort> = Arc::new(FakeStatsService::default());
 
         let (conn_id, _rx) = register_connection(&registry, user_id, None);
-        let deps = build_deps(&room_manager, &room_service, &auth_service, &registry, &stats);
+        let deps = build_deps(
+            &room_manager,
+            &room_service,
+            &auth_service,
+            &registry,
+            &stats,
+        );
 
         let response = handle_join_room(
             join_payload(room_id),
@@ -852,7 +858,10 @@ mod tests {
         .await;
 
         let json: serde_json::Value = serde_json::from_str(&response).unwrap();
-        assert_eq!(json["code"], 40400, "should return code 40400 when room not found");
+        assert_eq!(
+            json["code"], 40400,
+            "should return code 40400 when room not found"
+        );
         assert_eq!(json["type"], "JoinRoomResult");
         assert_eq!(json["msg_id"], "msg-j03");
     }
@@ -869,11 +878,19 @@ mod tests {
         let stats: Arc<dyn StatsPort> = Arc::new(FakeStatsService::default());
 
         let (conn_id, _rx) = register_connection(&registry, user_id, None);
-        let deps = build_deps(&room_manager, &room_service, &auth_service, &registry, &stats);
+        let deps = build_deps(
+            &room_manager,
+            &room_service,
+            &auth_service,
+            &registry,
+            &stats,
+        );
 
         handle_join_room(join_payload(room_id), None, conn_id, user_id, &deps).await;
 
-        let room_state = room_manager.get_room(room_id).expect("room should exist in manager");
+        let room_state = room_manager
+            .get_room(room_id)
+            .expect("room should exist in manager");
         assert!(
             room_state.members.contains_key(&user_id),
             "members should contain user_id after successful join"
@@ -892,7 +909,13 @@ mod tests {
         let stats: Arc<dyn StatsPort> = Arc::new(FakeStatsService::default());
 
         let (conn_id, _rx) = register_connection(&registry, user_id, None);
-        let deps = build_deps(&room_manager, &room_service, &auth_service, &registry, &stats);
+        let deps = build_deps(
+            &room_manager,
+            &room_service,
+            &auth_service,
+            &registry,
+            &stats,
+        );
 
         handle_join_room(join_payload(room_id), None, conn_id, user_id, &deps).await;
 
@@ -916,7 +939,13 @@ mod tests {
         let stats: Arc<dyn StatsPort> = fake_stats.clone();
 
         let (conn_id, _rx) = register_connection(&registry, user_id, None);
-        let deps = build_deps(&room_manager, &room_service, &auth_service, &registry, &stats);
+        let deps = build_deps(
+            &room_manager,
+            &room_service,
+            &auth_service,
+            &registry,
+            &stats,
+        );
 
         handle_join_room(join_payload(room_id), None, conn_id, user_id, &deps).await;
 
@@ -947,7 +976,13 @@ mod tests {
 
         // 用户 B 加入房间
         let (conn_b_id, _rx_b) = register_connection(&registry, user_b_id, None);
-        let deps = build_deps(&room_manager, &room_service, &auth_service, &registry, &stats);
+        let deps = build_deps(
+            &room_manager,
+            &room_service,
+            &auth_service,
+            &registry,
+            &stats,
+        );
 
         handle_join_room(join_payload(room_id), None, conn_b_id, user_b_id, &deps).await;
 
@@ -958,7 +993,10 @@ mod tests {
             .expect("channel should not be closed");
 
         let json: serde_json::Value = serde_json::from_str(&msg).unwrap();
-        assert_eq!(json["type"], "UserJoined", "existing connection should receive UserJoined");
+        assert_eq!(
+            json["type"], "UserJoined",
+            "existing connection should receive UserJoined"
+        );
     }
 
     // J08: 成功加入 → 响应 code=0，payload.room.member_count >= 1
@@ -973,7 +1011,13 @@ mod tests {
         let stats: Arc<dyn StatsPort> = Arc::new(FakeStatsService::default());
 
         let (conn_id, _rx) = register_connection(&registry, user_id, None);
-        let deps = build_deps(&room_manager, &room_service, &auth_service, &registry, &stats);
+        let deps = build_deps(
+            &room_manager,
+            &room_service,
+            &auth_service,
+            &registry,
+            &stats,
+        );
 
         let response = handle_join_room(
             join_payload(room_id),
@@ -1023,7 +1067,13 @@ mod tests {
 
         // 用户 B 加入
         let (conn_b_id, _rx_b) = register_connection(&registry, user_b_id, None);
-        let deps = build_deps(&room_manager, &room_service, &auth_service, &registry, &stats);
+        let deps = build_deps(
+            &room_manager,
+            &room_service,
+            &auth_service,
+            &registry,
+            &stats,
+        );
 
         handle_join_room(join_payload(room_id), None, conn_b_id, user_b_id, &deps).await;
 
@@ -1071,10 +1121,9 @@ mod tests {
 
         // 先加入：手动建立 room_state 并插入成员
         let room_state = room_manager.get_or_create_room(room_id);
-        room_state.members.insert(
-            user_id,
-            MemberInfo::new(user_id, "Alice".to_string(), None),
-        );
+        room_state
+            .members
+            .insert(user_id, MemberInfo::new(user_id, "Alice".to_string(), None));
 
         // 注册连接并设置 room_id
         let (conn_id, _rx) = register_connection(&registry, user_id, None);
@@ -1104,7 +1153,11 @@ mod tests {
         // 不应 panic
         do_leave_room(conn_id, user_id, &deps).await;
 
-        assert_eq!(room_manager.room_count(), 0, "L02: no rooms should be created");
+        assert_eq!(
+            room_manager.room_count(),
+            0,
+            "L02: no rooms should be created"
+        );
     }
 
     // L03: 在麦用户离开后 mic_slots_snapshot()[slot_idx] 为 None
@@ -1117,10 +1170,9 @@ mod tests {
         let stats: Arc<dyn StatsPort> = Arc::new(FakeStatsService::default());
 
         let room_state = room_manager.get_or_create_room(room_id);
-        room_state.members.insert(
-            user_id,
-            MemberInfo::new(user_id, "Bob".to_string(), None),
-        );
+        room_state
+            .members
+            .insert(user_id, MemberInfo::new(user_id, "Bob".to_string(), None));
         // 将用户放到麦位 2
         {
             let mut slots = room_state.mic_slots.write().unwrap();
@@ -1167,7 +1219,8 @@ mod tests {
         registry.set_room_id(leaver_conn, room_id);
 
         // stayer 的连接（已在房间）
-        let (_stayer_conn, mut rx_stayer) = register_connection(&registry, stayer_id, Some(room_id));
+        let (_stayer_conn, mut rx_stayer) =
+            register_connection(&registry, stayer_id, Some(room_id));
 
         let deps = build_leave_deps(&room_manager, &registry, &stats);
         do_leave_room(leaver_conn, leaver_id, &deps).await;
@@ -1178,7 +1231,10 @@ mod tests {
             .expect("L04: channel should not be closed");
 
         let json: serde_json::Value = serde_json::from_str(&msg).unwrap();
-        assert_eq!(json["type"], "UserLeft", "L04: broadcast type should be UserLeft");
+        assert_eq!(
+            json["type"], "UserLeft",
+            "L04: broadcast type should be UserLeft"
+        );
         assert_eq!(
             json["payload"]["user_id"],
             leaver_id.to_string(),
@@ -1227,10 +1283,9 @@ mod tests {
         let stats: Arc<dyn StatsPort> = Arc::new(FakeStatsService::default());
 
         let room_state = room_manager.get_or_create_room(room_id);
-        room_state.members.insert(
-            user_id,
-            MemberInfo::new(user_id, "Last".to_string(), None),
-        );
+        room_state
+            .members
+            .insert(user_id, MemberInfo::new(user_id, "Last".to_string(), None));
 
         let (conn_id, _rx) = register_connection(&registry, user_id, None);
         registry.set_room_id(conn_id, room_id);
@@ -1261,10 +1316,9 @@ mod tests {
         fake_stats.active_rooms.lock().unwrap().insert(room_id);
 
         let room_state = room_manager.get_or_create_room(room_id);
-        room_state.members.insert(
-            user_id,
-            MemberInfo::new(user_id, "Stat".to_string(), None),
-        );
+        room_state
+            .members
+            .insert(user_id, MemberInfo::new(user_id, "Stat".to_string(), None));
 
         let (conn_id, _rx) = register_connection(&registry, user_id, None);
         registry.set_room_id(conn_id, room_id);
@@ -1297,18 +1351,22 @@ mod tests {
         registry.set_room_id(conn_id, room_id);
 
         let deps = build_leave_deps(&room_manager, &registry, &stats);
-        let response = handle_leave_room(
-            Some("msg-l08".to_string()),
-            conn_id,
-            user_id,
-            &deps,
-        )
-        .await;
+        let response =
+            handle_leave_room(Some("msg-l08".to_string()), conn_id, user_id, &deps).await;
 
         let json: serde_json::Value = serde_json::from_str(&response).unwrap();
-        assert_eq!(json["type"], "LeaveRoomResult", "L08: type should be LeaveRoomResult");
-        assert_eq!(json["code"], 0, "L08: code should be 0 for successful leave");
-        assert_eq!(json["msg_id"], "msg-l08", "L08: msg_id should be echoed back");
+        assert_eq!(
+            json["type"], "LeaveRoomResult",
+            "L08: type should be LeaveRoomResult"
+        );
+        assert_eq!(
+            json["code"], 0,
+            "L08: code should be 0 for successful leave"
+        );
+        assert_eq!(
+            json["msg_id"], "msg-l08",
+            "L08: msg_id should be echoed back"
+        );
     }
 
     // L10: 不在麦上的用户离开后 mic_slots_snapshot() 全部为 None
@@ -1321,10 +1379,9 @@ mod tests {
         let stats: Arc<dyn StatsPort> = Arc::new(FakeStatsService::default());
 
         let room_state = room_manager.get_or_create_room(room_id);
-        room_state.members.insert(
-            user_id,
-            MemberInfo::new(user_id, "NoMic".to_string(), None),
-        );
+        room_state
+            .members
+            .insert(user_id, MemberInfo::new(user_id, "NoMic".to_string(), None));
         // 不向任何麦位插入用户（初始全为 None）
 
         let (conn_id, _rx) = register_connection(&registry, user_id, None);
@@ -1411,7 +1468,10 @@ mod tests {
                 .expect("L11: rx_b second recv should not timeout")
                 .expect("L11: rx_b second channel should not be closed");
             let json2: serde_json::Value = serde_json::from_str(&msg_b2).unwrap();
-            assert_eq!(json2["type"], "MicLeft", "L11: second message to listener should be MicLeft");
+            assert_eq!(
+                json2["type"], "MicLeft",
+                "L11: second message to listener should be MicLeft"
+            );
             assert_eq!(
                 json2["payload"]["mic_index"], 0,
                 "L11: MicLeft payload.mic_index should be 0"
@@ -1475,7 +1535,9 @@ mod tests {
 
         let room_state = room_manager.get_or_create_room(room_id);
         // 预先占用 slot 0（另一个用户）
-        room_state.take_mic_slot(0, other_user).expect("pre-fill should succeed");
+        room_state
+            .take_mic_slot(0, other_user)
+            .expect("pre-fill should succeed");
 
         let (conn_id, _rx) = register_connection(&registry, user_id, Some(room_id));
         let deps = build_take_mic_deps(&room_manager, &registry);
@@ -1483,7 +1545,10 @@ mod tests {
         let response = handle_take_mic(take_mic_payload(0), None, conn_id, user_id, &deps).await;
 
         let json: serde_json::Value = serde_json::from_str(&response).unwrap();
-        assert_eq!(json["code"], 40303, "M02: occupied slot should return code 40303");
+        assert_eq!(
+            json["code"], 40303,
+            "M02: occupied slot should return code 40303"
+        );
         assert_eq!(json["type"], "TakeMicResult");
     }
 
@@ -1497,7 +1562,9 @@ mod tests {
 
         let room_state = room_manager.get_or_create_room(room_id);
         // 用户已在 slot 1
-        room_state.take_mic_slot(1, user_id).expect("pre-fill should succeed");
+        room_state
+            .take_mic_slot(1, user_id)
+            .expect("pre-fill should succeed");
 
         let (conn_id, _rx) = register_connection(&registry, user_id, Some(room_id));
         let deps = build_take_mic_deps(&room_manager, &registry);
@@ -1506,7 +1573,10 @@ mod tests {
         let response = handle_take_mic(take_mic_payload(0), None, conn_id, user_id, &deps).await;
 
         let json: serde_json::Value = serde_json::from_str(&response).unwrap();
-        assert_eq!(json["code"], 40301, "M03: user already on mic should return code 40301");
+        assert_eq!(
+            json["code"], 40301,
+            "M03: user already on mic should return code 40301"
+        );
         assert_eq!(json["type"], "TakeMicResult");
     }
 
@@ -1528,7 +1598,10 @@ mod tests {
         let response = handle_take_mic(take_mic_payload(0), None, conn_id, user_id, &deps).await;
 
         let json: serde_json::Value = serde_json::from_str(&response).unwrap();
-        assert_eq!(json["code"], 40302, "M04: banned user should return code 40302");
+        assert_eq!(
+            json["code"], 40302,
+            "M04: banned user should return code 40302"
+        );
         assert_eq!(json["type"], "TakeMicResult");
     }
 
@@ -1546,7 +1619,10 @@ mod tests {
         let response = handle_take_mic(take_mic_payload(0), None, conn_id, user_id, &deps).await;
 
         let json: serde_json::Value = serde_json::from_str(&response).unwrap();
-        assert_eq!(json["code"], 40400, "M05: user not in room should return code 40400");
+        assert_eq!(
+            json["code"], 40400,
+            "M05: user not in room should return code 40400"
+        );
         assert_eq!(json["type"], "TakeMicResult");
     }
 
@@ -1566,7 +1642,10 @@ mod tests {
         let response = handle_take_mic(take_mic_payload(9), None, conn_id, user_id, &deps).await;
 
         let json: serde_json::Value = serde_json::from_str(&response).unwrap();
-        assert_eq!(json["code"], 40002, "M06: mic_index=9 should return code 40002");
+        assert_eq!(
+            json["code"], 40002,
+            "M06: mic_index=9 should return code 40002"
+        );
         assert_eq!(json["type"], "TakeMicResult");
     }
 
@@ -1584,7 +1663,8 @@ mod tests {
         room_manager.get_or_create_room(room_id);
 
         // 观察者已在房间
-        let (_obs_conn, mut rx_observer) = register_connection(&registry, observer_id, Some(room_id));
+        let (_obs_conn, mut rx_observer) =
+            register_connection(&registry, observer_id, Some(room_id));
 
         // 上麦者的连接
         let (conn_id, _rx) = register_connection(&registry, user_id, Some(room_id));
@@ -1599,7 +1679,10 @@ mod tests {
             .expect("M07: channel should not be closed");
 
         let json: serde_json::Value = serde_json::from_str(&msg).unwrap();
-        assert_eq!(json["type"], "MicTaken", "M07: broadcast type should be MicTaken");
+        assert_eq!(
+            json["type"], "MicTaken",
+            "M07: broadcast type should be MicTaken"
+        );
         assert_eq!(
             json["payload"]["user_id"],
             user_id.to_string(),
@@ -1634,8 +1717,14 @@ mod tests {
 
         let json: serde_json::Value = serde_json::from_str(&response).unwrap();
         assert_eq!(json["code"], 0, "M08: success response should have code=0");
-        assert_eq!(json["type"], "TakeMicResult", "M08: type should be TakeMicResult");
-        assert_eq!(json["msg_id"], "msg-m08", "M08: msg_id should be echoed back");
+        assert_eq!(
+            json["type"], "TakeMicResult",
+            "M08: type should be TakeMicResult"
+        );
+        assert_eq!(
+            json["msg_id"], "msg-m08",
+            "M08: msg_id should be echoed back"
+        );
         assert_eq!(
             json["payload"]["mic_index"], 5,
             "M08: payload.mic_index should match the requested slot"
@@ -1666,10 +1755,17 @@ mod tests {
             .iter()
             .filter(|&&x| x)
             .count();
-        assert_eq!(successes, 1, "M09: exactly one concurrent take_mic_slot should succeed");
+        assert_eq!(
+            successes, 1,
+            "M09: exactly one concurrent take_mic_slot should succeed"
+        );
 
         // 失败者返回 SlotOccupied（而不是 AlreadyOnMic）
-        let failure = if result_a.is_err() { result_a } else { result_b };
+        let failure = if result_a.is_err() {
+            result_a
+        } else {
+            result_b
+        };
         assert_eq!(
             failure.unwrap_err(),
             TakeMicError::SlotOccupied,
@@ -1707,7 +1803,9 @@ mod tests {
 
         let room_state = room_manager.get_or_create_room(room_id);
         // 将用户预先放到麦位 2
-        room_state.take_mic_slot(2, user_id).expect("pre-fill should succeed");
+        room_state
+            .take_mic_slot(2, user_id)
+            .expect("pre-fill should succeed");
 
         let (conn_id, _rx) = register_connection(&registry, user_id, Some(room_id));
         let deps = build_leave_mic_deps(&room_manager, &registry);
@@ -1737,8 +1835,14 @@ mod tests {
         let response = handle_leave_mic(Some("msg-n02".to_string()), conn_id, user_id, &deps).await;
 
         let json: serde_json::Value = serde_json::from_str(&response).unwrap();
-        assert_eq!(json["code"], 40304, "N02: user not on mic should return code 40304");
-        assert_eq!(json["type"], "LeaveMicResult", "N02: type should be LeaveMicResult");
+        assert_eq!(
+            json["code"], 40304,
+            "N02: user not on mic should return code 40304"
+        );
+        assert_eq!(
+            json["type"], "LeaveMicResult",
+            "N02: type should be LeaveMicResult"
+        );
         assert_eq!(json["msg_id"], "msg-n02");
     }
 
@@ -1756,7 +1860,10 @@ mod tests {
         let response = handle_leave_mic(Some("msg-n03".to_string()), conn_id, user_id, &deps).await;
 
         let json: serde_json::Value = serde_json::from_str(&response).unwrap();
-        assert_eq!(json["code"], 40400, "N03: user not in room should return code 40400");
+        assert_eq!(
+            json["code"], 40400,
+            "N03: user not in room should return code 40400"
+        );
         assert_eq!(json["type"], "LeaveMicResult");
         assert_eq!(json["msg_id"], "msg-n03");
     }
@@ -1771,7 +1878,9 @@ mod tests {
 
         let room_state = room_manager.get_or_create_room(room_id);
         // 用户在麦位 5
-        room_state.take_mic_slot(5, user_id).expect("pre-fill should succeed");
+        room_state
+            .take_mic_slot(5, user_id)
+            .expect("pre-fill should succeed");
 
         let (conn_id, _rx) = register_connection(&registry, user_id, Some(room_id));
         let deps = build_leave_mic_deps(&room_manager, &registry);
@@ -1780,7 +1889,10 @@ mod tests {
 
         let json: serde_json::Value = serde_json::from_str(&response).unwrap();
         assert_eq!(json["code"], 0, "N04: success response should have code=0");
-        assert_eq!(json["type"], "LeaveMicResult", "N04: type should be LeaveMicResult");
+        assert_eq!(
+            json["type"], "LeaveMicResult",
+            "N04: type should be LeaveMicResult"
+        );
         assert_eq!(json["msg_id"], "msg-n04");
         assert_eq!(
             json["payload"]["mic_index"], 5,
@@ -1801,7 +1913,9 @@ mod tests {
 
         let room_state = room_manager.get_or_create_room(room_id);
         // 用户在麦位 3
-        room_state.take_mic_slot(3, user_id).expect("pre-fill should succeed");
+        room_state
+            .take_mic_slot(3, user_id)
+            .expect("pre-fill should succeed");
 
         // 观察者已在房间
         let (_obs_conn, mut rx_observer) =
@@ -1820,7 +1934,10 @@ mod tests {
             .expect("N05: channel should not be closed");
 
         let json: serde_json::Value = serde_json::from_str(&msg).unwrap();
-        assert_eq!(json["type"], "MicLeft", "N05: broadcast type should be MicLeft");
+        assert_eq!(
+            json["type"], "MicLeft",
+            "N05: broadcast type should be MicLeft"
+        );
         assert_eq!(
             json["payload"]["mic_index"], 3,
             "N05: MicLeft payload.mic_index should match the slot vacated"
@@ -1843,8 +1960,12 @@ mod tests {
 
         let room_state = room_manager.get_or_create_room(room_id);
         // user_a 在麦位 1，user_b 在麦位 4
-        room_state.take_mic_slot(1, user_a).expect("pre-fill a should succeed");
-        room_state.take_mic_slot(4, user_b).expect("pre-fill b should succeed");
+        room_state
+            .take_mic_slot(1, user_a)
+            .expect("pre-fill a should succeed");
+        room_state
+            .take_mic_slot(4, user_b)
+            .expect("pre-fill b should succeed");
 
         // user_a 下麦
         let (conn_a, _rx_a) = register_connection(&registry, user_a, Some(room_id));
@@ -1853,7 +1974,10 @@ mod tests {
 
         // 验证：user_a 的麦位 1 已清空，user_b 的麦位 4 不受影响
         let snapshot = room_state.mic_slots_snapshot();
-        assert!(snapshot[1].is_none(), "N06: slot 1 should be None after user_a leaves mic");
+        assert!(
+            snapshot[1].is_none(),
+            "N06: slot 1 should be None after user_a leaves mic"
+        );
         assert_eq!(
             snapshot[4],
             Some(user_b),
@@ -1868,7 +1992,9 @@ mod tests {
         let user_id = Uuid::new_v4();
         let room_state = crate::room::state::RoomState::new(room_id);
         // 将用户放到麦位 6
-        room_state.take_mic_slot(6, user_id).expect("pre-fill should succeed");
+        room_state
+            .take_mic_slot(6, user_id)
+            .expect("pre-fill should succeed");
 
         let result = room_state.leave_mic_slot(user_id);
 
@@ -1955,10 +2081,12 @@ mod tests {
             .expect("S01: channel should not be closed");
 
         let json: serde_json::Value = serde_json::from_str(&msg).unwrap();
-        assert_eq!(json["type"], "RoomMessage", "S01: broadcast type should be RoomMessage");
         assert_eq!(
-            json["payload"]["content"],
-            "Hello everyone!",
+            json["type"], "RoomMessage",
+            "S01: broadcast type should be RoomMessage"
+        );
+        assert_eq!(
+            json["payload"]["content"], "Hello everyone!",
             "S01: broadcast content should match sent content"
         );
     }
@@ -1987,7 +2115,10 @@ mod tests {
         .await;
 
         let json: serde_json::Value = serde_json::from_str(&response).unwrap();
-        assert_eq!(json["code"], 40001, "S02: content > 500 chars should return code 40001");
+        assert_eq!(
+            json["code"], 40001,
+            "S02: content > 500 chars should return code 40001"
+        );
         assert_eq!(json["type"], "SendMessageResult");
     }
 
@@ -2016,7 +2147,10 @@ mod tests {
         .await;
 
         let json: serde_json::Value = serde_json::from_str(&response).unwrap();
-        assert_eq!(json["code"], 40303, "S03: muted user should return code 40303");
+        assert_eq!(
+            json["code"], 40303,
+            "S03: muted user should return code 40303"
+        );
         assert_eq!(json["type"], "SendMessageResult");
     }
 
@@ -2041,7 +2175,10 @@ mod tests {
         .await;
 
         let json: serde_json::Value = serde_json::from_str(&response).unwrap();
-        assert_eq!(json["code"], 40400, "S04: user not in room should return code 40400");
+        assert_eq!(
+            json["code"], 40400,
+            "S04: user not in room should return code 40400"
+        );
         assert_eq!(json["type"], "SendMessageResult");
     }
 
@@ -2067,7 +2204,10 @@ mod tests {
         .await;
 
         let json: serde_json::Value = serde_json::from_str(&response).unwrap();
-        assert_eq!(json["code"], 40002, "S05: empty content should return code 40002");
+        assert_eq!(
+            json["code"], 40002,
+            "S05: empty content should return code 40002"
+        );
         assert_eq!(json["type"], "SendMessageResult");
     }
 
@@ -2118,7 +2258,10 @@ mod tests {
         let json1: serde_json::Value = serde_json::from_str(&response1).unwrap();
         let json2: serde_json::Value = serde_json::from_str(&response2).unwrap();
         assert_eq!(json1["code"], 0, "S06: first send should return code=0");
-        assert_eq!(json2["code"], 0, "S06: duplicate send should also return code=0");
+        assert_eq!(
+            json2["code"], 0,
+            "S06: duplicate send should also return code=0"
+        );
 
         // rx_receiver 只收到 1 条 RoomMessage（第一次广播）
         let first_msg = tokio::time::timeout(Duration::from_millis(200), rx_receiver.recv())
@@ -2127,11 +2270,13 @@ mod tests {
             .expect("S06: channel should not be closed");
 
         let json_bc: serde_json::Value = serde_json::from_str(&first_msg).unwrap();
-        assert_eq!(json_bc["type"], "RoomMessage", "S06: first broadcast should be RoomMessage");
+        assert_eq!(
+            json_bc["type"], "RoomMessage",
+            "S06: first broadcast should be RoomMessage"
+        );
 
         // 第二条不应到达（超时）
-        let no_second =
-            tokio::time::timeout(Duration::from_millis(100), rx_receiver.recv()).await;
+        let no_second = tokio::time::timeout(Duration::from_millis(100), rx_receiver.recv()).await;
         assert!(
             no_second.is_err(),
             "S06: duplicate msg_id should NOT trigger a second broadcast"
@@ -2173,7 +2318,9 @@ mod tests {
 
         let json: serde_json::Value = serde_json::from_str(&msg).unwrap();
         assert_eq!(json["type"], "RoomMessage");
-        let content = json["payload"]["content"].as_str().expect("content should be string");
+        let content = json["payload"]["content"]
+            .as_str()
+            .expect("content should be string");
         assert!(
             !content.contains("badword"),
             "S07: sensitive word 'badword' should be replaced; got: {content}"
@@ -2207,8 +2354,14 @@ mod tests {
 
         let json: serde_json::Value = serde_json::from_str(&response).unwrap();
         assert_eq!(json["code"], 0, "S08: success response should have code=0");
-        assert_eq!(json["type"], "SendMessageResult", "S08: type should be SendMessageResult");
-        assert_eq!(json["msg_id"], "msg-s08", "S08: msg_id should be echoed back");
+        assert_eq!(
+            json["type"], "SendMessageResult",
+            "S08: type should be SendMessageResult"
+        );
+        assert_eq!(
+            json["msg_id"], "msg-s08",
+            "S08: msg_id should be echoed back"
+        );
     }
 
     // S09: content 恰好 500 字符（边界值），成功发送
@@ -2235,7 +2388,10 @@ mod tests {
         .await;
 
         let json: serde_json::Value = serde_json::from_str(&response).unwrap();
-        assert_eq!(json["code"], 0, "S09: exactly 500 chars should succeed with code=0");
+        assert_eq!(
+            json["code"], 0,
+            "S09: exactly 500 chars should succeed with code=0"
+        );
         assert_eq!(json["type"], "SendMessageResult");
     }
 
@@ -2253,7 +2409,13 @@ mod tests {
         let stats: Arc<dyn StatsPort> = Arc::new(FakeStatsService::default());
 
         let (conn_id, _rx) = register_connection(&registry, user_id, None);
-        let deps = build_deps(&room_manager, &room_service, &auth_service, &registry, &stats);
+        let deps = build_deps(
+            &room_manager,
+            &room_service,
+            &auth_service,
+            &registry,
+            &stats,
+        );
 
         let response = handle_join_room(
             join_payload(room_id),
@@ -2322,7 +2484,8 @@ mod tests {
         let secret = b"test-secret";
         let token = voice_room_shared::auth::room_access::encode_room_access_token(
             user_id, room_id, secret,
-        ).expect("encode token");
+        )
+        .expect("encode token");
 
         let (conn_id, _rx) = register_connection(&registry, user_id, None);
         let deps = JoinRoomDeps {
@@ -2345,7 +2508,11 @@ mod tests {
         .await;
 
         let json: serde_json::Value = serde_json::from_str(&response).unwrap();
-        assert_eq!(json["code"], 0, "PR26-02: 有效 token 应成功进入，got code={}", json["code"]);
+        assert_eq!(
+            json["code"], 0,
+            "PR26-02: 有效 token 应成功进入，got code={}",
+            json["code"]
+        );
         assert_eq!(json["type"], "JoinRoomResult");
     }
 
@@ -2361,7 +2528,13 @@ mod tests {
         let stats: Arc<dyn StatsPort> = Arc::new(FakeStatsService::default());
 
         let (conn_id, _rx) = register_connection(&registry, user_id, None);
-        let deps = build_deps(&room_manager, &room_service, &auth_service, &registry, &stats);
+        let deps = build_deps(
+            &room_manager,
+            &room_service,
+            &auth_service,
+            &registry,
+            &stats,
+        );
 
         // 不带 access_token
         let response = handle_join_room(
@@ -2376,7 +2549,8 @@ mod tests {
         let json: serde_json::Value = serde_json::from_str(&response).unwrap();
         assert_eq!(
             json["code"], 40104,
-            "PR26-03: 无 token 进入密码房应返回 40104, got {}", json["code"]
+            "PR26-03: 无 token 进入密码房应返回 40104, got {}",
+            json["code"]
         );
     }
 
@@ -2403,12 +2577,22 @@ mod tests {
             exp: now_secs - 10, // 已过期
             iss: "voiceroom-room-access".to_string(),
         };
-        use jsonwebtoken::{encode, Header, EncodingKey};
-        let expired_token = encode(&Header::default(), &claims, &EncodingKey::from_secret(b"test-secret"))
-            .expect("encode expired token");
+        use jsonwebtoken::{encode, EncodingKey, Header};
+        let expired_token = encode(
+            &Header::default(),
+            &claims,
+            &EncodingKey::from_secret(b"test-secret"),
+        )
+        .expect("encode expired token");
 
         let (conn_id, _rx) = register_connection(&registry, user_id, None);
-        let deps = build_deps(&room_manager, &room_service, &auth_service, &registry, &stats);
+        let deps = build_deps(
+            &room_manager,
+            &room_service,
+            &auth_service,
+            &registry,
+            &stats,
+        );
 
         let response = handle_join_room(
             join_payload_with_token(room_id, &expired_token),
@@ -2422,7 +2606,8 @@ mod tests {
         let json: serde_json::Value = serde_json::from_str(&response).unwrap();
         assert_eq!(
             json["code"], 40105,
-            "PR26-04: 过期 token 应返回 40105 TOKEN_EXPIRED, got {}", json["code"]
+            "PR26-04: 过期 token 应返回 40105 TOKEN_EXPIRED, got {}",
+            json["code"]
         );
     }
 
@@ -2443,10 +2628,17 @@ mod tests {
             user_id,
             room_b_id, // B 房间的 token
             b"test-secret",
-        ).expect("encode token for room B");
+        )
+        .expect("encode token for room B");
 
         let (conn_id, _rx) = register_connection(&registry, user_id, None);
-        let deps = build_deps(&room_manager, &room_service, &auth_service, &registry, &stats);
+        let deps = build_deps(
+            &room_manager,
+            &room_service,
+            &auth_service,
+            &registry,
+            &stats,
+        );
 
         // 尝试用 B 房间的 token 进入 A 房间
         let response = handle_join_room(
@@ -2461,7 +2653,8 @@ mod tests {
         let json: serde_json::Value = serde_json::from_str(&response).unwrap();
         assert_eq!(
             json["code"], 40106,
-            "PR26-12: B 房间 token 不能进入 A 房间，应返回 40106 INVALID_TOKEN, got {}", json["code"]
+            "PR26-12: B 房间 token 不能进入 A 房间，应返回 40106 INVALID_TOKEN, got {}",
+            json["code"]
         );
     }
 }
