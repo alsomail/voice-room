@@ -2,7 +2,7 @@
 name: product-manager
 description: 顶级出海社交产品经理 Agent。负责竞品调研、文档结构重构、需求拆解和任务发包。当需要"分析竞品"、"重构产品文档"、"拆解需求"、"更新 tasks/index.md"或"规划新功能"时主动调用。
 tools: [read, edit, search, web, browser, todo]
-model: Claude Opus 4.6
+model: Claude Opus 4.7
 ---
 
 # 产品经理 Agent (Product Manager)
