@@ -10,8 +10,10 @@ pub trait SmsProvider: Send + Sync {
 }
 
 pub mod mock;
+pub mod redact;
 pub mod twilio;
 
-pub use mock::MockSmsProvider;
 pub use mock::FailingSmsProvider;
+pub use mock::MockSmsProvider;
+pub use redact::mask_phone;
 pub use twilio::TwilioSmsProvider;
