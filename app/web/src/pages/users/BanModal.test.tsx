@@ -208,10 +208,70 @@ describe('BanModal — M07: 确认后 ban 以正确参数调用', () => {
     await waitFor(() => {
       expect(mockBan).toHaveBeenCalledWith(USER_ID, {
         action: 'ban',
-        duration: 1440,
+        ban_type: 'temporary',
+        duration_hours: 24,
         reason: '违规内容',
-        remark: '',
       });
+    });
+  });
+});
+
+// ── M07b (P0-2): 永久封禁 → ban_type='permanent', 不带 duration_hours ────
+describe("BanModal — M07b (P0-2): 永久封禁参数", () => {
+  it("选择永久封禁时 ban_type='permanent'，duration_hours 字段省略", async () => {
+    confirmSpy.mockImplementation(({ onOk }: Parameters<typeof Modal.confirm>[0]) => {
+      void (onOk as (() => Promise<void>) | undefined)?.();
+      return { destroy: vi.fn(), update: vi.fn() };
+    });
+    const user = userEvent.setup();
+    render(<BanModal {...makeProps()} />);
+    await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
+
+    await selectOption(user, 'ban-duration-select', 'users.ban.durationForever');
+    await selectOption(user, 'ban-reason-select', 'users.ban.reasonViolation');
+    await user.click(screen.getByText('users.ban.submitBtn'));
+
+    await waitFor(() => {
+      expect(mockBan).toHaveBeenCalledWith(USER_ID, {
+        action: 'ban',
+        ban_type: 'permanent',
+        reason: '违规内容',
+      });
+    });
+    // 不能含有 duration_hours 字段
+    const callArg = mockBan.mock.calls[0][1] as Record<string, unknown>;
+    expect('duration_hours' in callArg).toBe(false);
+  });
+});
+
+// ── M07c (P0-2): remark 非空时合并入 reason，避免后端忽略 ────────────────
+describe('BanModal — M07c (P0-2): remark 合并入 reason', () => {
+  it('remark 非空时 reason 自动合并为 "原因: 备注"', async () => {
+    confirmSpy.mockImplementation(({ onOk }: Parameters<typeof Modal.confirm>[0]) => {
+      void (onOk as (() => Promise<void>) | undefined)?.();
+      return { destroy: vi.fn(), update: vi.fn() };
+    });
+    const user = userEvent.setup();
+    render(<BanModal {...makeProps()} />);
+    await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
+
+    await selectOption(user, 'ban-duration-select', 'users.ban.duration24h');
+    await selectOption(user, 'ban-reason-select', 'users.ban.reasonViolation');
+    fireEvent.change(screen.getByTestId('ban-remark-textarea'), {
+      target: { value: '具体细节' },
+    });
+    await user.click(screen.getByText('users.ban.submitBtn'));
+
+    await waitFor(() => {
+      expect(mockBan).toHaveBeenCalledWith(
+        USER_ID,
+        expect.objectContaining({
+          action: 'ban',
+          ban_type: 'temporary',
+          duration_hours: 24,
+          reason: '违规内容: 具体细节',
+        }),
+      );
     });
   });
 });

@@ -34,7 +34,7 @@ describe('useBanUser — B01: 成功', () => {
     await act(async () => {
       await result.current.ban('user-1', {
         action: 'ban',
-        duration: 1440,
+        ban_type: 'temporary', duration_hours: 24,
         reason: '违规内容',
       });
     });
@@ -43,7 +43,7 @@ describe('useBanUser — B01: 成功', () => {
     expect(result.current.error).toBeNull();
     expect(mockAdminBanUser).toHaveBeenCalledWith('user-1', {
       action: 'ban',
-      duration: 1440,
+      ban_type: 'temporary', duration_hours: 24,
       reason: '违规内容',
     });
   });
@@ -57,7 +57,7 @@ describe('useBanUser — B02: API 错误', () => {
 
     await act(async () => {
       await result.current
-        .ban('user-1', { action: 'ban', duration: 1440, reason: '违规内容' })
+        .ban('user-1', { action: 'ban', ban_type: 'temporary', duration_hours: 24, reason: '违规内容' })
         .catch(() => {});
     });
 
@@ -76,7 +76,7 @@ describe('useBanUser — B03: 409 错误捕获', () => {
 
     await act(async () => {
       await result.current
-        .ban('user-1', { action: 'ban', duration: null })
+        .ban('user-1', { action: 'ban', ban_type: 'permanent' })
         .catch(() => {});
     });
 
@@ -98,7 +98,7 @@ describe('useBanUser — B04: loading=true 期间', () => {
     act(() => {
       void result.current.ban('user-1', {
         action: 'ban',
-        duration: 1440,
+        ban_type: 'temporary', duration_hours: 24,
         reason: '违规内容',
       });
     });

@@ -35,13 +35,13 @@ export function BanModal({ userId, onClose, onSuccess }: BanModalProps) {
   // 防并发：Modal.confirm 弹出期间（用户尚未点 OK/Cancel）禁用提交按钮
   const [isConfirming, setIsConfirming] = useState(false);
 
-  // ── 封禁时长选项 ──────────────────────────────────────────────────────────
+  // ── 封禁时长选项（值为小时数，与后端 duration_hours 对齐；'permanent' 表示永久）──
   const durationOptions = [
-    { label: t('users.ban.duration24h'), value: 1440 },
-    { label: t('users.ban.duration72h'), value: 4320 },
-    { label: t('users.ban.duration7d'), value: 10080 },
-    { label: t('users.ban.duration30d'), value: 43200 },
-    { label: t('users.ban.durationForever'), value: null },
+    { label: t('users.ban.duration24h'), value: 24 },
+    { label: t('users.ban.duration72h'), value: 72 },
+    { label: t('users.ban.duration7d'), value: 168 },
+    { label: t('users.ban.duration30d'), value: 720 },
+    { label: t('users.ban.durationForever'), value: 'permanent' as const },
   ];
 
   // ── 封禁原因选项 ──────────────────────────────────────────────────────────
@@ -55,7 +55,7 @@ export function BanModal({ userId, onClose, onSuccess }: BanModalProps) {
   // ── 提交：先校验，再二次确认，再调用 ban ──────────────────────────────────
   const handleSubmit = async () => {
     if (loading || isConfirming) return;
-    let values: { duration: number | null; reason: string; remark?: string };
+    let values: { duration: number | 'permanent'; reason: string; remark?: string };
     try {
       values = await form.validateFields();
     } catch {
@@ -73,12 +73,19 @@ export function BanModal({ userId, onClose, onSuccess }: BanModalProps) {
       onOk: async () => {
         try {
           setBanError(null);
-          await ban(userId!, {
+          const isPermanent = values.duration === 'permanent';
+          const remark = (values.remark ?? '').trim();
+          // P0-2: 将原备注合并入 reason，避免后端忽略前端字段
+          const reason = remark ? `${values.reason}: ${remark}` : values.reason;
+          const req: import('../../core/network/apiClient').AdminBanUserRequest = {
             action: 'ban',
-            duration: values.duration,
-            reason: values.reason,
-            remark: values.remark ?? '',
-          });
+            ban_type: isPermanent ? 'permanent' : 'temporary',
+            reason,
+          };
+          if (!isPermanent) {
+            req.duration_hours = values.duration as number;
+          }
+          await ban(userId!, req);
           onSuccess(userId!);
         } catch (err) {
           const errMsg =

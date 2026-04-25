@@ -22,6 +22,11 @@ pub enum AdminEvent {
         admin_id: Uuid,
         ts: i64,
     },
+    UnbanUser {
+        payload: UnbanUserPayload,
+        admin_id: Uuid,
+        ts: i64,
+    },
     CloseRoom {
         payload: CloseRoomPayload,
         admin_id: Uuid,
@@ -38,6 +43,11 @@ pub enum AdminEvent {
 
 #[derive(Debug, Deserialize)]
 pub struct BanUserPayload {
+    pub user_id: Uuid,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UnbanUserPayload {
     pub user_id: Uuid,
 }
 
@@ -166,5 +176,35 @@ mod tests {
             result.is_err(),
             "unknown event type should return Err, not panic"
         );
+    }
+
+    // S05 (P1-8): unban_user JSON 正确反序列化为 UnbanUser 變體
+    #[test]
+    fn s05_deserialize_unban_user_event() {
+        let json = r#"{
+            "type": "unban_user",
+            "payload": {"user_id": "00000000-0000-0000-0000-000000000003"},
+            "admin_id": "00000000-0000-0000-0000-000000000099",
+            "ts": 1700000003
+        }"#;
+
+        let event: AdminEvent =
+            serde_json::from_str(json).expect("unban_user JSON should deserialize successfully");
+
+        match event {
+            AdminEvent::UnbanUser {
+                payload,
+                admin_id,
+                ts,
+            } => {
+                assert_eq!(
+                    payload.user_id.to_string(),
+                    "00000000-0000-0000-0000-000000000003"
+                );
+                assert_eq!(admin_id.to_string(), "00000000-0000-0000-0000-000000000099");
+                assert_eq!(ts, 1700000003);
+            }
+            other => panic!("expected UnbanUser, got {:?}", other),
+        }
     }
 }

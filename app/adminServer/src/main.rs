@@ -83,7 +83,13 @@ async fn main() -> anyhow::Result<()> {
         Arc::new(PgGovernanceRepo::new(pool)),
     );
 
-    let app = build_app(state);
+    let app = build_app(state.clone());
+
+    // P0-3: 若设置了 REDIS_URL，则注入 AdminStatsService 以读取实时 online_users / active_rooms
+    if let Ok(url) = std::env::var("REDIS_URL") {
+        state.stats_service.try_init_redis(&url).await;
+    }
+
     let bind_addr = format!("0.0.0.0:{port}");
     let listener = TcpListener::bind(&bind_addr).await?;
 

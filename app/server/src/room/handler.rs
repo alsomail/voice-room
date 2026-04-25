@@ -256,7 +256,9 @@ pub async fn do_leave_room(connection_id: Uuid, user_id: Uuid, deps: &LeaveRoomD
     deps.registry.clear_room_id(connection_id);
 
     // 6. 统计：活跃房间（失败不阻断主流程）
-    deps.stats.user_leave_room(room_id).await.ok();
+    //    P1-4: 僅當房間人數變為 0 時才從 active_rooms 集合移除
+    let remaining = room_state.member_count();
+    deps.stats.user_leave_room(room_id, remaining).await.ok();
 
     // 7. 广播 UserLeft 给房间剩余成员（离开者已被步骤 5 排除）
     let user_left = serde_json::json!({

@@ -127,6 +127,14 @@ pub async fn ban_user_handler(
     };
     let ip = extract_ip(&headers);
 
+    // P1-7: 提前捕获 ban 详情字段供审计 detail 使用
+    let audit_detail = serde_json::json!({
+        "action": req.action,
+        "ban_type": req.ban_type,
+        "duration_hours": req.duration_hours,
+        "reason": req.reason,
+    });
+
     let result = state
         .user_service
         .ban_user(ctx.admin_id, user_id, req)
@@ -142,7 +150,7 @@ pub async fn ban_user_handler(
                 Some("user"),
                 Some(user_id),
                 ip,
-                None,
+                Some(audit_detail),
             )
             .await;
     }

@@ -347,12 +347,15 @@ export async function adminGetUserDetail(
 // Admin Ban User（T-20008，对应 T-10009 后端接口）
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** POST /admin/users/:id/ban 请求体 */
+/** POST /admin/users/:id/ban 请求体（与 admin server `AdminBanUserRequest` DTO 对齐） */
 export interface AdminBanUserRequest {
   action: 'ban' | 'unban';
-  duration?: number | null; // 分钟，null=永久
+  /** 'temporary' | 'permanent'；action='ban' 时必填 */
+  ban_type?: 'temporary' | 'permanent';
+  /** 小时数；ban_type='temporary' 时必填且 > 0；ban_type='permanent' 时必须省略 */
+  duration_hours?: number;
+  /** 封禁/解封原因（可包含原备注） */
   reason?: string;
-  remark?: string;
 }
 
 /**

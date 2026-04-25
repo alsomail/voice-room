@@ -259,9 +259,10 @@ class GovernanceUiTest {
                 "G44-05: A LeaveMic WS message should be sent after permission denied",
                 leaveMicMessages.isNotEmpty(),
             )
+            // P0-1: server-side LeaveMic uses connection context, payload is empty
             assertTrue(
-                "G44-05: LeaveMic message should contain slotIndex 1",
-                leaveMicMessages.any { "\"slotIndex\":1" in it },
+                "G44-05: LeaveMic envelope should have empty payload {} (server reads conn ctx)",
+                leaveMicMessages.any { "\"type\":\"LeaveMic\"" in it && "\"payload\":{}" in it },
             )
 
             // Assert 3: startPublishAudio 未被调用

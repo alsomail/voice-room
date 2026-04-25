@@ -30,8 +30,16 @@ pub trait StatsPort: Send + Sync {
     /// 用戶進入房間：`SADD stats:active_rooms {room_id}`
     async fn user_join_room(&self, room_id: uuid::Uuid) -> Result<(), AppError>;
 
-    /// 用戶離開房間：`SREM stats:active_rooms {room_id}`
-    async fn user_leave_room(&self, room_id: uuid::Uuid) -> Result<(), AppError>;
+    /// 用戶離開房間：僅當房間人數變為 0 時才 `SREM stats:active_rooms {room_id}`
+    ///
+    /// `remaining_members`：用戶離開後房間剩餘人數。
+    /// - `0`：執行 SREM，房間從活躍集合中移除
+    /// - `>0`：no-op（其他用戶仍在房間，房間繼續活躍）
+    async fn user_leave_room(
+        &self,
+        room_id: uuid::Uuid,
+        remaining_members: usize,
+    ) -> Result<(), AppError>;
 
     /// 取得在線用戶估計數：`PFCOUNT stats:online_users`
     async fn get_online_count(&self) -> Result<u64, AppError>;
@@ -93,13 +101,25 @@ impl StatsPort for StatsService {
         Ok(())
     }
 
-    async fn user_leave_room(&self, room_id: uuid::Uuid) -> Result<(), AppError> {
+    async fn user_leave_room(
+        &self,
+        room_id: uuid::Uuid,
+        remaining_members: usize,
+    ) -> Result<(), AppError> {
+        if remaining_members > 0 {
+            tracing::debug!(
+                %room_id,
+                remaining_members,
+                "stats: user_leave_room no-op (room still has members)"
+            );
+            return Ok(());
+        }
         let mut conn = self.conn.clone();
         let _: i64 = conn
             .srem(ACTIVE_ROOMS_KEY, room_id.to_string())
             .await
             .map_err(|e| AppError::RedisError(e.to_string()))?;
-        tracing::debug!(%room_id, "stats: room deactivated");
+        tracing::debug!(%room_id, "stats: room deactivated (last user left)");
         Ok(())
     }
 
@@ -193,8 +213,14 @@ impl StatsPort for FakeStatsService {
         Ok(())
     }
 
-    async fn user_leave_room(&self, room_id: uuid::Uuid) -> Result<(), AppError> {
-        self.active_rooms.lock().unwrap().remove(&room_id);
+    async fn user_leave_room(
+        &self,
+        room_id: uuid::Uuid,
+        remaining_members: usize,
+    ) -> Result<(), AppError> {
+        if remaining_members == 0 {
+            self.active_rooms.lock().unwrap().remove(&room_id);
+        }
         Ok(())
     }
 
@@ -296,19 +322,36 @@ mod tests {
         );
     }
 
-    // ST05: user_leave_room 後 get_active_room_count 返回 0
+    // ST05: user_leave_room（remaining=0）後 get_active_room_count 返回 0
     #[tokio::test]
     async fn st05_user_leave_room_decrements_room_count() {
         let svc = fake();
         let rid = Uuid::new_v4();
 
         svc.user_join_room(rid).await.unwrap();
-        svc.user_leave_room(rid).await.unwrap();
+        svc.user_leave_room(rid, 0).await.unwrap();
 
         let count = svc.get_active_room_count().await.unwrap();
         assert_eq!(
             count, 0,
-            "active room count should be 0 after leaving the room"
+            "active room count should be 0 after last user leaves the room"
+        );
+    }
+
+    // ST05B (P1-4): user_leave_room 在房間仍有成員時 NOT 移除房間
+    #[tokio::test]
+    async fn st05b_user_leave_room_keeps_room_when_members_remain() {
+        let svc = fake();
+        let rid = Uuid::new_v4();
+
+        svc.user_join_room(rid).await.unwrap();
+        // 模擬：3 人房間，1 人離開後仍剩 2 人
+        svc.user_leave_room(rid, 2).await.unwrap();
+
+        let count = svc.get_active_room_count().await.unwrap();
+        assert_eq!(
+            count, 1,
+            "room must remain active while other members are still inside"
         );
     }
 

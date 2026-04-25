@@ -46,6 +46,13 @@ pub async fn handle_admin_event(event: AdminEvent, registry: Arc<ConnectionRegis
                 registry.unregister(conn_id);
             }
         }
+        AdminEvent::UnbanUser { payload, .. } => {
+            // P1-8: 解封事件不需要踢人/通知，僅作日誌記錄供审计追踪
+            tracing::info!(
+                user_id = %payload.user_id,
+                "admin event: unban_user (no-op, user can re-login)"
+            );
+        }
         AdminEvent::CloseRoom { payload, .. } => {
             let conns = registry.get_connections_in_room(payload.room_id);
             for (_, sender) in &conns {
@@ -72,7 +79,7 @@ mod tests {
     use uuid::Uuid;
 
     use crate::events::admin_event::{
-        AdminEvent, BanUserPayload, BroadcastNoticePayload, CloseRoomPayload,
+        AdminEvent, BanUserPayload, BroadcastNoticePayload, CloseRoomPayload, UnbanUserPayload,
     };
     use crate::ws::registry::{ConnectionHandle, ConnectionRegistry};
 
@@ -344,6 +351,38 @@ mod tests {
             registry.count(),
             0,
             "connection should still be unregistered even when channel was already closed"
+        );
+    }
+
+    // ─── E08 (P1-8): unban_user 事件 → 不踢人、不发消息、registry 不变 ──────────
+
+    #[tokio::test]
+    async fn e08_unban_user_does_not_disconnect_or_notify() {
+        let registry = Arc::new(ConnectionRegistry::new());
+        let user_id = Uuid::new_v4();
+
+        let (handle, mut rx) = make_handle(user_id, None);
+        registry.register(handle);
+
+        let event = AdminEvent::UnbanUser {
+            payload: UnbanUserPayload { user_id },
+            admin_id: Uuid::new_v4(),
+            ts: 1700000099,
+        };
+        super::handle_admin_event(event, registry.clone()).await;
+
+        // 用户连接仍然存在
+        assert_eq!(
+            registry.count(),
+            1,
+            "unban_user must NOT disconnect the user"
+        );
+
+        // 不应有任何下行消息
+        let no_msg = tokio::time::timeout(Duration::from_millis(20), rx.recv()).await;
+        assert!(
+            no_msg.is_err(),
+            "unban_user must NOT push any message to the user"
         );
     }
 }

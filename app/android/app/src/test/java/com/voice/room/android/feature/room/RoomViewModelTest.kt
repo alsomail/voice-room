@@ -320,8 +320,7 @@ class RoomViewModelTest {
             assertEquals("Should send exactly 1 message", 1, fakeWsClient.sentMessages.size)
             val sent = fakeWsClient.sentMessages[0]
             assertTrue("""Should contain "type":"TakeMic"""", sent.contains(""""type":"TakeMic""""))
-            assertTrue("""Should contain "roomId":"room-1"""", sent.contains(""""roomId":"room-1""""))
-            assertTrue("""Should contain slotIndex 1""", sent.contains(""""slotIndex":1"""))
+            assertTrue("""Payload should carry mic_index=1""", sent.contains(""""mic_index":1"""))
         }
 
     // ─── TM-02: 收到 MicTaken（自己）→ joinChannel 被调用 ─────────────────────
@@ -423,8 +422,8 @@ class RoomViewModelTest {
             assertEquals("Should send exactly 1 message", 1, fakeWsClient.sentMessages.size)
             val sent = fakeWsClient.sentMessages[0]
             assertTrue("""Should contain "type":"LeaveMic"""", sent.contains(""""type":"LeaveMic""""))
-            assertTrue("""Should contain "roomId":"room-1"""", sent.contains(""""roomId":"room-1""""))
-            assertTrue("""Should contain slotIndex 0""", sent.contains(""""slotIndex":0"""))
+            // P0-1: LeaveMic 由 server 通过连接上下文推断 room/mic，无需在 payload 中携带
+            assertTrue("""Envelope must carry empty payload object""", sent.contains(""""payload":{}"""))
         }
 
     // ─── TM-05: 收到 MicLeft（自己）→ stopPublishAudio 被调用 ─────────────────
@@ -564,9 +563,8 @@ class RoomViewModelTest {
             assertEquals("Should send exactly 1 WS message", 1, fakeWsClient.sentMessages.size)
             val sent = fakeWsClient.sentMessages[0]
             assertTrue("""JSON must contain "type":"SendMessage"""", sent.contains(""""type":"SendMessage""""))
-            assertTrue("""JSON must contain "roomId":"room-1"""", sent.contains(""""roomId":"room-1""""))
             assertTrue("""JSON must contain "content":"hello"""", sent.contains(""""content":"hello""""))
-            assertTrue("JSON must contain a non-empty msgId", sent.contains(""""msgId":"""))
+            assertTrue("Envelope must contain a non-empty msg_id", sent.contains(""""msg_id":"""))
         }
 
     // ─── SM-03: 发送成功 → ClearInput 事件发出 ───────────────────────────────
@@ -791,9 +789,8 @@ class RoomViewModelTest {
             assertEquals("Should have sent 1 message", 1, fakeWsClient.sentMessages.size)
             val sent = fakeWsClient.sentMessages[0]
             assertTrue("""JSON should contain "type":"SendMessage"""", sent.contains(""""type":"SendMessage""""))
-            assertTrue("""JSON should contain "roomId":"room-1"""", sent.contains(""""roomId":"room-1""""))
             assertTrue("""JSON should contain "content":"Hello World"""", sent.contains(""""content":"Hello World""""))
-            assertTrue("JSON should contain a msgId field", sent.contains(""""msgId":"""))
+            assertTrue("Envelope should contain a msg_id field", sent.contains(""""msg_id":"""))
         }
 
     // ─── MT-01: 不在麦上时 toggleMicMute() 无效 ──────────────────────────────
@@ -1127,9 +1124,10 @@ class RoomViewModelTest {
                 sentMessages.any { it.contains("\"type\":\"MuteUser\"") }
             )
             val muteMsg = sentMessages.first { it.contains("\"type\":\"MuteUser\"") }
-            assertTrue("MuteUser payload should contain targetUserId", muteMsg.contains("mute-user"))
+            assertTrue("MuteUser payload should contain target_user_id", muteMsg.contains("\"target_user_id\":\"mute-user\""))
             assertTrue("MuteUser payload should contain duration_sec=1800", muteMsg.contains("\"duration_sec\":1800"))
-            assertTrue("MuteUser payload should contain muteType=mic", muteMsg.contains("\"muteType\":\"mic\""))
+            // P0-1: server expects payload.type (not muteType)
+            assertTrue("MuteUser payload should contain type=mic", muteMsg.contains("\"type\":\"mic\""))
         }
 
     // ─── UA40-09b: revokeAdmin → ShowConfirmRevokeAdmin 事件（R1 修复）─────────
@@ -1152,10 +1150,10 @@ class RoomViewModelTest {
                 "revokeAdmin should emit ShowConfirmRevokeAdmin event",
                 events.any { it is RoomEvent.ShowConfirmRevokeAdmin && it.targetUserId == "admin-user" }
             )
-            // 未经确认不应直接发 WS
-            assertFalse(
-                "revokeAdmin should NOT send WS before confirmation",
-                fakeWsClient.sentMessages.any { it.contains("\"type\":\"RevokeAdmin\"") }
+            // P0-1: AssignAdmin/RevokeAdmin 客户端类型已被合并为 server 端 TransferAdmin（action=assign/revoke）
+            assertTrue(
+                "revokeAdmin should NOT send WS before confirmation (no TransferAdmin envelope yet)",
+                fakeWsClient.sentMessages.none { it.contains("\"type\":\"TransferAdmin\"") }
             )
             job.cancel()
         }
@@ -1174,10 +1172,13 @@ class RoomViewModelTest {
             advanceUntilIdle()
 
             val sentMessages = fakeWsClient.sentMessages
+            // P0-1: 客户端 RevokeAdmin → server 接受 TransferAdmin（action=revoke）
             assertTrue(
-                "confirmRevokeAdmin should send RevokeAdmin WS message",
+                "confirmRevokeAdmin should send TransferAdmin WS message with action=revoke",
                 sentMessages.any {
-                    it.contains("\"type\":\"RevokeAdmin\"") && it.contains("admin-user")
+                    it.contains("\"type\":\"TransferAdmin\"") &&
+                        it.contains("admin-user") &&
+                        it.contains("\"action\":\"revoke\"")
                 }
             )
         }
@@ -1200,8 +1201,8 @@ class RoomViewModelTest {
                 "Should send ForceTakeMic WS message",
                 sentMessages.any {
                     it.contains("\"type\":\"ForceTakeMic\"") &&
-                        it.contains("target-user") &&
-                        it.contains("\"slotIndex\":3")
+                        it.contains("\"target_user_id\":\"target-user\"") &&
+                        it.contains("\"slot_index\":3")
                 }
             )
         }
@@ -1306,8 +1307,8 @@ class RoomViewModelTest {
                 kickMsg!!.contains(""""reason":"harassment"""")
             )
             assertTrue(
-                "targetUserId should be correct",
-                kickMsg.contains(""""targetUserId":"target-user-1"""")
+                "target_user_id should be correct (snake_case)",
+                kickMsg.contains(""""target_user_id":"target-user-1"""")
             )
         }
 
@@ -1380,9 +1381,9 @@ class RoomViewModelTest {
                 jsonElement != null && jsonElement.isJsonObject
             )
             assertEquals(
-                "reason field must preserve the original text",
+                "reason field must preserve the original text (under payload)",
                 """she said "hello" to me""",
-                jsonElement!!.asJsonObject.get("reason").asString
+                jsonElement!!.asJsonObject.getAsJsonObject("payload").get("reason").asString
             )
         }
 
@@ -1413,9 +1414,9 @@ class RoomViewModelTest {
                 jsonElement != null && jsonElement.isJsonObject
             )
             assertEquals(
-                "reason field must preserve the original text",
+                "reason field must preserve the original text (under payload)",
                 """path\to\file""",
-                jsonElement!!.asJsonObject.get("reason").asString
+                jsonElement!!.asJsonObject.getAsJsonObject("payload").get("reason").asString
             )
         }
 
@@ -1446,9 +1447,9 @@ class RoomViewModelTest {
                 jsonElement != null && jsonElement.isJsonObject
             )
             assertEquals(
-                "reason field must preserve the original text",
+                "reason field must preserve the original text (under payload)",
                 nastyReason,
-                jsonElement!!.asJsonObject.get("reason").asString
+                jsonElement!!.asJsonObject.getAsJsonObject("payload").get("reason").asString
             )
         }
 }

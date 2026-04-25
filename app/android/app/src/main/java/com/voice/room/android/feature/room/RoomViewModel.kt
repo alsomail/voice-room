@@ -10,6 +10,7 @@ import com.voice.room.android.core.media.NoOpMediaService
 import com.voice.room.android.core.ws.IWebSocketClient
 import com.voice.room.android.core.ws.WebSocketState
 import com.voice.room.android.core.ws.event.GiftReceivedEvent
+import com.voice.room.android.core.ws.sendEnvelope
 import com.voice.room.android.data.local.InMemoryKickCooldownStore
 import com.voice.room.android.data.local.KickCooldownStore
 import com.voice.room.android.data.local.AnnouncementSeenStore
@@ -166,6 +167,19 @@ class RoomViewModel(
     //                MVP 可接受；后续应改为 LRU 固定上限（如 maxSize=1000）或定期清理。
     private val seenMsgIds = mutableSetOf<String>()
 
+    /**
+     * P1-6: 最近一条收到的服务端 msg_id（用于断线重连后请求重放）。
+     *
+     * - 任何带有 `msgId` 字段的 inbound 消息会更新此值
+     * - JoinRoom 时若非空则附带 `last_msg_id`，服务端按环形缓冲区返回该 id 之后的所有广播
+     * - 测试可见以便注入/校验
+     */
+    @Volatile
+    private var lastReceivedMsgId: String? = null
+
+    @VisibleForTesting
+    internal fun lastReceivedMsgIdForTest(): String? = lastReceivedMsgId
+
     // ─── 初始化：订阅 WS 消息 ──────────────────────────────────────────────────
 
     init {
@@ -192,11 +206,15 @@ class RoomViewModel(
                 // T-30043: 进房后处理公告弹窗逻辑
                 handleAnnouncementOnEnter(snapshot.announcement, roomId)
                 val msgId = UUID.randomUUID().toString()
-                val accessTokenPart =
-                    if (accessToken != null) ""","access_token":"$accessToken"""" else ""
-                wsClient.send(
-                    """{"type":"JoinRoom","roomId":"$roomId","msgId":"$msgId"$accessTokenPart}"""
+                val joinPayload = mutableMapOf<String, Any?>(
+                    "room_id" to roomId,
                 )
+                if (accessToken != null) {
+                    joinPayload["access_token"] = accessToken
+                }
+                // P1-6: 重连握手时携带 last_msg_id 触发服务端重放
+                lastReceivedMsgId?.let { joinPayload["last_msg_id"] = it }
+                wsClient.sendEnvelope(type = "JoinRoom", payload = joinPayload, msgId = msgId)
             } catch (e: CancellationException) {
                 throw e  // 必须 rethrow，保持协程取消语义
             } catch (e: Exception) {
@@ -216,7 +234,7 @@ class RoomViewModel(
      * @param slotIndex 麦位下标（0-based）
      */
     fun onMicPermissionGranted(slotIndex: Int) {
-        val roomId = currentRoomId ?: return
+        if (currentRoomId == null) return
         // T-30044: 禁麦守卫 — 禁麦中不允许发起上麦请求
         if (_selfGovernanceState.value.isMicMuted(clock.currentTimeMillis())) {
             _events.trySend(RoomEvent.ShowToast("你已被禁麦，暂不能上麦"))
@@ -224,7 +242,10 @@ class RoomViewModel(
         }
         viewModelScope.launch {
             try {
-                wsClient.send("""{"type":"TakeMic","roomId":"$roomId","slotIndex":$slotIndex}""")
+                wsClient.sendEnvelope(
+                    type = "TakeMic",
+                    payload = mapOf("mic_index" to slotIndex),
+                )
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -257,8 +278,9 @@ class RoomViewModel(
      * 此方法为同步调用（无 suspend），可在 [onCleared] 中安全调用。
      */
     fun leaveRoom() {
-        currentRoomId?.let { roomId ->
-            wsClient.send("""{"type":"LeaveRoom","roomId":"$roomId"}""")
+        if (currentRoomId != null) {
+            // server 仅依赖连接上下文中的 room_id，payload 留空
+            wsClient.sendEnvelope(type = "LeaveRoom")
         }
         wsClient.disconnect()
     }
@@ -309,7 +331,7 @@ class RoomViewModel(
      */
     fun sendMessage(content: String) {
         if (content.isBlank()) return
-        val roomId = currentRoomId ?: return
+        if (currentRoomId == null) return
         // T-30044: 禁言守卫 — 禁言中不允许发送消息
         if (_selfGovernanceState.value.isChatMuted(clock.currentTimeMillis())) {
             _events.trySend(RoomEvent.ShowToast("你已被禁言，暂不能发言"))
@@ -319,8 +341,10 @@ class RoomViewModel(
             updateSendingState(true)
             try {
                 val msgId = UUID.randomUUID().toString()
-                wsClient.send(
-                    """{"type":"SendMessage","roomId":"$roomId","content":"$content","msgId":"$msgId"}"""
+                wsClient.sendEnvelope(
+                    type = "SendMessage",
+                    payload = mapOf("content" to content),
+                    msgId = msgId,
                 )
                 _events.trySend(RoomEvent.ClearInput)
             } catch (e: CancellationException) {
@@ -417,8 +441,13 @@ class RoomViewModel(
         val roomId = currentRoomId ?: return
         viewModelScope.launch {
             try {
-                wsClient.send(
-                    """{"type":"AssignAdmin","roomId":"$roomId","targetUserId":"$targetUserId"}"""
+                wsClient.sendEnvelope(
+                    type = "TransferAdmin",
+                    payload = mapOf(
+                        "room_id" to roomId,
+                        "target_user_id" to targetUserId,
+                        "action" to "assign",
+                    ),
                 )
             } catch (e: CancellationException) {
                 throw e
@@ -451,8 +480,13 @@ class RoomViewModel(
         val roomId = currentRoomId ?: return
         viewModelScope.launch {
             try {
-                wsClient.send(
-                    """{"type":"RevokeAdmin","roomId":"$roomId","targetUserId":"$targetUserId"}"""
+                wsClient.sendEnvelope(
+                    type = "TransferAdmin",
+                    payload = mapOf(
+                        "room_id" to roomId,
+                        "target_user_id" to targetUserId,
+                        "action" to "revoke",
+                    ),
                 )
             } catch (e: CancellationException) {
                 throw e
@@ -472,8 +506,13 @@ class RoomViewModel(
         val roomId = currentRoomId ?: return
         viewModelScope.launch {
             try {
-                wsClient.send(
-                    """{"type":"ForceTakeMic","roomId":"$roomId","targetUserId":"$targetUserId","slotIndex":$slotIndex}"""
+                wsClient.sendEnvelope(
+                    type = "ForceTakeMic",
+                    payload = mapOf(
+                        "room_id" to roomId,
+                        "target_user_id" to targetUserId,
+                        "slot_index" to slotIndex,
+                    ),
                 )
             } catch (e: CancellationException) {
                 throw e
@@ -492,8 +531,12 @@ class RoomViewModel(
         val roomId = currentRoomId ?: return
         viewModelScope.launch {
             try {
-                wsClient.send(
-                    """{"type":"ForceLeaveMic","roomId":"$roomId","targetUserId":"$targetUserId"}"""
+                wsClient.sendEnvelope(
+                    type = "ForceLeaveMic",
+                    payload = mapOf(
+                        "room_id" to roomId,
+                        "target_user_id" to targetUserId,
+                    ),
                 )
             } catch (e: CancellationException) {
                 throw e
@@ -514,8 +557,14 @@ class RoomViewModel(
         val roomId = currentRoomId ?: return
         viewModelScope.launch {
             try {
-                wsClient.send(
-                    """{"type":"MuteUser","roomId":"$roomId","targetUserId":"$targetUserId","duration_sec":$durationSec,"muteType":"$muteType"}"""
+                wsClient.sendEnvelope(
+                    type = "MuteUser",
+                    payload = mapOf(
+                        "room_id" to roomId,
+                        "target_user_id" to targetUserId,
+                        "type" to muteType,
+                        "duration_sec" to durationSec,
+                    ),
                 )
             } catch (e: CancellationException) {
                 throw e
@@ -546,11 +595,14 @@ class RoomViewModel(
         val roomId = currentRoomId ?: return
         viewModelScope.launch {
             try {
-                val safeReason = reason
-                    .replace("\\", "\\\\")
-                    .replace("\"", "\\\"")
-                wsClient.send(
-                    """{"type":"KickUser","roomId":"$roomId","targetUserId":"$targetUserId","reason":"$safeReason"}"""
+                // P1-5: 通过 Gson 序列化避免 reason 中特殊字符破坏 JSON
+                wsClient.sendEnvelope(
+                    type = "KickUser",
+                    payload = mapOf(
+                        "room_id" to roomId,
+                        "target_user_id" to targetUserId,
+                        "reason" to reason,
+                    ),
                 )
                 _selectedKickTarget.value = null
                 _events.trySend(RoomEvent.ShowToast("已踢出"))
@@ -611,11 +663,12 @@ class RoomViewModel(
 
     // ─── 私有：下麦信令发送 ────────────────────────────────────────────────────
 
-    private fun leaveMic(slotIndex: Int) {
-        val roomId = currentRoomId ?: return
+    private fun leaveMic(@Suppress("UNUSED_PARAMETER") slotIndex: Int) {
+        if (currentRoomId == null) return
         viewModelScope.launch {
             try {
-                wsClient.send("""{"type":"LeaveMic","roomId":"$roomId","slotIndex":$slotIndex}""")
+                // server 仅依赖连接上下文，payload 为空
+                wsClient.sendEnvelope(type = "LeaveMic")
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -718,6 +771,13 @@ class RoomViewModel(
 
         val type = json.get("type")?.asString ?: return
 
+        // P1-6: 任何带有 msg_id / msgId 的入站消息更新断线重连断点
+        val inboundMsgId = json.get("msg_id")?.takeIf { !it.isJsonNull }?.asString
+            ?: json.get("msgId")?.takeIf { !it.isJsonNull }?.asString
+        if (!inboundMsgId.isNullOrEmpty()) {
+            lastReceivedMsgId = inboundMsgId
+        }
+
         // 非 Success 状态时忽略所有 WS 消息（joinRoom 尚未完成）
         val currentState = _uiState.value as? RoomViewState.Success ?: return
         val state = currentState.uiState
@@ -799,16 +859,13 @@ class RoomViewModel(
                     val roomId = currentRoomId ?: return
                     if (forcedBy != null && !micPermissionChecker.hasMicPermission()) {
                         // ForceTakeMic 且无权限 → 请求权限；拒绝则自动下麦
-                        val capturedSlotIndex = slotIndex
                         micPermissionChecker.requestMicPermission { granted ->
                             if (granted) {
                                 viewModelScope.launch { startPublishingInternal(roomId, userId!!) }
                             } else {
-                                // 权限被拒绝 → 自动发送 LeaveMic 信令
-                                val currentRoom = currentRoomId ?: return@requestMicPermission
-                                wsClient.send(
-                                    """{"type":"LeaveMic","roomId":"$currentRoom","slotIndex":$capturedSlotIndex}"""
-                                )
+                                // 权限被拒绝 → 自动发送 LeaveMic 信令（payload 由 server 上下文推断）
+                                if (currentRoomId == null) return@requestMicPermission
+                                wsClient.sendEnvelope(type = "LeaveMic")
                             }
                         }
                     } else {

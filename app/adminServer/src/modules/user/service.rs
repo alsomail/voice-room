@@ -144,25 +144,53 @@ impl AdminUserService {
             return Err(AppError::UserAlreadyNormal);
         }
 
+        // P0-2: ban 校验 — 拒绝错位/缺失字段，避免静默写入 duration_hours=0
+        if is_banned {
+            let ban_type = req.ban_type.as_deref().unwrap_or("permanent");
+            match ban_type {
+                "permanent" => {
+                    if req.duration_hours.is_some() {
+                        return Err(AppError::ValidationError(
+                            "duration_hours must be omitted when ban_type=permanent".to_string(),
+                        ));
+                    }
+                }
+                "temporary" => match req.duration_hours {
+                    None => {
+                        return Err(AppError::ValidationError(
+                            "duration_hours is required when ban_type=temporary".to_string(),
+                        ));
+                    }
+                    Some(0) => {
+                        return Err(AppError::ValidationError(
+                            "duration_hours must be > 0 for temporary ban".to_string(),
+                        ));
+                    }
+                    Some(_) => {}
+                },
+                other => {
+                    return Err(AppError::ValidationError(format!(
+                        "invalid ban_type: '{}', must be 'permanent' or 'temporary'",
+                        other
+                    )));
+                }
+            }
+        }
+
         // 更新封禁状态
         self.user_repo.update_ban_status(user_id, is_banned).await?;
 
-        // MVP: 用 tracing 模拟审计日志（TODO: 接入 audit_logs 表）
-        tracing::info!(
-            target: "audit_log",
-            action = if is_banned { "ban_user" } else { "unban_user" },
-            target_user_id = %user_id,
-            reason = req.reason.as_deref().unwrap_or(""),
-            "audit log (db audit not connected, logged only)"
-        );
+        // P1-7: 移除业务层 tracing 伪审计；审计统一由 controller 调用 audit_logger.log_action
 
         // 发布管理事件（fire-and-forget，失败不影响主业务）
         let event_type = if is_banned { "ban_user" } else { "unban_user" };
         let payload = if is_banned {
+            // P0-2: 永久封禁时 duration_hours=null（而非 0）以保留语义
             serde_json::json!({
                 "user_id": user_id.to_string(),
                 "reason": req.reason.as_deref().unwrap_or(""),
-                "duration_hours": req.duration_hours.unwrap_or(0)
+                "ban_type": req.ban_type.as_deref().unwrap_or("permanent"),
+                "duration_hours": req.duration_hours,
             })
         } else {
             serde_json::json!({ "user_id": user_id.to_string() })
@@ -749,31 +777,123 @@ mod tests {
         );
     }
 
-    // ── SB-08: 使用 ErrorEventPublisher 时 ban_user 仍返回 Ok（fire-and-forget）──
-    #[tokio::test]
-    async fn sb08_error_publisher_does_not_affect_ban_result() {
-        let repo = Arc::new(FakeAdminUserRepository::default());
-        let publisher = Arc::new(ErrorEventPublisher);
-        let svc = AdminUserService::new(
-            repo.clone() as Arc<dyn AdminUserRepository>,
-            publisher as Arc<dyn EventPublisher>,
-        );
-        let user_id = Uuid::new_v4();
+    // ════════════════════════════════════════════════════════════════════════
+    // P0-2 验证测试 SB-09 ~ SB-12：ban_type / duration_hours 校验
+    // ════════════════════════════════════════════════════════════════════════
+
+    fn ban_req_full(
+        action: &str,
+        ban_type: Option<&str>,
+        duration_hours: Option<u32>,
+    ) -> AdminBanUserRequest {
+        AdminBanUserRequest {
+            action: action.to_string(),
+            ban_type: ban_type.map(|s| s.to_string()),
+            duration_hours,
+            reason: Some("test".to_string()),
+        }
+    }
+
+    fn seed_normal_user(repo: &Arc<FakeAdminUserRepository>) -> Uuid {
+        let id = Uuid::new_v4();
         repo.seed(AdminUserListRow {
-            id: user_id,
-            phone: "+8613800000008".to_string(),
-            nickname: "SB08User".to_string(),
+            id,
+            phone: "+8613899999999".to_string(),
+            nickname: "ValUser".to_string(),
             avatar: None,
             coin_balance: 0,
             vip_level: 0,
             is_banned: false,
             created_at: Utc::now(),
         });
+        id
+    }
 
-        let result = svc.ban_user(Uuid::new_v4(), user_id, ban_req("ban")).await;
+    // SB-09: ban_type=temporary 但 duration_hours 缺失 → ValidationError
+    #[tokio::test]
+    async fn sb09_temporary_ban_without_duration_returns_validation_error() {
+        let (svc, repo) = make_service();
+        let id = seed_normal_user(&repo);
+        let err = svc
+            .ban_user(Uuid::new_v4(), id, ban_req_full("ban", Some("temporary"), None))
+            .await
+            .unwrap_err();
         assert!(
-            result.is_ok(),
-            "SB-08: 即使发布失败，ban_user 也应返回 Ok（fire-and-forget），实际: {result:?}"
+            matches!(err, AppError::ValidationError(_)),
+            "SB-09: 临时封禁缺失 duration_hours 应返回 ValidationError，实际: {err:?}"
         );
+    }
+
+    // SB-10: ban_type=temporary + duration_hours=0 → ValidationError
+    #[tokio::test]
+    async fn sb10_temporary_ban_zero_duration_returns_validation_error() {
+        let (svc, repo) = make_service();
+        let id = seed_normal_user(&repo);
+        let err = svc
+            .ban_user(
+                Uuid::new_v4(),
+                id,
+                ban_req_full("ban", Some("temporary"), Some(0)),
+            )
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(err, AppError::ValidationError(_)),
+            "SB-10: duration_hours=0 应返回 ValidationError"
+        );
+    }
+
+    // SB-11: ban_type=permanent + duration_hours=Some → ValidationError
+    #[tokio::test]
+    async fn sb11_permanent_ban_with_duration_returns_validation_error() {
+        let (svc, repo) = make_service();
+        let id = seed_normal_user(&repo);
+        let err = svc
+            .ban_user(
+                Uuid::new_v4(),
+                id,
+                ban_req_full("ban", Some("permanent"), Some(24)),
+            )
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(err, AppError::ValidationError(_)),
+            "SB-11: 永久封禁不应携带 duration_hours"
+        );
+    }
+
+    // SB-12: 未知 ban_type → ValidationError（无静默 default 行为）
+    #[tokio::test]
+    async fn sb12_unknown_ban_type_returns_validation_error() {
+        let (svc, repo) = make_service();
+        let id = seed_normal_user(&repo);
+        let err = svc
+            .ban_user(
+                Uuid::new_v4(),
+                id,
+                ban_req_full("ban", Some("forever"), None),
+            )
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(err, AppError::ValidationError(_)),
+            "SB-12: 非法 ban_type 应返回 ValidationError"
+        );
+    }
+
+    // SB-13: ban_type=temporary + duration_hours>0 → 成功封禁
+    #[tokio::test]
+    async fn sb13_valid_temporary_ban_succeeds() {
+        let (svc, repo) = make_service();
+        let id = seed_normal_user(&repo);
+        let res = svc
+            .ban_user(
+                Uuid::new_v4(),
+                id,
+                ban_req_full("ban", Some("temporary"), Some(24)),
+            )
+            .await
+            .unwrap();
+        assert_eq!(res.status, "banned");
     }
 }
