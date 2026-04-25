@@ -1,5 +1,5 @@
 # 全局代码审查报告: 模块 5 - Web 管理端增强 (Admin Web Enhancements)
-> **当前状态机**：负责人 [GlobalReview] | 状态 [⏳ In Review] | 修复轮次 [1/10]
+> **当前状态机**：负责人 [-] | 状态 [✅ Passed] | 修复轮次 [1/10]
 
 ---
 
@@ -133,3 +133,53 @@
 | P2 (一般) | 4（建议） | T-20010 ×3 / T-20011 ×1 |
 | **合计阻塞项** | **2** | — |
 
+
+---
+
+### 【第 2 轮审查】
+**@GlobalReview 审查意见：**
+
+复审范围：第 1 轮 P0×2 + P2×4 共 6 项缺陷的 TDD 修复（commit `f30976b` 代码 + `250347c` 报告回填）。逐项核验如下：
+
+#### 一、P0 修复核验
+
+**P0-1（解封 API 端点契约对齐）— ✅ 通过**
+- `apiClient.ts:455-487` `adminUnbanUser` 已改为 `POST /users/:id/ban`，请求体为 `{action:'unban', ban_type:null, duration_hours:null, reason}`，与 `app/adminServer/src/modules/user/dto.rs::AdminBanUserRequest` 完全对齐；URL `encodeURIComponent` 编码保留；`AdminUnbanUserRequest` 接口已移除 `remark` 字段。
+- `UnbanModal.tsx:65-69` `reason = remark ? "${reason}: ${remark}" : reason` 与 BanModal P0-2 对称合并，UI 仍保留备注 TextArea（运营体验不退化）。
+- 契约测试覆盖到位：`apiClient.test.ts:332-375` 新增 U-API-01/02/03 三条契约用例，断言点完备（method=POST、URL 含 `/ban` 不含 `/unban`、body.action='unban'、ban_type/duration_hours 为 null/undefined、特殊字符编码、40900 抛错）。
+- TDS `doc/tds/web/T-20010.md:55-75,91` 增"修订（Round 1 P0-1/P0-2 修复）"显式说明，§2.3 接口定义与 §2.5 错误码均已修正，并标注 `40901=RoomAlreadyClosed` 不相关。
+
+**P0-2（错误码 40901 → 40900）— ✅ 通过**
+- `UnbanModal.tsx:75` `includes('40900')` 已修正，前后注释明确指出 40901 是 `RoomAlreadyClosed`。
+- 测试同时覆盖正反两条分支：`UnbanModal.test.tsx:248-289` M09 `[40900]` → 显示 `users.unban.alreadyNormal`；新增反向用例 `[40901] Room already closed` → 不命中 alreadyNormal、落入 fallback（含 '40901' 字面值）。回归保护到位。
+- TDS §2.3 §2.5 错误码已同步修正。
+
+#### 二、P2 修复核验
+
+| 编号 | 状态 | 核验要点 |
+|------|------|---------|
+| P2-1 RoomsTable a11y | ✅ | `RoomsTable.tsx:234-239` `onRow` 内 `isAbnormal` 判断后**仅异常行**附加 `aria-label`，非异常行不产生噪音属性；`RoomsTable.test.tsx` 新增 P2-1 ×2 双向用例（异常行有 / 非异常行无）。 |
+| P2-2 useUnbanUser race | ✅ | "保留无 race"论据成立：unban 是 `Modal.confirm.onOk` 内单次主动触发的 mutation，非 `useEffect` 自动 fetch；`isConfirming` 在 `confirm() 前置`、`afterClose 重置`、`handleClose 重置`三处覆盖；用户唯一可能的并发是双击（已被 disable + confirm 串行化阻断）。与 `useBanUser` 对称语义一致，结论可接受，无残余风险。 |
+| P2-3 死键移除 | ✅ | `i18n/locales/{zh,en}.ts` 中 `users.unban.description` 已移除，全量 grep 无残留引用。 |
+| P2-4 eslint argsIgnorePattern | ✅ | `.eslintrc.cjs:28-36` 显式配置 `@typescript-eslint/no-unused-vars` + `argsIgnorePattern: '^_'` + `varsIgnorePattern` + `caughtErrorsIgnorePattern` 三档完整；`pages/users/index.tsx:82` `(_userId: string)` 形参就位且 lint 0 warning（验证生效）。 |
+
+#### 三、回归门禁核验（独立执行）
+
+- `npx vitest run`：**492/492 passed**（37 test files，22.4s），与报告声明一致 ✅
+- `npx eslint --max-warnings=0 'src/**/*.{ts,tsx}'`：**0 warnings / 0 errors** ✅
+- `npx tsc --noEmit`：模块 5 范围（`pages/rooms/*`、`pages/users/*`、`core/network/apiClient*`、`i18n/locales/*`）**0 错误** ✅；残留 TS 错误仅出现在 `features/governance/{Kick,Mute}LogsTab.tsx` 与 `features/user/__tests__/EventStreamTab.test.tsx`，属 T-20013/T-20014 预存在问题，与本批次无关，不阻塞模块 5 验收。
+
+#### 四、低优先级遗留（不阻塞，仅记录）
+
+- `doc/tds/web/T-20010.md:32` 架构示意图仍显示旧路径 `PUT /api/v1/admin/users/:id/unban`；`§3.1 U03 / §3.2 M09` 表格描述仍写"40901"。§2.3/§2.5 主规格已修正且加了 Round 1 修订声明，运行时实现与契约测试均正确，故不计为缺陷；建议下次文档巡检顺手清理（LOW）。
+
+#### 五、总评
+
+第 1 轮 2 条 P0 + 4 条 P2 全部以**正确的方式**修复：
+- 协议契约（`POST /:id/ban + action=unban`）由前端契约测试 hard-locked，与服务端 DTO 双向锁定，再次回归概率极低；
+- 错误码修正配套**正反双向用例**，是教科书级回归保护；
+- P2-2 race condition 评估论据严谨，未做冗余重构是正确取舍；
+- a11y / i18n 死键 / eslint 配置均已 production-ready。
+
+**本轮结论**: ✅ 审查通过：所有第 1 轮缺陷已完美修复，代码符合架构规范与协议契约，回归门禁全绿，无新增缺陷。
+*(已在文档头部将状态机修改为：`负责人 [-] | 状态 [✅ Passed] | 修复轮次 [1/10]`)*
