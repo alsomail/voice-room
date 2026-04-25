@@ -2,6 +2,7 @@ package com.voice.room.android.core.analytics.transport
 
 import com.google.gson.Gson
 import com.voice.room.android.core.analytics.queue.EventQueueEntity
+import com.voice.room.android.core.analytics.wire.EventWire
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -14,6 +15,10 @@ import okhttp3.RequestBody.Companion.toRequestBody
  *
  * WS 离线时使用此传输，直接 POST 到 analytics 端点。
  * 端点来自 BuildConfig.ANALYTICS_ENDPOINT。
+ *
+ * R1 修复（缺陷 1）：请求体严格遵循服务端 `EventInput` schema，使用 [EventWire] 单一事实源；
+ * 顶层为 `{ "events": [...] }`，每个事件包含独立公共字段（device_id 必填）；
+ * properties 为对象而非字符串，避免 JSONB 类型污染。
  */
 class HttpTransport(
     private val httpClient: OkHttpClient,
@@ -25,19 +30,12 @@ class HttpTransport(
 
     override suspend fun send(batch: List<EventQueueEntity>): Result<SendOutcome> {
         return try {
-            val payload = batch.map { entity ->
-                mapOf(
-                    "event_name" to entity.eventName,
-                    "properties" to entity.propertiesJson,
-                    "session_id" to entity.sessionId,
-                    "client_ts" to entity.clientTs
-                )
-            }
-            val json = gson.toJson(mapOf("events" to payload))
-            val body = json.toRequestBody(mediaType)
+            val body = EventWire.toHttpBody(batch, gson)
+            val json = gson.toJson(body)
+            val requestBody = json.toRequestBody(mediaType)
             val request = Request.Builder()
                 .url(endpoint)
-                .post(body)
+                .post(requestBody)
                 .build()
 
             withContext(Dispatchers.IO) {

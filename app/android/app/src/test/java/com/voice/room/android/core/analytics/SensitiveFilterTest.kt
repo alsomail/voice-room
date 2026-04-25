@@ -156,7 +156,7 @@ class SensitiveFilterTest {
     fun SF10_extrasMap_phoneValueRedacted() {
         val extras = mapOf("phone" to "+966512345678", "roomId" to "room-123")
         val result = filter.scrubExtras(extras)
-        assertFalse("extras 中手机号值应被脱敏", result["phone"]?.contains("+966512345678") ?: false)
+        assertFalse("extras 中手机号值应被脱敏", (result["phone"] as? String)?.contains("+966512345678") ?: false)
         assertEquals("非敏感字段应不变", "room-123", result["roomId"])
     }
 
@@ -169,7 +169,7 @@ class SensitiveFilterTest {
         val jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1c2VyIn0.abc123def456"
         val extras = mapOf("token" to jwt, "userId" to "user-456")
         val result = filter.scrubExtras(extras)
-        assertFalse("extras 中 JWT 值应被脱敏", result["token"]?.contains(jwt) ?: false)
+        assertFalse("extras 中 JWT 值应被脱敏", (result["token"] as? String)?.contains(jwt) ?: false)
         assertEquals("非敏感字段应不变", "user-456", result["userId"])
     }
 

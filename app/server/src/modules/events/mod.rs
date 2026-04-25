@@ -15,13 +15,20 @@ pub mod ws;
 pub use routes::events_routes;
 
 mod routes {
-    use axum::{routing::post, Router};
+    use axum::{extract::DefaultBodyLimit, routing::post, Router};
 
     use crate::bootstrap::AppState;
 
     use super::handler::batch_events;
 
+    /// `events_routes` — POST /api/v1/events/batch
+    ///
+    /// R1 修复（缺陷 10）：本路由 JWT 可选、对公网开放。
+    /// 显式限制请求体为 1 MiB，避免攻击者构造大 payload 对 JSON 解析器形成压力。
+    /// 1 MiB 足够 100 条 × 8KB properties + 公共字段 + 安全余量。
     pub fn events_routes() -> Router<AppState> {
-        Router::new().route("/api/v1/events/batch", post(batch_events))
+        Router::new()
+            .route("/api/v1/events/batch", post(batch_events))
+            .layer(DefaultBodyLimit::max(1024 * 1024))
     }
 }

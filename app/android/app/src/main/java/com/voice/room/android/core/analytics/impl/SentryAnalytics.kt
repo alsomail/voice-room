@@ -49,6 +49,8 @@ class SentryAnalytics(
     }
 
     override fun setUser(userId: String?, traits: Map<String, Any?>) {
+        // R1 修复（缺陷 12 / T-30034 R1 MEDIUM-02）：None 模式下不写入 user 身份，避免 PII 泄露
+        if (currentConsent == ConsentMode.None) return
         if (userId == null) {
             sentryHub.clearUser()
         } else {
@@ -60,7 +62,10 @@ class SentryAnalytics(
         if (currentConsent == ConsentMode.None) return
 
         val scrubbedThrowable = filter.scrubThrowable(throwable)
-        val scrubbedExtras = filter.scrubExtras(extras)
+        // SentryHub 仅接收字符串 extras（Sentry SDK 兼容）；类型保留语义在
+        // EventReportClient/CommonPropsProvider 链路中维护，此处转字符串可接受。
+        val scrubbedExtras: Map<String, String?> = filter.scrubExtras(extras)
+            .mapValues { it.value?.toString() }
         sentryHub.captureException(scrubbedThrowable, scrubbedExtras)
     }
 

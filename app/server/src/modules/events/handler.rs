@@ -73,6 +73,18 @@ pub async fn batch_events(
     headers: HeaderMap,
     Json(body): Json<BatchEventsRequest>,
 ) -> axum::response::Response {
+    // R1 修复（缺陷 10）：fast-path — 超过 200 条直接拒绝（>100 软限制由 EventWriter 处理为
+    // 写前 100 + rejected_indices；>200 视为恶意，立即 40003）
+    if body.events.len() > 200 {
+        return err_response(
+            crate::common::error::AppError::ValidationError(format!(
+                "events count {} exceeds hard limit 200",
+                body.events.len()
+            )),
+            rc.request_id(),
+        );
+    }
+
     // 可选 JWT：有 token 则解析 user_id，失败则当作未登录
     let jwt_user_id = try_extract_jwt_user_id(&headers, &state.jwt_secret);
 

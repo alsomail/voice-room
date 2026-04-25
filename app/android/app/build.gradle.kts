@@ -40,6 +40,19 @@ android {
         versionName = "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
+        val apiBaseUrl = resolveConfigValue(
+            localProperties, "voiceRoomApiBaseUrl", "VOICE_ROOM_API_BASE_URL",
+            "https://dev-api.example.com/api"
+        )
+        // R1 修复（缺陷 4）：移除独立的硬编码 fallback `analytics-dev.example.com/collect`；
+        // 默认从 API_BASE_URL 派生并指向真实服务端路径 `/v1/events/batch`，
+        // 与 `app/server/src/modules/events/mod.rs` 的 `events_routes()` 一致。
+        // 生产构建必须通过 local.properties 或 env 显式覆盖。
+        val analyticsEndpoint = resolveConfigValue(
+            localProperties, "voiceRoomAnalyticsEndpoint", "VOICE_ROOM_ANALYTICS_ENDPOINT",
+            "$apiBaseUrl/v1/events/batch"
+        )
+
         buildConfigField(
             "String",
             "APP_ENVIRONMENT",
@@ -48,7 +61,7 @@ android {
         buildConfigField(
             "String",
             "API_BASE_URL",
-            "\"${resolveConfigValue(localProperties, "voiceRoomApiBaseUrl", "VOICE_ROOM_API_BASE_URL", "https://dev-api.example.com/api")}\""
+            "\"$apiBaseUrl\""
         )
         buildConfigField(
             "String",
@@ -58,7 +71,7 @@ android {
         buildConfigField(
             "String",
             "ANALYTICS_ENDPOINT",
-            "\"${resolveConfigValue(localProperties, "voiceRoomAnalyticsEndpoint", "VOICE_ROOM_ANALYTICS_ENDPOINT", "https://analytics-dev.example.com/collect")}\""
+            "\"$analyticsEndpoint\""
         )
         buildConfigField(
             "String",

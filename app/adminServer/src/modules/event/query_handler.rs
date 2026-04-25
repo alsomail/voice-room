@@ -65,6 +65,11 @@ pub async fn list_user_events_handler(
         }
     };
 
+    // ── R1 修复（缺陷 11）：参数校验 fast-fail，避免非法请求触发用户存在性 DB 查询 ──
+    if let Err(e) = super::query_service::validate_params(&params) {
+        return err_response(e, rc.request_id());
+    }
+
     // ── 用户存在性校验（不存在 → 404）────────────────────────────────────
     if let Err(e) = state.user_service.get_user_detail(user_id).await {
         return err_response(e, rc.request_id());

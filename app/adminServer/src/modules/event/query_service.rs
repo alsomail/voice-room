@@ -8,6 +8,72 @@ use crate::common::error::AppError;
 use super::query_dto::{EventFilter, EventItem, EventQueryParams, EventQueryResponse};
 use super::query_repo::EventQueryRepository;
 
+// ─── 已校验参数（validate_params 输出）───────────────────────────────────────
+
+/// 校验后的查询参数 — 时间已解析为 DateTime<Utc>，limit/page 已规范化。
+#[derive(Debug, Clone)]
+pub struct ValidatedEventParams {
+    pub from: chrono::DateTime<Utc>,
+    pub to: chrono::DateTime<Utc>,
+    pub limit: u32,
+    pub page: u32,
+    pub event_name: Option<String>,
+}
+
+/// R1 修复（缺陷 11）：参数校验提取为纯函数，可在 handler 层于 user 存在性查询之前调用，
+/// 实现 fast-fail；非法参数不再触发数据库查询。
+///
+/// # 错误
+/// - `ValidationError(40003)`：时间窗 > 30 天 / limit 0 或 >100 / page=0 / 非法时间
+pub fn validate_params(params: &EventQueryParams) -> Result<ValidatedEventParams, AppError> {
+    let now = Utc::now();
+
+    let to = if let Some(to_str) = &params.to {
+        to_str
+            .parse::<chrono::DateTime<Utc>>()
+            .map_err(|_| AppError::ValidationError(format!("invalid 'to': '{}'", to_str)))?
+    } else {
+        now
+    };
+
+    let from = if let Some(from_str) = &params.from {
+        from_str
+            .parse::<chrono::DateTime<Utc>>()
+            .map_err(|_| AppError::ValidationError(format!("invalid 'from': '{}'", from_str)))?
+    } else {
+        now - Duration::hours(24)
+    };
+
+    if to - from > Duration::days(30) {
+        return Err(AppError::ValidationError(
+            "time window exceeds 30 days".to_string(),
+        ));
+    }
+
+    let limit_raw = params.limit.unwrap_or(20);
+    if limit_raw == 0 {
+        return Err(AppError::ValidationError("limit must be >= 1".to_string()));
+    }
+    if limit_raw > 100 {
+        return Err(AppError::ValidationError(
+            "limit must be <= 100".to_string(),
+        ));
+    }
+
+    let page_raw = params.page.unwrap_or(1);
+    if page_raw == 0 {
+        return Err(AppError::ValidationError("page must be >= 1".to_string()));
+    }
+
+    Ok(ValidatedEventParams {
+        from,
+        to,
+        limit: limit_raw,
+        page: page_raw,
+        event_name: params.event_name.clone(),
+    })
+}
+
 // ─── EventQueryService ────────────────────────────────────────────────────────
 
 /// 用户事件查询业务层。
@@ -15,7 +81,7 @@ use super::query_repo::EventQueryRepository;
 /// 职责：
 /// 1. 参数解析与验证（时间窗 ≤ 30 天，limit ≤ 100）
 /// 2. event_name 逗号分隔 → Vec<String>
-/// 3. 角色权限衍生（非 super_admin → 过滤 admin_* 事件）
+/// 3. 角色权限衍生
 /// 4. 调用 EventQueryRepository 分页查询
 /// 5. 组装 EventQueryResponse
 pub struct EventQueryService {
@@ -33,8 +99,8 @@ impl EventQueryService {
     /// - `user_id`：目标用户 ID（已由 handler 层验证存在性）
     /// - `params`：HTTP query string 解析出的参数
     /// - `filter_admin_events`：是否过滤 `admin_` 前缀事件
-    ///   - `true` if role != "super_admin"（non-super cannot see admin audits）
-    ///   - `false` if role == "super_admin"
+    ///   - `true` if role == "cs"（cs 看不到 admin_* 事件）
+    ///   - `false` 其它角色（super_admin / operator 全量可查）
     ///
     /// # 错误
     /// - `ValidationError(40003)`: 时间窗 > 30 天 / limit > 100 / 非法时间格式
@@ -44,53 +110,16 @@ impl EventQueryService {
         params: EventQueryParams,
         filter_admin_events: bool,
     ) -> Result<EventQueryResponse, AppError> {
-        let now = Utc::now();
-
-        // ── 解析 to（默认当前时间）──────────────────────────────────────────
-        let to = if let Some(to_str) = &params.to {
-            to_str
-                .parse::<chrono::DateTime<Utc>>()
-                .map_err(|_| AppError::ValidationError(format!("invalid 'to': '{}'", to_str)))?
-        } else {
-            now
-        };
-
-        // ── 解析 from（默认 24h 前）────────────────────────────────────────
-        let from = if let Some(from_str) = &params.from {
-            from_str
-                .parse::<chrono::DateTime<Utc>>()
-                .map_err(|_| AppError::ValidationError(format!("invalid 'from': '{}'", from_str)))?
-        } else {
-            now - Duration::hours(24)
-        };
-
-        // ── 时间窗校验：>30 天 → 400/40003 ───────────────────────────────
-        if to - from > Duration::days(30) {
-            return Err(AppError::ValidationError(
-                "time window exceeds 30 days".to_string(),
-            ));
-        }
-
-        // ── limit 校验：=0 → 400/40003 / >100 → 400/40003 ───────────────────
-        let limit_raw = params.limit.unwrap_or(20);
-        if limit_raw == 0 {
-            return Err(AppError::ValidationError("limit must be >= 1".to_string()));
-        }
-        if limit_raw > 100 {
-            return Err(AppError::ValidationError(
-                "limit must be <= 100".to_string(),
-            ));
-        }
-        let limit = limit_raw;
-        let page_raw = params.page.unwrap_or(1);
-        if page_raw == 0 {
-            return Err(AppError::ValidationError("page must be >= 1".to_string()));
-        }
-        let page = page_raw;
+        // 复用纯函数 validate_params；handler 层若已调用过，此处再次调用无副作用。
+        let validated = validate_params(&params)?;
+        let from = validated.from;
+        let to = validated.to;
+        let limit = validated.limit;
+        let page = validated.page;
         let offset = ((page - 1) as i64) * (limit as i64);
 
         // ── event_name 逗号分隔 → Option<Vec<String>> ─────────────────────
-        let event_names: Option<Vec<String>> = params.event_name.as_ref().map(|s| {
+        let event_names: Option<Vec<String>> = validated.event_name.as_ref().map(|s| {
             s.split(',')
                 .map(|n| n.trim().to_string())
                 .filter(|n| !n.is_empty())
@@ -98,7 +127,6 @@ impl EventQueryService {
         });
 
         // ── 角色过滤 admin_* 事件名 ────────────────────────────────────────
-        // 若非 super_admin，从 event_names 过滤掉 admin_* 前缀条目
         let event_names = if filter_admin_events {
             event_names.map(|names| {
                 names
@@ -168,6 +196,75 @@ mod tests {
             page: Some(1),
             limit: Some(20),
         }
+    }
+
+    // ── R1 缺陷 11：validate_params fast-fail 单元测试 ──────────────────────
+
+    #[test]
+    fn validate_params_rejects_limit_zero() {
+        let params = EventQueryParams {
+            event_name: None,
+            from: None,
+            to: None,
+            page: Some(1),
+            limit: Some(0),
+        };
+        let err = validate_params(&params).unwrap_err();
+        match err {
+            AppError::ValidationError(msg) => assert!(msg.contains("limit")),
+            other => panic!("expected ValidationError, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn validate_params_rejects_limit_over_100() {
+        let params = EventQueryParams {
+            event_name: None,
+            from: None,
+            to: None,
+            page: Some(1),
+            limit: Some(200),
+        };
+        assert!(validate_params(&params).is_err());
+    }
+
+    #[test]
+    fn validate_params_rejects_page_zero() {
+        let params = EventQueryParams {
+            event_name: None,
+            from: None,
+            to: None,
+            page: Some(0),
+            limit: Some(20),
+        };
+        assert!(validate_params(&params).is_err());
+    }
+
+    #[test]
+    fn validate_params_rejects_window_over_30_days() {
+        let now = Utc::now();
+        let params = EventQueryParams {
+            event_name: None,
+            from: Some((now - Duration::days(31)).to_rfc3339()),
+            to: Some(now.to_rfc3339()),
+            page: Some(1),
+            limit: Some(20),
+        };
+        assert!(validate_params(&params).is_err());
+    }
+
+    #[test]
+    fn validate_params_accepts_default_values() {
+        let params = EventQueryParams {
+            event_name: None,
+            from: None,
+            to: None,
+            page: None,
+            limit: None,
+        };
+        let v = validate_params(&params).unwrap();
+        assert_eq!(v.limit, 20);
+        assert_eq!(v.page, 1);
     }
 
     // ── EQ01: 正常查询返回按 server_ts DESC 排序 ──────────────────────────
