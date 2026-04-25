@@ -22,4 +22,9 @@
     <string name="create_room_password_required">يجب تعيين كلمة مرور لغرف كلمة المرور.</string>
 
     <string name="password_locked_minutes">تم القفل. حاول مرة أخرى بعد %1$d دقيقة.</string>
+
+    <!-- ─── الوحدة 3: إشعارات الخادم (P3-20) ─────────────────────────── -->
+    <string name="notification_ban_user">تم حظرك من هذه المنصة.</string>
+    <string name="notification_room_closed">تم إغلاق هذه الغرفة من قبل المسؤول.</string>
+    <string name="notification_broadcast_notice_prefix">[إشعار] %1$s</string>
 </resources>

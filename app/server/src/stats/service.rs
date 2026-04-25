@@ -5,9 +5,11 @@
 //! - `FakeStatsService`：內存 Fake 實現，供單元測試注入
 //!
 //! Redis key 設計（protocol.md §6.2）：
-//! - `stats:online_users`         — HyperLogLog，記錄在線 user_id
-//! - `stats:active_rooms`         — Set，記錄活躍 room_id
-//! - `stats:snapshot:{date}:{mm}` — Hash，每分鐘快照；TTL 7 天
+//! - `stats:online_users`            — HyperLogLog，記錄在線 user_id
+//! - `stats:active_rooms`            — Set，記錄活躍 room_id
+//! - `stats:snapshot:{YYYYMMDDHHMM}` — Hash，每分鐘快照；TTL 7 天
+//!   (P2-15：此前 `{date}:{HH:MM}` 含双冒号，与 TDS 不一致且解析歧义。
+//!   现统一为单一时间戳段 `YYYYMMDDHHMM`，与 protocol.md 对齐)
 
 use async_trait::async_trait;
 use redis::{aio::MultiplexedConnection, AsyncCommands, Client as RedisClient};
@@ -47,8 +49,19 @@ pub trait StatsPort: Send + Sync {
     /// 取得活躍房間數：`SCARD stats:active_rooms`
     async fn get_active_room_count(&self) -> Result<u64, AppError>;
 
-    /// 執行快照：讀取兩項計數 → `HSET stats:snapshot:{date}:{mm}` + EXPIRE 604800
+    /// 執行快照：讀取兩項計數 → `HSET stats:snapshot:{YYYYMMDDHHMM}` + EXPIRE 604800
     async fn take_snapshot(&self) -> Result<(), AppError>;
+}
+
+// ─── 快照 key 構造（P2-15：消除冒號歧義，與 TDS 對齊）────────────────────────
+
+/// 構造快照 Redis key：`stats:snapshot:{YYYYMMDDHHMM}`
+///
+/// 修复 P2-15：此前 key 為 `stats:snapshot:{date}:{HH:MM}`，含双冒号
+/// 与 TDS / protocol.md `stats:snapshot:{date}` 描述不一致，且
+/// `HH:MM` 自身含 `:` 在 Redis CLI / 监控工具中解析歧义。
+pub fn snapshot_key(now: chrono::DateTime<chrono::Utc>) -> String {
+    format!("stats:snapshot:{}", now.format("%Y%m%d%H%M"))
 }
 
 // ─── StatsService（真實 Redis 實現）──────────────────────────────────────────
@@ -154,13 +167,9 @@ impl StatsPort for StatsService {
             .await
             .map_err(|e| AppError::RedisError(e.to_string()))?;
 
-        // 2. 構建快照 key：stats:snapshot:{date}:{HH:MM}
+        // 2. 構建快照 key（P2-15：統一時間戳段，消除冒號歧義）
         let now = chrono::Utc::now();
-        let key = format!(
-            "stats:snapshot:{}:{}",
-            now.format("%Y-%m-%d"),
-            now.format("%H:%M")
-        );
+        let key = snapshot_key(now);
 
         // 3. 寫入 Hash + 設置 TTL（MULTI/EXEC 原子 pipeline，防止 HSET 成功但 EXPIRE 失敗）
         redis::pipe()
@@ -387,5 +396,38 @@ mod tests {
             1,
             "snapshot_calls counter should be incremented"
         );
+    }
+
+    // ── ST09 (P2-15): snapshot_key 形式為 stats:snapshot:YYYYMMDDHHMM，時間段內不再含冒號 ──
+    #[test]
+    fn st09_snapshot_key_has_single_colon_and_compact_timestamp() {
+        use chrono::TimeZone;
+        let dt = chrono::Utc.with_ymd_and_hms(2026, 4, 25, 9, 7, 0).unwrap();
+        let key = super::snapshot_key(dt);
+        assert_eq!(
+            key, "stats:snapshot:202604250907",
+            "P2-15: key 必須為 stats:snapshot:YYYYMMDDHHMM，不再含 HH:MM 中的冒號"
+        );
+        // 修复后 key 共 2 个冒号（来自 "stats:snapshot:" 前缀），
+        // 关键是时间段内 0 冒号 — 此前为 4 个（含 HH:MM 与日期段），引发解析歧义
+        assert_eq!(
+            key.matches(':').count(),
+            2,
+            "key 整体仅 'stats:snapshot:' 前缀两个冒号，时间戳段不再含 ':'"
+        );
+        let ts_segment = key.rsplit(':').next().unwrap();
+        assert!(
+            !ts_segment.contains(':'),
+            "时间戳段必须紧凑（YYYYMMDDHHMM），不能再含冒号"
+        );
+    }
+
+    // ── ST10 (P2-15): 同一分鐘內生成的 key 等價（冪等覆蓋）────────────────────
+    #[test]
+    fn st10_snapshot_key_idempotent_within_same_minute() {
+        use chrono::TimeZone;
+        let a = chrono::Utc.with_ymd_and_hms(2026, 4, 25, 9, 7, 1).unwrap();
+        let b = chrono::Utc.with_ymd_and_hms(2026, 4, 25, 9, 7, 59).unwrap();
+        assert_eq!(super::snapshot_key(a), super::snapshot_key(b));
     }
 }

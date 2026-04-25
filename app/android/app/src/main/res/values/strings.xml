@@ -25,4 +25,11 @@
 
     <!-- 密码弹窗（PasswordInputDialog）— 把 seconds 转成 minutes 显示 -->
     <string name="password_locked_minutes">Locked. Try again in %1$d minutes.</string>
+
+    <!-- ─── 模块3：服务端推送通知 i18n（P3-20）─────────────────────────────────
+         服务端通知 JSON 携带 `i18n_key` 字段（如 "notification.ban_user"）；
+         客户端按 i18n_key 映射到下列 string 资源，沿用 UiText + values-ar 策略。 -->
+    <string name="notification_ban_user">You have been banned from this platform.</string>
+    <string name="notification_room_closed">This room has been closed by an administrator.</string>
+    <string name="notification_broadcast_notice_prefix">[Notice] %1$s</string>
 </resources>

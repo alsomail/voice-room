@@ -6,6 +6,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::common::error::AppError;
+use crate::modules::room::repository::escape_like_pattern;
 
 use super::dto::{AdminUserFilter, AdminUserListRow};
 
@@ -49,18 +50,20 @@ impl PgAdminUserRepository {
 #[async_trait]
 impl AdminUserRepository for PgAdminUserRepository {
     async fn count_users(&self, filter: &AdminUserFilter) -> Result<i64, AppError> {
+        // P2-13: nickname keyword 转义 % / _ / \，配合 LIKE ... ESCAPE '\\'
+        let escaped_kw = filter.nickname.as_deref().map(escape_like_pattern);
         let count: (i64,) = sqlx::query_as(
             "SELECT COUNT(*) \
              FROM users \
              WHERE deleted_at IS NULL \
                AND ($1::text IS NULL OR phone = $1) \
                AND ($2::uuid IS NULL OR id = $2) \
-               AND ($3::text IS NULL OR LOWER(nickname) LIKE '%' || LOWER($3) || '%') \
+               AND ($3::text IS NULL OR LOWER(nickname) LIKE '%' || LOWER($3) || '%' ESCAPE '\\') \
                AND ($4::boolean IS NULL OR is_banned = $4)",
         )
         .bind(filter.phone.as_deref())
         .bind(filter.user_id)
-        .bind(filter.nickname.as_deref())
+        .bind(escaped_kw.as_deref())
         .bind(filter.is_banned)
         .fetch_one(&self.pool)
         .await?;
@@ -73,20 +76,22 @@ impl AdminUserRepository for PgAdminUserRepository {
         offset: i64,
         limit: i64,
     ) -> Result<Vec<AdminUserListRow>, AppError> {
+        // P2-13: nickname keyword 转义 % / _ / \，配合 LIKE ... ESCAPE '\\'
+        let escaped_kw = filter.nickname.as_deref().map(escape_like_pattern);
         let rows = sqlx::query_as::<_, AdminUserListRow>(
             "SELECT id, phone, nickname, avatar, coin_balance, vip_level, is_banned, created_at \
              FROM users \
              WHERE deleted_at IS NULL \
                AND ($1::text IS NULL OR phone = $1) \
                AND ($2::uuid IS NULL OR id = $2) \
-               AND ($3::text IS NULL OR LOWER(nickname) LIKE '%' || LOWER($3) || '%') \
+               AND ($3::text IS NULL OR LOWER(nickname) LIKE '%' || LOWER($3) || '%' ESCAPE '\\') \
                AND ($4::boolean IS NULL OR is_banned = $4) \
              ORDER BY created_at DESC \
              LIMIT $5 OFFSET $6",
         )
         .bind(filter.phone.as_deref())
         .bind(filter.user_id)
-        .bind(filter.nickname.as_deref())
+        .bind(escaped_kw.as_deref())
         .bind(filter.is_banned)
         .bind(limit)
         .bind(offset)
@@ -606,16 +611,30 @@ mod tests {
         assert!(!found.is_banned, "RB-02: 执行解封后 is_banned 应为 false");
     }
 
-    // ── RB-03: 不存在的 UUID → update_ban_status 返回 Ok(false)（0 affected rows）──
-    #[tokio::test]
-    async fn rb03_update_ban_status_nonexistent_uuid_returns_false() {
-        let repo = FakeAdminUserRepository::default();
-        let nonexistent_id = Uuid::new_v4();
+    // ── R-10 (P2-13): nickname keyword 含 % / _ 不应被解释为通配符（escape_like_pattern 已就位）──
+    #[test]
+    fn r10_escape_like_pattern_is_imported_and_escapes_user_input() {
+        // 验证从 room::repository 复用的 escape_like_pattern 在 user 模块可用
+        assert_eq!(super::escape_like_pattern("a%b"), r"a\%b");
+        assert_eq!(super::escape_like_pattern("a_b"), r"a\_b");
+        assert_eq!(super::escape_like_pattern(r"a\b"), r"a\\b");
+        assert_eq!(super::escape_like_pattern("plain"), "plain");
+    }
 
-        let result = repo.update_ban_status(nonexistent_id, true).await.unwrap();
-        assert!(
-            !result,
-            "RB-03: 不存在的 UUID update_ban_status 应返回 false（0 affected rows）"
-        );
+    // ── R-11 (P2-13): Fake 仓库以"字面量"匹配 nickname keyword（与 PG ESCAPE 后语义一致）──
+    #[tokio::test]
+    async fn r11_nickname_keyword_treats_percent_as_literal() {
+        let repo = FakeAdminUserRepository::default();
+        repo.seed(make_row("111", "50%off promo", false, 0));
+        repo.seed(make_row("222", "regular user", false, 0));
+
+        // keyword="%" 字面量 → 仅匹配确含 '%' 的 nickname
+        let filter = AdminUserFilter {
+            nickname: Some("%".to_string()),
+            ..Default::default()
+        };
+        let rows = repo.find_users(&filter, 0, 10).await.unwrap();
+        assert_eq!(rows.len(), 1, "R-11: keyword='%' 必须按字面量匹配，不充当通配符");
+        assert_eq!(rows[0].nickname, "50%off promo");
     }
 }

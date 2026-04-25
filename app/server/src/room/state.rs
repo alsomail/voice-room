@@ -4,8 +4,92 @@
 //! 使用 `DashMap` 保证成员表的无锁并发读写；麦位用 `RwLock<Vec>` 保护。
 
 use dashmap::{DashMap, DashSet};
-use std::sync::RwLock;
+use std::collections::{HashSet, VecDeque};
+use std::sync::{Mutex, RwLock};
 use uuid::Uuid;
+
+// ─── BoundedMsgIdSet（P2-11：处理过 msg_id 的 FIFO 容量上限集合）──────────────
+
+/// 处理过的 msg_id 容量上限：超过即按 FIFO 淘汰最早的条目，避免热门长直播房 OOM。
+///
+/// 选择 10_000 是基于：单房间正常 QPS ≤ 50/秒，10_000 ≈ 200 秒窗口，
+/// 远大于客户端重发抖动窗口（5-10s），足以覆盖幂等去重需求。
+pub const PROCESSED_MSG_IDS_CAPACITY: usize = 10_000;
+
+/// 容量受限的 msg_id 去重集合（FIFO 淘汰）。
+///
+/// 用于 `RoomState.processed_msg_ids`，在保留幂等去重语义的同时，
+/// 严格限制内存上界（`capacity` 个 `String`）。
+///
+/// 实现：`HashSet` 提供 O(1) `contains`；`VecDeque` 维护插入顺序，
+/// 容量到达后弹出最旧条目并从 `HashSet` 同步移除。
+pub struct BoundedMsgIdSet {
+    inner: Mutex<BoundedMsgIdInner>,
+    capacity: usize,
+}
+
+struct BoundedMsgIdInner {
+    set: HashSet<String>,
+    order: VecDeque<String>,
+}
+
+impl BoundedMsgIdSet {
+    /// 创建容量为 `capacity` 的有界集合（capacity=0 视为禁用）。
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self {
+            inner: Mutex::new(BoundedMsgIdInner {
+                set: HashSet::with_capacity(capacity.min(1024)),
+                order: VecDeque::with_capacity(capacity.min(1024)),
+            }),
+            capacity,
+        }
+    }
+
+    /// 检查 msg_id 是否已被处理过。
+    pub fn contains(&self, id: &str) -> bool {
+        self.inner.lock().unwrap_or_else(|e| e.into_inner()).set.contains(id)
+    }
+
+    /// 插入 msg_id；若已存在返回 false（不重复入队）；新插入返回 true。
+    /// 当容量超过上限时，弹出队首并同步从 set 中移除。
+    pub fn insert(&self, id: String) -> bool {
+        if self.capacity == 0 {
+            return false;
+        }
+        let mut g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        if !g.set.insert(id.clone()) {
+            return false;
+        }
+        g.order.push_back(id);
+        while g.order.len() > self.capacity {
+            if let Some(evicted) = g.order.pop_front() {
+                g.set.remove(&evicted);
+            }
+        }
+        true
+    }
+
+    /// 当前条目数（主要用于测试与监控）。
+    pub fn len(&self) -> usize {
+        self.inner.lock().unwrap_or_else(|e| e.into_inner()).order.len()
+    }
+
+    /// 是否为空（clippy 要求与 `len` 配套）。
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// 容量上限。
+    pub fn capacity(&self) -> usize {
+        self.capacity
+    }
+}
+
+impl Default for BoundedMsgIdSet {
+    fn default() -> Self {
+        Self::with_capacity(PROCESSED_MSG_IDS_CAPACITY)
+    }
+}
 
 // ─── 错误类型 ─────────────────────────────────────────────────────────────────
 
@@ -54,8 +138,8 @@ pub struct RoomState {
     pub banned_mics: DashSet<Uuid>,
     /// 被禁言的用户集合（初始为空，管理员功能预留）
     pub muted_users: DashSet<Uuid>,
-    /// 已处理消息 ID（幂等去重，MVP 阶段不做大小限制）
-    pub processed_msg_ids: DashSet<String>,
+    /// 已处理消息 ID（幂等去重，FIFO 容量上限 — P2-11 修复 OOM 隐患）
+    pub processed_msg_ids: BoundedMsgIdSet,
 }
 
 impl RoomState {
@@ -67,7 +151,7 @@ impl RoomState {
             mic_slots: RwLock::new(vec![None; 9]),
             banned_mics: DashSet::new(),
             muted_users: DashSet::new(),
-            processed_msg_ids: DashSet::new(),
+            processed_msg_ids: BoundedMsgIdSet::default(),
         }
     }
 
@@ -141,5 +225,84 @@ impl RoomState {
         }
         slots[mic_index] = Some(user_id);
         Ok(())
+    }
+}
+
+// ─── 单元测试（P2-11 BoundedMsgIdSet）─────────────────────────────────────────
+
+#[cfg(test)]
+mod bounded_msg_id_tests {
+    use super::*;
+
+    // BMS-01: 容量内插入 → contains 命中，长度递增
+    #[test]
+    fn bms01_insert_within_capacity_is_remembered() {
+        let s = BoundedMsgIdSet::with_capacity(3);
+        assert!(s.insert("a".to_string()));
+        assert!(s.insert("b".to_string()));
+        assert!(s.contains("a"));
+        assert!(s.contains("b"));
+        assert_eq!(s.len(), 2);
+    }
+
+    // BMS-02: 重复插入返回 false，长度不变
+    #[test]
+    fn bms02_duplicate_insert_returns_false() {
+        let s = BoundedMsgIdSet::with_capacity(3);
+        assert!(s.insert("a".to_string()));
+        assert!(!s.insert("a".to_string()));
+        assert_eq!(s.len(), 1);
+    }
+
+    // BMS-03: 超出容量后 FIFO 淘汰最早条目
+    #[test]
+    fn bms03_evicts_oldest_when_capacity_exceeded() {
+        let s = BoundedMsgIdSet::with_capacity(2);
+        s.insert("a".to_string());
+        s.insert("b".to_string());
+        s.insert("c".to_string()); // 应淘汰 "a"
+        assert!(!s.contains("a"), "最早的 'a' 应被淘汰");
+        assert!(s.contains("b"));
+        assert!(s.contains("c"));
+        assert_eq!(s.len(), 2);
+    }
+
+    // BMS-04: 严格守恒 — 插入 N+10 条，长度恒为 N
+    #[test]
+    fn bms04_strict_capacity_invariant_under_load() {
+        let cap = 100;
+        let s = BoundedMsgIdSet::with_capacity(cap);
+        for i in 0..cap + 10 {
+            s.insert(format!("msg-{i}"));
+        }
+        assert_eq!(s.len(), cap, "长度必须严格 == capacity");
+        // 头 10 条已被淘汰
+        for i in 0..10 {
+            assert!(!s.contains(&format!("msg-{i}")));
+        }
+        // 末 cap 条仍然在
+        for i in 10..cap + 10 {
+            assert!(s.contains(&format!("msg-{i}")));
+        }
+    }
+
+    // BMS-05: capacity=0 → 永远 contains=false（禁用）
+    #[test]
+    fn bms05_zero_capacity_is_disabled() {
+        let s = BoundedMsgIdSet::with_capacity(0);
+        assert!(!s.insert("x".to_string()));
+        assert!(!s.contains("x"));
+        assert_eq!(s.len(), 0);
+    }
+
+    // BMS-06: RoomState 默认使用 PROCESSED_MSG_IDS_CAPACITY 容量
+    #[test]
+    fn bms06_room_state_uses_default_bounded_capacity() {
+        let st = RoomState::new(Uuid::new_v4());
+        assert_eq!(
+            st.processed_msg_ids.capacity(),
+            PROCESSED_MSG_IDS_CAPACITY,
+            "RoomState 默认容量必须为 PROCESSED_MSG_IDS_CAPACITY"
+        );
     }
 }

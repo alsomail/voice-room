@@ -13,9 +13,20 @@ pub const HEARTBEAT_TIMEOUT: Duration = Duration::from_secs(30);
 /// 检测间隔（每 10 秒扫描一次）
 const CHECK_INTERVAL: Duration = Duration::from_secs(10);
 
+/// 心跳超时时给客户端发送的显式关闭信令（P2-17：将"超时"语义提升为可观测事件）。
+///
+/// 客户端无须强制依赖该消息（连接也会随后被注销，下行 channel 关闭），
+/// 但有此显式帧后：
+/// - 单元测试可断言"心跳超时确实给客户端发送了 timeout 通知"
+/// - 客户端日志可显式区分"主动断网" vs "心跳超时被踢"
+pub const HEARTBEAT_TIMEOUT_MESSAGE: &str =
+    r#"{"type":"connection_closed","reason":"heartbeat_timeout"}"#;
+
 /// 移除所有心跳已超时的连接。
 ///
 /// 使用 DashMap::retain 原子地扫描+删除，返回移除的连接数量。
+/// P2-17：移除前显式向客户端 sender 发送 `HEARTBEAT_TIMEOUT_MESSAGE`，
+/// 把"心跳超时"行为从隐式 mpsc drop 提升为可观测事件。
 pub fn remove_expired(registry: &ConnectionRegistry) -> usize {
     let now = Instant::now();
     let mut removed: usize = 0;
@@ -34,6 +45,8 @@ pub fn remove_expired(registry: &ConnectionRegistry) -> usize {
                 elapsed_secs = elapsed.as_secs(),
                 "heartbeat expired, disconnecting"
             );
+            // P2-17：尽力投递 timeout 通知；channel 已关闭则静默忽略
+            let _ = handle.sender.send(HEARTBEAT_TIMEOUT_MESSAGE.to_string());
             removed += 1;
             false // retain=false → DashMap 移除此条目
         } else {
@@ -156,5 +169,35 @@ mod tests {
             .await
             .expect("heartbeat_task should stop within 200ms after shutdown signal")
             .expect("task should not panic");
+    }
+
+    // H04 (P2-17): 心跳超时时显式向客户端发送 connection_closed/heartbeat_timeout 帧
+    #[tokio::test]
+    async fn h04_expired_connection_receives_explicit_shutdown_frame() {
+        let registry = ConnectionRegistry::new();
+
+        let stale = Instant::now() - Duration::from_secs(31);
+        // 直接构造 handle 持有 rx，避免被 make_handle_with_heartbeat 丢弃
+        let (tx, mut rx) = mpsc::unbounded_channel::<String>();
+        let handle = ConnectionHandle {
+            connection_id: Uuid::new_v4(),
+            user_id: Uuid::new_v4(),
+            room_id: None,
+            sender: tx,
+            last_heartbeat: Arc::new(RwLock::new(stale)),
+        };
+        registry.register(handle);
+
+        let removed = remove_expired(&registry);
+        assert_eq!(removed, 1, "心跳超时应被检测到");
+
+        // 接收端必须收到一条显式 timeout 帧（P2-17 关键断言）
+        let msg = rx
+            .try_recv()
+            .expect("P2-17: 心跳超时移除前必须显式发送 connection_closed 帧");
+        let json: serde_json::Value =
+            serde_json::from_str(&msg).expect("timeout 帧必须是合法 JSON");
+        assert_eq!(json["type"], "connection_closed");
+        assert_eq!(json["reason"], "heartbeat_timeout");
     }
 }

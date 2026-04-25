@@ -14,20 +14,44 @@ use crate::ws::ConnectionRegistry;
 
 // ─── 通知 JSON 构造函数 ───────────────────────────────────────────────────────
 
+/// i18n key — 封禁通知（客户端用 strings.xml 本地化；阿语 values-ar 已就绪）
+pub const BAN_NOTIFICATION_I18N_KEY: &str = "notification.ban_user";
+/// i18n key — 房间被关闭
+pub const ROOM_CLOSED_I18N_KEY: &str = "notification.room_closed";
+/// i18n key — 系统公告（消息体由 admin 输入透传，仅类型本地化）
+pub const BROADCAST_NOTICE_I18N_KEY: &str = "notification.broadcast_notice";
+
 /// 封禁通知消息 JSON
+///
+/// P3-20：附带 `i18n_key`，客户端按 locale 渲染（沿用 Android `UiText` + values-ar）。
+/// 同时保留 `message` 英文回退，供尚未实现 i18n 的旧客户端兜底。
 fn ban_notification_json() -> String {
-    r#"{"type":"ban_user","message":"You have been banned from this platform."}"#.to_string()
+    serde_json::json!({
+        "type": "ban_user",
+        "i18n_key": BAN_NOTIFICATION_I18N_KEY,
+        "message": "You have been banned from this platform."
+    })
+    .to_string()
 }
 
 /// 房间关闭通知消息 JSON
 fn room_closed_json() -> String {
-    r#"{"type":"close_room","message":"This room has been closed by an administrator."}"#
-        .to_string()
+    serde_json::json!({
+        "type": "close_room",
+        "i18n_key": ROOM_CLOSED_I18N_KEY,
+        "message": "This room has been closed by an administrator."
+    })
+    .to_string()
 }
 
-/// 系统公告消息 JSON
+/// 系统公告消息 JSON（message 体由 admin 输入透传）
 fn notice_json(message: String) -> String {
-    serde_json::json!({"type": "broadcast_notice", "message": message}).to_string()
+    serde_json::json!({
+        "type": "broadcast_notice",
+        "i18n_key": BROADCAST_NOTICE_I18N_KEY,
+        "message": message
+    })
+    .to_string()
 }
 
 // ─── 事件分发入口 ─────────────────────────────────────────────────────────────
@@ -383,6 +407,71 @@ mod tests {
         assert!(
             no_msg.is_err(),
             "unban_user must NOT push any message to the user"
+        );
+    }
+
+    // ─── E09 / E10 / E11 (P3-20): 通知 JSON 携带 i18n_key 字段 ───────────────────
+
+    #[tokio::test]
+    async fn e09_ban_notification_carries_i18n_key() {
+        let registry = Arc::new(ConnectionRegistry::new());
+        let user_id = Uuid::new_v4();
+        let (handle, mut rx) = make_handle(user_id, None);
+        registry.register(handle);
+
+        super::handle_admin_event(ban_user_event(user_id), registry.clone()).await;
+
+        let msg = tokio::time::timeout(Duration::from_millis(100), rx.recv())
+            .await
+            .expect("rx should receive ban notification")
+            .expect("channel should not be closed");
+        let json: serde_json::Value = serde_json::from_str(&msg).unwrap();
+        assert_eq!(json["type"], "ban_user");
+        assert_eq!(
+            json["i18n_key"], "notification.ban_user",
+            "P3-20: 封禁通知必须携带 i18n_key 供客户端本地化"
+        );
+        assert!(
+            json["message"].is_string(),
+            "保留 message 英文回退，供未实现 i18n 的旧客户端兜底"
+        );
+    }
+
+    #[tokio::test]
+    async fn e10_close_room_notification_carries_i18n_key() {
+        let registry = Arc::new(ConnectionRegistry::new());
+        let room_id = Uuid::new_v4();
+        let (h1, mut rx1) = make_handle(Uuid::new_v4(), Some(room_id));
+        registry.register(h1);
+
+        super::handle_admin_event(close_room_event(room_id), registry.clone()).await;
+
+        let msg = tokio::time::timeout(Duration::from_millis(100), rx1.recv())
+            .await
+            .expect("rx1 should receive close notification")
+            .expect("channel should not be closed");
+        let json: serde_json::Value = serde_json::from_str(&msg).unwrap();
+        assert_eq!(json["i18n_key"], "notification.room_closed");
+    }
+
+    #[tokio::test]
+    async fn e11_broadcast_notice_carries_i18n_key_with_passthrough_message() {
+        let registry = Arc::new(ConnectionRegistry::new());
+        let (h1, mut rx1) = make_handle(Uuid::new_v4(), None);
+        registry.register(h1);
+
+        super::handle_admin_event(broadcast_notice_event("Maintenance at 10pm"), registry.clone())
+            .await;
+
+        let msg = tokio::time::timeout(Duration::from_millis(100), rx1.recv())
+            .await
+            .expect("rx1 should receive notice")
+            .expect("channel should not be closed");
+        let json: serde_json::Value = serde_json::from_str(&msg).unwrap();
+        assert_eq!(json["i18n_key"], "notification.broadcast_notice");
+        assert_eq!(
+            json["message"], "Maintenance at 10pm",
+            "公告消息体由 admin 输入透传，不被本地化"
         );
     }
 }

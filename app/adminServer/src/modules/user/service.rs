@@ -183,18 +183,14 @@ impl AdminUserService {
         // P1-7: 移除业务层 tracing 伪审计；审计统一由 controller 调用 audit_logger.log_action
 
         // 发布管理事件（fire-and-forget，失败不影响主业务）
+        // P3-18: ban/unban 事件 payload 字段对称，便于下游消费方统一处理
         let event_type = if is_banned { "ban_user" } else { "unban_user" };
-        let payload = if is_banned {
-            // P0-2: 永久封禁时 duration_hours=null（而非 0）以保留语义
-            serde_json::json!({
-                "user_id": user_id.to_string(),
-                "reason": req.reason.as_deref().unwrap_or(""),
-                "ban_type": req.ban_type.as_deref().unwrap_or("permanent"),
-                "duration_hours": req.duration_hours,
-            })
-        } else {
-            serde_json::json!({ "user_id": user_id.to_string() })
-        };
+        let payload = serde_json::json!({
+            "user_id": user_id.to_string(),
+            "ban_type": if is_banned { Some(req.ban_type.as_deref().unwrap_or("permanent")) } else { None },
+            "duration_hours": if is_banned { req.duration_hours } else { None },
+            "reason": req.reason.as_deref().unwrap_or(""),
+        });
         let event = AdminEvent {
             r#type: event_type.to_string(),
             payload,
@@ -895,5 +891,79 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(res.status, "banned");
+    }
+
+    // ── SB-14 (P3-18): ban / unban 事件 payload 字段对称 ────────────────────────
+    #[tokio::test]
+    async fn sb14_ban_and_unban_event_payloads_have_symmetric_keys() {
+        let (svc, repo, publisher) = make_service_with_publisher();
+        let operator_id = Uuid::new_v4();
+
+        // ban 一个新用户
+        let ban_user_id = Uuid::new_v4();
+        repo.seed(AdminUserListRow {
+            id: ban_user_id,
+            phone: "+8613811111111".to_string(),
+            nickname: "BanU".to_string(),
+            avatar: None,
+            coin_balance: 0,
+            vip_level: 0,
+            is_banned: false,
+            created_at: Utc::now(),
+        });
+        svc.ban_user(
+            operator_id,
+            ban_user_id,
+            ban_req_full("ban", Some("temporary"), Some(24)),
+        )
+        .await
+        .expect("ban should succeed");
+
+        // unban 一个已封禁用户
+        let unban_user_id = Uuid::new_v4();
+        repo.seed(AdminUserListRow {
+            id: unban_user_id,
+            phone: "+8613822222222".to_string(),
+            nickname: "UnbanU".to_string(),
+            avatar: None,
+            coin_balance: 0,
+            vip_level: 0,
+            is_banned: true,
+            created_at: Utc::now(),
+        });
+        svc.ban_user(operator_id, unban_user_id, ban_req("unban"))
+            .await
+            .expect("unban should succeed");
+
+        let calls = publisher.calls.lock().unwrap();
+        assert_eq!(calls.len(), 2, "应有 ban + unban 两次发布");
+
+        let ban_payload = &calls[0].1.payload;
+        let unban_payload = &calls[1].1.payload;
+
+        // 关键：两侧 payload 顶层 key 集合完全一致（P3-18 对称性）
+        let ban_keys: std::collections::BTreeSet<String> = ban_payload
+            .as_object()
+            .unwrap()
+            .keys()
+            .cloned()
+            .collect();
+        let unban_keys: std::collections::BTreeSet<String> = unban_payload
+            .as_object()
+            .unwrap()
+            .keys()
+            .cloned()
+            .collect();
+        assert_eq!(
+            ban_keys, unban_keys,
+            "P3-18: ban / unban 事件 payload 顶层字段必须对称（含 user_id/ban_type/duration_hours/reason）"
+        );
+
+        // ban 侧字段非空，unban 侧 ban_type/duration_hours 为 null
+        assert_eq!(ban_payload["ban_type"], "temporary");
+        assert_eq!(ban_payload["duration_hours"], 24);
+        assert!(unban_payload["ban_type"].is_null());
+        assert!(unban_payload["duration_hours"].is_null());
+        assert_eq!(unban_payload["user_id"], unban_user_id.to_string());
     }
 }
