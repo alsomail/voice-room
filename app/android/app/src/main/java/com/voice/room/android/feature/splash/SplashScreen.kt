@@ -13,6 +13,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -26,6 +28,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.voice.room.android.BuildConfig
 import com.voice.room.android.R
+import com.voice.room.android.core.analytics.ConsentMode
+import com.voice.room.android.core.consent.PrivacyConsentDialog
 import com.voice.room.android.core.theme.MenaColors
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -53,8 +57,9 @@ fun SplashScreen(
     // ── 动画状态 ──────────────────────────────────────
     val scale = remember { Animatable(0.5f) }
     val alpha = remember { Animatable(0f) }
+    val showConsent by splashViewModel.showConsent.collectAsState()
 
-    // ── Logo 缩放 + 淡入动画，完成后 delay 500ms 再 checkAuth ──
+    // ── Logo 缩放 + 淡入动画，完成后 delay 500ms 再 bootstrap ──
     LaunchedEffect(Unit) {
         // 并行启动 scale 和 alpha 动画
         val scaleJob = launch {
@@ -78,7 +83,8 @@ fun SplashScreen(
         scaleJob.join()
         alphaJob.join()
         delay(500L) // 总停留 ~1.3s
-        splashViewModel.checkAuth()
+        // R1 批 2 缺陷 5：bootstrap = load consent → 若未设置则弹窗，否则 checkAuth
+        splashViewModel.bootstrap()
     }
 
     // ── 监听导航事件 ──────────────────────────────────
@@ -124,6 +130,14 @@ fun SplashScreen(
                     .padding(bottom = 32.dp)
                     .testTag("splash_version")
             )
+
+            // R1 批 2 缺陷 5：首次启动隐私同意弹窗
+            if (showConsent) {
+                PrivacyConsentDialog(
+                    onAgreeAll = { splashViewModel.onConsentSelected(ConsentMode.All) },
+                    onCrashOnly = { splashViewModel.onConsentSelected(ConsentMode.CrashOnly) },
+                )
+            }
         }
     }
 }

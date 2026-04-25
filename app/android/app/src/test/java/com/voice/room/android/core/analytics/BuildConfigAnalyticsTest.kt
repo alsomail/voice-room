@@ -43,7 +43,7 @@ class BuildConfigAnalyticsTest {
 
     @Test
     fun BC04_appContainer_hasAnalyticsPort() {
-        val container = com.voice.room.android.common.AppContainer.fromBuildConfig()
+        val container = com.voice.room.android.common.AppContainer.forUnitTest()
         assertNotNull("AppContainer 应包含 analyticsPort", container.analyticsPort)
     }
 }

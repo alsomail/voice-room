@@ -11,7 +11,7 @@ import org.junit.Test
 class AppContainerTest {
     @Test
     fun `fromBuildConfig wires debug placeholders and config`() {
-        val container = AppContainer.fromBuildConfig()
+        val container = AppContainer.forUnitTest()
 
         assertEquals(BuildConfig.APP_ENVIRONMENT, container.environment.environmentName)
         assertFalse(container.authService.currentUserLabel().isBlank())
@@ -37,7 +37,7 @@ class AppContainerTest {
      */
     @Test
     fun `HIGH-01 AppContainer exposes announcementSeenStore as application-level singleton`() {
-        val container = AppContainer.fromBuildConfig()
+        val container = AppContainer.forUnitTest()
 
         // Store 不为 null
         assertNotNull("AppContainer.announcementSeenStore 不应为 null", container.announcementSeenStore)

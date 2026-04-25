@@ -33,6 +33,12 @@
     <!-- شاشة البداية -->
     <string name="splash_logo_description">شعار التطبيق</string>
 
+    <!-- ─── الوحدة 7: نافذة الموافقة على جمع البيانات (T-30035 R1 إصلاح #5) ─── -->
+    <string name="privacy_consent_title">إشعار جمع البيانات</string>
+    <string name="privacy_consent_body">لتحسين تجربتك باستمرار، نجمع البيانات المجهولة التالية:\n\n• استخدام الميزات (دون رقم هاتفك أو أي معرّف شخصي)\n• تقارير الأعطال (للمساعدة في إصلاح المشكلات بسرعة)\n\nجميع البيانات مجهولة الهوية، ولا نرفع أبداً أرقام الهواتف أو تفاصيل الحساب.</string>
+    <string name="privacy_consent_btn_agree_all">الموافقة على الكل</string>
+    <string name="privacy_consent_btn_crash_only">تقارير الأعطال فقط</string>
+
     <!-- العلامة التجارية -->
     <string name="app_brand_emoji">🎙️</string>
     <string name="app_brand_name">غرفة الصوت</string>

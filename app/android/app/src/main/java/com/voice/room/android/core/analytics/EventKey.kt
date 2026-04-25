@@ -16,6 +16,8 @@ object EventKey {
     const val LOGIN_REQUEST = "login_request"
     const val LOGIN_SUCCESS = "login_success"
     const val LOGIN_FAIL = "login_fail"
+    /** 验证码登录成功（business_flows §2.9）— properties: is_new_user (Boolean) */
+    const val LOGIN_VERIFY_SUCCESS = "login_verify_success"
     const val LOGOUT_CLICK = "logout_click"
 
     // ─── 大厅 ──────────────────────────────────────

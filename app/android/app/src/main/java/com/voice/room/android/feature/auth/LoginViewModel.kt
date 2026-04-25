@@ -3,6 +3,9 @@ package com.voice.room.android.feature.auth
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.voice.room.android.core.analytics.AnalyticsPort
+import com.voice.room.android.core.analytics.EventKey
+import com.voice.room.android.core.analytics.impl.NoopAnalytics
 import com.voice.room.android.core.network.UnauthorizedHandler
 import com.voice.room.android.data.auth.ApiException
 import com.voice.room.android.domain.auth.IAuthRepository
@@ -38,7 +41,13 @@ import kotlinx.coroutines.launch
 class LoginViewModel(
     private val authRepository: IAuthRepository = NoOpAuthRepository,
     private val tokenManager: ITokenManager = NoOpTokenManager,
-    private val unauthorizedHandler: UnauthorizedHandler = NoOpUnauthorizedHandler
+    private val unauthorizedHandler: UnauthorizedHandler = NoOpUnauthorizedHandler,
+    /**
+     * Analytics 防腐层（T-30035 / R1 批 2 缺陷 2）。
+     * 业务层只能通过 [AnalyticsPort] 调用，严禁直接 import io.sentry.*；
+     * 默认 [NoopAnalytics] 用于 Compose Preview 与无 DI 的单测路径。
+     */
+    private val analyticsPort: AnalyticsPort = NoopAnalytics()
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(LoginUiState())
@@ -135,6 +144,13 @@ class LoginViewModel(
                     runCatching { tokenManager.saveToken(result.token) }
                         .onSuccess {
                             unauthorizedHandler.resetUnauthorized()
+                            // T-30035 R1 批 2（缺陷 2）：登录验证成功埋点。
+                            // 公共字段（device_id/session_id/...）由 CommonPropsProvider 注入，
+                            // 此处仅传业务字段 is_new_user（business_flows §2.9 字典对齐）。
+                            analyticsPort.track(
+                                EventKey.LOGIN_VERIFY_SUCCESS,
+                                mapOf("is_new_user" to result.isNew)
+                            )
                             _uiState.update {
                                 it.copy(
                                     isLoading = false,
@@ -205,11 +221,12 @@ class LoginViewModel(
     class Factory(
         private val authRepository: IAuthRepository,
         private val tokenManager: ITokenManager,
-        private val unauthorizedHandler: UnauthorizedHandler
+        private val unauthorizedHandler: UnauthorizedHandler,
+        private val analyticsPort: AnalyticsPort = NoopAnalytics()
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T =
-            LoginViewModel(authRepository, tokenManager, unauthorizedHandler) as T
+            LoginViewModel(authRepository, tokenManager, unauthorizedHandler, analyticsPort) as T
     }
 
     // ─────────────────────────────────────────────

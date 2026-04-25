@@ -40,6 +40,14 @@
     <!-- Splash -->
     <string name="splash_logo_description">App Logo</string>
 
+    <!-- ─── 模块7：隐私同意弹窗（T-30035 R1 缺陷 5 i18n） ─────────────────────────
+         所有用户可见文案均走 stringResource，配套 values-ar / values-en 真翻译；
+         严禁在 PrivacyConsentDialog.kt 中再次出现中/阿/英文字面量。 -->
+    <string name="privacy_consent_title">Data collection notice</string>
+    <string name="privacy_consent_body">To continuously improve your experience, we collect the following anonymous data:\n\n• Feature usage (no phone number or personal identifier)\n• Crash reports (to help us fix issues quickly)\n\nAll data is anonymized; we never upload phone numbers or account details.</string>
+    <string name="privacy_consent_btn_agree_all">Agree to all</string>
+    <string name="privacy_consent_btn_crash_only">Crash reports only</string>
+
     <!-- App brand (跨地区共享) -->
     <string name="app_brand_emoji">🎙️</string>
     <string name="app_brand_name">Voice Room</string>

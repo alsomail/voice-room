@@ -3,6 +3,7 @@ import java.util.Properties
 plugins {
     id("com.android.application")
     kotlin("android")
+    id("com.google.devtools.ksp")
     id("org.jetbrains.kotlinx.kover")
 }
 
@@ -158,6 +159,14 @@ dependencies {
 
     // DataStore Preferences (JWT token storage)
     implementation("androidx.datastore:datastore-preferences:1.1.1")
+
+    // Room — 事件队列持久化（T-30035 / 模块 7 R1 缺陷 7）
+    implementation("androidx.room:room-runtime:2.6.1")
+    implementation("androidx.room:room-ktx:2.6.1")
+    ksp("androidx.room:room-compiler:2.6.1")
+
+    // Lifecycle Process — ProcessLifecycleOwner（背景态触发 flush）
+    implementation("androidx.lifecycle:lifecycle-process:2.8.6")
 
     // Paging3 — 无限滚动、下拉刷新 (T-30006)
     implementation("androidx.paging:paging-runtime:3.2.1")

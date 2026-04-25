@@ -4,6 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.google.gson.JsonParser
+import com.voice.room.android.core.analytics.AnalyticsPort
+import com.voice.room.android.core.analytics.EventKey
+import com.voice.room.android.core.analytics.impl.NoopAnalytics
 import com.voice.room.android.core.ws.IWebSocketClient
 import com.voice.room.android.core.ws.WebSocketState
 import com.voice.room.android.core.ws.event.SendGiftResultEvent
@@ -47,6 +50,12 @@ class GiftPanelViewModel(
     private val giftRepository: IGiftRepository,
     private val wsClient: IWebSocketClient,
     roomId: String = "",
+    /**
+     * Analytics 防腐层（T-30035 / R1 批 2 缺陷 2）。
+     * 业务层只能通过 [AnalyticsPort] 调用，严禁直接 import io.sentry.*。
+     * 默认 [NoopAnalytics] 用于 Compose Preview 与无 DI 的单测路径。
+     */
+    private val analyticsPort: AnalyticsPort = NoopAnalytics(),
 ) : ViewModel() {
 
     // ─── State & Events ───────────────────────────────────────────────────────
@@ -333,33 +342,114 @@ class GiftPanelViewModel(
      * @param result null = 超时；非 null = 服务端回复的结果事件
      */
     private suspend fun handleSendGiftResult(result: SendGiftResultEvent?) {
-        when {
-            result == null ->
-                _events.emit(GiftPanelEvent.ShowToast("请求超时，请重试"))
+        // T-30035 R1 批 2（缺陷 2）：核心 3 礼物事件埋点（business_flows §2.9）。
+        // 公共字段（device_id/session_id/...）由 CommonPropsProvider 注入；
+        // 此处仅传业务字段，且严禁覆盖公共 reservedKeys。
+        val state = _uiState.value
+        val gift = state.selectedGift
+        val giftId = gift?.id ?: ""
+        val count = state.selectedCount
+        val totalPrice = (gift?.price ?: 0L) * count
 
-            result.code == 0 ->
+        when {
+            result == null -> {
+                // 超时按 fail_reason=TIMEOUT 上报
+                analyticsPort.track(
+                    EventKey.GIFT_SEND_FAIL,
+                    mapOf(
+                        "gift_id" to giftId,
+                        "count" to count,
+                        "fail_reason" to "TIMEOUT"
+                    )
+                )
+                _events.emit(GiftPanelEvent.ShowToast("请求超时，请重试"))
+            }
+
+            result.code == 0 -> {
+                analyticsPort.track(
+                    EventKey.GIFT_SEND_SUCCESS,
+                    mapOf(
+                        "gift_id" to giftId,
+                        "count" to count,
+                        "total_price" to totalPrice,
+                        "effect_level" to (gift?.tier ?: 0),
+                        "elapsed_ms" to 0L
+                    )
+                )
                 _events.emit(GiftPanelEvent.ShowToast("赠送成功"))
+            }
 
             result.code == 40290 -> {
+                // 余额不足：先 fail，再 dialog_shown
+                analyticsPort.track(
+                    EventKey.GIFT_SEND_FAIL,
+                    mapOf(
+                        "gift_id" to giftId,
+                        "count" to count,
+                        "fail_reason" to "INSUFFICIENT_BALANCE"
+                    )
+                )
+                analyticsPort.track(
+                    EventKey.INSUFFICIENT_BALANCE_DIALOG_SHOWN,
+                    mapOf(
+                        "required" to totalPrice,
+                        "current" to state.balance,
+                        "gift_id" to giftId
+                    )
+                )
                 _uiState.update { it.copy(showInsufficientDialog = true) }
                 _events.emit(GiftPanelEvent.ShowInsufficientDialog)
             }
 
-            result.code == 40403 ->
+            result.code == 40403 -> {
+                analyticsPort.track(
+                    EventKey.GIFT_SEND_FAIL,
+                    mapOf(
+                        "gift_id" to giftId,
+                        "count" to count,
+                        "fail_reason" to "RECEIVER_UNAVAILABLE"
+                    )
+                )
                 _events.emit(GiftPanelEvent.ShowToast("接收者已下麦或离开"))
+            }
 
             result.code == 40402 -> {
+                analyticsPort.track(
+                    EventKey.GIFT_SEND_FAIL,
+                    mapOf(
+                        "gift_id" to giftId,
+                        "count" to count,
+                        "fail_reason" to "GIFT_OFFLINE"
+                    )
+                )
                 _events.emit(GiftPanelEvent.ShowToast("该礼物已下架"))
                 loadGifts(lastLocale)
             }
 
             result.code == 40400 -> {
+                analyticsPort.track(
+                    EventKey.GIFT_SEND_FAIL,
+                    mapOf(
+                        "gift_id" to giftId,
+                        "count" to count,
+                        "fail_reason" to "NOT_IN_ROOM"
+                    )
+                )
                 _events.emit(GiftPanelEvent.ShowToast("你已不在房间"))
                 _events.emit(GiftPanelEvent.DismissPanel)
             }
 
-            else ->
+            else -> {
+                analyticsPort.track(
+                    EventKey.GIFT_SEND_FAIL,
+                    mapOf(
+                        "gift_id" to giftId,
+                        "count" to count,
+                        "fail_reason" to "UNKNOWN_${result.code}"
+                    )
+                )
                 _events.emit(GiftPanelEvent.ShowToast("赠送失败，请重试"))
+            }
         }
     }
 
@@ -413,10 +503,11 @@ class GiftPanelViewModel(
             giftRepository: IGiftRepository,
             wsClient: IWebSocketClient,
             roomId: String = "",
+            analyticsPort: AnalyticsPort = NoopAnalytics(),
         ) = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T =
-                GiftPanelViewModel(giftRepository, wsClient, roomId) as T
+                GiftPanelViewModel(giftRepository, wsClient, roomId, analyticsPort) as T
         }
     }
 }

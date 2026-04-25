@@ -14,7 +14,7 @@ import com.voice.room.android.core.analytics.ConsentMode
  */
 class ConsentRepository(
     private val store: ConsentStore,
-    private val analyticsPort: AnalyticsPort? = null
+    private var analyticsPort: AnalyticsPort? = null
 ) {
     @Volatile
     private var _mode: ConsentMode = ConsentMode.CrashOnly
@@ -26,6 +26,19 @@ class ConsentRepository(
     @Volatile
     var isSet: Boolean = false
         private set
+
+    /**
+     * 在 AppContainer 完成 [AnalyticsPort] 装配后回填依赖（T-30035 R1 批 2）。
+     *
+     * 解除 AppContainer 中 ConsentRepository ↔ CompositeAnalyticsPort 的循环依赖：
+     * - CompositeAnalyticsPort 需要 EventReportClient（其又需要 ConsentRepository）
+     * - ConsentRepository.saveConsent 需要回调 AnalyticsPort.setConsent
+     *
+     * 仅在装配阶段调用，不应在运行期切换。
+     */
+    fun attachAnalyticsPort(port: AnalyticsPort) {
+        this.analyticsPort = port
+    }
 
     /**
      * 从 DataStore 加载已保存的模式（应在 Splash 时调用）。

@@ -39,7 +39,10 @@ fun AppNavGraph(appContainer: AppContainer) {
         // ── Splash 启动页 ──────────────────────────────
         composable("splash") {
             val splashViewModel: SplashViewModel = viewModel(
-                factory = SplashViewModel.Factory(appContainer.tokenManager)
+                factory = SplashViewModel.Factory(
+                    tokenManager = appContainer.tokenManager,
+                    consentRepository = appContainer.consentRepository,
+                )
             )
             SplashScreen(
                 splashViewModel = splashViewModel,

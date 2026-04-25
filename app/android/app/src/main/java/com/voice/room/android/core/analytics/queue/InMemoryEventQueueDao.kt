@@ -1,14 +1,15 @@
 package com.voice.room.android.core.analytics.queue
 
-import java.util.concurrent.CopyOnWriteArrayList
+import androidx.annotation.VisibleForTesting
 import java.util.concurrent.atomic.AtomicLong
 
 /**
  * 内存事件队列 DAO 实现（T-30035）
  *
- * 用于测试和 MVP 阶段（无 Room 依赖）。
- * 线程安全：使用 [CopyOnWriteArrayList] + synchronized 块。
+ * R1 批 2（缺陷 7）：仅供 JVM 单元测试使用；生产路径已切换到
+ * [com.voice.room.android.core.analytics.queue.RoomEventQueueRepository]。
  */
+@VisibleForTesting
 class InMemoryEventQueueDao : EventQueueDao {
 
     private val lock = Any()
