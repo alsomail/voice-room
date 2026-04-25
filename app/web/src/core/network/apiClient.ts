@@ -745,6 +745,32 @@ export async function listUserEvents(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// 事件名字典（缺陷 8 / R1 批 3）
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** GET /admin/events/names 响应 data 体 */
+export interface EventNamesResponse {
+  items: string[];
+}
+
+/**
+ * GET /admin/events/names — 取最近 N 天 events 表中出现过的所有 distinct event_name。
+ *
+ * 仅 super_admin 可访问；用于 EventStreamTab event_name 多选下拉枚举来源，
+ * 取代前端 `events.dict.ts` 硬编码字典（缺陷 8 / R1 批 3）。
+ */
+export async function listEventNames(
+  days = 30,
+  signal?: AbortSignal,
+): Promise<EventNamesResponse> {
+  const res = await adminFetch<EventNamesResponse>(
+    `/events/names?days=${encodeURIComponent(String(days))}`,
+    { signal },
+  );
+  return res.data;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Admin Governance（T-20014，对应 T-10016 后端接口）
 // ─────────────────────────────────────────────────────────────────────────────
 

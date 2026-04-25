@@ -159,6 +159,24 @@ impl EventQueryService {
             items: rows.into_iter().map(EventItem::from).collect(),
         })
     }
+
+    /// 列出最近 `days` 天内出现过的 distinct event_name（字典序升序）。
+    ///
+    /// 缺陷 8（R1 批 3）：T-20013 Web 行为流 Tab event_name 多选下拉的后端枚举源。
+    pub async fn list_event_names(&self, days: u32) -> Result<Vec<String>, AppError> {
+        let clamped = clamp_days(days);
+        let since = Utc::now() - Duration::days(clamped as i64);
+        self.repo.list_distinct_event_names(since).await
+    }
+}
+
+/// 将 `days` 入参约束到 `[1, 90]` 区间。
+///
+/// - 0 → 1（至少看 1 天）
+/// - >90 → 90（避免拉取过长跨度）
+/// - 其它 → 原值
+pub fn clamp_days(days: u32) -> u32 {
+    days.clamp(1, 90)
 }
 
 // ─── 单元测试（EQ01~EQ05, EQ07, EQ08）──────────────────────────────────────
@@ -829,5 +847,71 @@ mod tests {
             .unwrap();
 
         assert_eq!(resp.total, 3, "super_admin 应能看到全部 3 条事件");
+    }
+
+    // ── 缺陷 8（R1 批 3）：list_event_names + clamp_days 测试 ─────────────────
+
+    #[test]
+    fn clamp_days_zero_returns_one() {
+        assert_eq!(super::clamp_days(0), 1);
+    }
+
+    #[test]
+    fn clamp_days_within_range_pass_through() {
+        assert_eq!(super::clamp_days(30), 30);
+        assert_eq!(super::clamp_days(1), 1);
+        assert_eq!(super::clamp_days(90), 90);
+    }
+
+    #[test]
+    fn clamp_days_above_max_clamps_to_ninety() {
+        assert_eq!(super::clamp_days(365), 90);
+        assert_eq!(super::clamp_days(91), 90);
+    }
+
+    #[tokio::test]
+    async fn list_event_names_returns_distinct_sorted() {
+        let repo = Arc::new(FakeEventQueryRepository::default());
+        repo.push(make_row("gift_send", 60));
+        repo.push(make_row("login_success", 120));
+        repo.push(make_row("gift_send", 180));
+        repo.push(make_row("admin_ban_user", 240));
+
+        let service = EventQueryService::new(repo);
+        let names = service.list_event_names(30).await.unwrap();
+
+        // distinct + 字典序升序
+        assert_eq!(
+            names,
+            vec![
+                "admin_ban_user".to_string(),
+                "gift_send".to_string(),
+                "login_success".to_string(),
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn list_event_names_filters_outside_window() {
+        let repo = Arc::new(FakeEventQueryRepository::default());
+        repo.push(make_row("recent_event", 60));
+        // 90 天前的事件（在 30 天窗口外）
+        repo.push(make_row("ancient_event", 90 * 86400));
+
+        let service = EventQueryService::new(repo);
+        let names = service.list_event_names(30).await.unwrap();
+
+        assert_eq!(names, vec!["recent_event".to_string()]);
+    }
+
+    #[tokio::test]
+    async fn list_event_names_clamps_days_input() {
+        let repo = Arc::new(FakeEventQueryRepository::default());
+        repo.push(make_row("e1", 60));
+
+        let service = EventQueryService::new(repo);
+        // 0 → 至少 1 天，仍能看到 60 秒前事件
+        let names = service.list_event_names(0).await.unwrap();
+        assert_eq!(names, vec!["e1".to_string()]);
     }
 }

@@ -38,7 +38,7 @@ import { useTranslation } from 'react-i18next';
 import type { Dayjs } from 'dayjs';
 import type { EventListParams, EventListResponse } from '../../services/api/events';
 import { listUserEvents } from '../../services/api/events';
-import { ANALYTICS_EVENTS } from './events.dict';
+import { useEventNames } from './useEventNames';
 import { EventTimelineItem } from './components/EventTimelineItem';
 import { downloadCsv, generateEventCsvFilename, objectsToCsv } from '../../lib/csv';
 
@@ -76,6 +76,9 @@ interface EventStreamTabProps {
 
 export function EventStreamTab({ userId }: EventStreamTabProps) {
   const { t } = useTranslation();
+
+  // ── 事件名枚举（缺陷 8 / R1 批 3）— 从后台拉取，失败降级硬编码 ───────────
+  const { items: eventNameOptions, loading: eventNamesLoading } = useEventNames();
 
   // ── 筛选状态 ──────────────────────────────────────────────────────────────
   const [timeRange, setTimeRange] = useState<TimeRangePreset>('24h');
@@ -299,8 +302,9 @@ export function EventStreamTab({ userId }: EventStreamTabProps) {
           data-testid="event-name-select"
           mode="multiple"
           allowClear
+          loading={eventNamesLoading}
           placeholder={t('events.selectEvents')}
-          options={ANALYTICS_EVENTS.map((e) => ({ value: e, label: e }))}
+          options={eventNameOptions.map((e) => ({ value: e, label: e }))}
           value={selectedEvents}
           onChange={(values: string[]) => {
             setSelectedEvents(values);

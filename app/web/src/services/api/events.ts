@@ -9,6 +9,7 @@ export type {
   EventItem,
   EventListParams,
   EventListResponse,
+  EventNamesResponse,
 } from '../../core/network/apiClient';
 
-export { listUserEvents } from '../../core/network/apiClient';
+export { listUserEvents, listEventNames } from '../../core/network/apiClient';

@@ -16,8 +16,8 @@ use crate::{
     modules::auth::repository::AdminRepository,
     modules::auth::{controller::login_handler, repository::AdminLogRepository, AdminAuthService},
     modules::event::{
-        list_user_events_handler, publisher::EventPublisher, query_repo::EventQueryRepository,
-        query_service::EventQueryService,
+        list_event_names_handler, list_user_events_handler, publisher::EventPublisher,
+        query_repo::EventQueryRepository, query_service::EventQueryService,
     },
     modules::gift::{
         handler::{
@@ -188,6 +188,8 @@ pub fn build_app(state: AppState) -> Router {
             "/api/v1/admin/users/{id}/events",
             get(list_user_events_handler),
         )
+        // ── 缺陷 8（R1 批 3）：event_name 字典枚举（仅 super_admin）─────────────
+        .route("/api/v1/admin/events/names", get(list_event_names_handler))
         .route("/api/v1/admin/stats/overview", get(stats_overview_handler))
         .route("/api/v1/admin/logs", get(list_logs_handler))
         // ── T-10014: 礼物管理 CRUD ────────────────────────────────────────────

@@ -1,6 +1,7 @@
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
+use chrono::{DateTime, Utc};
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -24,6 +25,15 @@ pub trait EventQueryRepository: Send + Sync {
         limit: i64,
         offset: i64,
     ) -> Result<Vec<EventRow>, AppError>;
+
+    /// 列出 `since` 之后出现过的所有 distinct event_name，按字典序升序返回。
+    ///
+    /// 用途：T-20013 Web 行为流 Tab event_name 多选下拉枚举。
+    /// 缺陷 8（R1 批 3）：取代前端硬编码字典，使下拉项与生产实际事件保持一致。
+    async fn list_distinct_event_names(
+        &self,
+        since: DateTime<Utc>,
+    ) -> Result<Vec<String>, AppError>;
 }
 
 // ─── PostgreSQL 生产实现 ──────────────────────────────────────────────────────
@@ -92,6 +102,21 @@ impl EventQueryRepository for PgEventQueryRepository {
         .fetch_all(&self.pool)
         .await?;
         Ok(rows)
+    }
+
+    async fn list_distinct_event_names(
+        &self,
+        since: DateTime<Utc>,
+    ) -> Result<Vec<String>, AppError> {
+        let rows: Vec<(String,)> = sqlx::query_as(
+            "SELECT DISTINCT event_name FROM events \
+             WHERE server_ts >= $1 \
+             ORDER BY event_name ASC",
+        )
+        .bind(since)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows.into_iter().map(|r| r.0).collect())
     }
 }
 
@@ -194,6 +219,21 @@ impl EventQueryRepository for FakeEventQueryRepository {
         }
         let end = (offset + limit).min(filtered.len() as i64) as usize;
         Ok(filtered[start..end].to_vec())
+    }
+
+    async fn list_distinct_event_names(
+        &self,
+        since: DateTime<Utc>,
+    ) -> Result<Vec<String>, AppError> {
+        let events = self.events.lock().unwrap();
+        let mut names: Vec<String> = events
+            .iter()
+            .filter(|e| e.server_ts >= since)
+            .map(|e| e.event_name.clone())
+            .collect();
+        names.sort();
+        names.dedup();
+        Ok(names)
     }
 }
 

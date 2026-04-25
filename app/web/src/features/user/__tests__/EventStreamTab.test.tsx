@@ -32,6 +32,7 @@ vi.mock('react-i18next', () => ({
 // ── API mock ──────────────────────────────────────────────────────────────────
 vi.mock('../../../services/api/events', () => ({
   listUserEvents: vi.fn(),
+  listEventNames: vi.fn(),
 }));
 
 // ── useUserDetail mock ────────────────────────────────────────────────────────
@@ -61,10 +62,12 @@ Object.defineProperty(globalThis, 'URL', {
   },
 });
 
-import { listUserEvents } from '../../../services/api/events';
+import { listUserEvents, listEventNames } from '../../../services/api/events';
 import { EventStreamTab } from '../EventStreamTab';
+import { __resetEventNamesCache } from '../useEventNames';
 
 const mockListUserEvents = listUserEvents as ReturnType<typeof vi.fn>;
+const mockListEventNames = listEventNames as unknown as ReturnType<typeof vi.fn>;
 
 // ── 测试数据 ───────────────────────────────────────────────────────────────────
 const MOCK_EVENT_ID = 'evt-uuid-001';
@@ -105,7 +108,11 @@ afterEach(() => {
 beforeEach(() => {
   vi.clearAllMocks();
   mockListUserEvents.mockResolvedValue(MOCK_RESPONSE);
+  mockListEventNames.mockResolvedValue({
+    items: ['gift_send_success', 'login_success', 'mic_take', 'room_enter'],
+  });
   mockCreateObjectURL.mockReturnValue('blob:mock-url');
+  __resetEventNamesCache();
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -514,5 +521,58 @@ describe('EventStreamTab — 边界用例', () => {
     });
 
     await act(async () => { resolveApi(MOCK_RESPONSE); });
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 缺陷 8（R1 批 3）：event_name 下拉接入后台 /admin/events/names
+// ─────────────────────────────────────────────────────────────────────────────
+describe('EventStreamTab — 缺陷 8: event_name 后端枚举接入', () => {
+  it('挂载后调用 listEventNames(30, ...)', async () => {
+    render(<EventStreamTab userId="user-123" />);
+    await waitFor(() => {
+      expect(mockListEventNames).toHaveBeenCalled();
+    });
+    expect(mockListEventNames.mock.calls[0]?.[0]).toBe(30);
+  });
+
+  it('后端枚举成功返回时下拉项使用后端结果', async () => {
+    mockListEventNames.mockResolvedValue({
+      items: ['custom_event_alpha', 'custom_event_beta'],
+    });
+    render(<EventStreamTab userId="user-123" />);
+
+    // 等待异步 hook 完成
+    await waitFor(() => expect(mockListEventNames).toHaveBeenCalled());
+    await act(async () => { await Promise.resolve(); });
+
+    // 打开下拉
+    const select = screen.getByTestId('event-name-select');
+    const combobox = select.querySelector('input') as HTMLInputElement;
+    expect(combobox).toBeTruthy();
+    await act(async () => {
+      await userEvent.setup().click(combobox);
+    });
+
+    await waitFor(() => {
+      // antd Select 选项渲染在 portal 中
+      expect(document.body.textContent).toContain('custom_event_alpha');
+      expect(document.body.textContent).toContain('custom_event_beta');
+    });
+  });
+
+  it('接口失败时降级到本地 ANALYTICS_EVENTS 字典并 console.warn', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    mockListEventNames.mockRejectedValue(new Error('boom'));
+
+    render(<EventStreamTab userId="user-123" />);
+
+    await waitFor(() => {
+      expect(warnSpy).toHaveBeenCalled();
+    });
+
+    // 至少 warn 一次，第一参数包含 hook 名
+    expect(warnSpy.mock.calls[0]?.[0]).toContain('useEventNames');
+    warnSpy.mockRestore();
   });
 });
