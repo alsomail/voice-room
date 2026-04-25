@@ -11,9 +11,9 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use futures_util::StreamExt;
-use serde::Deserialize;
 use tokio::sync::{mpsc, watch};
 use uuid::Uuid;
+use voice_room_shared::events::BalanceUpdatedEvent;
 
 use crate::ws::ConnectionRegistry;
 
@@ -34,17 +34,11 @@ pub struct BalanceEvent {
     pub ref_id: Option<Uuid>,
 }
 
-// ─── Redis balance_updated 事件反序列化结构 ───────────────────────────────────
+// ─── Redis balance_updated 事件反序列化结构（缺陷 #1 P0：使用 shared 结构体）─
 
-/// Redis admin:events 频道中 balance_updated 事件的 payload
-#[derive(Debug, Deserialize)]
-struct BalanceUpdatedRedisPayload {
-    user_id: Uuid,
-    balance_after: i64,
-    delta: i64,
-    reason: String,
-    ref_id: Option<Uuid>,
-}
+/// 类型别名：跨服务事件 schema 由 `voice_room_shared::events::BalanceUpdatedEvent`
+/// 单一事实源锁定，编译期就保证 Admin↔App 字段对齐（`balance_after`/`ref_id` 等）。
+type BalanceUpdatedRedisPayload = BalanceUpdatedEvent;
 
 // ─── BalanceBroadcaster ───────────────────────────────────────────────────────
 

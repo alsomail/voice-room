@@ -140,6 +140,7 @@ fn make_service(
 ) -> GiftSendService {
     let redis_url = redis_url_opt.unwrap_or_else(|| "redis://127.0.0.1:6379".to_string());
     GiftSendService::new(pool, registry, room_manager, balance_tx, redis_url)
+        .expect("redis client construction in test")
 }
 
 /// 注册用户到房间（内存状态）

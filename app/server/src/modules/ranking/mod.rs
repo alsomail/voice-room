@@ -96,23 +96,30 @@ pub struct RankingResult {
     #[serde(rename = "type")]
     pub ty: String,
     pub period: String,
-    /// UTC 日期标识（YYYY-MM-DD 或 YYYY-WW）
+    /// Riyadh 本地日期标识（YYYY-MM-DD 或 YYYY-WW）
     pub period_key: String,
     pub items: Vec<RankingItem>,
     pub me: MeInfo,
 }
 
-/// 构造 Redis 日榜 key（UTC 日期）
+use crate::common::time::riyadh;
+
+/// 构造 Redis 日榜 key（Riyadh 日期）
 pub fn day_key(ty: RankingType) -> String {
-    let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
-    format!("ranking:{}:day:{}", ty.as_key_segment(), today)
+    format!(
+        "ranking:{}:day:{}",
+        ty.as_key_segment(),
+        riyadh::today_riyadh_str()
+    )
 }
 
-/// 构造 Redis 周榜 key（UTC 年+周）
+/// 构造 Redis 周榜 key（Riyadh 年+周）
 pub fn week_key(ty: RankingType) -> String {
-    let now = chrono::Utc::now();
-    let week = now.format("%Y-%W").to_string();
-    format!("ranking:{}:week:{}", ty.as_key_segment(), week)
+    format!(
+        "ranking:{}:week:{}",
+        ty.as_key_segment(),
+        riyadh::week_riyadh_str()
+    )
 }
 
 /// 根据 type + period 计算当前 Redis key
@@ -126,8 +133,8 @@ pub fn current_key(ty: RankingType, period: Period) -> String {
 /// 当前 period_key（用于 API 响应，告知客户端当前所属周期标识）
 pub fn current_period_key(period: Period) -> String {
     match period {
-        Period::Day => chrono::Utc::now().format("%Y-%m-%d").to_string(),
-        Period::Week => chrono::Utc::now().format("%Y-%W").to_string(),
+        Period::Day => riyadh::today_riyadh_str(),
+        Period::Week => riyadh::week_riyadh_str(),
     }
 }
 
@@ -193,5 +200,14 @@ mod tests {
     fn period_key_segment() {
         assert_eq!(Period::Day.as_key_segment(), "day");
         assert_eq!(Period::Week.as_key_segment(), "week");
+    }
+
+    // 缺陷 #3 — current_period_key 必须基于 Riyadh 时区
+    #[test]
+    fn current_period_key_uses_riyadh() {
+        let day_pk = current_period_key(Period::Day);
+        let week_pk = current_period_key(Period::Week);
+        assert_eq!(day_pk, crate::common::time::riyadh::today_riyadh_str());
+        assert_eq!(week_pk, crate::common::time::riyadh::week_riyadh_str());
     }
 }

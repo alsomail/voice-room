@@ -83,7 +83,7 @@ async fn main() -> anyhow::Result<()> {
         room_manager.clone(),
         balance_tx,
         redis_url.to_string(),
-    ));
+    )?);
 
     // 创建 RankingService（T-00021）
     let ranking_service = Arc::new(RankingService::new(pool.clone(), redis_url.to_string()));

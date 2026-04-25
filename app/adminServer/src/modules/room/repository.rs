@@ -1,7 +1,10 @@
+#[cfg(any(test, feature = "test-utils"))]
 use std::collections::HashMap;
+#[cfg(any(test, feature = "test-utils"))]
 use std::sync::Mutex;
 
 use async_trait::async_trait;
+#[cfg(any(test, feature = "test-utils"))]
 use chrono::{DateTime, Utc};
 use sqlx::PgPool;
 use uuid::Uuid;

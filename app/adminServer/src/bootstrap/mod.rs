@@ -3378,14 +3378,27 @@ mod tests {
             "WA01: payload.user_id 应与请求一致"
         );
         assert_eq!(
-            payload["new_balance"].as_i64().unwrap(),
+            payload["balance_after"].as_i64().unwrap(),
             1500,
-            "WA01: payload.new_balance=1500"
+            "WA01: payload.balance_after=1500（缺陷 #1：与 App Server 契约对齐）"
+        );
+        assert!(
+            payload.get("new_balance").is_none(),
+            "WA01: payload 不应再包含旧字段 new_balance"
         );
         assert_eq!(
             payload["delta"].as_i64().unwrap(),
             500,
             "WA01: payload.delta=500"
+        );
+        assert_eq!(
+            payload["reason"].as_str().unwrap(),
+            "运营补偿 #1234",
+            "WA01: payload.reason 必须存在"
+        );
+        assert!(
+            payload.get("ref_id").map(|v| v.is_null()).unwrap_or(false),
+            "WA01: payload.ref_id 应为 null"
         );
     }
 

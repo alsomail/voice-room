@@ -1,14 +1,14 @@
 //! Ranking Scheduler — 日榜/周榜定时归档 + 补偿执行
 //!
-//! ## 归档策略
-//! - 每日 00:00 UTC（对应 Asia/Riyadh 03:00）归档前一日日榜
-//! - 每周一 00:00 UTC 归档上周周榜
+//! ## 归档策略（缺陷 #3 修复后基于 Asia/Riyadh 时区）
+//! - 每日 Riyadh 00:00（=UTC 21:00 前一日）归档前一日日榜
+//! - 每周一 Riyadh 00:00 归档上周周榜
 //! - 归档目标：`ranking_archive:{type}:{period}:{date}` ZSet（TTL 7 天）
 //! - 原 key 保留 48h TTL（客户端过渡期可读）
 //!
 //! ## 补偿执行（幂等）
 //! - 启动时读取 `ranking:last_archive:{type}:{period}` → 上次已归档的日期
-//! - 若上次归档日期 < 昨天，循环补偿所有未归档的日期
+//! - 若上次归档日期 < 昨天（Riyadh 日期），循环补偿所有未归档的日期
 //! - 每归档成功一天，立即更新 `ranking:last_archive:{type}:{period}`（防重复）
 //!
 //! ## 使用方式
@@ -27,6 +27,7 @@ use redis::AsyncCommands;
 use tokio::sync::watch;
 
 use super::RankingType;
+use crate::common::time::riyadh;
 
 /// 归档 key 的 TTL（7 天）
 const ARCHIVE_TTL_SECS: u64 = 604_800;
@@ -108,11 +109,12 @@ pub async fn do_archive_week(
 
 /// 检查并补偿所有未归档的日榜（charm + wealth，幂等）。
 ///
-/// 读取 `ranking:last_archive:{type}:day`，若落后于昨天则逐日补偿。
+/// 读取 `ranking:last_archive:{type}:day`，若落后于昨天（Riyadh 日期）则逐日补偿。
 pub async fn compensate_day_archives(
     conn: &mut redis::aio::MultiplexedConnection,
 ) -> anyhow::Result<()> {
-    let yesterday = chrono::Utc::now() - chrono::Duration::days(1);
+    // 缺陷 #3：使用 Riyadh 时区的"昨天"作为补偿终点
+    let yesterday_riyadh = (riyadh::now_riyadh() - chrono::Duration::days(1)).date_naive();
 
     for ty in [RankingType::Charm, RankingType::Wealth] {
         let last_archive_key = format!("{}_{}:day", LAST_ARCHIVE_KEY_PREFIX, ty.as_key_segment());
@@ -125,15 +127,15 @@ pub async fn compensate_day_archives(
             if let Ok(d) = chrono::NaiveDate::parse_from_str(&s, "%Y-%m-%d") {
                 d + chrono::Duration::days(1)
             } else {
-                yesterday.date_naive()
+                yesterday_riyadh
             }
         } else {
-            yesterday.date_naive()
+            yesterday_riyadh
         };
 
-        // 逐日归档，直到 yesterday
+        // 逐日归档，直到 yesterday (Riyadh)
         let mut cur = start_date;
-        while cur <= yesterday.date_naive() {
+        while cur <= yesterday_riyadh {
             let date_str = cur.format("%Y-%m-%d").to_string();
             if let Err(e) = do_archive_day(conn, ty, &date_str).await {
                 tracing::warn!(
@@ -205,11 +207,8 @@ pub fn start_ranking_scheduler(
                 }
             };
 
-            // 检查是否需要归档昨天的日榜
-            let yesterday_str = {
-                let d = chrono::Utc::now() - chrono::Duration::days(1);
-                d.format("%Y-%m-%d").to_string()
-            };
+            // 检查是否需要归档昨天的日榜（缺陷 #3：基于 Riyadh 时区计算"昨天"）
+            let yesterday_str = riyadh::yesterday_riyadh_str();
 
             if last_archived_day.as_deref() != Some(&yesterday_str) {
                 for ty in [RankingType::Charm, RankingType::Wealth] {
@@ -224,11 +223,8 @@ pub fn start_ranking_scheduler(
                 last_archived_day = Some(yesterday_str);
             }
 
-            // 检查是否需要归档上周的周榜
-            let last_week_str = {
-                let d = chrono::Utc::now() - chrono::Duration::weeks(1);
-                d.format("%Y-%W").to_string()
-            };
+            // 检查是否需要归档上周的周榜（基于 Riyadh 时区）
+            let last_week_str = riyadh::last_week_riyadh_str();
 
             if last_archived_week.as_deref() != Some(&last_week_str) {
                 for ty in [RankingType::Charm, RankingType::Wealth] {
@@ -250,6 +246,8 @@ pub fn start_ranking_scheduler(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::TimeZone;
+    use chrono_tz::Asia::Riyadh;
 
     // SCH-01: archive key 命名格式正确（charm day）
     #[test]
@@ -278,5 +276,25 @@ mod tests {
             RankingType::Charm.as_key_segment()
         );
         assert_eq!(key, "ranking:last_archive_charm:day");
+    }
+
+    // SCH-04: 缺陷 #3 — yesterday_riyadh_str 必须基于 Riyadh 时区
+    // 当 UTC 当前时刻位于 Riyadh 23:59 与 Riyadh 02:59 (= UTC 21:00 - 24:00) 时，
+    // Riyadh 的"昨天"应为 Riyadh 当地日历昨天，不应该等同于 UTC 算出的"昨天"。
+    #[test]
+    fn sch04_yesterday_uses_riyadh_timezone() {
+        // 当前 Riyadh 日 - 1 = 我们的 yesterday_str
+        let expected = (riyadh::now_riyadh() - chrono::Duration::days(1))
+            .date_naive()
+            .format("%Y-%m-%d")
+            .to_string();
+        assert_eq!(riyadh::yesterday_riyadh_str(), expected);
+    }
+
+    // SCH-05: TimeZone trait 已引入即可使用 Riyadh::with_ymd_and_hms（编译期校验）
+    #[test]
+    fn sch05_riyadh_tz_construction_compiles() {
+        let dt = Riyadh.with_ymd_and_hms(2026, 4, 26, 0, 0, 0).single();
+        assert!(dt.is_some());
     }
 }

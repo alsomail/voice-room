@@ -1,6 +1,6 @@
 //! Gift Ranking — Redis ZSet 榜单封装
 //!
-//! ## 键设计（Asia/Riyadh 时区，但 MVP 暂用 UTC 简化）
+//! ## 键设计（Asia/Riyadh 时区，缺陷 #3 已切换）
 //! - 日榜：`ranking:charm:day:{YYYY-MM-DD}`  / `ranking:wealth:day:{YYYY-MM-DD}`
 //! - 周榜：`ranking:charm:week:{YYYY-WW}`    / `ranking:wealth:week:{YYYY-WW}`
 //! - TTL：日榜 48h，周榜 10d
@@ -10,33 +10,29 @@
 use redis::{aio::MultiplexedConnection, AsyncCommands};
 use uuid::Uuid;
 
+use crate::common::time::riyadh;
+
 const DAY_TTL_SECS: u64 = 172_800; // 48h
 const WEEK_TTL_SECS: u64 = 864_000; // 10d
 
-/// 获取当前日榜 key（UTC 日期，格式 YYYY-MM-DD）
+/// 获取当前日榜 key（Riyadh 日期，格式 YYYY-MM-DD）
 pub fn charm_day_key() -> String {
-    let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
-    format!("ranking:charm:day:{}", today)
+    format!("ranking:charm:day:{}", riyadh::today_riyadh_str())
 }
 
-/// 获取当前周榜 key（UTC 年+周，格式 YYYY-WW）
+/// 获取当前周榜 key（Riyadh 年+周，格式 YYYY-WW）
 pub fn charm_week_key() -> String {
-    let now = chrono::Utc::now();
-    let week = now.format("%Y-%W").to_string();
-    format!("ranking:charm:week:{}", week)
+    format!("ranking:charm:week:{}", riyadh::week_riyadh_str())
 }
 
-/// 获取当前财富日榜 key
+/// 获取当前财富日榜 key（Riyadh 日期）
 pub fn wealth_day_key() -> String {
-    let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
-    format!("ranking:wealth:day:{}", today)
+    format!("ranking:wealth:day:{}", riyadh::today_riyadh_str())
 }
 
-/// 获取当前财富周榜 key
+/// 获取当前财富周榜 key（Riyadh 年+周）
 pub fn wealth_week_key() -> String {
-    let now = chrono::Utc::now();
-    let week = now.format("%Y-%W").to_string();
-    format!("ranking:wealth:week:{}", week)
+    format!("ranking:wealth:week:{}", riyadh::week_riyadh_str())
 }
 
 /// 更新四个 ZSet（魅力日榜/周榜、财富日榜/周榜）
@@ -151,5 +147,27 @@ mod tests {
         let key1 = charm_day_key();
         let key2 = charm_day_key();
         assert_eq!(key1, key2, "RK05: same day should produce same key");
+    }
+
+    // RK06: 缺陷 #3 — 日榜 key 必须基于 Riyadh 日期
+    #[test]
+    fn rk06_charm_day_key_uses_riyadh_today() {
+        let key = charm_day_key();
+        let expected_suffix = crate::common::time::riyadh::today_riyadh_str();
+        assert!(
+            key.ends_with(&expected_suffix),
+            "RK06: charm_day_key 必须以 Riyadh 当天日期结尾，得到 {key}"
+        );
+    }
+
+    // RK07: 周榜 key 必须基于 Riyadh 时区
+    #[test]
+    fn rk07_charm_week_key_uses_riyadh_week() {
+        let key = charm_week_key();
+        let expected_suffix = crate::common::time::riyadh::week_riyadh_str();
+        assert!(
+            key.ends_with(&expected_suffix),
+            "RK07: charm_week_key 必须以 Riyadh 周编号结尾，得到 {key}"
+        );
     }
 }

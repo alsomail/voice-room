@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use uuid::Uuid;
+use voice_room_shared::events::BalanceUpdatedEvent;
 
 use crate::common::error::AppError;
 use crate::modules::event::publisher::{AdminEvent, EventPublisher};
@@ -55,14 +56,20 @@ impl WalletService {
             .await?;
 
         // Redis PUBLISH admin:events（fire-and-forget）
+        // 缺陷 #1 P0：使用 shared::events::BalanceUpdatedEvent 锁定字段名，
+        //   `balance_after`（与 App Server BalanceBroadcaster 契约对齐）。
+        let payload = BalanceUpdatedEvent {
+            user_id,
+            balance_after: new_balance,
+            delta: amount,
+            reason: reason.to_string(),
+            // ref_id：当前 Admin 调余额尚未把 admin_logs.id 透出到 service 层，
+            // 暂置 None；后续可由 repository 层返回。App 端 `#[serde(default)]` 接受 null。
+            ref_id: None,
+        };
         let event = AdminEvent {
             r#type: "balance_updated".to_string(),
-            payload: serde_json::json!({
-                "user_id":    user_id.to_string(),
-                "new_balance": new_balance,
-                "delta":       amount,
-                "reason":      reason,
-            }),
+            payload: serde_json::to_value(&payload).unwrap_or_else(|_| serde_json::json!({})),
             admin_id: admin_id.to_string(),
             ts: chrono::Utc::now().timestamp(),
         };
@@ -116,6 +123,39 @@ mod tests {
             calls[0].1.r#type, "balance_updated",
             "WS-01: event.type 应为 balance_updated"
         );
+        // 缺陷 #1 P0：payload 字段必须是 balance_after（不是 new_balance）
+        let payload = &calls[0].1.payload;
+        assert_eq!(
+            payload.get("balance_after").and_then(|v| v.as_i64()),
+            Some(1500),
+            "WS-01: payload 必须包含 balance_after=1500（与 App Server 契约对齐）"
+        );
+        assert!(
+            payload.get("new_balance").is_none(),
+            "WS-01: payload 不允许出现旧字段 new_balance"
+        );
+        assert_eq!(
+            payload.get("delta").and_then(|v| v.as_i64()),
+            Some(500),
+            "WS-01: payload.delta=500"
+        );
+        assert_eq!(
+            payload.get("reason").and_then(|v| v.as_str()),
+            Some("测试加余额")
+        );
+        // ref_id 必须存在为 null（serde Option<Uuid> 序列化为 null）
+        assert!(
+            payload.get("ref_id").map(|v| v.is_null()).unwrap_or(false),
+            "WS-01: payload.ref_id 应为 null"
+        );
+
+        // 端到端契约：使用 shared 结构体反序列化必须成功（编译期就绑定字段名）
+        let parsed: BalanceUpdatedEvent =
+            serde_json::from_value(payload.clone()).expect("WS-01: 反序列化为 shared 结构体");
+        assert_eq!(parsed.balance_after, 1500);
+        assert_eq!(parsed.delta, 500);
+        assert_eq!(parsed.user_id, user_id);
+        assert_eq!(parsed.ref_id, None);
     }
 
     // ── WS-02: 余额不足 → InsufficientBalance，不 publish ─────────────────────

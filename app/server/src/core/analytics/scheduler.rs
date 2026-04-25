@@ -21,7 +21,9 @@ use tokio::sync::watch;
 
 use crate::common::error::AppError;
 
-/// Riyadh UTC 偏移（秒）
+/// Riyadh UTC 偏移（小时）—— 仅供 unit 测试与文档参考；运行时计算由
+/// `crate::common::time::riyadh` 统一处理。
+#[allow(dead_code)]
 const RIYADH_OFFSET_HOURS: i64 = 3;
 
 // ─── 核心分区创建函数 ──────────────────────────────────────────────────────────
