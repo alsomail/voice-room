@@ -182,237 +182,253 @@ pub async fn handle_socket(
                 match msg {
                     Some(Ok(Message::Text(text))) => {
                         let text_str = text.as_str();
-                        // 先尝试解析消息类型，路由到对应处理器
-                        if let Ok(incoming) = serde_json::from_str::<IncomingMessage>(text_str) {
-                            if incoming.msg_type == "JoinRoom" {
-                                let deps = JoinRoomDeps {
-                                    room_manager: room_manager.clone(),
-                                    room_service: room_service.clone(),
-                                    auth_service: auth_service.clone(),
-                                    registry: registry.clone(),
-                                    stats: stats.clone(),
-                                    jwt_secret: jwt_secret.clone(),
-                                    kick_redis: Some(kick_redis.clone()),
-                                };
-                                let response = crate::room::handler::handle_join_room(
-                                    incoming.payload,
-                                    incoming.msg_id,
-                                    connection_id,
-                                    user_id,
-                                    &deps,
-                                ).await;
-                                if !registry.send_to(connection_id, &response) {
-                                    tracing::warn!(%connection_id, "failed to send JoinRoomResult");
-                                }
-                            } else if incoming.msg_type == "LeaveRoom" {
-                                let deps = LeaveRoomDeps {
-                                    room_manager: room_manager.clone(),
-                                    registry: registry.clone(),
-                                    stats: stats.clone(),
-                                };
-                                let response = crate::room::handler::handle_leave_room(
-                                    incoming.msg_id,
-                                    connection_id,
-                                    user_id,
-                                    &deps,
-                                ).await;
-                                if !registry.send_to(connection_id, &response) {
-                                    tracing::warn!(%connection_id, "failed to send LeaveRoomResult");
-                                }
-                            } else if incoming.msg_type == "TakeMic" {
-                                let deps = crate::room::handler::TakeMicDeps {
-                                    room_manager: room_manager.clone(),
-                                    registry: registry.clone(),
-                                    mute_redis: Some(mute_redis.clone()),
-                                };
-                                let response = crate::room::handler::handle_take_mic(
-                                    incoming.payload,
-                                    incoming.msg_id,
-                                    connection_id,
-                                    user_id,
-                                    &deps,
-                                ).await;
-                                if !registry.send_to(connection_id, &response) {
-                                    tracing::warn!(%connection_id, "failed to send TakeMicResult");
-                                }
-                            } else if incoming.msg_type == "LeaveMic" {
-                                let deps = crate::room::handler::LeaveMicDeps {
-                                    room_manager: room_manager.clone(),
-                                    registry: registry.clone(),
-                                };
-                                let response = crate::room::handler::handle_leave_mic(
-                                    incoming.msg_id,
-                                    connection_id,
-                                    user_id,
-                                    &deps,
-                                ).await;
-                                if !registry.send_to(connection_id, &response) {
-                                    tracing::warn!(%connection_id, "failed to send LeaveMicResult");
-                                }
-                            } else if incoming.msg_type == "SendMessage" {
-                                let deps = crate::room::handler::SendMessageDeps {
-                                    room_manager: room_manager.clone(),
-                                    registry: registry.clone(),
-                                    mute_redis: Some(mute_redis.clone()),
-                                };
-                                let response = crate::room::handler::handle_send_message(
-                                    incoming.payload,
-                                    incoming.msg_id,
-                                    connection_id,
-                                    user_id,
-                                    &deps,
-                                ).await;
-                                if !registry.send_to(connection_id, &response) {
-                                    tracing::warn!(%connection_id, "failed to send SendMessageResult");
-                                }
-                            } else if incoming.msg_type == "SendGift" {
-                                let deps = SendGiftDeps {
-                                    send_gift_service: send_gift_service.clone(),
-                                    registry: registry.clone(),
-                                };
-                                let response = handle_send_gift(
-                                    incoming.payload,
-                                    incoming.msg_id,
-                                    connection_id,
-                                    user_id,
-                                    &deps,
-                                ).await;
-                                if !registry.send_to(connection_id, &response) {
-                                    tracing::warn!(%connection_id, "failed to send SendGiftResult");
-                                }
-                            } else if incoming.msg_type == "ReportEvent" {
-                                let deps = ReportEventDeps {
-                                    event_writer: event_writer.clone(),
-                                };
-                                let response = handle_report_event(
-                                    incoming.payload,
-                                    incoming.msg_id,
-                                    user_id,
-                                    &deps,
-                                ).await;
-                                if !registry.send_to(connection_id, &response) {
-                                    tracing::warn!(%connection_id, "failed to send EventReportAck");
-                                }
-                            } else if incoming.msg_type == "KickUser" {
-                                // T-00028: KickUser 信令处理
-                                let deps = KickDeps {
-                                    room_manager: room_manager.clone(),
-                                    room_service: room_service.clone(),
-                                    redis: kick_redis.clone(),
-                                    audit_db: kick_audit_db.clone(),
-                                    registry: registry.clone(),
-                                };
-                                let response = handle_kick(
-                                    incoming.payload,
-                                    incoming.msg_id,
-                                    user_id,
-                                    &deps,
-                                ).await;
-                                if !registry.send_to(connection_id, &response) {
-                                    tracing::warn!(%connection_id, "failed to send KickUserResult");
-                                }
-                            } else if incoming.msg_type == "MuteUser" {
-                                // T-00029: MuteUser 信令处理
-                                let deps = MuteDeps {
-                                    room_manager: room_manager.clone(),
-                                    room_service: room_service.clone(),
-                                    mute_redis: mute_redis.clone(),
-                                    mute_db: mute_db.clone(),
-                                    registry: registry.clone(),
-                                };
-                                let response = handle_mute(
-                                    incoming.payload,
-                                    incoming.msg_id,
-                                    user_id,
-                                    &deps,
-                                ).await;
-                                if !registry.send_to(connection_id, &response) {
-                                    tracing::warn!(%connection_id, "failed to send MuteUserResult");
-                                }
-                            } else if incoming.msg_type == "UnmuteUser" {
-                                // T-00029: UnmuteUser 信令处理
-                                let deps = MuteDeps {
-                                    room_manager: room_manager.clone(),
-                                    room_service: room_service.clone(),
-                                    mute_redis: mute_redis.clone(),
-                                    mute_db: mute_db.clone(),
-                                    registry: registry.clone(),
-                                };
-                                let response = handle_unmute(
-                                    incoming.payload,
-                                    incoming.msg_id,
-                                    user_id,
-                                    &deps,
-                                ).await;
-                                if !registry.send_to(connection_id, &response) {
-                                    tracing::warn!(%connection_id, "failed to send UnmuteUserResult");
-                                }
-                            } else if incoming.msg_type == "TransferAdmin" {
-                                // T-00030: TransferAdmin 信令处理
-                                let deps = TransferAdminDeps {
-                                    room_manager: room_manager.clone(),
-                                    room_service: room_service.clone(),
-                                    room_repo: transfer_admin_repo.clone(),
-                                    registry: registry.clone(),
-                                };
-                                let response = handle_transfer_admin(
-                                    incoming.payload,
-                                    incoming.msg_id,
-                                    user_id,
-                                    &deps,
-                                ).await;
-                                if !registry.send_to(connection_id, &response) {
-                                    tracing::warn!(%connection_id, "failed to send TransferAdminResult");
-                                }
-                            } else if incoming.msg_type == "ForceTakeMic" {
-                                // T-00030: ForceTakeMic 信令处理
-                                let deps = ForceTakeMicDeps {
-                                    room_manager: room_manager.clone(),
-                                    room_service: room_service.clone(),
-                                    mute_redis: mute_redis.clone(),
-                                    registry: registry.clone(),
-                                };
-                                let response = handle_force_take_mic(
-                                    incoming.payload,
-                                    incoming.msg_id,
-                                    user_id,
-                                    &deps,
-                                ).await;
-                                if !registry.send_to(connection_id, &response) {
-                                    tracing::warn!(%connection_id, "failed to send ForceTakeMicResult");
-                                }
-                            } else if incoming.msg_type == "ForceLeaveMic" {
-                                // T-00030: ForceLeaveMic 信令处理
-                                let deps = ForceLeaveMicDeps {
-                                    room_manager: room_manager.clone(),
-                                    room_service: room_service.clone(),
-                                    registry: registry.clone(),
-                                };
-                                let response = handle_force_leave_mic(
-                                    incoming.payload,
-                                    incoming.msg_id,
-                                    user_id,
-                                    &deps,
-                                ).await;
-                                if !registry.send_to(connection_id, &response) {
-                                    tracing::warn!(%connection_id, "failed to send ForceLeaveMicResult");
-                                }
-                            } else {
-                                // 其他消息类型（ping 等）走纯函数路径
-                                if let Some(response) =
-                                    handle_text_message(text_str, &last_heartbeat)
-                                {
-                                    // MEDIUM-02: 記錄 pong 發送失敗的警告日誌
-                                    if !registry.send_to(connection_id, &response) {
-                                        tracing::warn!(%connection_id, "failed to send pong response");
-                                    }
-                                }
-                            }
-                        } else if let Some(response) =
-                            handle_text_message(text_str, &last_heartbeat)
+                        // P2-10: 表驱动 dispatch —— 将原 13 路 `else if msg_type == "..."` 链
+                        // 改为 `match incoming.msg_type.as_str()` 单层 match，每条信令独立 arm，
+                        // 嵌套层级从 7 降到 4，新增信令只需新增 arm（不再修改长链）。
+                        let response_opt: Option<String> = if let Ok(incoming) =
+                            serde_json::from_str::<IncomingMessage>(text_str)
                         {
+                            match incoming.msg_type.as_str() {
+                                "JoinRoom" => {
+                                    let deps = JoinRoomDeps {
+                                        room_manager: room_manager.clone(),
+                                        room_service: room_service.clone(),
+                                        auth_service: auth_service.clone(),
+                                        registry: registry.clone(),
+                                        stats: stats.clone(),
+                                        jwt_secret: jwt_secret.clone(),
+                                        kick_redis: Some(kick_redis.clone()),
+                                    };
+                                    Some(
+                                        crate::room::handler::handle_join_room(
+                                            incoming.payload,
+                                            incoming.msg_id,
+                                            connection_id,
+                                            user_id,
+                                            &deps,
+                                        )
+                                        .await,
+                                    )
+                                }
+                                "LeaveRoom" => {
+                                    let deps = LeaveRoomDeps {
+                                        room_manager: room_manager.clone(),
+                                        registry: registry.clone(),
+                                        stats: stats.clone(),
+                                    };
+                                    Some(
+                                        crate::room::handler::handle_leave_room(
+                                            incoming.msg_id,
+                                            connection_id,
+                                            user_id,
+                                            &deps,
+                                        )
+                                        .await,
+                                    )
+                                }
+                                "TakeMic" => {
+                                    let deps = crate::room::handler::TakeMicDeps {
+                                        room_manager: room_manager.clone(),
+                                        registry: registry.clone(),
+                                        mute_redis: Some(mute_redis.clone()),
+                                    };
+                                    Some(
+                                        crate::room::handler::handle_take_mic(
+                                            incoming.payload,
+                                            incoming.msg_id,
+                                            connection_id,
+                                            user_id,
+                                            &deps,
+                                        )
+                                        .await,
+                                    )
+                                }
+                                "LeaveMic" => {
+                                    let deps = crate::room::handler::LeaveMicDeps {
+                                        room_manager: room_manager.clone(),
+                                        registry: registry.clone(),
+                                    };
+                                    Some(
+                                        crate::room::handler::handle_leave_mic(
+                                            incoming.msg_id,
+                                            connection_id,
+                                            user_id,
+                                            &deps,
+                                        )
+                                        .await,
+                                    )
+                                }
+                                "SendMessage" => {
+                                    let deps = crate::room::handler::SendMessageDeps {
+                                        room_manager: room_manager.clone(),
+                                        registry: registry.clone(),
+                                        mute_redis: Some(mute_redis.clone()),
+                                    };
+                                    Some(
+                                        crate::room::handler::handle_send_message(
+                                            incoming.payload,
+                                            incoming.msg_id,
+                                            connection_id,
+                                            user_id,
+                                            &deps,
+                                        )
+                                        .await,
+                                    )
+                                }
+                                "SendGift" => {
+                                    let deps = SendGiftDeps {
+                                        send_gift_service: send_gift_service.clone(),
+                                        registry: registry.clone(),
+                                    };
+                                    Some(
+                                        handle_send_gift(
+                                            incoming.payload,
+                                            incoming.msg_id,
+                                            connection_id,
+                                            user_id,
+                                            &deps,
+                                        )
+                                        .await,
+                                    )
+                                }
+                                "ReportEvent" => {
+                                    let deps = ReportEventDeps {
+                                        event_writer: event_writer.clone(),
+                                    };
+                                    Some(
+                                        handle_report_event(
+                                            incoming.payload,
+                                            incoming.msg_id,
+                                            user_id,
+                                            &deps,
+                                        )
+                                        .await,
+                                    )
+                                }
+                                "KickUser" => {
+                                    // T-00028: KickUser 信令处理
+                                    let deps = KickDeps {
+                                        room_manager: room_manager.clone(),
+                                        room_service: room_service.clone(),
+                                        redis: kick_redis.clone(),
+                                        audit_db: kick_audit_db.clone(),
+                                        registry: registry.clone(),
+                                    };
+                                    Some(
+                                        handle_kick(
+                                            incoming.payload,
+                                            incoming.msg_id,
+                                            user_id,
+                                            &deps,
+                                        )
+                                        .await,
+                                    )
+                                }
+                                "MuteUser" => {
+                                    // T-00029: MuteUser 信令处理
+                                    let deps = MuteDeps {
+                                        room_manager: room_manager.clone(),
+                                        room_service: room_service.clone(),
+                                        mute_redis: mute_redis.clone(),
+                                        mute_db: mute_db.clone(),
+                                        registry: registry.clone(),
+                                    };
+                                    Some(
+                                        handle_mute(
+                                            incoming.payload,
+                                            incoming.msg_id,
+                                            user_id,
+                                            &deps,
+                                        )
+                                        .await,
+                                    )
+                                }
+                                "UnmuteUser" => {
+                                    // T-00029: UnmuteUser 信令处理
+                                    let deps = MuteDeps {
+                                        room_manager: room_manager.clone(),
+                                        room_service: room_service.clone(),
+                                        mute_redis: mute_redis.clone(),
+                                        mute_db: mute_db.clone(),
+                                        registry: registry.clone(),
+                                    };
+                                    Some(
+                                        handle_unmute(
+                                            incoming.payload,
+                                            incoming.msg_id,
+                                            user_id,
+                                            &deps,
+                                        )
+                                        .await,
+                                    )
+                                }
+                                "TransferAdmin" => {
+                                    // T-00030: TransferAdmin 信令处理
+                                    let deps = TransferAdminDeps {
+                                        room_manager: room_manager.clone(),
+                                        room_service: room_service.clone(),
+                                        room_repo: transfer_admin_repo.clone(),
+                                        registry: registry.clone(),
+                                    };
+                                    Some(
+                                        handle_transfer_admin(
+                                            incoming.payload,
+                                            incoming.msg_id,
+                                            user_id,
+                                            &deps,
+                                        )
+                                        .await,
+                                    )
+                                }
+                                "ForceTakeMic" => {
+                                    // T-00030: ForceTakeMic 信令处理
+                                    let deps = ForceTakeMicDeps {
+                                        room_manager: room_manager.clone(),
+                                        room_service: room_service.clone(),
+                                        mute_redis: mute_redis.clone(),
+                                        registry: registry.clone(),
+                                    };
+                                    Some(
+                                        handle_force_take_mic(
+                                            incoming.payload,
+                                            incoming.msg_id,
+                                            user_id,
+                                            &deps,
+                                        )
+                                        .await,
+                                    )
+                                }
+                                "ForceLeaveMic" => {
+                                    // T-00030: ForceLeaveMic 信令处理
+                                    let deps = ForceLeaveMicDeps {
+                                        room_manager: room_manager.clone(),
+                                        room_service: room_service.clone(),
+                                        registry: registry.clone(),
+                                    };
+                                    Some(
+                                        handle_force_leave_mic(
+                                            incoming.payload,
+                                            incoming.msg_id,
+                                            user_id,
+                                            &deps,
+                                        )
+                                        .await,
+                                    )
+                                }
+                                // 其他类型（ping 等）走纯函数路径
+                                _ => handle_text_message(text_str, &last_heartbeat),
+                            }
+                        } else {
+                            // 解析失败也走纯函数路径（保留原有兼容行为）
+                            handle_text_message(text_str, &last_heartbeat)
+                        };
+
+                        if let Some(response) = response_opt {
                             if !registry.send_to(connection_id, &response) {
-                                tracing::warn!(%connection_id, "failed to send pong response");
+                                tracing::warn!(
+                                    %connection_id,
+                                    "failed to send signal response"
+                                );
                             }
                         }
                     }
