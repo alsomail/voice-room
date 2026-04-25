@@ -1,5 +1,5 @@
 # 全局代码审查报告: 模块 4 - 中东黑金主题与 App 壳体 (MENA Theme & App Shell)
-> **当前状态机**：负责人 [GlobalReview] | 状态 [⏳ In Review] | 修复轮次 [1/10]
+> **当前状态机**：负责人 [-] | 状态 [✅ Passed] | 修复轮次 [1/10]
 
 ---
 
@@ -216,4 +216,38 @@
 
 **本轮结论**: ❌ 存在 P1 级别问题（3 个 P1 + 3 个 P2 + 2 个 P3）。
 *(请在文档头部将状态机修改为：`负责人 [TDD] | 状态 [❌ Failed] | 修复轮次 [1/10]`)*
+
+---
+
+### 【第 2 轮审查】
+**@GlobalReview 复审意见（基于 commit `b8bb58b` + `54d9ccc`）：**
+
+#### 逐条核验结果
+
+- ✅ **缺陷 1**（UInt vs ULong）：`HallScreenVisualConstantsTest.kt` 7 例 + `OnlineCountBadgeTest.kt` 4 例（V04 onBackgroundSecondary / V04 success / count 999 / E01 count zero）全部通过；`MenaColors.kt` 11 个 `*_VALUE` 常量统一 `uL` 后缀，类型一致。
+- ✅ **缺陷 2**（i18n + UiText 范式）：核验 `res/values/strings.xml` (109 行) 与 `res/values-ar/strings.xml` (102 行) 双边对齐：模块 4 新增 50 条资源在 en/ar 两套均存在，且阿语为专业翻译（如 `room_input_placeholder` → "اكتب شيئاً…"，`profile_logout` → "تسجيل الخروج"），非中文/英文复制。`ProfileEvent.ShowToast(message: UiText)` 已落地（`ProfileEvent.kt:21`），`ProfileViewModel.kt:72,92` 改用 `UiText.of(R.string.*)`；`RoomBottomBar.kt` 已 `import` 移除 `Toast`/`LocalContext`，新增 `onEmojiClick: () -> Unit = {}` 形参（line 78），`RoomScreen.kt` 透传该回调。检索 `Toast.makeText` 在 module 4 范围内（splash/login/main/profile/hall/room top-level + RoomBottomBar）已清零。
+- ✅ **缺陷 3**（MainTab 死代码）：`MainTab.kt:27` 重构为 `@StringRes val labelRes: Int`，`labelEn`/`labelAr` 字段已删除；`MenaBottomNavigation.kt:50,56` 全部使用 `stringResource(tab.labelRes)`，`MainTabTest` 15 用例全绿（含 `labelRes points to tab_*` / `all labelRes are unique`）。
+- ✅ **缺陷 4**（MicSlotCard 颜色字面量）：`MicSlotCard.kt` 中 `Color.Red` 与 `Color(0xFF4CAF50)` 已改为 `MenaColors.Error`、`MenaColors.Success.copy(alpha = 0.25f)`（line 117/206）；`import androidx.compose.ui.graphics.Color` 已移除。
+- ✅ **缺陷 5**（AvatarWithFrame 描述）：`AvatarWithFrame.kt:42` 新增 `contentDescription: String? = null` 形参，line 45 默认回退到 `stringResource(R.string.avatar_default_description)`；en/ar 资源均已配置；签名向后兼容。
+- ✅ **缺陷 6**（GoldButton 对比度）：`GoldButton.kt:65` 文字色由 `MenaColors.OnBackground (#FFFFFF)` 改为 `MenaColors.Background (#1A1A2E)`，对比度 ~7.5:1 ≥ WCAG AA 4.5:1；line 64 注释保留修复缘由。
+- ✅ **缺陷 7**（多余 import + Role）：`AvatarWithFrame.kt` 未使用 `padding` import 已清理；`ProfileContent.kt:150,179` 两处 `clickable(role = Role.Button) { ... }` 显式声明角色。
+- ✅ **缺陷 8**（onLogin stub 移除）：`LoginScreen.kt:58-64` 加入 `LaunchedEffect(Unit) { loginViewModel.navEvent.collect { event -> if (event is NavEvent.NavigateToHall) onLoginSuccess() } }`，line 73 `onLogin = loginViewModel::onLogin`；冷启动「假登录环」消除。
+
+#### Gate 验证
+
+- `:app:testDebugUnitTest` BUILD SUCCESSFUL — **659 tests / 0 failures / 0 errors**（聚合 `<testsuite>` 计数）。
+- `:app:lintDebug` BUILD SUCCESSFUL（exit 0，无 abortable errors）。
+  - 注：lint XML 留存 77 条 Warning（`UnusedResources`/`GradleDependency`/`IconLocation`/`ButtonStyle`/`PluralsCandidate` 等），均为模块 0/1/2/3 历史遗留的项目级警告，非本批次引入；TDD「0 issues」表述不严谨但与本轮缺陷无关。
+
+#### 关于 TDD 自陈两点边角
+
+1. **androidTest 视觉/快照本轮未跑**：当前 CI gate 仅含 `:app:testDebugUnitTest`，instrumented gate 缺位是项目级遗留问题，不属本批次新增缺陷。后续模块如有 instrumented 验收（如 LoginScreen 视觉 baseline 校准），可在新批次中作为单独缺陷追踪，本轮不打回。
+2. **模块 3 残留 RoomViewModel / feature/room/components / feature/gift / feature/wallet 内 ShowToast 硬编码中文**：复核 `feature/room/components/PasswordInputDialog.kt`（Color.Red）、`MemberRow.kt`（0xFF4CAF50）、`GiftPanelBottomSheet.kt`（"充值功能即将上线"）、`WalletScreen.kt` 等均不属 T-30018~T-30026 范围，TDD 在缺陷 #2「遗留」段已标注，决策合理；建议在模块 5/后续批次新建 i18n 收尾任务统一处理。
+
+#### 总结
+
+8 项缺陷（P1×3 + P2×3 + P3×2）均已在 commit `b8bb58b` 完成修复并落地相应单元测试，源码与文档一致；命中本批次承诺的"模块 3 UInt/ULong 测试在 T-30022 内修复"约定；未引入新回归。
+
+**本轮结论**: ✅ 审查通过：代码符合架构规范与本地化契约，无严重缺陷；`testDebugUnitTest` 全绿、`lintDebug` 通过。
+*(已在文档头部将状态机修改为：`负责人 [-] | 状态 [✅ Passed] | 修复轮次 [1/10]`)*
 
