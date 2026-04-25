@@ -6,6 +6,36 @@ use std::{
 
 use serde::Deserialize;
 
+/// 校验并取出 JWT_SECRET 字符串。
+///
+/// 要求：必须由环境变量提供，**禁止使用任何硬编码默认值**（与 Admin Server 对齐）。
+/// - 若 `value` 为 `None`（未设置 JWT_SECRET）→ 返回 `Err`；
+/// - 若 `value` 为空白字符串 → 返回 `Err`，避免 `JWT_SECRET=""` 误配；
+/// - 若值疑似审查报告中点名的硬编码占位符（"change-me-in-production"）→ 返回 `Err`，
+///   防止运维错把模板默认值带到生产。
+///
+/// 该函数被显式抽出，便于单元测试覆盖三种失败路径，避免回归到旧的
+/// `unwrap_or_else(|_| "change-me-in-production".to_owned())` 风险。
+pub(crate) fn require_jwt_secret(value: Option<String>) -> anyhow::Result<String> {
+    let raw = value.ok_or_else(|| {
+        anyhow::anyhow!(
+            "JWT_SECRET must be set; refusing to fall back to a hardcoded default \
+             (see doc/protocol/auth_api.md)"
+        )
+    })?;
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        anyhow::bail!("JWT_SECRET must not be empty");
+    }
+    if trimmed.eq_ignore_ascii_case("change-me-in-production") {
+        anyhow::bail!(
+            "JWT_SECRET still equals the placeholder 'change-me-in-production'; \
+             refuse to start"
+        );
+    }
+    Ok(raw)
+}
+
 #[derive(Clone, Debug)]
 pub struct ServerSettings {
     pub app: AppSettings,
@@ -39,8 +69,10 @@ impl ServerSettings {
         )?);
         settings.apply_env_overrides();
         settings.database.url = env::var("DATABASE_URL").ok();
-        settings.jwt_secret = env::var("JWT_SECRET")
-            .unwrap_or_else(|_| "change-me-in-production".to_owned());
+        settings.jwt_secret = require_jwt_secret(env::var("JWT_SECRET").ok())?;
+        let secret_len = settings.jwt_secret.len();
+        // 仅记录长度，绝不打印明文（运维核验用）
+        tracing::info!(jwt_secret_len = secret_len, "JWT_SECRET loaded from env");
         settings.redis_url = env::var("REDIS_URL").ok();
 
         Ok(settings)
@@ -66,7 +98,7 @@ impl ServerSettings {
                 max_connections: 10,
                 connect_timeout_secs: 5,
             },
-            jwt_secret: "change-me-in-production".to_owned(),
+            jwt_secret: String::new(),
             redis_url: None,
         }
     }
@@ -220,5 +252,63 @@ fn resolve_path_from_base(path: String, base: &Path) -> PathBuf {
         path
     } else {
         base.join(path)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    //! P1 修复回归 — JWT_SECRET 强校验
+    //!
+    //! 这些测试锁住了 `require_jwt_secret` 的契约：
+    //! - 缺失 → 启动失败
+    //! - 空白 → 启动失败
+    //! - 仍为占位符 "change-me-in-production" → 启动失败
+    //! - 合法值 → 原样返回
+    //!
+    //! 防止回归到 `unwrap_or_else(|_| "change-me-in-production".to_owned())` 默认值。
+
+    use super::require_jwt_secret;
+
+    #[test]
+    fn require_jwt_secret_rejects_missing_env() {
+        let err = require_jwt_secret(None).unwrap_err();
+        let msg = format!("{err}");
+        assert!(
+            msg.contains("JWT_SECRET"),
+            "error message should mention JWT_SECRET, got: {msg}"
+        );
+    }
+
+    #[test]
+    fn require_jwt_secret_rejects_empty_string() {
+        assert!(require_jwt_secret(Some(String::new())).is_err());
+        assert!(require_jwt_secret(Some("   ".to_owned())).is_err());
+    }
+
+    #[test]
+    fn require_jwt_secret_rejects_placeholder_default() {
+        // 这是缺陷 2 报告中点名的硬编码默认值
+        assert!(require_jwt_secret(Some("change-me-in-production".to_owned())).is_err());
+        // 大小写无关
+        assert!(require_jwt_secret(Some("CHANGE-ME-IN-PRODUCTION".to_owned())).is_err());
+    }
+
+    #[test]
+    fn require_jwt_secret_accepts_real_secret() {
+        let s = require_jwt_secret(Some(
+            "a-very-long-random-base64-secret-1234567890".to_owned(),
+        ))
+        .expect("real secret should be accepted");
+        assert_eq!(s, "a-very-long-random-base64-secret-1234567890");
+    }
+
+    #[test]
+    fn default_for_does_not_embed_hardcoded_secret() {
+        let settings = super::ServerSettings::default_for("dev");
+        assert!(
+            settings.jwt_secret.is_empty(),
+            "default_for must not embed any hardcoded JWT secret; got {:?}",
+            settings.jwt_secret
+        );
     }
 }
