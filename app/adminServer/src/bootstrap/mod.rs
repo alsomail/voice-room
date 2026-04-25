@@ -28,7 +28,7 @@ use crate::{
         service::GiftService,
     },
     modules::governance::{
-        handler::{list_kicks_handler, list_mutes_handler},
+        handler::{export_logs_csv_handler, list_kicks_handler, list_mutes_handler},
         repo::GovernanceRepo,
         service::GovernanceService,
     },
@@ -205,6 +205,11 @@ pub fn build_app(state: AppState) -> Router {
         // ── T-10016: 治理日志查询 ──────────────────────────────────────────────
         .route("/api/v1/admin/governance/kicks", get(list_kicks_handler))
         .route("/api/v1/admin/governance/mutes", get(list_mutes_handler))
+        // ── R1 P1-6: 治理日志 CSV 导出（T-10016 #5 / T-20014 #4）────────────────
+        .route(
+            "/api/v1/admin/governance/logs.csv",
+            get(export_logs_csv_handler),
+        )
         // P2-14: 审计中间件 — 按 method+path 白名单自动记录敏感操作（ban/unban/close_room）
         .layer(middleware::from_fn_with_state(audit_state, audit_middleware))
         .layer(middleware::from_fn(request_context_middleware))

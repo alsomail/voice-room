@@ -21,13 +21,17 @@
  */
 
 import { useState, useCallback } from 'react';
-import { Tabs, Drawer, Typography } from 'antd';
+import { Tabs, Drawer, Typography, Button, message as antdMessage } from 'antd';
+import { DownloadOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import type { GovernanceFilters } from './FiltersBar';
 import { FiltersBar } from './FiltersBar';
 import { KickLogsTab } from './KickLogsTab';
 import { MuteLogsTab } from './MuteLogsTab';
-import type { MuteListParams } from '../../services/api/governance';
+import {
+  exportGovernanceLogsCsv,
+  type MuteListParams,
+} from '../../services/api/governance';
 
 const { Title } = Typography;
 
@@ -87,6 +91,48 @@ export function GovernanceLogsPage() {
     setSelectedUserId(null);
   }, []);
 
+  const [exporting, setExporting] = useState(false);
+
+  /**
+   * 导出 CSV — R1 P1-6 / T-20014 #4
+   *
+   * 1. 透传当前筛选条件（含 activeTab → type=kick|mute|mic|chat 维度）；
+   * 2. fetch 后用 Blob + URL.createObjectURL 触发下载；
+   * 3. filename 来自后端 Content-Disposition（`governance-logs-YYYYMMDD.csv`）。
+   */
+  const handleExportCsv = useCallback(async () => {
+    setExporting(true);
+    try {
+      const exportParams: GovernanceFilters & { type?: string } = { ...filters };
+      if (activeTab === 'kicks') {
+        exportParams.type = 'kick';
+      } else if (filters.mute_type) {
+        // mutes tab + 已选了 mic / chat 子类型时，type 取细粒度过滤
+        exportParams.type = filters.mute_type;
+      } else {
+        exportParams.type = 'mute';
+      }
+      // governance 后端不识别 mute_type 字段（用 type 维度统一表达）
+      delete exportParams.mute_type;
+
+      const { blob, filename } = await exportGovernanceLogsCsv(exportParams);
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      // 100ms 后释放，避免某些浏览器尚未读完
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 100);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'export failed';
+      antdMessage.error(msg);
+    } finally {
+      setExporting(false);
+    }
+  }, [filters, activeTab]);
+
   const tabItems = [
     {
       key: 'kicks',
@@ -123,10 +169,27 @@ export function GovernanceLogsPage() {
       data-testid="governance-page"
       style={{ padding: 24 }}
     >
-      {/* 页面标题 */}
-      <Title level={4} data-testid="governance-page-title" style={{ marginBottom: 16 }}>
-        {t('governance.title')}
-      </Title>
+      {/* 页面标题 + 导出按钮 */}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: 16,
+        }}
+      >
+        <Title level={4} data-testid="governance-page-title" style={{ margin: 0 }}>
+          {t('governance.title')}
+        </Title>
+        <Button
+          data-testid="governance-export-csv"
+          icon={<DownloadOutlined />}
+          onClick={handleExportCsv}
+          loading={exporting}
+        >
+          {t('governance.exportCsv')}
+        </Button>
+      </div>
 
       {/* 共用筛选条 */}
       <FiltersBar

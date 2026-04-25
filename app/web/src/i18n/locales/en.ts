@@ -294,6 +294,7 @@ const en = {
     title: 'Governance Logs',
     tabKicks: 'Kick Records',
     tabMutes: 'Mute Records',
+    exportCsv: 'Export CSV',
     filterRoom: 'Room ID',
     filterRoomPlaceholder: 'Enter room ID',
     filterTargetUser: 'Target User ID',

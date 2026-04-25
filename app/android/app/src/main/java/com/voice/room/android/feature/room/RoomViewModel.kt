@@ -1006,8 +1006,14 @@ class RoomViewModel(
 
             "UserKicked" -> {
                 // T-30042: 收到被踢通知，设置 kickedState（WS 服务端只推送给被踢用户）
-                val reason = json.get("reason")?.asString ?: ""
-                val cooldownSec = json.get("cooldown_sec")?.asInt ?: 600
+                // R1 P1-7: 服务端统一出口将业务字段移入 payload，兼容旧 flat 格式
+                val payload = json.getAsJsonObject("payload")
+                val reason = payload?.get("reason")?.asString
+                    ?: json.get("reason")?.asString
+                    ?: ""
+                val cooldownSec = payload?.get("cooldown_sec")?.asInt
+                    ?: json.get("cooldown_sec")?.asInt
+                    ?: 600
                 _kickedState.value = KickedState(reason = reason, cooldownSec = cooldownSec)
             }
 

@@ -827,6 +827,75 @@ export interface GovernanceListResponse<T> {
 }
 
 /**
+ * GET /admin/governance/logs.csv — 治理日志 CSV 导出（R1 P1-6 / T-10016 #5 / T-20014 #4）
+ *
+ * 行为：
+ *  - 不走 [`adminFetch`]（其会强制 JSON.parse）；本函数手动用 `fetch` + Blob，便于浏览器
+ *    `URL.createObjectURL` 触发下载。
+ *  - 透传当前筛选条件作为 query。
+ *  - 服务端响应必须以 UTF-8 BOM (`\xEF\xBB\xBF`) 开头；文件名形如
+ *    `governance-logs-YYYYMMDD.csv`，由后端 `Content-Disposition` 给出。
+ *  - 401 → 自动 logout 跳 /login（与 [`adminFetch`] 行为一致）。
+ *
+ * @returns 一个 `{ blob, filename }` Tuple；调用方一般用 `URL.createObjectURL(blob)` 下载。
+ */
+export async function exportGovernanceLogsCsv(
+  params?: GovernanceListParams & { type?: string },
+  signal?: AbortSignal,
+): Promise<{ blob: Blob; filename: string }> {
+  const base = getAdminApiBaseUrl().replace(/\/$/, '');
+  const query = params
+    ? '?' + new URLSearchParams(
+        Object.entries(params)
+          .filter(([, v]) => v !== undefined && v !== '')
+          .map(([k, v]) => [k, String(v)]),
+      ).toString()
+    : '';
+  const url = `${base}/governance/logs.csv${query}`;
+
+  const token = localStorage.getItem(ADMIN_TOKEN_KEY);
+  const headers: Record<string, string> = {
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+
+  const response = await fetch(url, { headers, signal });
+
+  if (!response.ok) {
+    if (response.status === 401 && token) {
+      useAuthStore.getState().logout();
+      window.location.href = '/login';
+      throw new Error('Unauthorized');
+    }
+    let message = `HTTP Error ${response.status}`;
+    try {
+      const errBody = await response.json();
+      message = (errBody as { message?: string }).message || message;
+    } catch {
+      // ignore
+    }
+    throw new Error(message);
+  }
+
+  const blob = await response.blob();
+
+  // 从 Content-Disposition 提取 filename；无则使用本地日期兜底
+  let filename = `governance-logs-${new Date()
+    .toISOString()
+    .slice(0, 10)
+    .replace(/-/g, '')}.csv`;
+  const cd = response.headers.get('Content-Disposition');
+  if (cd) {
+    const match = /filename="([^"]+)"/.exec(cd);
+    if (match && match[1]) {
+      // 客户端侧也剥离潜在控制字符，保险起见
+      filename = match[1].replace(/[\r\n"\\/]/g, '');
+    }
+  }
+
+  return { blob, filename };
+}
+
+/**
  * GET /admin/governance/kicks — 踢人记录查询（T-20014）
  * 权限：super_admin / operator / cs；finance 禁止（403）
  */

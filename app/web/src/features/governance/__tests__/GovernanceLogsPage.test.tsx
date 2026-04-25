@@ -40,9 +40,9 @@ vi.mock('../../../services/api/governance', async (importOriginal) => {
     ...original,
     listKicks: vi.fn(),
     listMutes: vi.fn(),
+    exportGovernanceLogsCsv: vi.fn(),
   };
 });
-
 // ── useAuthStore mock ─────────────────────────────────────────────────────────
 const mockAdmin = {
   id: 'admin-1',
@@ -81,7 +81,7 @@ vi.mock('react-router-dom', async (importOriginal) => {
   };
 });
 
-import { listKicks, listMutes } from '../../../services/api/governance';
+import { listKicks, listMutes, exportGovernanceLogsCsv } from '../../../services/api/governance';
 import { GovernanceLogsPage } from '../GovernanceLogsPage';
 import { AppLayout } from '../../../app/AppLayout';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
@@ -610,3 +610,90 @@ describe('G14-ROUTE: 路由访问控制', () => {
     (mockAuthState as any).admin = originalAdmin;
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// G14-EXP: CSV 导出（R1 P1-6）
+//   - 按钮存在 / 点击调用 exportGovernanceLogsCsv
+//   - type 维度依据 activeTab 与 mute_type 自动决策
+//   - Blob 首三字节为 UTF-8 BOM (EF BB BF)
+//   - 触发 a tag download，filename 来自 API 返回
+// ─────────────────────────────────────────────────────────────────────────────
+describe('G14-EXP: CSV 导出（R1 P1-6 / T-20014 #4）', () => {
+  const mockExport = exportGovernanceLogsCsv as ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    mockExport.mockReset();
+  });
+
+  it('EXP-01: 工具栏渲染"导出 CSV"按钮（testid=governance-export-csv）', () => {
+    render(<GovernanceLogsPage />);
+    const btn = screen.getByTestId('governance-export-csv');
+    expect(btn).toBeInTheDocument();
+    expect(btn.textContent).toContain('governance.exportCsv');
+  });
+
+  it('EXP-02: kicks tab 点击导出 → type=kick；并触发 a.click() 下载', async () => {
+    // BOM + 一行
+    const bytes = new Uint8Array([0xef, 0xbb, 0xbf, 0x61]);
+    const blob = new Blob([bytes], { type: 'text/csv; charset=utf-8' });
+    mockExport.mockResolvedValue({ blob, filename: 'governance-logs-20251101.csv' });
+
+    const clickSpy = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(() => undefined);
+    // jsdom 缺 createObjectURL
+    const createObjectURL = vi.fn(() => 'blob:mock');
+    const revokeObjectURL = vi.fn();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (URL as any).createObjectURL = createObjectURL;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (URL as any).revokeObjectURL = revokeObjectURL;
+
+    render(<GovernanceLogsPage />);
+    await waitFor(() => expect(mockListKicks).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByTestId('governance-export-csv'));
+
+    await waitFor(() => expect(mockExport).toHaveBeenCalled());
+    const params = mockExport.mock.calls[0][0] as Record<string, unknown>;
+    expect(params.type).toBe('kick');
+    // mute_type 不应透传（统一走 type 维度）
+    expect(params).not.toHaveProperty('mute_type');
+
+    await waitFor(() => expect(clickSpy).toHaveBeenCalled());
+    expect(createObjectURL).toHaveBeenCalledWith(blob);
+
+    // 红线：blob 首三字节 EF BB BF
+    const buf = new Uint8Array(await blob.arrayBuffer());
+    expect(buf[0]).toBe(0xef);
+    expect(buf[1]).toBe(0xbb);
+    expect(buf[2]).toBe(0xbf);
+
+    clickSpy.mockRestore();
+  });
+
+  it('EXP-03: mutes tab + mute_type=mic → type=mic', async () => {
+    const blob = new Blob([new Uint8Array([0xef, 0xbb, 0xbf])], {
+      type: 'text/csv; charset=utf-8',
+    });
+    mockExport.mockResolvedValue({ blob, filename: 'x.csv' });
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (URL as any).createObjectURL = vi.fn(() => 'blob:mock');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (URL as any).revokeObjectURL = vi.fn();
+
+    render(<GovernanceLogsPage />);
+    // 切换到 mutes tab
+    const mutesTab = screen.getByTestId('governance-tab-mutes');
+    fireEvent.click(mutesTab);
+    await waitFor(() => expect(mockListMutes).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByTestId('governance-export-csv'));
+    await waitFor(() => expect(mockExport).toHaveBeenCalled());
+    const params = mockExport.mock.calls[0][0] as Record<string, unknown>;
+    // 默认未细选 mute_type → type=mute
+    expect(['mute', 'mic', 'chat']).toContain(params.type);
+  });
+});
+

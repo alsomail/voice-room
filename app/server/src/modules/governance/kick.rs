@@ -361,24 +361,16 @@ pub struct KickDeps {
 // ─── 辅助函数 ─────────────────────────────────────────────────────────────────
 
 fn kick_error(msg_id: Option<String>, code: i64, message: &str) -> String {
-    serde_json::json!({
-        "type": "KickUserResult",
-        "msg_id": msg_id,
-        "code": code,
-        "message": message,
-        "timestamp": chrono::Utc::now().timestamp(),
-    })
-    .to_string()
+    crate::ws::broadcaster::build_outbound_result(
+        "KickUserResult",
+        msg_id,
+        code,
+        Some(serde_json::json!({ "message": message })),
+    )
 }
 
 fn kick_success(msg_id: Option<String>) -> String {
-    serde_json::json!({
-        "type": "KickUserResult",
-        "msg_id": msg_id,
-        "code": 0,
-        "timestamp": chrono::Utc::now().timestamp(),
-    })
-    .to_string()
+    crate::ws::broadcaster::build_outbound_result("KickUserResult", msg_id, 0, None)
 }
 
 // ─── handle_kick ──────────────────────────────────────────────────────────────
@@ -517,17 +509,17 @@ pub async fn handle_kick(
 
     // ── 13. 向目标发送 UserKicked 信令（点对点，不入回放缓冲）──────────────────
     // K28-01/02: 目标收到 UserKicked
-    let user_kicked_msg = serde_json::json!({
-        "type": "UserKicked",
-        "payload": {
+    // R1 P1-7: 走统一出口 build_outbound_envelope 注入 msg_id (UUID v4) + timestamp，
+    // 前端可基于 msg_id 做 processed_msg_ids 去重，避免重连抖动重复弹"已被踢出"对话框。
+    let (user_kicked_msg, _kick_msg_id) = crate::ws::broadcaster::build_outbound_envelope(
+        "UserKicked",
+        serde_json::json!({
             "room_id": room_id.to_string(),
             "reason": reason,
             "cooldown_sec": KICK_COOLDOWN_SECS,
             "operator_nickname": operator_nickname,
-        },
-        "timestamp": chrono::Utc::now().timestamp(),
-    })
-    .to_string();
+        }),
+    );
 
     for (_, sender) in &target_conns {
         let _ = sender.send(user_kicked_msg.clone());

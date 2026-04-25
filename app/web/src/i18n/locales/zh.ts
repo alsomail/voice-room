@@ -294,6 +294,7 @@ const zh = {
     title: '治理日志',
     tabKicks: '踢人记录',
     tabMutes: '禁言记录',
+    exportCsv: '导出 CSV',
     filterRoom: '房间 ID',
     filterRoomPlaceholder: '输入房间 ID',
     filterTargetUser: '目标用户 ID',

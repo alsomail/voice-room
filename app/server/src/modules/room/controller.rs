@@ -158,7 +158,7 @@ pub async fn patch_room(
                 cover_url: resp.cover_url.clone(),
                 has_password: resp.has_password,
             };
-            broadcast_room_info_updated(&state.ws_registry, &payload);
+            broadcast_room_info_updated(&state.ws_registry, &state.room_manager, &payload);
 
             (StatusCode::OK, Json(ApiResponse::ok(resp, rc.request_id()))).into_response()
         }

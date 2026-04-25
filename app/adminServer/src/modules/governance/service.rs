@@ -212,6 +212,38 @@ impl GovernanceService {
             items,
         })
     }
+
+    /// 记录"治理日志 CSV 导出"操作（R1 P1-6 / T-10016 #5 / T-20014 #4）。
+    ///
+    /// 与 query_kicks / query_mutes 不同，本方法 fire-and-forget，不返回任何业务数据。
+    /// `params.limit` 字段在本调用中代表"导出上限"（由 handler 强行设置）。
+    pub async fn audit_export(
+        &self,
+        admin_id: Uuid,
+        ip: Option<String>,
+        params: &GovernanceQueryParams,
+    ) {
+        self.audit_logger
+            .log_action(
+                admin_id,
+                "governance.logs.export",
+                Some("governance"),
+                None,
+                ip,
+                Some(serde_json::json!({
+                    "filters": {
+                        "room_id": params.room_id,
+                        "target_user_id": params.target_user_id,
+                        "operator_user_id": params.operator_user_id,
+                        "from": params.from,
+                        "to": params.to,
+                        "mute_type": params.mute_type,
+                        "limit": params.limit,
+                    }
+                })),
+            )
+            .await;
+    }
 }
 
 // ─── 单元测试（G16-02/G16-08 服务层验证）─────────────────────────────────────

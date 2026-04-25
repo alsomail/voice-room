@@ -13,4 +13,4 @@ export type {
   GovernanceListResponse,
 } from '../../core/network/apiClient';
 
-export { listKicks, listMutes } from '../../core/network/apiClient';
+export { listKicks, listMutes, exportGovernanceLogsCsv } from '../../core/network/apiClient';

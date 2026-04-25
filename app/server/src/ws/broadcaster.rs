@@ -1,12 +1,17 @@
 //! T-00025 WS 广播工具
 //!
-//! - `broadcast_room_info_updated`：T-00025 房间信息更新（房间内所有连接）
+//! - `broadcast_room_info_updated`：T-00025 房间信息更新（房间内所有连接，走统一出口）
 //! - `broadcast_to_room`：P1-6 统一房间广播出口（所有信令统一走此函数 → 写入 `recent_broadcasts`
 //!   环缓冲 → `last_msg_id` 重连续传基础设施）。返回服务端分配的 envelope-level `msg_id`。
+//! - `build_outbound_envelope` / `build_outbound_result`：模块 8 R1 P1-7 引入的统一出站
+//!   envelope 构造器，**保证每条出站消息**（包含点对点 `*Result` 与 `UserKicked`）携带
+//!   `msg_id`（UUID v4）+ `timestamp`，前端可用于 ACK / 去重 / 续传基础设施。
 
 use serde::Serialize;
+use serde_json::{json, Value};
 use uuid::Uuid;
 
+use crate::room::manager::RoomManager;
 use crate::room::state::RoomState;
 use crate::ws::registry::ConnectionRegistry;
 
@@ -78,23 +83,17 @@ fn broadcast_to_room_inner(
     msg_id
 }
 
-/// `RoomInfoUpdated` WS 消息 payload
-#[derive(Debug, Clone, Serialize)]
-pub struct RoomInfoUpdatedPayload {
-    pub room_id: String,
-    pub title: String,
-    pub announcement: Option<String>,
-    pub category: String,
-    pub cover_url: String,
-    pub has_password: bool,
-}
-
-/// 向 `room_id` 所在房间的所有 WS 连接广播 `RoomInfoUpdated` 信令
+/// 向 `room_id` 所在房间的所有 WS 连接广播 `RoomInfoUpdated` 信令（走统一出口）
 ///
 /// - 房间内无连接时静默忽略
 /// - `room_id` 解析失败时记录 warn 并返回
+/// - 模块 8 R1 P1-5 修复：原实现绕过 [`broadcast_to_room`] 自行构造，缺失 `msg_id` 与
+///   `recent_broadcasts` 入栈，违反 §6.7 重连补发契约。本版本统一走
+///   [`broadcast_to_room`]（房间在内存中）或 [`broadcast_to_room_no_state`]（兜底），
+///   保证 envelope 携带 `msg_id` 并写入续传缓冲。
 pub fn broadcast_room_info_updated(
     registry: &ConnectionRegistry,
+    room_manager: &RoomManager,
     payload: &RoomInfoUpdatedPayload,
 ) {
     let room_id = match Uuid::parse_str(&payload.room_id) {
@@ -108,37 +107,89 @@ pub fn broadcast_room_info_updated(
         }
     };
 
-    let msg = match serde_json::to_string(&BroadcastEnvelope {
-        msg_type: "RoomInfoUpdated",
-        payload,
-        timestamp: chrono::Utc::now().timestamp(),
-    }) {
-        Ok(s) => s,
-        Err(e) => {
-            tracing::error!("broadcast_room_info_updated: serialize error: {e}");
-            return;
-        }
-    };
+    let envelope = json!({
+        "type": "RoomInfoUpdated",
+        "payload": payload,
+        "timestamp": chrono::Utc::now().timestamp(),
+    });
 
-    for (_, sender) in registry.get_connections_in_room(room_id) {
-        let _ = sender.send(msg.clone());
+    if let Some(rs) = room_manager.get_room(room_id) {
+        broadcast_to_room(registry, &rs, envelope);
+    } else {
+        // 房间状态尚未注册（patch_room 立刻在房间生命周期内被调用而无任何 JoinRoom）
+        // 时降级广播，不写 recent_broadcasts。
+        broadcast_to_room_no_state(registry, room_id, envelope);
     }
 }
 
-/// WS 消息外层包装（type / payload / timestamp）
-#[derive(Serialize)]
-struct BroadcastEnvelope<'a> {
-    #[serde(rename = "type")]
-    msg_type: &'a str,
-    payload: &'a RoomInfoUpdatedPayload,
-    timestamp: i64,
+/// 构造**点对点 / 单播**出站 envelope（事件类，C→S 无对应 inbound msg_id 的服务推送）。
+///
+/// - 模块 8 R1 P1-7 引入：保证每条出站消息**总是**携带 `msg_id`（UUID v4 服务端分配）+
+///   `timestamp`，前端可基于 `msg_id` 做去重 / `processed_msg_ids` 集合工作。
+/// - 不走 `recent_broadcasts`（点对点不参与 §6.7.4 续传）。
+/// - 返回 `(json_string, msg_id)`：调用方一般使用 `json_string` 直接发送，`msg_id` 可用于
+///   日志或测试断言。
+pub fn build_outbound_envelope(type_str: &str, payload: Value) -> (String, String) {
+    let msg_id = Uuid::new_v4().to_string();
+    let envelope = json!({
+        "type": type_str,
+        "msg_id": msg_id,
+        "payload": payload,
+        "timestamp": chrono::Utc::now().timestamp(),
+    });
+    (
+        serde_json::to_string(&envelope).unwrap_or_else(|_| String::new()),
+        msg_id,
+    )
 }
 
-// ─── 单元测试（BR-01 ~ BR-04）────────────────────────────────────────────────
+/// 构造 **C↔S Result 类**出站 envelope（§6.3 通用 Result 格式）。
+///
+/// `{ type, msg_id, code, payload, timestamp }`
+///
+/// - `inbound_msg_id`：来自客户端请求的 msg_id（用作 ACK 关联）。若 `None` 则由服务端
+///   分配 UUID v4，保证字段**永远存在**。
+/// - `code`：业务错误码；`0` 表示成功。
+/// - `payload`：业务字段（错误时通常包含 `message`）；`None` → 空对象 `{}`。
+/// - 返回 JSON 字符串。
+///
+/// 模块 8 R1 P2-8 修复：错误体由顶层平铺 `code/message/timestamp` 改为
+/// `payload: { message }` 包裹，与既有 `MicResult / SendGiftResult` payload 风格统一。
+pub fn build_outbound_result(
+    type_str: &str,
+    inbound_msg_id: Option<String>,
+    code: i64,
+    payload: Option<Value>,
+) -> String {
+    let msg_id = inbound_msg_id.unwrap_or_else(|| Uuid::new_v4().to_string());
+    let payload = payload.unwrap_or_else(|| json!({}));
+    let envelope = json!({
+        "type": type_str,
+        "msg_id": msg_id,
+        "code": code,
+        "payload": payload,
+        "timestamp": chrono::Utc::now().timestamp(),
+    });
+    serde_json::to_string(&envelope).unwrap_or_default()
+}
+
+/// `RoomInfoUpdated` WS 消息 payload
+#[derive(Debug, Clone, Serialize)]
+pub struct RoomInfoUpdatedPayload {
+    pub room_id: String,
+    pub title: String,
+    pub announcement: Option<String>,
+    pub category: String,
+    pub cover_url: String,
+    pub has_password: bool,
+}
+
+// ─── 单元测试（BR-01 ~ BR-04 + BR-05/06 R1 P1-5/P1-7）────────────────────────
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::room::manager::RoomManager;
     use std::{
         sync::{Arc, RwLock},
         time::{Duration, Instant},
@@ -181,8 +232,9 @@ mod tests {
         let room_id = Uuid::new_v4();
         let user_id = Uuid::new_v4();
         let (registry, mut rx) = make_registry_with_room_conn(user_id, room_id);
+        let manager = RoomManager::new();
 
-        broadcast_room_info_updated(&registry, &sample_payload(room_id));
+        broadcast_room_info_updated(&registry, &manager, &sample_payload(room_id));
 
         let msg = tokio::time::timeout(Duration::from_millis(100), rx.recv())
             .await
@@ -199,16 +251,21 @@ mod tests {
         assert_eq!(json["payload"]["category"], "music");
         assert_eq!(json["payload"]["has_password"], false);
         assert!(json["timestamp"].is_number(), "timestamp must be present");
+        assert!(
+            json["msg_id"].is_string(),
+            "BR-01 R1 P1-5: msg_id must be injected by unified outbound exit"
+        );
     }
 
     /// BR-02: 房间内无连接时，不 panic，不阻塞
     #[tokio::test]
     async fn br02_no_connections_in_room_no_panic() {
         let registry = ConnectionRegistry::new();
+        let manager = RoomManager::new();
         let room_id = Uuid::new_v4();
         let payload = sample_payload(room_id);
         // Should not panic
-        broadcast_room_info_updated(&registry, &payload);
+        broadcast_room_info_updated(&registry, &manager, &payload);
     }
 
     /// BR-03: `has_password: true` 时 payload 中布尔值正确（PR25-12）
@@ -217,6 +274,7 @@ mod tests {
         let room_id = Uuid::new_v4();
         let user_id = Uuid::new_v4();
         let (registry, mut rx) = make_registry_with_room_conn(user_id, room_id);
+        let manager = RoomManager::new();
 
         let payload = RoomInfoUpdatedPayload {
             room_id: room_id.to_string(),
@@ -226,7 +284,7 @@ mod tests {
             cover_url: String::new(),
             has_password: true,
         };
-        broadcast_room_info_updated(&registry, &payload);
+        broadcast_room_info_updated(&registry, &manager, &payload);
 
         let msg = tokio::time::timeout(Duration::from_millis(100), rx.recv())
             .await
@@ -258,12 +316,60 @@ mod tests {
             last_heartbeat: Arc::new(RwLock::new(Instant::now())),
         });
 
-        broadcast_room_info_updated(&registry, &sample_payload(room_id));
+        let manager = RoomManager::new();
+        broadcast_room_info_updated(&registry, &manager, &sample_payload(room_id));
 
         let result = tokio::time::timeout(Duration::from_millis(50), rx.recv()).await;
         assert!(
             result.is_err(),
             "BR-04: connection in different room should NOT receive message"
+        );
+    }
+
+    /// BR-05 (R1 P1-7): build_outbound_envelope 注入 msg_id (UUID v4) + timestamp
+    #[test]
+    fn br05_build_outbound_envelope_injects_msg_id() {
+        let (json_str, msg_id) =
+            build_outbound_envelope("UserKicked", json!({ "reason": "spam" }));
+        assert!(Uuid::parse_str(&msg_id).is_ok(), "msg_id must be UUID v4");
+        let v: serde_json::Value = serde_json::from_str(&json_str).unwrap();
+        assert_eq!(v["type"], "UserKicked");
+        assert_eq!(v["msg_id"], msg_id);
+        assert_eq!(v["payload"]["reason"], "spam");
+        assert!(v["timestamp"].is_number());
+    }
+
+    /// BR-06 (R1 P2-8): build_outbound_result payload 包裹 message，code 顶层
+    #[test]
+    fn br06_build_outbound_result_payload_wraps_message() {
+        let json_str = build_outbound_result(
+            "KickUserResult",
+            Some("client-msg-1".to_string()),
+            40301,
+            Some(json!({ "message": "permission denied" })),
+        );
+        let v: serde_json::Value = serde_json::from_str(&json_str).unwrap();
+        assert_eq!(v["type"], "KickUserResult");
+        assert_eq!(v["msg_id"], "client-msg-1");
+        assert_eq!(v["code"], 40301);
+        assert_eq!(v["payload"]["message"], "permission denied");
+        assert!(v["timestamp"].is_number());
+        // 顶层不再平铺 message（§6.3 对齐）
+        assert!(
+            v.get("message").is_none() || v["message"].is_null(),
+            "P2-8: message must NOT be at envelope top level"
+        );
+    }
+
+    /// BR-07 (R1 P1-7): inbound msg_id None 时服务端自动分配 UUID v4
+    #[test]
+    fn br07_build_outbound_result_auto_assigns_msg_id_when_none() {
+        let json_str = build_outbound_result("MuteUserResult", None, 0, None);
+        let v: serde_json::Value = serde_json::from_str(&json_str).unwrap();
+        let msg_id = v["msg_id"].as_str().expect("msg_id must always exist");
+        assert!(
+            Uuid::parse_str(msg_id).is_ok(),
+            "msg_id must be valid UUID when inbound is None"
         );
     }
 }

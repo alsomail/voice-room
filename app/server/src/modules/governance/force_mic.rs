@@ -53,47 +53,39 @@ pub struct ForceLeaveMicDeps {
 // ─── 辅助函数 ─────────────────────────────────────────────────────────────────
 
 fn force_take_error(msg_id: Option<String>, code: i64, message: &str) -> String {
-    serde_json::json!({
-        "type": "ForceTakeMicResult",
-        "msg_id": msg_id,
-        "code": code,
-        "message": message,
-        "timestamp": chrono::Utc::now().timestamp(),
-    })
-    .to_string()
+    crate::ws::broadcaster::build_outbound_result(
+        "ForceTakeMicResult",
+        msg_id,
+        code,
+        Some(serde_json::json!({ "message": message })),
+    )
 }
 
 fn force_take_success(msg_id: Option<String>, mic_index: usize) -> String {
-    serde_json::json!({
-        "type": "ForceTakeMicResult",
-        "msg_id": msg_id,
-        "code": 0,
-        "payload": { "mic_index": mic_index },
-        "timestamp": chrono::Utc::now().timestamp(),
-    })
-    .to_string()
+    crate::ws::broadcaster::build_outbound_result(
+        "ForceTakeMicResult",
+        msg_id,
+        0,
+        Some(serde_json::json!({ "mic_index": mic_index })),
+    )
 }
 
 fn force_leave_error(msg_id: Option<String>, code: i64, message: &str) -> String {
-    serde_json::json!({
-        "type": "ForceLeaveMicResult",
-        "msg_id": msg_id,
-        "code": code,
-        "message": message,
-        "timestamp": chrono::Utc::now().timestamp(),
-    })
-    .to_string()
+    crate::ws::broadcaster::build_outbound_result(
+        "ForceLeaveMicResult",
+        msg_id,
+        code,
+        Some(serde_json::json!({ "message": message })),
+    )
 }
 
 fn force_leave_success(msg_id: Option<String>, mic_index: usize) -> String {
-    serde_json::json!({
-        "type": "ForceLeaveMicResult",
-        "msg_id": msg_id,
-        "code": 0,
-        "payload": { "mic_index": mic_index },
-        "timestamp": chrono::Utc::now().timestamp(),
-    })
-    .to_string()
+    crate::ws::broadcaster::build_outbound_result(
+        "ForceLeaveMicResult",
+        msg_id,
+        0,
+        Some(serde_json::json!({ "mic_index": mic_index })),
+    )
 }
 
 // ─── handle_force_take_mic ────────────────────────────────────────────────────

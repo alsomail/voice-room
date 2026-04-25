@@ -161,24 +161,16 @@ pub struct TransferAdminDeps {
 // ─── 辅助函数 ─────────────────────────────────────────────────────────────────
 
 fn transfer_error(msg_id: Option<String>, code: i64, message: &str) -> String {
-    serde_json::json!({
-        "type": "TransferAdminResult",
-        "msg_id": msg_id,
-        "code": code,
-        "message": message,
-        "timestamp": chrono::Utc::now().timestamp(),
-    })
-    .to_string()
+    crate::ws::broadcaster::build_outbound_result(
+        "TransferAdminResult",
+        msg_id,
+        code,
+        Some(serde_json::json!({ "message": message })),
+    )
 }
 
 fn transfer_success(msg_id: Option<String>) -> String {
-    serde_json::json!({
-        "type": "TransferAdminResult",
-        "msg_id": msg_id,
-        "code": 0,
-        "timestamp": chrono::Utc::now().timestamp(),
-    })
-    .to_string()
+    crate::ws::broadcaster::build_outbound_result("TransferAdminResult", msg_id, 0, None)
 }
 
 // ─── handle_transfer_admin ────────────────────────────────────────────────────

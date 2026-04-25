@@ -464,45 +464,29 @@ pub struct MuteDeps {
 // ─── 辅助函数 ─────────────────────────────────────────────────────────────────
 
 fn mute_error(msg_id: Option<String>, code: i64, message: &str) -> String {
-    serde_json::json!({
-        "type": "MuteUserResult",
-        "msg_id": msg_id,
-        "code": code,
-        "message": message,
-        "timestamp": chrono::Utc::now().timestamp(),
-    })
-    .to_string()
+    crate::ws::broadcaster::build_outbound_result(
+        "MuteUserResult",
+        msg_id,
+        code,
+        Some(serde_json::json!({ "message": message })),
+    )
 }
 
 fn mute_success(msg_id: Option<String>) -> String {
-    serde_json::json!({
-        "type": "MuteUserResult",
-        "msg_id": msg_id,
-        "code": 0,
-        "timestamp": chrono::Utc::now().timestamp(),
-    })
-    .to_string()
+    crate::ws::broadcaster::build_outbound_result("MuteUserResult", msg_id, 0, None)
 }
 
 fn unmute_error(msg_id: Option<String>, code: i64, message: &str) -> String {
-    serde_json::json!({
-        "type": "UnmuteUserResult",
-        "msg_id": msg_id,
-        "code": code,
-        "message": message,
-        "timestamp": chrono::Utc::now().timestamp(),
-    })
-    .to_string()
+    crate::ws::broadcaster::build_outbound_result(
+        "UnmuteUserResult",
+        msg_id,
+        code,
+        Some(serde_json::json!({ "message": message })),
+    )
 }
 
 fn unmute_success(msg_id: Option<String>) -> String {
-    serde_json::json!({
-        "type": "UnmuteUserResult",
-        "msg_id": msg_id,
-        "code": 0,
-        "timestamp": chrono::Utc::now().timestamp(),
-    })
-    .to_string()
+    crate::ws::broadcaster::build_outbound_result("UnmuteUserResult", msg_id, 0, None)
 }
 
 /// 广播 UserMuted 给房间内所有连接（走统一出口 broadcast_to_room）
