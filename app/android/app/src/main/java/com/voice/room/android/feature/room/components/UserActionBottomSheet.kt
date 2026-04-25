@@ -23,10 +23,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.voice.room.android.R
 import com.voice.room.android.data.model.RoomMember
 import com.voice.room.android.feature.room.governance.UserAction
 
@@ -114,12 +116,13 @@ private fun UserInfoHeader(member: RoomMember) {
                 fontWeight = FontWeight.SemiBold,
             )
             if (member.role != "member") {
+                val roleText = when (member.role) {
+                    "owner" -> stringResource(R.string.room_user_action_role_owner)
+                    "admin" -> stringResource(R.string.room_user_action_role_admin)
+                    else -> member.role
+                }
                 Text(
-                    text = when (member.role) {
-                        "owner" -> "👑 房主"
-                        "admin" -> "🛡️ 管理员"
-                        else -> member.role
-                    },
+                    text = roleText,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -151,16 +154,19 @@ private fun ActionItem(
 }
 
 /**
- * [UserAction] 枚举转换为 UI 显示文字
+ * [UserAction] 枚举转换为 UI 显示文字（i18n via stringResource）
  */
-private fun UserAction.toDisplayName(): String = when (this) {
-    UserAction.AssignAdmin   -> "任命管理员"
-    UserAction.RevokeAdmin   -> "卸任管理员"
-    UserAction.ForceTakeMic  -> "抱上麦"
-    UserAction.ForceLeaveMic -> "抱下麦"
-    UserAction.MuteMic       -> "禁麦"
-    UserAction.MuteChat      -> "禁言"
-    UserAction.Kick          -> "踢出房间"
-    UserAction.ViewProfile   -> "查看资料"
-    UserAction.Report        -> "举报"
-}
+@Composable
+private fun UserAction.toDisplayName(): String = stringResource(
+    when (this) {
+        UserAction.AssignAdmin   -> R.string.room_user_action_assign_admin
+        UserAction.RevokeAdmin   -> R.string.room_user_action_revoke_admin
+        UserAction.ForceTakeMic  -> R.string.room_user_action_force_take_mic
+        UserAction.ForceLeaveMic -> R.string.room_user_action_force_leave_mic
+        UserAction.MuteMic       -> R.string.room_user_action_mute_mic
+        UserAction.MuteChat      -> R.string.room_user_action_mute_chat
+        UserAction.Kick          -> R.string.room_user_action_kick
+        UserAction.ViewProfile   -> R.string.room_user_action_view_profile
+        UserAction.Report        -> R.string.room_user_action_report
+    }
+)

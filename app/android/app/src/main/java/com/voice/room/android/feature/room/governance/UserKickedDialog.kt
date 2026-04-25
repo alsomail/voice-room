@@ -17,12 +17,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.voice.room.android.R
 import com.voice.room.android.feature.room.KickedState
 
 /**
@@ -69,7 +72,7 @@ fun UserKickedDialog(
                 verticalArrangement = Arrangement.Center,
             ) {
                 Text(
-                    text = "你已被移出房间",
+                    text = stringResource(R.string.room_governance_kicked_title),
                     color = Color.White,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
@@ -78,15 +81,26 @@ fun UserKickedDialog(
                 Spacer(modifier = Modifier.height(12.dp))
 
                 val reasonText = when (state.reason) {
-                    "spam"       -> "发送垃圾内容"
-                    "harassment" -> "骚扰他人"
-                    "abuse"      -> "辱骂他人"
-                    else         -> state.reason.ifBlank { "违规行为" }
+                    "spam"       -> stringResource(R.string.room_governance_kicked_reason_spam)
+                    "harassment" -> stringResource(R.string.room_governance_kicked_reason_harassment)
+                    "abuse"      -> stringResource(R.string.room_governance_kicked_reason_abuse)
+                    else         -> state.reason.ifBlank {
+                        stringResource(R.string.room_governance_kicked_reason_default)
+                    }
                 }
-                val cooldownMin = (state.cooldownSec + 59) / 60
+                val cooldownMin = ((state.cooldownSec + 59) / 60).toInt().coerceAtLeast(1)
+                val cooldownText = pluralStringResource(
+                    R.plurals.room_governance_kicked_cooldown_minutes,
+                    cooldownMin,
+                    cooldownMin,
+                )
 
                 Text(
-                    text = "原因：$reasonText\n${cooldownMin} 分钟后可再次进入",
+                    text = stringResource(
+                        R.string.room_governance_kicked_body_format,
+                        reasonText,
+                        cooldownText,
+                    ),
                     color = Color(0xFFBBBBBB),
                     fontSize = 14.sp,
                     textAlign = TextAlign.Center,
@@ -105,7 +119,7 @@ fun UserKickedDialog(
                     shape = RoundedCornerShape(8.dp),
                 ) {
                     Text(
-                        text = "知道了",
+                        text = stringResource(R.string.room_governance_kicked_acknowledge),
                         fontSize = 16.sp,
                         fontWeight = FontWeight.SemiBold,
                     )

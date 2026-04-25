@@ -17,9 +17,11 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.voice.room.android.R
 import com.voice.room.android.data.model.RoomMember
 import com.voice.room.android.feature.room.AudienceUiState
 
@@ -78,7 +80,7 @@ fun AudienceBottomSheet(
         Column(modifier = Modifier.fillMaxWidth()) {
             // Header：观众席标题
             Text(
-                text = "观众席 (${state.total})",
+                text = stringResource(R.string.room_audience_title_format, state.total),
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier
@@ -96,7 +98,10 @@ fun AudienceBottomSheet(
                 if (state.onMic.isNotEmpty()) {
                     item(key = "header_on_mic") {
                         SectionHeader(
-                            text = "麦上 (${state.onMic.size})",
+                            text = stringResource(
+                                R.string.room_audience_section_on_mic_format,
+                                state.onMic.size,
+                            ),
                             testTag = "audience_header_on_mic",
                         )
                     }
@@ -111,7 +116,10 @@ fun AudienceBottomSheet(
                 // ─── 观众区 ──────────────────────────────────────────────
                 item(key = "header_observers") {
                     SectionHeader(
-                        text = "观众 (${state.audience.size})",
+                        text = stringResource(
+                            R.string.room_audience_section_observers_format,
+                            state.audience.size,
+                        ),
                         testTag = "audience_header_observers",
                     )
                 }
@@ -126,7 +134,7 @@ fun AudienceBottomSheet(
                 if (state.onMic.isEmpty() && state.audience.isEmpty()) {
                     item(key = "empty") {
                         Text(
-                            text = "暂无成员",
+                            text = stringResource(R.string.room_audience_empty),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(24.dp),

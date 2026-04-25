@@ -105,4 +105,69 @@
     <string name="mic_slot_empty_desc">المقعد %1$d، شاغر، اضغط لاعتلاء المنصة</string>
     <string name="mic_slot_occupied_desc">المقعد %1$d، %2$s، اضغط للتفاعل</string>
     <string name="mic_slot_muted_desc">المقعد %1$d، %2$s، مكتوم</string>
+
+    <!-- ─── الوحدة 8 R1 P0-4: حوكمة الغرفة / قائمة الجمهور / قائمة الإجراءات / نافذة كلمة المرور ─── -->
+
+    <!-- UserKickedDialog -->
+    <string name="room_governance_kicked_title">تم إخراجك من الغرفة</string>
+    <string name="room_governance_kicked_reason_spam">إرسال محتوى غير مرغوب فيه</string>
+    <string name="room_governance_kicked_reason_harassment">التحرّش بالآخرين</string>
+    <string name="room_governance_kicked_reason_abuse">سلوك مسيء</string>
+    <string name="room_governance_kicked_reason_default">مخالفة القواعد</string>
+    <string name="room_governance_kicked_body_format">السبب: %1$s\n%2$s</string>
+    <plurals name="room_governance_kicked_cooldown_minutes">
+        <item quantity="zero">يمكنك الانضمام مجدداً خلال أقل من دقيقة</item>
+        <item quantity="one">يمكنك الانضمام مجدداً بعد دقيقة واحدة</item>
+        <item quantity="two">يمكنك الانضمام مجدداً بعد دقيقتين</item>
+        <item quantity="few">يمكنك الانضمام مجدداً بعد %d دقائق</item>
+        <item quantity="many">يمكنك الانضمام مجدداً بعد %d دقيقة</item>
+        <item quantity="other">يمكنك الانضمام مجدداً بعد %d دقيقة</item>
+    </plurals>
+    <string name="room_governance_kicked_acknowledge">حسناً</string>
+
+    <!-- MuteStatusChip -->
+    <string name="room_governance_mute_chip_mic_format">الميكروفون مكتوم · %1$s</string>
+    <string name="room_governance_mute_chip_chat_format">الدردشة مكتومة · %1$s</string>
+
+    <!-- KickReasonDialog -->
+    <string name="room_governance_kick_dialog_title">سبب الإخراج</string>
+    <string name="room_governance_kick_reason_label_harassment">تحرّش</string>
+    <string name="room_governance_kick_reason_label_spam">إزعاج بالرسائل</string>
+    <string name="room_governance_kick_reason_label_abuse">إساءة</string>
+    <string name="room_governance_kick_reason_label_other">سبب آخر</string>
+    <string name="room_governance_kick_custom_placeholder">اكتب السبب (بحد أقصى %1$d حرف)</string>
+    <string name="room_governance_btn_cancel">إلغاء</string>
+    <string name="room_governance_btn_confirm">تأكيد</string>
+
+    <!-- AudienceBottomSheet -->
+    <string name="room_audience_title_format">الجمهور (%1$d)</string>
+    <string name="room_audience_section_on_mic_format">على الميكروفون (%1$d)</string>
+    <string name="room_audience_section_observers_format">المتفرّجون (%1$d)</string>
+    <string name="room_audience_empty">لا يوجد أعضاء بعد</string>
+
+    <!-- UserActionBottomSheet -->
+    <string name="room_user_action_role_owner">👑 المالك</string>
+    <string name="room_user_action_role_admin">🛡️ المشرف</string>
+    <string name="room_user_action_assign_admin">تعيين مشرفاً</string>
+    <string name="room_user_action_revoke_admin">إلغاء المشرف</string>
+    <string name="room_user_action_force_take_mic">رفع إلى الميكروفون</string>
+    <string name="room_user_action_force_leave_mic">إنزال من الميكروفون</string>
+    <string name="room_user_action_mute_mic">كتم الميكروفون</string>
+    <string name="room_user_action_mute_chat">كتم الدردشة</string>
+    <string name="room_user_action_kick">إخراج من الغرفة</string>
+    <string name="room_user_action_view_profile">عرض الملف الشخصي</string>
+    <string name="room_user_action_report">إبلاغ</string>
+
+    <!-- PasswordInputDialog -->
+    <string name="room_password_dialog_title">أدخل كلمة مرور الغرفة</string>
+    <plurals name="room_password_error_attempts">
+        <item quantity="zero">كلمة المرور خاطئة. لم تتبقَّ محاولات.</item>
+        <item quantity="one">كلمة المرور خاطئة. تبقّت محاولة واحدة.</item>
+        <item quantity="two">كلمة المرور خاطئة. تبقّت محاولتان.</item>
+        <item quantity="few">كلمة المرور خاطئة. تبقّت %d محاولات.</item>
+        <item quantity="many">كلمة المرور خاطئة. تبقّت %d محاولة.</item>
+        <item quantity="other">كلمة المرور خاطئة. تبقّت %d محاولة.</item>
+    </plurals>
+    <string name="room_password_btn_confirm">تأكيد</string>
+    <string name="room_password_btn_cancel">إلغاء</string>
 </resources>

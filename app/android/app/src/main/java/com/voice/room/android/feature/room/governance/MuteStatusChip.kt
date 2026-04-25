@@ -15,8 +15,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.voice.room.android.R
 import kotlinx.coroutines.delay
 
 /**
@@ -39,7 +41,6 @@ fun MuteStatusChip(
     onExpired: () -> Unit = {},
 ) {
     val tag = if (muteType == "mic") "mute_countdown_mic" else "mute_countdown_chat"
-    val label = if (muteType == "mic") "禁麦" else "禁言"
 
     var remainingSec by remember {
         mutableLongStateOf(
@@ -59,6 +60,11 @@ fun MuteStatusChip(
     val minutes = remainingSec / 60
     val seconds = remainingSec % 60
     val timeText = "%d:%02d".format(minutes, seconds)
+    val labelFormatRes = if (muteType == "mic") {
+        R.string.room_governance_mute_chip_mic_format
+    } else {
+        R.string.room_governance_mute_chip_chat_format
+    }
 
     Row(
         modifier = Modifier
@@ -71,7 +77,7 @@ fun MuteStatusChip(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            text = "你已被$label $timeText",
+            text = stringResource(labelFormatRes, timeText),
             color = Color(0xFFFF6B6B),
             fontSize = 12.sp,
         )

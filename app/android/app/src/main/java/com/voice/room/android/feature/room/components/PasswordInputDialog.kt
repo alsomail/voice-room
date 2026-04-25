@@ -28,9 +28,12 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import com.voice.room.android.R
 import com.voice.room.android.feature.room.PasswordDialogState
 
 private const val PASSWORD_LENGTH = 6
@@ -80,7 +83,7 @@ fun PasswordInputDialog(
     AlertDialog(
         modifier = Modifier.testTag("password_dialog"),
         onDismissRequest = { if (!isReadOnly) onDismiss() },
-        title = { Text("请输入房间密码") },
+        title = { Text(stringResource(R.string.room_password_dialog_title)) },
         text = {
             Column(
                 modifier = Modifier.fillMaxWidth(),
@@ -135,7 +138,11 @@ fun PasswordInputDialog(
 
                     is PasswordDialogState.Error ->
                         Text(
-                            text = "密码错误，剩余 ${state.remainingAttempts} 次",
+                            text = pluralStringResource(
+                                R.plurals.room_password_error_attempts,
+                                state.remainingAttempts,
+                                state.remainingAttempts,
+                            ),
                             color = Color.Red,
                             modifier = Modifier.testTag("password_error_text")
                         )
@@ -145,8 +152,8 @@ fun PasswordInputDialog(
                         // 缺陷 #4：使用 stringResource 渲染当前 locale 的文案。
                         val mins = ((state.remainingSeconds + 59) / 60).coerceAtLeast(1)
                         Text(
-                            text = androidx.compose.ui.res.stringResource(
-                                com.voice.room.android.R.string.password_locked_minutes,
+                            text = stringResource(
+                                R.string.password_locked_minutes,
                                 mins,
                             ),
                             color = Color.Red,
@@ -164,12 +171,12 @@ fun PasswordInputDialog(
                 enabled = !isInputDisabled && digits.joinToString("").length == PASSWORD_LENGTH,
                 onClick = { onSubmit(digits.joinToString("")) }
             ) {
-                Text("确认")
+                Text(stringResource(R.string.room_password_btn_confirm))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss, enabled = !isReadOnly) {
-                Text("取消")
+                Text(stringResource(R.string.room_password_btn_cancel))
             }
         }
     )

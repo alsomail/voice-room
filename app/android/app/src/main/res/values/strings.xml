@@ -114,4 +114,61 @@
     <string name="mic_slot_empty_desc">Mic seat %1$d, empty, tap to take seat</string>
     <string name="mic_slot_occupied_desc">Mic seat %1$d, %2$s, tap to interact</string>
     <string name="mic_slot_muted_desc">Mic seat %1$d, %2$s, muted</string>
+
+    <!-- ─── 模块 8 R1 P0-4：房间治理 / 观众席 / 用户操作菜单 / 密码弹窗 i18n ──────── -->
+
+    <!-- UserKickedDialog（被踢出房间全屏弹窗） -->
+    <string name="room_governance_kicked_title">You\'ve been removed from the room</string>
+    <string name="room_governance_kicked_reason_spam">Sending spam content</string>
+    <string name="room_governance_kicked_reason_harassment">Harassing others</string>
+    <string name="room_governance_kicked_reason_abuse">Abusive behavior</string>
+    <string name="room_governance_kicked_reason_default">Violation of rules</string>
+    <string name="room_governance_kicked_body_format">Reason: %1$s\n%2$s</string>
+    <plurals name="room_governance_kicked_cooldown_minutes">
+        <item quantity="one">You can rejoin in %d minute</item>
+        <item quantity="other">You can rejoin in %d minutes</item>
+    </plurals>
+    <string name="room_governance_kicked_acknowledge">OK</string>
+
+    <!-- MuteStatusChip（禁麦/禁言倒计时 Chip） -->
+    <string name="room_governance_mute_chip_mic_format">Mic muted · %1$s</string>
+    <string name="room_governance_mute_chip_chat_format">Chat muted · %1$s</string>
+
+    <!-- KickReasonDialog（踢人原因选择弹窗） -->
+    <string name="room_governance_kick_dialog_title">Kick reason</string>
+    <string name="room_governance_kick_reason_label_harassment">Harassment</string>
+    <string name="room_governance_kick_reason_label_spam">Spam</string>
+    <string name="room_governance_kick_reason_label_abuse">Abuse</string>
+    <string name="room_governance_kick_reason_label_other">Other</string>
+    <string name="room_governance_kick_custom_placeholder">Enter a reason (max %1$d characters)</string>
+    <string name="room_governance_btn_cancel">Cancel</string>
+    <string name="room_governance_btn_confirm">Confirm</string>
+
+    <!-- AudienceBottomSheet（观众席） -->
+    <string name="room_audience_title_format">Audience (%1$d)</string>
+    <string name="room_audience_section_on_mic_format">On mic (%1$d)</string>
+    <string name="room_audience_section_observers_format">Audience (%1$d)</string>
+    <string name="room_audience_empty">No members yet</string>
+
+    <!-- UserActionBottomSheet（用户操作菜单） -->
+    <string name="room_user_action_role_owner">👑 Owner</string>
+    <string name="room_user_action_role_admin">🛡️ Admin</string>
+    <string name="room_user_action_assign_admin">Make admin</string>
+    <string name="room_user_action_revoke_admin">Remove admin</string>
+    <string name="room_user_action_force_take_mic">Bring on mic</string>
+    <string name="room_user_action_force_leave_mic">Take off mic</string>
+    <string name="room_user_action_mute_mic">Mute mic</string>
+    <string name="room_user_action_mute_chat">Mute chat</string>
+    <string name="room_user_action_kick">Kick from room</string>
+    <string name="room_user_action_view_profile">View profile</string>
+    <string name="room_user_action_report">Report</string>
+
+    <!-- PasswordInputDialog（密码房进房弹窗） -->
+    <string name="room_password_dialog_title">Enter room password</string>
+    <plurals name="room_password_error_attempts">
+        <item quantity="one">Wrong password. %d attempt left.</item>
+        <item quantity="other">Wrong password. %d attempts left.</item>
+    </plurals>
+    <string name="room_password_btn_confirm">Confirm</string>
+    <string name="room_password_btn_cancel">Cancel</string>
 </resources>

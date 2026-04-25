@@ -21,10 +21,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
+import com.voice.room.android.R
+
+private const val KICK_REASON_MAX_LENGTH = 100
 
 /**
  * 踢人原因选择弹窗（T-30041）
@@ -56,7 +60,7 @@ fun KickReasonDialog(
             dismissOnBackPress = false,
         ),
         title = {
-            Text(text = "踢出原因")
+            Text(text = stringResource(R.string.room_governance_kick_dialog_title))
         },
         text = {
             Column(
@@ -66,10 +70,10 @@ fun KickReasonDialog(
             ) {
                 KickReason.values().forEachIndexed { index, reason ->
                     val label = when (reason) {
-                        KickReason.Harassment -> "骚扰"
-                        KickReason.Spam       -> "刷屏"
-                        KickReason.Abuse      -> "辱骂"
-                        KickReason.Other      -> "其他"
+                        KickReason.Harassment -> stringResource(R.string.room_governance_kick_reason_label_harassment)
+                        KickReason.Spam       -> stringResource(R.string.room_governance_kick_reason_label_spam)
+                        KickReason.Abuse      -> stringResource(R.string.room_governance_kick_reason_label_abuse)
+                        KickReason.Other      -> stringResource(R.string.room_governance_kick_reason_label_other)
                     }
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -91,11 +95,18 @@ fun KickReasonDialog(
                     OutlinedTextField(
                         value = state.customText,
                         onValueChange = { text ->
-                            if (text.length <= 100) {
+                            if (text.length <= KICK_REASON_MAX_LENGTH) {
                                 state = state.copy(customText = text)
                             }
                         },
-                        placeholder = { Text("请输入原因（最多100字）") },
+                        placeholder = {
+                            Text(
+                                stringResource(
+                                    R.string.room_governance_kick_custom_placeholder,
+                                    KICK_REASON_MAX_LENGTH,
+                                )
+                            )
+                        },
                         singleLine = false,
                         maxLines = 4,
                         modifier = Modifier
@@ -111,7 +122,7 @@ fun KickReasonDialog(
                 onClick = onDismiss,
                 modifier = Modifier.semantics { testTag = "btn_cancel_kick" }
             ) {
-                Text("取消")
+                Text(stringResource(R.string.room_governance_btn_cancel))
             }
         },
         confirmButton = {
@@ -131,7 +142,7 @@ fun KickReasonDialog(
                 ),
                 modifier = Modifier.semantics { testTag = "btn_confirm_kick" },
             ) {
-                Text("确认")
+                Text(stringResource(R.string.room_governance_btn_confirm))
             }
         },
     )
