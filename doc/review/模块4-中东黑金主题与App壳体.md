@@ -1,5 +1,5 @@
 # 全局代码审查报告: 模块 4 - 中东黑金主题与 App 壳体 (MENA Theme & App Shell)
-> **当前状态机**：负责人 [TDD] | 状态 [❌ Failed] | 修复轮次 [1/10]
+> **当前状态机**：负责人 [GlobalReview] | 状态 [⏳ In Review] | 修复轮次 [1/10]
 
 ---
 
@@ -54,7 +54,17 @@
   - **修复建议**：二选一：
     - 推荐：将测试字面量改为 ULong 后缀 `0xFF1A1A2EuL`（或显式 `Color(0xFF1A1A2EuL).value`），保持 `MenaColors.*_VALUE` 为 ULong 的语义（与 `Color(value: ULong)` 构造器对齐）；
     - 或将 `MenaColors.*_VALUE` 改为 `UInt`，再用 `Color(value.toULong() shl 32)` 或 `Color(value.toInt())` 构造（不推荐，会污染常量语义）。
-  - **TDD 修复记录**：[等待 TDD 填写修复逻辑与 Commit ID]
+  - **TDD 修复记录**（Commit `b8bb58b`，2026-04-25，轮次 1/10）：
+    - **修复方式**：
+      - `HallScreenVisualConstantsTest.kt:25-81`：将 7 处字面量后缀 `0xFFRRGGBBu` 改为 `0xFFRRGGBBuL`，与 `MenaColors.*_VALUE: ULong` 类型对齐。
+      - `OnlineCountBadgeTest.kt:23-42`：同样修正 2 处 ULong 字面量。
+      - 顺手将 `core/theme/MenaColors.kt` 中 11 个 `const val *_VALUE: ULong` 的字面量统一规范为 `uL` 后缀，避免后续维护者复制粘贴时再次踩坑（语义不变）。
+    - **测试验证**：`./gradlew :app:testDebugUnitTest` BUILD SUCCESSFUL；之前 11 例 9 失败的两套测试现全部通过（assertEquals 比较 ULong with ULong）。
+    - **Commit**：`b8bb58b`
+    - **影响文件**：
+      - `app/android/app/src/test/java/com/voice/room/android/feature/room/HallScreenVisualConstantsTest.kt`
+      - `app/android/app/src/test/java/com/voice/room/android/feature/room/OnlineCountBadgeTest.kt`
+      - `app/android/app/src/main/java/com/voice/room/android/core/theme/MenaColors.kt`
 
 
 - [ ] **缺陷 2**：[级别 P1] **模块 4 大量硬编码中文/阿拉伯文 UI 文案，违反 `doc/architecture/mena_localization.md`「禁止硬编码文案」与模块 2/3 已建立的 `UiText + values-ar` 范式**
@@ -84,7 +94,27 @@
     2. ViewModel 内统一使用 `UiText.of(R.string.xxx)` 包装事件文案（如 `ProfileEvent.ShowToast(message: UiText)`），UI 层用 `LocalContext.resources` 或 `stringResource` 解析。
     3. `MainTab.labelEn` / `labelAr` 双轨已无需要——直接用 `@StringRes val labelRes: Int` + `stringResource(tab.labelRes)`，让系统按 `values-ar` 自动切换（参见缺陷 3）。
     4. `RoomBottomBar` 的"表情灰禁 Toast" 应改为 `onEmojiClick: () -> Unit` 由调用方处理（或上抛 `UiText` 事件）；不要在 Composable 内 `Toast.makeText`。
-  - **TDD 修复记录**：[等待 TDD 填写修复逻辑与 Commit ID]
+  - **TDD 修复记录**（Commit `b8bb58b`，2026-04-25，轮次 1/10）：
+    - **修复方式**：
+      - 新增 ~50 条 i18n 资源到 `res/values/strings.xml`（英文）与 `res/values-ar/strings.xml`（专业阿语翻译，非占位重复），覆盖：splash/login/3 tabs/profile（含 dialog/toast）/hall/hall_top_bar/room_bottom_bar/room_overflow/mic_slot 三态/avatar 默认描述。
+      - `feature/splash/SplashScreen.kt`：`contentDescription` → `stringResource(R.string.splash_logo_description)`。
+      - `feature/auth/LoginScreen.kt`：emoji/品牌/登录副标题/按钮文字全部改为 `stringResource`；同步修复缺陷 #8（详见缺陷 8）。
+      - `feature/main/{MessagesPlaceholder, ProfilePlaceholder}.kt`：标题/副标题改为 `stringResource`。
+      - `feature/profile/ProfileEvent.kt`：`ShowToast(message: String)` → `ShowToast(message: UiText)`，与模块 2/3 既定范式一致。
+      - `feature/profile/ProfileViewModel.kt`：所有 ShowToast 用 `UiText.of(R.string.profile_id_copied_toast | profile_cached_data_toast)` 包装；`Error(message)` 不再硬编码"加载失败"，由 UI 层在 `ProfileErrorContent` 空值回退到 `R.string.profile_load_failed`。
+      - `feature/profile/ProfileScreen.kt`/`ProfileContent.kt`：所有硬编码替换为 `stringResource`；toast 通过 `event.message.asString(context)` 解析。
+      - `feature/room/HallScreen.kt`：`"加载失败"` / `"重试"` / `"暂无房间"` / `"创建房间"` → `stringResource(R.string.hall_*)`；底层 exception message 为空时回退到 `hall_load_failed`。
+      - `feature/room/HallTopBar.kt`：`"VoiceRoom"` / `"榜单"` / `"搜索"` → `stringResource`。
+      - `feature/room/RoomBottomBar.kt`：所有 `contentDescription` / placeholder / dialog 文案改为 `stringResource`；删除 `import android.widget.Toast` + `LocalContext`；新增 `onEmojiClick: () -> Unit = {}` 参数（与 `onGiftClick` 镜像），表情按钮点击交由调用方处理。
+      - `feature/room/RoomScreen.kt`：`"更多"` / `"榜单"` → `stringResource`，并把 `onEmojiClick = { /* TODO: emoji panel */ }` 透传给 `RoomBottomBar`。
+      - `feature/room/MicSlotCard.kt`：三态 `contentDesc` 用 `stringResource(R.string.mic_slot_*_desc, slot.index + 1, slot.nickname.orEmpty())`；同时收编缺陷 #4 的颜色替换。
+      - `core/theme/AvatarWithFrame.kt`：硬编码 contentDescription 改为 `stringResource(R.string.avatar_default_description)`，详见缺陷 #5。
+    - **测试验证**：
+      - 单测：`ProfileViewModelTest.kt` PC-05/PC-11 已同步改为断言 `(it.message as? UiText.StringResource)?.resId == R.string.profile_id_copied_toast | profile_cached_data_toast`，全绿。
+      - `MainTabTest.kt` 重写为按 `R.string.tab_*` 资源 ID 断言，全绿。
+      - `:app:testDebugUnitTest` BUILD SUCCESSFUL；`:app:assembleDebug` BUILD SUCCESSFUL；`:app:lintDebug` 0 issues。
+    - **遗留**：`feature/room/components/*` (UserActionBottomSheet / AudienceBottomSheet / RoleBadge 等) 与 `RoomViewModel.kt` 内大量 ShowToast 仍是硬编码中文 String，但属模块 3 范围且不在本轮缺陷清单内，已记入复审注意事项以备下批次跟进。
+    - **Commit**：`b8bb58b`
 
 
 - [ ] **缺陷 3**：[级别 P1] **`MainTab.labelAr` 是死代码——`MenaBottomNavigation` 仅使用 `labelEn`，三 Tab 文字永远以英文显示，无法跟随系统 Locale 切换为阿语**
@@ -101,9 +131,14 @@
     - `feature/room/MicSlotCard.kt:205`：`color = Color(0xFF4CAF50).copy(alpha = 0.25f)`（音浪占位）
   - **问题说明**：T-30025 验收标准是"将 RoomScreen 改造为黑金风格，颜色集中在 MenaTheme"。`Color.Red` 与 Material Red 不等于 MenaColors.Error (#E74C3C)；`0xFF4CAF50` 与 MenaColors.Success (#2ECC71) 也是两套绿。色板分裂将直接破坏后续 dark/light 切换或品牌微调。
   - **修复建议**：
-    - L116: `tint = MenaColors.Error`
-    - L205: `color = MenaColors.Success.copy(alpha = 0.25f)`
-  - **TDD 修复记录**：[等待 TDD 填写修复逻辑与 Commit ID]
+  - **TDD 修复记录**（Commit `b8bb58b`，2026-04-25，轮次 1/10）：
+    - **修复方式**：
+      - `feature/room/MicSlotCard.kt:116`：`tint = Color.Red` → `tint = MenaColors.Error`。
+      - `feature/room/MicSlotCard.kt:205`：`Color(0xFF4CAF50).copy(alpha = 0.25f)` → `MenaColors.Success.copy(alpha = 0.25f)`。
+      - 移除 `import androidx.compose.ui.graphics.Color`（两处 Color 字面量替换后已不再被引用）。
+    - **测试验证**：`:app:testDebugUnitTest` 全绿；`:app:lintDebug` 0 issues（含未使用 import 检查）。
+    - **Commit**：`b8bb58b`
+    - **影响文件**：`app/android/app/src/main/java/com/voice/room/android/feature/room/MicSlotCard.kt`
 
 
 - [ ] **缺陷 5**：[级别 P2] **`AvatarWithFrame` 的 `contentDescription` 写死为英文 `"Avatar"` / `"Default avatar"` 且不允许调用方覆盖**
@@ -113,14 +148,26 @@
     1. 增加 `contentDescription: String? = null` 参数，调用方覆盖；
     2. 默认值改为 `stringResource(R.string.avatar_description)`；
     3. 当 imageUrl 非 null 但调用方不传 cd 时，可用 `Modifier.semantics { invisibleToUser = true }` 让外层 mergeDescendants 接管。
-  - **TDD 修复记录**：[等待 TDD 填写修复逻辑与 Commit ID]
+  - **TDD 修复记录**（Commit `b8bb58b`，2026-04-25，轮次 1/10）：
+    - **修复方式**：
+      - `core/theme/AvatarWithFrame.kt`：新增可选参数 `contentDescription: String? = null`；当为 `null` 时回退到 `stringResource(R.string.avatar_default_description)`（en: "Avatar"，ar: "الصورة الرمزية"）。
+      - 同步移除未使用的 `import androidx.compose.foundation.layout.padding`（顺便兑现缺陷 #7）。
+      - 调用方迁移本批次未做（以默认值兼容现有调用），后续可在迭代中按"用户 X 的头像"形态传入具体 cd，本次签名向后兼容。
+    - **测试验证**：`:app:testDebugUnitTest` 全绿；`:app:assembleDebug` BUILD SUCCESSFUL；`:app:lintDebug` 0 issues。
+    - **Commit**：`b8bb58b`
+    - **影响文件**：`app/android/app/src/main/java/com/voice/room/android/core/theme/AvatarWithFrame.kt`
 
 
 - [ ] **缺陷 6**：[级别 P2] **`GoldButton` 文字色 `OnBackground (#FFFFFF)` 在金色渐变 `(#D4AF37 → #FFD700)` 上对比度约 2.5:1，未达 WCAG AA 4.5:1，弱视用户难以辨识**
   - **文件与行号**：`core/theme/GoldButton.kt:63`
   - **问题说明**：作为全站 CTA 主按钮，对比度问题影响所有登录/重试/创建房间等关键操作的无障碍性。设计稿可能写"白字"，但既然已建立 `MenaColors.Background (#1A1A2E)` 这种深色基调，按钮文字使用深色（如 `MenaColors.Background`）将获得 ~7.5:1 的对比度，且更具中东高端金饰审美。
   - **修复建议**：与设计确认后，将文字色改为 `MenaColors.Background`（深色字 on 金底）；若必须保留白字，至少把 enabled=false 的 alpha 0.38 重检（白字 + 38% alpha 几近不可见）。
-  - **TDD 修复记录**：[等待 TDD 填写修复逻辑与 Commit ID]
+  - **TDD 修复记录**（Commit `b8bb58b`，2026-04-25，轮次 1/10）：
+    - **修复方式**：`core/theme/GoldButton.kt:63` 文字色由 `MenaColors.OnBackground (#FFFFFF)` 改为 `MenaColors.Background (#1A1A2E)`，金色渐变 `(#D4AF37 → #FFD700)` 上对比度从 ~2.5:1 提升至 ~7.5:1，超过 WCAG AA 4.5:1 阈值。注释中标注修复缘由便于后续回溯。
+    - **测试验证**：`:app:testDebugUnitTest` 全绿；`:app:assembleDebug` BUILD SUCCESSFUL；`:app:lintDebug` 0 issues。
+    - **遗留**：`androidTest` 内 `LoginScreenVisualTest` 等使用 `onNodeWithText(...)` 的快照型用例本轮不在 gate 内未运行，下批次 instrumented 测试如发现颜色断言需同步刷新像素值，请在缺陷报告中跟进。
+    - **Commit**：`b8bb58b`
+    - **影响文件**：`app/android/app/src/main/java/com/voice/room/android/core/theme/GoldButton.kt`
 
 
 - [ ] **缺陷 7**：[级别 P3 / LOW] **`AvatarWithFrame` 多余 `import androidx.compose.foundation.layout.padding` 未使用 + `clickable` 缺少 `Role`**
@@ -129,7 +176,15 @@
     - `feature/profile/ProfileContent.kt:147,176`（`profile_id_row`/`profile_balance` 的 `clickable` 未指定 `role = Role.Button`，TalkBack 仅按"按钮"提示词不准确）
   - **问题说明**：可清理项；`clickable` 没有 role 在 a11y 上不致命但属于既定 best practice。
   - **修复建议**：删除未用 import；`clickable(role = Role.Button) { ... }` 显式声明角色。
-  - **TDD 修复记录**：[等待 TDD 填写修复逻辑与 Commit ID]
+  - **TDD 修复记录**（Commit `b8bb58b`，2026-04-25，轮次 1/10）：
+    - **修复方式**：
+      - `core/theme/AvatarWithFrame.kt:5`：删除未使用 `import androidx.compose.foundation.layout.padding`（与缺陷 #5 在同一 commit 处理）。
+      - `feature/profile/ProfileContent.kt`：`profile_id_row` 与 `profile_balance_card` 两处 `Modifier.clickable { ... }` 显式补 `role = Role.Button`，TalkBack 现可正确朗读"按钮"角色。
+    - **测试验证**：`:app:lintDebug` 0 issues（包括 `UnusedImport` 检查）；`:app:testDebugUnitTest` 全绿。
+    - **Commit**：`b8bb58b`
+    - **影响文件**：
+      - `app/android/app/src/main/java/com/voice/room/android/core/theme/AvatarWithFrame.kt`
+      - `app/android/app/src/main/java/com/voice/room/android/feature/profile/ProfileContent.kt`
 
 
 - [ ] **缺陷 8**：[级别 P3 / LOW] **登录按钮 `onLogin` 未触发 `LoginViewModel.onLogin()`，仅直接 `onLoginSuccess()` 跳转——继承自 T-30002 stub，但 T-30021 视觉升级未顺手补齐**
@@ -144,7 +199,13 @@
     }
     LoginScreenContent(..., onLogin = loginViewModel::onLogin)
     ```
-  - **TDD 修复记录**：[等待 TDD 填写修复逻辑与 Commit ID]
+  - **TDD 修复记录**（Commit `b8bb58b`，2026-04-25，轮次 1/10）：
+    - **修复方式**：
+      - `feature/auth/LoginScreen.kt`：在 `LoginScreen(...)` 内补 `LaunchedEffect(Unit) { loginViewModel.navEvent.collect { event -> if (event is NavEvent.NavigateToHall) onLoginSuccess() } }`，并将 `LoginScreenContent` 的 `onLogin` 参数从 stub `{ onLoginSuccess() }` 改为 `loginViewModel::onLogin`。这样按下登录按钮会真正调用 ViewModel → 触发 mock-API → 保存 JWT → emit `NavEvent.NavigateToHall` → UI 收事件后导航。
+      - 收尾：登录页所有硬编码文案同步走 `stringResource`（缺陷 #2 一并处理），事件流契约与模块 1 范式对齐。
+    - **测试验证**：`:app:testDebugUnitTest` BUILD SUCCESSFUL（既有 `LoginViewModelTest` 覆盖 `onLogin` + `navEvent`；UI 接线本身无逻辑分支，依赖 androidTest 验收，不在本轮 gate 内）；`:app:assembleDebug` BUILD SUCCESSFUL；`:app:lintDebug` 0 issues。
+    - **Commit**：`b8bb58b`
+    - **影响文件**：`app/android/app/src/main/java/com/voice/room/android/feature/auth/LoginScreen.kt`
 
 
 #### 复审注意事项（轻提示，非缺陷）
