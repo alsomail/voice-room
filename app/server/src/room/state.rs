@@ -47,7 +47,11 @@ impl BoundedMsgIdSet {
 
     /// 检查 msg_id 是否已被处理过。
     pub fn contains(&self, id: &str) -> bool {
-        self.inner.lock().unwrap_or_else(|e| e.into_inner()).set.contains(id)
+        self.inner
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .set
+            .contains(id)
     }
 
     /// 插入 msg_id；若已存在返回 false（不重复入队）；新插入返回 true。
@@ -71,7 +75,11 @@ impl BoundedMsgIdSet {
 
     /// 当前条目数（主要用于测试与监控）。
     pub fn len(&self) -> usize {
-        self.inner.lock().unwrap_or_else(|e| e.into_inner()).order.len()
+        self.inner
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .order
+            .len()
     }
 
     /// 是否为空（clippy 要求与 `len` 配套）。
@@ -88,6 +96,83 @@ impl BoundedMsgIdSet {
 impl Default for BoundedMsgIdSet {
     fn default() -> Self {
         Self::with_capacity(PROCESSED_MSG_IDS_CAPACITY)
+    }
+}
+
+// ─── RecentBroadcasts（P1-6：服务端 last_msg_id 续传环缓冲）────────────────────
+
+/// 单房间消息回放环缓冲容量（最多保留最近 N 条服务端广播）。
+///
+/// 选择 200 是基于：① 重连窗口 ≤ 30s × 单房 QPS ≤ 6 ≈ 180；② 内存上界 ~200 × 1KB = 200KB。
+/// 客户端在重连握手时携带 `last_msg_id`，服务端在缓冲内查找并回放此后所有条目。
+pub const RECENT_BROADCASTS_CAPACITY: usize = 200;
+
+/// 一条房间内广播的回放记录。
+#[derive(Clone, Debug)]
+pub struct RecentBroadcast {
+    /// 服务端为该广播分配的 envelope-level msg_id（UUID v4 字符串）。
+    pub msg_id: String,
+    /// 完整 JSON 字符串（与发送给客户端的字节一致），重连时直接重放。
+    pub json: String,
+}
+
+/// 单房间最近广播环缓冲（FIFO，超容量淘汰最旧条目）。
+///
+/// 用于 P1-6 服务端 `last_msg_id` 续传：客户端重连 `JoinRoom` 携带 `last_msg_id`，
+/// 服务端在该缓冲内查找该条目，将其后所有条目按原顺序重放给该连接。
+/// 若 `last_msg_id` 不在缓冲（断线过久 / 从未收到 / 越界），则不回放（safer than over-send）。
+pub struct RecentBroadcasts {
+    inner: Mutex<VecDeque<RecentBroadcast>>,
+    capacity: usize,
+}
+
+impl RecentBroadcasts {
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self {
+            inner: Mutex::new(VecDeque::with_capacity(capacity.min(1024))),
+            capacity,
+        }
+    }
+
+    /// 推入一条新广播；超容量时弹出最旧条目。
+    pub fn push(&self, msg_id: String, json: String) {
+        if self.capacity == 0 {
+            return;
+        }
+        let mut g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        g.push_back(RecentBroadcast { msg_id, json });
+        while g.len() > self.capacity {
+            g.pop_front();
+        }
+    }
+
+    /// 查询 `last_msg_id` 之后的所有广播条目。
+    ///
+    /// 返回 `Some(vec)`：找到 `last_msg_id`，vec 是其后所有条目（可能为空，表示客户端是最新的）。
+    /// 返回 `None`：`last_msg_id` 不在缓冲（越界或从未发送过），调用方不应回放。
+    pub fn replay_after(&self, last_msg_id: &str) -> Option<Vec<RecentBroadcast>> {
+        let g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        let pos = g.iter().position(|e| e.msg_id == last_msg_id)?;
+        Some(g.iter().skip(pos + 1).cloned().collect())
+    }
+
+    /// 当前缓冲中条目数（测试用）。
+    pub fn len(&self) -> usize {
+        self.inner.lock().unwrap_or_else(|e| e.into_inner()).len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    pub fn capacity(&self) -> usize {
+        self.capacity
+    }
+}
+
+impl Default for RecentBroadcasts {
+    fn default() -> Self {
+        Self::with_capacity(RECENT_BROADCASTS_CAPACITY)
     }
 }
 
@@ -140,6 +225,8 @@ pub struct RoomState {
     pub muted_users: DashSet<Uuid>,
     /// 已处理消息 ID（幂等去重，FIFO 容量上限 — P2-11 修复 OOM 隐患）
     pub processed_msg_ids: BoundedMsgIdSet,
+    /// 最近广播环缓冲（P1-6 last_msg_id 重连续传，FIFO 容量上限）
+    pub recent_broadcasts: RecentBroadcasts,
 }
 
 impl RoomState {
@@ -152,6 +239,7 @@ impl RoomState {
             banned_mics: DashSet::new(),
             muted_users: DashSet::new(),
             processed_msg_ids: BoundedMsgIdSet::default(),
+            recent_broadcasts: RecentBroadcasts::default(),
         }
     }
 
@@ -303,6 +391,93 @@ mod bounded_msg_id_tests {
             st.processed_msg_ids.capacity(),
             PROCESSED_MSG_IDS_CAPACITY,
             "RoomState 默认容量必须为 PROCESSED_MSG_IDS_CAPACITY"
+        );
+    }
+}
+
+// ─── 单元测试（P1-6 RecentBroadcasts）────────────────────────────────────────
+
+#[cfg(test)]
+mod recent_broadcasts_tests {
+    use super::*;
+
+    // RB-01: push 后 len 递增；replay_after 找到指定 msg_id 时返回其后条目
+    #[test]
+    fn rb01_replay_after_returns_subsequent_entries() {
+        let buf = RecentBroadcasts::with_capacity(10);
+        buf.push("m1".into(), "{\"i\":1}".into());
+        buf.push("m2".into(), "{\"i\":2}".into());
+        buf.push("m3".into(), "{\"i\":3}".into());
+
+        let after_m1 = buf.replay_after("m1").expect("m1 must be in buffer");
+        assert_eq!(after_m1.len(), 2);
+        assert_eq!(after_m1[0].msg_id, "m2");
+        assert_eq!(after_m1[1].msg_id, "m3");
+    }
+
+    // RB-02: replay_after 命中最后一条 → 返回空 Vec（客户端已最新）
+    #[test]
+    fn rb02_replay_after_latest_returns_empty_vec() {
+        let buf = RecentBroadcasts::with_capacity(10);
+        buf.push("m1".into(), "{}".into());
+        buf.push("m2".into(), "{}".into());
+        let after = buf.replay_after("m2").expect("m2 must be in buffer");
+        assert!(after.is_empty(), "客户端持有最新 msg_id 时回放应为空");
+    }
+
+    // RB-03: replay_after 未命中 → 返回 None（越界，调用方不应回放）
+    #[test]
+    fn rb03_replay_after_unknown_returns_none() {
+        let buf = RecentBroadcasts::with_capacity(10);
+        buf.push("m1".into(), "{}".into());
+        assert!(
+            buf.replay_after("missing").is_none(),
+            "未知 msg_id 必须返回 None 表示越界"
+        );
+    }
+
+    // RB-04: 容量上限 → FIFO 淘汰最旧条目，原 last_msg_id 越界后 replay_after 返回 None
+    #[test]
+    fn rb04_capacity_evicts_and_invalidates_replay() {
+        let buf = RecentBroadcasts::with_capacity(2);
+        buf.push("m1".into(), "{}".into());
+        buf.push("m2".into(), "{}".into());
+        buf.push("m3".into(), "{}".into()); // m1 被淘汰
+        assert_eq!(buf.len(), 2);
+        assert!(
+            buf.replay_after("m1").is_none(),
+            "m1 已被淘汰，replay_after 必须越界返回 None"
+        );
+        let after_m2 = buf.replay_after("m2").expect("m2 仍在缓冲");
+        assert_eq!(after_m2.len(), 1);
+        assert_eq!(after_m2[0].msg_id, "m3");
+    }
+
+    // RB-05: 空缓冲 → replay_after 永远返回 None
+    #[test]
+    fn rb05_empty_buffer_returns_none() {
+        let buf = RecentBroadcasts::with_capacity(10);
+        assert!(buf.replay_after("anything").is_none());
+        assert!(buf.is_empty());
+    }
+
+    // RB-06: capacity=0 → push 静默忽略，缓冲始终空
+    #[test]
+    fn rb06_zero_capacity_is_disabled() {
+        let buf = RecentBroadcasts::with_capacity(0);
+        buf.push("m1".into(), "{}".into());
+        assert_eq!(buf.len(), 0);
+        assert!(buf.replay_after("m1").is_none());
+    }
+
+    // RB-07: RoomState 默认使用 RECENT_BROADCASTS_CAPACITY 容量
+    #[test]
+    fn rb07_room_state_default_capacity() {
+        let st = RoomState::new(Uuid::new_v4());
+        assert_eq!(
+            st.recent_broadcasts.capacity(),
+            RECENT_BROADCASTS_CAPACITY,
+            "RoomState 默认 recent_broadcasts 容量必须为 RECENT_BROADCASTS_CAPACITY"
         );
     }
 }

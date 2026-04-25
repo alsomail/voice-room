@@ -381,8 +381,8 @@ impl SendGiftServicePort for GiftSendService {
             }
         }
 
-        // ── 8. 广播 GiftReceived 给房间所有成员（[H-1] 补全 TDS 规定字段）──
-        let broadcast_msg = build_gift_received_msg(
+        // ── 8. 广播 GiftReceived 给房间所有成员（走统一出口 broadcast_to_room）──
+        let gift_envelope = build_gift_received_msg(
             gift_record_id,
             sender_id,
             &sender_nickname,
@@ -399,8 +399,15 @@ impl SendGiftServicePort for GiftSendService {
             count,
             total,
         );
-        for (_, sender_ch) in self.registry.get_connections_in_room(room_id) {
-            let _ = sender_ch.send(broadcast_msg.clone());
+        if let Some(rs) = self.room_manager.get_room(room_id) {
+            crate::ws::broadcaster::broadcast_to_room(&self.registry, &rs, gift_envelope);
+        } else {
+            // 房间状态尚未注册（理论上 send_gift 前 sender 已 JoinRoom，此分支为兜底）
+            crate::ws::broadcaster::broadcast_to_room_no_state(
+                &self.registry,
+                room_id,
+                gift_envelope,
+            );
         }
 
         Ok(SendGiftResult {
@@ -431,10 +438,9 @@ fn build_gift_received_msg(
     gift_effect_level: i16,
     count: i32,
     total_price: i64,
-) -> String {
-    let msg = serde_json::json!({
+) -> serde_json::Value {
+    serde_json::json!({
         "type": "GiftReceived",
-        "msg_id": Uuid::new_v4().to_string(),
         "payload": {
             "gift_record_id": gift_record_id.to_string(),
             "sender": {
@@ -459,8 +465,7 @@ fn build_gift_received_msg(
             "total_price": total_price,
         },
         "timestamp": chrono::Utc::now().timestamp_millis(),
-    });
-    serde_json::to_string(&msg).unwrap_or_default()
+    })
 }
 
 // ─── WS 信令处理器 ────────────────────────────────────────────────────────────
@@ -805,7 +810,7 @@ mod tests {
     // SGU07: build_gift_received_msg 包含 TDS 规定的全部字段（[H-1] 更新）
     #[test]
     fn sgu07_build_gift_received_msg_contains_required_fields() {
-        let msg = build_gift_received_msg(
+        let json = build_gift_received_msg(
             Uuid::new_v4(),                             // gift_record_id
             Uuid::new_v4(),                             // sender_id
             "Alice",                                    // sender_nickname
@@ -822,7 +827,6 @@ mod tests {
             2,                                          // count
             1040,                                       // total_price
         );
-        let json: serde_json::Value = serde_json::from_str(&msg).unwrap();
         assert_eq!(
             json["type"], "GiftReceived",
             "SGU07: type should be GiftReceived"
@@ -832,7 +836,11 @@ mod tests {
             json["payload"]["total_price"], 1040,
             "SGU07: total_price should be 1040"
         );
-        assert!(json["msg_id"].is_string(), "SGU07: should have msg_id");
+        // P1-6: msg_id 由 broadcast_to_room 在广播时统一注入，build 函数不再预填
+        assert!(
+            json.get("msg_id").is_none(),
+            "SGU07: msg_id 应由 broadcast_to_room 在广播时注入，build 函数不预填"
+        );
         // 验证 sender 字段
         assert_eq!(
             json["payload"]["sender"]["nickname"], "Alice",

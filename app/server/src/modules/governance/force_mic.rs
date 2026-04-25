@@ -190,8 +190,8 @@ pub async fn handle_force_take_mic(
         }
     }
 
-    // ── 6. 广播 MicTaken { forced_by } ────────────────────────────────────────
-    let mic_taken = serde_json::json!({
+    // ── 6. 广播 MicTaken { forced_by } ── 走统一出口 broadcast_to_room ────────
+    let mic_taken_envelope = serde_json::json!({
         "type": "MicTaken",
         "payload": {
             "mic_index": slot_index,
@@ -200,10 +200,7 @@ pub async fn handle_force_take_mic(
         },
         "timestamp": chrono::Utc::now().timestamp(),
     });
-    let mic_taken_str = serde_json::to_string(&mic_taken).unwrap_or_default();
-    for (_, sender) in registry.get_connections_in_room(room_id) {
-        let _ = sender.send(mic_taken_str.clone());
-    }
+    crate::ws::broadcaster::broadcast_to_room(registry, &room_state, mic_taken_envelope);
 
     force_take_success(msg_id, slot_index)
 }
@@ -281,8 +278,8 @@ pub async fn handle_force_leave_mic(
         None => return force_leave_error(msg_id, 40404, "target not on mic"),
     };
 
-    // ── 6. 广播 MicLeft { forced: true, forced_by } ───────────────────────────
-    let mic_left = serde_json::json!({
+    // ── 6. 广播 MicLeft { forced: true, forced_by } — 走统一出口 broadcast_to_room
+    let mic_left_envelope = serde_json::json!({
         "type": "MicLeft",
         "payload": {
             "mic_index": mic_index,
@@ -292,10 +289,7 @@ pub async fn handle_force_leave_mic(
         },
         "timestamp": chrono::Utc::now().timestamp(),
     });
-    let mic_left_str = serde_json::to_string(&mic_left).unwrap_or_default();
-    for (_, sender) in registry.get_connections_in_room(room_id) {
-        let _ = sender.send(mic_left_str.clone());
-    }
+    crate::ws::broadcaster::broadcast_to_room(registry, &room_state, mic_left_envelope);
 
     force_leave_success(msg_id, mic_index)
 }

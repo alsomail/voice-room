@@ -460,8 +460,11 @@ mod tests {
         let (h1, mut rx1) = make_handle(Uuid::new_v4(), None);
         registry.register(h1);
 
-        super::handle_admin_event(broadcast_notice_event("Maintenance at 10pm"), registry.clone())
-            .await;
+        super::handle_admin_event(
+            broadcast_notice_event("Maintenance at 10pm"),
+            registry.clone(),
+        )
+        .await;
 
         let msg = tokio::time::timeout(Duration::from_millis(100), rx1.recv())
             .await

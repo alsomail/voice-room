@@ -154,7 +154,8 @@ mod tests {
         let outer = tokio::time::timeout(Duration::from_millis(500), task)
             .await
             .expect("subscriber should exit within 500ms after shutdown");
-        outer.expect("task should not panic")
+        outer
+            .expect("task should not panic")
             .expect("shutdown 路径必须返回 Ok(())");
     }
 }

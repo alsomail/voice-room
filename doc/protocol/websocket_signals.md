@@ -154,3 +154,32 @@ ACK：`{ type:"EventReportAck", msg_id, code:0, payload:{ received:98, rejected_
 
 ### 6.6.2 JoinRoom 扩展（密码房）
 JoinRoom payload 增 `access_token?: string`（密码房必填，从 `POST /rooms/:id/verify-password` 获取，TTL 60s）。
+
+### 6.7 重连续传（last_msg_id 回放，T-审计 P1-6）
+
+#### 6.7.1 客户端契约
+客户端在 `JoinRoom.payload` 中可选携带 `last_msg_id?: string`：
+- **取值**：客户端最近一次成功收到的房间广播 envelope 上的 `msg_id`（服务端 UUID v4）。
+- **场景**：网络抖动 / 后台切回 / 主动重连等导致 WebSocket 短暂断开，重连后通过此字段请求服务端补发断连期间错过的广播。
+- **首次进房 / 不需要续传**：省略该字段或传空字符串，行为与传统 `JoinRoom` 一致。
+
+#### 6.7.2 服务端行为
+1. 服务端为每条房间广播 envelope（`UserJoined / UserLeft / MicTaken / MicLeft / RoomMessage / GiftReceived / UserMuted / AdminChanged / UserKicked` 等）注入唯一 `msg_id` 字段（UUID v4），并写入 `RoomState.recent_broadcasts` 环缓冲。
+2. 当 `JoinRoom` 携带 `last_msg_id`：
+   - **命中**（`last_msg_id` 仍在缓冲窗口内）：把 `(last_msg_id, now]` 区间的所有广播原样**点对点**推送给该 connection（仅该连接，不重新广播）。回放消息**不**再次写入 `recent_broadcasts`。
+   - **出窗**（`last_msg_id` 已被驱逐 / 服务端重启 / 客户端伪造）：不回放，仅记录 `tracing::info`。客户端应主动调用 `GET /rooms/:id` / `GET /rooms/:id/messages` 等 REST 接口拉取兜底数据。
+   - **缓冲为空**（房间刚启动）：等同于"出窗"。
+3. 回放时序在 `JoinRoom` 流程中位于"获取/创建 room_state 之后、加入成员表 / 广播 UserJoined 之前"——确保自己加入产生的 `UserJoined` 不会出现在自己的回放结果中。
+
+#### 6.7.3 容量与 SLO
+- **缓冲容量**：每个房间 200 条（FIFO，最旧驱逐）。按平均 ~1KB/条估算，单房间内存上限 ~200KB。
+- **覆盖断连窗口**：在峰值 6 QPS 房间广播下覆盖 ≥30 s 断网；典型房间（<1 QPS）覆盖 ≥3 min。
+- **out-of-order**：FIFO push 顺序即客户端可重放顺序。
+
+#### 6.7.4 不参与回放的信令
+以下消息**不**走 `recent_broadcasts`，因此不可被 `last_msg_id` 续传：
+- `RoomClosed` / 治理通告类：管理员触发后立即断开连接，本身不在 in-room 流程内。
+- 点对点信令（`UserKicked` 直接发给被踢者、JoinRoom 本身的 ack 等）。
+- `BalanceUpdated` 等用户级（非房间级）推送。
+
+客户端如需保证看到这些事件，应通过 REST 接口（房间状态、用户余额）轮询兜底。

@@ -484,15 +484,16 @@ pub async fn handle_kick(
         return kick_success(msg_id);
     }
 
-    // ── 9. 自动下麦（若目标在麦上）────────────────────────────────────────────
+    // ── 9. 自动下麦（若目标在麦上）+ 获取 room_state 用于广播 ─────────────────
     // K28-09: 踢麦上用户 → 广播 MicLeft forced=true
-    let mic_slot_left = room_manager
-        .get_room(room_id)
+    let room_state_opt = room_manager.get_room(room_id);
+    let mic_slot_left = room_state_opt
+        .as_ref()
         .and_then(|s| s.leave_mic_slot(target_user_id));
 
     // ── 10. 获取操作者昵称（用于 UserKicked 广播）──────────────────────────────
-    let operator_nickname = room_manager
-        .get_room(room_id)
+    let operator_nickname = room_state_opt
+        .as_ref()
         .and_then(|s| s.members.get(&operator_user_id).map(|m| m.nickname.clone()))
         .unwrap_or_else(|| "admin".to_string());
 
@@ -504,7 +505,7 @@ pub async fn handle_kick(
         registry.clear_room_id(*conn_id);
     }
 
-    // ── 13. 向目标发送 UserKicked 信令 ────────────────────────────────────────
+    // ── 13. 向目标发送 UserKicked 信令（点对点，不入回放缓冲）──────────────────
     // K28-01/02: 目标收到 UserKicked
     let user_kicked_msg = serde_json::json!({
         "type": "UserKicked",
@@ -522,26 +523,24 @@ pub async fn handle_kick(
         let _ = sender.send(user_kicked_msg.clone());
     }
 
-    // ── 14. 广播 UserLeft（reason=kicked_by_admin）给房间其他成员 ───────────
+    // ── 14. 广播 UserLeft 给房间其他成员（走统一出口 broadcast_to_room）──────
     // K28-03: 其他人收到 UserLeft reason=kicked_by_admin
-    let user_left_msg = serde_json::json!({
-        "type": "UserLeft",
-        "payload": {
-            "user_id": target_user_id.to_string(),
-            "reason": "kicked_by_admin",
-            "operator_id": operator_user_id.to_string(),
-        },
-        "timestamp": chrono::Utc::now().timestamp(),
-    })
-    .to_string();
+    if let Some(rs) = room_state_opt.as_ref() {
+        let user_left_envelope = serde_json::json!({
+            "type": "UserLeft",
+            "payload": {
+                "user_id": target_user_id.to_string(),
+                "reason": "kicked_by_admin",
+                "operator_id": operator_user_id.to_string(),
+            },
+            "timestamp": chrono::Utc::now().timestamp(),
+        });
+        crate::ws::broadcaster::broadcast_to_room(registry, rs, user_left_envelope);
 
-    for (_, sender) in registry.get_connections_in_room(room_id) {
-        let _ = sender.send(user_left_msg.clone());
-    }
-
-    // ── 15. 广播 MicLeft forced=true（若目标在麦上）──────────────────────────
-    if let Some(mic_index) = mic_slot_left {
-        broadcast_mic_left(registry, room_id, mic_index, target_user_id, true);
+        // ── 15. 广播 MicLeft forced=true（若目标在麦上）──────────────────────
+        if let Some(mic_index) = mic_slot_left {
+            broadcast_mic_left(registry, rs, mic_index, target_user_id, true);
+        }
     }
 
     // ── 16. 关闭目标 WS 连接（K28-12）────────────────────────────────────────

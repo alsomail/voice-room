@@ -495,9 +495,11 @@ fn unmute_success(msg_id: Option<String>) -> String {
     .to_string()
 }
 
-/// 广播 UserMuted 给房间内所有连接
+/// 广播 UserMuted 给房间内所有连接（走统一出口 broadcast_to_room）
+#[allow(clippy::too_many_arguments)]
 fn broadcast_user_muted(
     registry: &ConnectionRegistry,
+    room_state: &crate::room::state::RoomState,
     room_id: Uuid,
     target_user_id: Uuid,
     operator_id: Uuid,
@@ -524,16 +526,12 @@ fn broadcast_user_muted(
         })
     };
 
-    let msg = serde_json::json!({
+    let envelope = serde_json::json!({
         "type": "UserMuted",
         "payload": payload,
         "timestamp": chrono::Utc::now().timestamp(),
-    })
-    .to_string();
-
-    for (_, sender) in registry.get_connections_in_room(room_id) {
-        let _ = sender.send(msg.clone());
-    }
+    });
+    crate::ws::broadcaster::broadcast_to_room(registry, room_state, envelope);
 }
 
 // ─── handle_mute ──────────────────────────────────────────────────────────────
@@ -615,6 +613,7 @@ pub async fn handle_mute(
             room_service,
             mute_redis,
             registry,
+            room_manager,
         )
         .await;
     }
@@ -689,12 +688,13 @@ pub async fn handle_mute(
     }
 
     // ── 14. 若 type=mic 且 target 在麦 → 自动下麦 ────────────────────────────
+    let room_state_opt = room_manager.get_room(room_id);
     if mute_type == "mic" {
-        let mic_slot_left = room_manager
-            .get_room(room_id)
+        let mic_slot_left = room_state_opt
+            .as_ref()
             .and_then(|s| s.leave_mic_slot(target_user_id));
-        if let Some(mic_index) = mic_slot_left {
-            broadcast_mic_left(registry, room_id, mic_index, target_user_id, true);
+        if let (Some(mic_index), Some(rs)) = (mic_slot_left, room_state_opt.as_ref()) {
+            broadcast_mic_left(registry, rs, mic_index, target_user_id, true);
         }
     }
 
@@ -703,15 +703,18 @@ pub async fn handle_mute(
         .checked_add_signed(chrono::Duration::seconds(duration_sec))
         .map(|t| t.to_rfc3339());
 
-    broadcast_user_muted(
-        registry,
-        room_id,
-        target_user_id,
-        operator_user_id,
-        &mute_type,
-        duration_sec,
-        expires_at,
-    );
+    if let Some(rs) = room_state_opt.as_ref() {
+        broadcast_user_muted(
+            registry,
+            rs,
+            room_id,
+            target_user_id,
+            operator_user_id,
+            &mute_type,
+            duration_sec,
+            expires_at,
+        );
+    }
 
     mute_success(msg_id)
 }
@@ -726,7 +729,7 @@ pub async fn handle_unmute(
     deps: &MuteDeps,
 ) -> String {
     let MuteDeps {
-        room_manager: _,
+        room_manager,
         room_service,
         mute_redis,
         mute_db: _,
@@ -797,6 +800,7 @@ pub async fn handle_unmute(
         operator_user_id,
         mute_redis,
         registry,
+        room_manager,
         false,
     )
     .await
@@ -804,6 +808,7 @@ pub async fn handle_unmute(
 
 /// 内部解除禁麦/禁言（供 handle_mute duration=0 和 handle_unmute 共用）。
 /// `from_mute_cmd`：true 时返回 MuteUserResult，false 时返回 UnmuteUserResult
+#[allow(clippy::too_many_arguments)]
 async fn do_unmute(
     room_id: Uuid,
     target_user_id: Uuid,
@@ -813,6 +818,7 @@ async fn do_unmute(
     room_service: &Arc<RoomService>,
     mute_redis: &Arc<dyn MuteRedis>,
     registry: &Arc<ConnectionRegistry>,
+    room_manager: &Arc<RoomManager>,
 ) -> String {
     // 权限校验
     let room = match room_service.get_active_room_model(room_id).await {
@@ -838,12 +844,14 @@ async fn do_unmute(
         operator_user_id,
         mute_redis,
         registry,
+        room_manager,
         true,
     )
     .await
 }
 
 /// 核心解除逻辑（删 Redis key + 广播 UserMuted duration_sec=0）
+#[allow(clippy::too_many_arguments)]
 async fn do_unmute_internal(
     room_id: Uuid,
     target_user_id: Uuid,
@@ -852,6 +860,7 @@ async fn do_unmute_internal(
     operator_user_id: Uuid,
     mute_redis: &Arc<dyn MuteRedis>,
     registry: &Arc<ConnectionRegistry>,
+    room_manager: &Arc<RoomManager>,
     from_mute_cmd: bool,
 ) -> String {
     // 删 Redis key
@@ -867,16 +876,19 @@ async fn do_unmute_internal(
         }
     }
 
-    // 广播 UserMuted with duration_sec=0（解除）
-    broadcast_user_muted(
-        registry,
-        room_id,
-        target_user_id,
-        operator_user_id,
-        mute_type,
-        0,
-        None,
-    );
+    // 广播 UserMuted with duration_sec=0（解除）— 走统一出口 broadcast_to_room
+    if let Some(rs) = room_manager.get_room(room_id) {
+        broadcast_user_muted(
+            registry,
+            &rs,
+            room_id,
+            target_user_id,
+            operator_user_id,
+            mute_type,
+            0,
+            None,
+        );
+    }
 
     if from_mute_cmd {
         mute_success(msg_id)

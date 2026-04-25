@@ -1,11 +1,82 @@
 //! T-00025 WS 广播工具
 //!
-//! 向房间内所有连接广播 `RoomInfoUpdated` 消息（S→C）
+//! - `broadcast_room_info_updated`：T-00025 房间信息更新（房间内所有连接）
+//! - `broadcast_to_room`：P1-6 统一房间广播出口（所有信令统一走此函数 → 写入 `recent_broadcasts`
+//!   环缓冲 → `last_msg_id` 重连续传基础设施）。返回服务端分配的 envelope-level `msg_id`。
 
 use serde::Serialize;
 use uuid::Uuid;
 
+use crate::room::state::RoomState;
 use crate::ws::registry::ConnectionRegistry;
+
+/// 统一房间广播出口（P1-6）。
+///
+/// 行为：
+/// 1. 服务端分配 envelope-level `msg_id`（UUID v4），写入 envelope 顶层；
+/// 2. JSON 序列化整个 envelope，调用 `room_state.recent_broadcasts.push(msg_id, json)`
+///    供后续重连 `last_msg_id` 续传查询；
+/// 3. 调用 `registry.get_connections_in_room(room_id)` 向所有连接发送同一份 JSON。
+///
+/// `envelope` 必须是一个 JSON object（含 `type` / `payload` / `timestamp`）；如非 object，
+/// 函数会记录 warn 并直接返回空字符串（不写缓冲、不发送）。
+///
+/// 返回服务端分配的 `msg_id`，调用方一般可丢弃；测试用例可断言其格式为 UUID。
+pub fn broadcast_to_room(
+    registry: &ConnectionRegistry,
+    room_state: &RoomState,
+    envelope: serde_json::Value,
+) -> String {
+    broadcast_to_room_inner(registry, room_state.room_id, Some(room_state), envelope)
+}
+
+/// 当房间状态不存在于内存（如治理操作发生时房间从未 JoinRoom 注册过）时使用的降级出口。
+///
+/// 与 [`broadcast_to_room`] 行为一致，但不写入 recent_broadcasts 环缓冲（即此条消息
+/// 无法被 `last_msg_id` 续传）。仅用于 governance / 测试场景的兜底广播。
+pub fn broadcast_to_room_no_state(
+    registry: &ConnectionRegistry,
+    room_id: Uuid,
+    envelope: serde_json::Value,
+) -> String {
+    broadcast_to_room_inner(registry, room_id, None, envelope)
+}
+
+fn broadcast_to_room_inner(
+    registry: &ConnectionRegistry,
+    room_id: Uuid,
+    room_state: Option<&RoomState>,
+    mut envelope: serde_json::Value,
+) -> String {
+    let Some(obj) = envelope.as_object_mut() else {
+        tracing::warn!("broadcast_to_room: envelope is not a JSON object, skip");
+        return String::new();
+    };
+
+    let msg_id = Uuid::new_v4().to_string();
+    obj.insert(
+        "msg_id".to_string(),
+        serde_json::Value::String(msg_id.clone()),
+    );
+
+    let json = match serde_json::to_string(&envelope) {
+        Ok(s) => s,
+        Err(e) => {
+            tracing::error!("broadcast_to_room: serialize error: {e}");
+            return String::new();
+        }
+    };
+
+    if let Some(rs) = room_state {
+        rs.recent_broadcasts.push(msg_id.clone(), json.clone());
+    }
+
+    for (_, sender) in registry.get_connections_in_room(room_id) {
+        let _ = sender.send(json.clone());
+    }
+
+    msg_id
+}
 
 /// `RoomInfoUpdated` WS 消息 payload
 #[derive(Debug, Clone, Serialize)]

@@ -187,7 +187,7 @@ pub async fn handle_transfer_admin(
     deps: &TransferAdminDeps,
 ) -> String {
     let TransferAdminDeps {
-        room_manager: _,
+        room_manager,
         room_service,
         room_repo,
         registry,
@@ -262,8 +262,8 @@ pub async fn handle_transfer_admin(
             return transfer_error(msg_id, 50000, "internal error");
         }
 
-        // ── 6a. DB 成功后广播 AdminChanged ────────────────────────────────────
-        let admin_changed = serde_json::json!({
+        // ── 6a. DB 成功后广播 AdminChanged — 走统一出口 broadcast_to_room ─────
+        let admin_changed_envelope = serde_json::json!({
             "type": "AdminChanged",
             "payload": {
                 "room_id": room_id.to_string(),
@@ -273,9 +273,16 @@ pub async fn handle_transfer_admin(
             },
             "timestamp": chrono::Utc::now().timestamp(),
         });
-        let msg = serde_json::to_string(&admin_changed).unwrap_or_default();
-        for (_, sender) in registry.get_connections_in_room(room_id) {
-            let _ = sender.send(msg.clone());
+        if let Some(rs) = room_manager.get_room(room_id) {
+            crate::ws::broadcaster::broadcast_to_room(registry, &rs, admin_changed_envelope);
+        } else {
+            // 房间状态尚未注册到内存（e.g. 治理 API 在 JoinRoom 之前触发）— 降级广播，
+            // 不写 recent_broadcasts 缓冲（无法被 last_msg_id 续传，但保证连接收到事件）
+            crate::ws::broadcaster::broadcast_to_room_no_state(
+                registry,
+                room_id,
+                admin_changed_envelope,
+            );
         }
     } else {
         // action == "revoke"
@@ -291,8 +298,8 @@ pub async fn handle_transfer_admin(
             return transfer_error(msg_id, 50000, "internal error");
         }
 
-        // ── 6b. DB 成功后广播 AdminChanged ────────────────────────────────────
-        let admin_changed = serde_json::json!({
+        // ── 6b. DB 成功后广播 AdminChanged — 走统一出口 broadcast_to_room ─────
+        let admin_changed_envelope = serde_json::json!({
             "type": "AdminChanged",
             "payload": {
                 "room_id": room_id.to_string(),
@@ -302,9 +309,14 @@ pub async fn handle_transfer_admin(
             },
             "timestamp": chrono::Utc::now().timestamp(),
         });
-        let msg = serde_json::to_string(&admin_changed).unwrap_or_default();
-        for (_, sender) in registry.get_connections_in_room(room_id) {
-            let _ = sender.send(msg.clone());
+        if let Some(rs) = room_manager.get_room(room_id) {
+            crate::ws::broadcaster::broadcast_to_room(registry, &rs, admin_changed_envelope);
+        } else {
+            crate::ws::broadcaster::broadcast_to_room_no_state(
+                registry,
+                room_id,
+                admin_changed_envelope,
+            );
         }
     }
 

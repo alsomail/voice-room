@@ -157,6 +157,29 @@ pub async fn handle_join_room(
     // ── 5. 获取或创建内存房间状态 ───────────────────────────────────────────────
     let room_state = room_manager.get_or_create_room(room_id);
 
+    // ── 5.5 P1-6: last_msg_id 重连续传 — 在加入成员表 / 广播 UserJoined 之前回放 ──
+    // 只回放给当前这条 connection（避免污染房内其他连接），且不写入 recent_broadcasts。
+    if let Some(last_id) = payload
+        .as_ref()
+        .and_then(|p| p.get("last_msg_id"))
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty())
+    {
+        if let Some(missed) = room_state.recent_broadcasts.replay_after(last_id) {
+            for entry in missed {
+                if !registry.send_to(connection_id, &entry.json) {
+                    tracing::warn!(%connection_id, "replay send failed (channel closed)");
+                    break;
+                }
+            }
+        } else {
+            tracing::info!(
+                %connection_id, %room_id, last_msg_id = %last_id,
+                "last_msg_id out of replay window, skipping replay"
+            );
+        }
+    }
+
     // ── 6. 加入成员表 ──────────────────────────────────────────────────────────
     room_state.members.insert(
         user_id,
@@ -169,8 +192,8 @@ pub async fn handle_join_room(
     // ── 7. 统计：活跃房间 ──────────────────────────────────────────────────────
     stats.user_join_room(room_id).await.ok();
 
-    // ── 8. 广播 UserJoined 给房间内所有连接（含自己）────────────────────────────
-    let joined_msg = serde_json::json!({
+    // ── 8. 广播 UserJoined 给房间内所有连接（含自己）— 走统一出口 broadcast_to_room ──
+    let joined_envelope = serde_json::json!({
         "type": "UserJoined",
         "payload": {
             "user_id": user_id.to_string(),
@@ -179,11 +202,7 @@ pub async fn handle_join_room(
         },
         "timestamp": chrono::Utc::now().timestamp(),
     });
-    let joined_str = serde_json::to_string(&joined_msg).unwrap_or_default();
-
-    for (_, sender) in registry.get_connections_in_room(room_id) {
-        let _ = sender.send(joined_str.clone());
-    }
+    crate::ws::broadcaster::broadcast_to_room(registry, &room_state, joined_envelope);
 
     // ── 9. 返回 JoinRoomResult ──────────────────────────────────────────────────
     let mic_slots_json: Vec<serde_json::Value> = room_state
@@ -260,22 +279,17 @@ pub async fn do_leave_room(connection_id: Uuid, user_id: Uuid, deps: &LeaveRoomD
     let remaining = room_state.member_count();
     deps.stats.user_leave_room(room_id, remaining).await.ok();
 
-    // 7. 广播 UserLeft 给房间剩余成员（离开者已被步骤 5 排除）
-    let user_left = serde_json::json!({
+    // 7. 广播 UserLeft 给房间剩余成员（离开者已被步骤 5 排除）— 统一出口
+    let user_left_envelope = serde_json::json!({
         "type": "UserLeft",
         "payload": { "user_id": user_id.to_string() },
         "timestamp": chrono::Utc::now().timestamp(),
-    })
-    .to_string();
-
-    let receivers = deps.registry.get_connections_in_room(room_id);
-    for (_, sender) in receivers {
-        let _ = sender.send(user_left.clone());
-    }
+    });
+    crate::ws::broadcaster::broadcast_to_room(&deps.registry, &room_state, user_left_envelope);
 
     // 4'（被动下麦广播）：在 clear_room_id 之后广播 MicLeft，离开者已被排除
     if let Some(mic_index) = left_mic_index {
-        broadcast_mic_left(&deps.registry, room_id, mic_index, user_id, false);
+        broadcast_mic_left(&deps.registry, &room_state, mic_index, user_id, false);
     }
 
     // 8. 空房间即时清理
@@ -420,8 +434,8 @@ pub async fn handle_take_mic(
         }
     }
 
-    // ── 6. 广播 MicTaken 给房间内所有连接（含请求方）────────────────────────
-    let mic_taken = serde_json::json!({
+    // ── 6. 广播 MicTaken 给房间内所有连接（含请求方）— 走统一出口 broadcast_to_room
+    let mic_taken_envelope = serde_json::json!({
         "type": "MicTaken",
         "payload": {
             "mic_index": mic_index,
@@ -429,10 +443,7 @@ pub async fn handle_take_mic(
         },
         "timestamp": chrono::Utc::now().timestamp(),
     });
-    let mic_taken_str = serde_json::to_string(&mic_taken).unwrap_or_default();
-    for (_, sender) in deps.registry.get_connections_in_room(room_id) {
-        let _ = sender.send(mic_taken_str.clone());
-    }
+    crate::ws::broadcaster::broadcast_to_room(&deps.registry, &room_state, mic_taken_envelope);
 
     // ── 7. 返回 TakeMicResult ────────────────────────────────────────────────
     let resp = serde_json::json!({
@@ -501,8 +512,8 @@ pub async fn handle_leave_mic(
         }
     };
 
-    // ── 4. 广播 MicLeft 给房间内所有连接（含请求方）──────────────────────────
-    broadcast_mic_left(&deps.registry, room_id, mic_index, user_id, false);
+    // ── 4. 广播 MicLeft 给房间内所有连接（含请求方）— 走统一出口 broadcast_to_room
+    broadcast_mic_left(&deps.registry, &room_state, mic_index, user_id, false);
 
     // ── 5. 返回 LeaveMicResult ────────────────────────────────────────────────
     let resp = serde_json::json!({
@@ -526,18 +537,18 @@ fn leave_mic_error_response(msg_id: Option<String>, code: i64, message: &str) ->
     serde_json::to_string(&resp).unwrap_or_default()
 }
 
-/// 广播 MicLeft 给房间内所有连接（T-00028 新增 forced 字段）
+/// 广播 MicLeft 给房间内所有连接（T-00028 新增 forced 字段）— 走统一出口 broadcast_to_room
 ///
 /// - `forced = false`：主动下麦（LeaveRoom / LeaveMic）
 /// - `forced = true`：被踢下麦（KickUser）
 pub(crate) fn broadcast_mic_left(
     registry: &ConnectionRegistry,
-    room_id: Uuid,
+    room_state: &super::state::RoomState,
     mic_index: usize,
     user_id: Uuid,
     forced: bool,
 ) {
-    let mic_left = serde_json::json!({
+    let envelope = serde_json::json!({
         "type": "MicLeft",
         "payload": {
             "mic_index": mic_index,
@@ -546,10 +557,7 @@ pub(crate) fn broadcast_mic_left(
         },
         "timestamp": chrono::Utc::now().timestamp(),
     });
-    let mic_left_str = serde_json::to_string(&mic_left).unwrap_or_default();
-    for (_, sender) in registry.get_connections_in_room(room_id) {
-        let _ = sender.send(mic_left_str.clone());
-    }
+    crate::ws::broadcaster::broadcast_to_room(registry, room_state, envelope);
 }
 
 // ─── SendMessageDeps ──────────────────────────────────────────────────────────
@@ -650,8 +658,8 @@ pub async fn handle_send_message(
     }
     let filtered_content = filter_content(&content);
 
-    // ── 8. 广播 RoomMessage 给房间内所有连接（含请求方）──────────────────────
-    let room_msg = serde_json::json!({
+    // ── 8. 广播 RoomMessage 给房间内所有连接（含请求方）— 走统一出口 broadcast_to_room
+    let room_msg_envelope = serde_json::json!({
         "type": "RoomMessage",
         "payload": {
             "msg_id": msg_id_str,
@@ -660,10 +668,7 @@ pub async fn handle_send_message(
         },
         "timestamp": chrono::Utc::now().timestamp_millis(),
     });
-    let room_msg_str = serde_json::to_string(&room_msg).unwrap_or_default();
-    for (_, sender) in deps.registry.get_connections_in_room(room_id) {
-        let _ = sender.send(room_msg_str.clone());
-    }
+    crate::ws::broadcaster::broadcast_to_room(&deps.registry, &room_state, room_msg_envelope);
 
     // ── 9. 返回 SendMessageResult { code:0 } ─────────────────────────────────
     send_message_success_response(msg_id)
@@ -2657,6 +2662,271 @@ mod tests {
             json["code"], 40106,
             "PR26-12: B 房间 token 不能进入 A 房间，应返回 40106 INVALID_TOKEN, got {}",
             json["code"]
+        );
+    }
+
+    // ─── P1-6: last_msg_id 重连续传集成测试 ─────────────────────────────────────
+    //
+    // 协议：客户端在 JoinRoom payload 携带 `last_msg_id`，服务端比对
+    // `recent_broadcasts` 环缓冲：
+    //   - 命中 → 把 [last_msg_id 之后, 现在] 区间的消息逐条 send_to(connection_id)
+    //   - 出窗 → 不重放，记录 info 日志（客户端应主动拉取兜底接口）
+    //   - 缓冲为空 → 行为同出窗（None / 空 vec 都视作"无续传"）
+
+    /// 构造一份带 last_msg_id 的 JoinRoom payload
+    fn join_payload_with_last_msg(room_id: Uuid, last_msg_id: &str) -> Option<serde_json::Value> {
+        Some(serde_json::json!({
+            "room_id": room_id.to_string(),
+            "last_msg_id": last_msg_id,
+        }))
+    }
+
+    // J-replay-01: last_msg_id 命中 → 仅 joining 连接收到错过的消息（不重广播给其他人）
+    #[tokio::test]
+    async fn j_replay_01_last_msg_id_hit_replays_only_to_joining_connection() {
+        use std::time::Duration;
+
+        let room_id = Uuid::new_v4();
+        let user_a_id = Uuid::new_v4();
+        let user_b_id = Uuid::new_v4();
+        let user_c_id = Uuid::new_v4();
+
+        let room_manager = Arc::new(RoomManager::new());
+        let room_service = room_service_with(room_id);
+        let _auth_service = auth_service_with(user_c_id, "UserC");
+        let registry = Arc::new(ConnectionRegistry::new());
+        let stats: Arc<dyn StatsPort> = Arc::new(FakeStatsService::default());
+
+        // 预创建 room_state（user_a 已在房间里）
+        let room_state = room_manager.get_or_create_room(room_id);
+        let (_conn_a, mut rx_a) = register_connection(&registry, user_a_id, Some(room_id));
+
+        // 模拟服务端历史广播过 3 条消息：m1, m2, m3
+        let m1 = crate::ws::broadcaster::broadcast_to_room(
+            &registry,
+            &room_state,
+            serde_json::json!({"type":"RoomMessage","payload":{"text":"hello1"},"timestamp":1}),
+        );
+        let _m2 = crate::ws::broadcaster::broadcast_to_room(
+            &registry,
+            &room_state,
+            serde_json::json!({"type":"RoomMessage","payload":{"text":"hello2"},"timestamp":2}),
+        );
+        let _m3 = crate::ws::broadcaster::broadcast_to_room(
+            &registry,
+            &room_state,
+            serde_json::json!({"type":"RoomMessage","payload":{"text":"hello3"},"timestamp":3}),
+        );
+        assert!(!m1.is_empty(), "broadcast should return non-empty msg_id");
+
+        // user_a 的 rx 已经收到 3 条历史广播；清空，避免与 replay 混淆
+        for _ in 0..3 {
+            let _ = tokio::time::timeout(Duration::from_millis(50), rx_a.recv()).await;
+        }
+
+        // user_b（断线重连场景）：last_msg_id = m1，期望续传 m2, m3 + 然后收到 UserJoined(b)
+        let (conn_b_id, mut rx_b) = register_connection(&registry, user_b_id, None);
+        let deps = build_deps(
+            &room_manager,
+            &room_service,
+            &auth_service_with(user_b_id, "UserB"),
+            &registry,
+            &stats,
+        );
+        let _ = handle_join_room(
+            join_payload_with_last_msg(room_id, &m1),
+            None,
+            conn_b_id,
+            user_b_id,
+            &deps,
+        )
+        .await;
+
+        // 收到 m2
+        let r1 = tokio::time::timeout(Duration::from_millis(200), rx_b.recv())
+            .await
+            .expect("J-replay-01: 应收到 replay m2")
+            .expect("channel open");
+        let r1_json: serde_json::Value = serde_json::from_str(&r1).unwrap();
+        assert_eq!(
+            r1_json["payload"]["text"], "hello2",
+            "J-replay-01: 第一条续传应为 m2"
+        );
+
+        // 收到 m3
+        let r2 = tokio::time::timeout(Duration::from_millis(200), rx_b.recv())
+            .await
+            .expect("J-replay-01: 应收到 replay m3")
+            .expect("channel open");
+        let r2_json: serde_json::Value = serde_json::from_str(&r2).unwrap();
+        assert_eq!(
+            r2_json["payload"]["text"], "hello3",
+            "J-replay-01: 第二条续传应为 m3"
+        );
+
+        // user_a 不应再收到任何 replay 消息（仅会收到接下来的 UserJoined 广播）
+        let next_a = tokio::time::timeout(Duration::from_millis(200), rx_a.recv())
+            .await
+            .expect("rx_a 应收到 UserJoined")
+            .expect("channel open");
+        let next_a_json: serde_json::Value = serde_json::from_str(&next_a).unwrap();
+        assert_eq!(
+            next_a_json["type"], "UserJoined",
+            "J-replay-01: rx_a 不应收到 replay，只收到 UserJoined"
+        );
+    }
+
+    // J-replay-02: last_msg_id 不在缓冲窗口（如服务端重启 / 缓冲已驱逐）→ 不重放，不报错
+    #[tokio::test]
+    async fn j_replay_02_last_msg_id_out_of_window_no_replay_no_error() {
+        use std::time::Duration;
+
+        let room_id = Uuid::new_v4();
+        let user_id = Uuid::new_v4();
+
+        let room_manager = Arc::new(RoomManager::new());
+        let room_service = room_service_with(room_id);
+        let auth_service = auth_service_with(user_id, "User");
+        let registry = Arc::new(ConnectionRegistry::new());
+        let stats: Arc<dyn StatsPort> = Arc::new(FakeStatsService::default());
+
+        // 房间历史只有一条广播
+        let room_state = room_manager.get_or_create_room(room_id);
+        let _real = crate::ws::broadcaster::broadcast_to_room(
+            &registry,
+            &room_state,
+            serde_json::json!({"type":"RoomMessage","payload":{"text":"x"},"timestamp":1}),
+        );
+
+        let (conn_id, mut rx) = register_connection(&registry, user_id, None);
+        let deps = build_deps(
+            &room_manager,
+            &room_service,
+            &auth_service,
+            &registry,
+            &stats,
+        );
+
+        // 客户端传一个不存在的 last_msg_id
+        let unknown = Uuid::new_v4().to_string();
+        let response = handle_join_room(
+            join_payload_with_last_msg(room_id, &unknown),
+            Some("rep-02".to_string()),
+            conn_id,
+            user_id,
+            &deps,
+        )
+        .await;
+        let json: serde_json::Value = serde_json::from_str(&response).unwrap();
+        assert_eq!(
+            json["code"], 0,
+            "J-replay-02: 出窗 last_msg_id 不应导致 JoinRoom 失败"
+        );
+
+        // rx 收到的第一条应是 UserJoined（自己），而不是任何 replay
+        let first = tokio::time::timeout(Duration::from_millis(200), rx.recv())
+            .await
+            .expect("应收到 UserJoined")
+            .expect("channel open");
+        let first_json: serde_json::Value = serde_json::from_str(&first).unwrap();
+        assert_eq!(
+            first_json["type"], "UserJoined",
+            "J-replay-02: 出窗时不应有任何 replay 消息先于 UserJoined"
+        );
+    }
+
+    // J-replay-03: 不传 last_msg_id → 行为不变（不重放，正常 JoinRoom）
+    #[tokio::test]
+    async fn j_replay_03_no_last_msg_id_behaves_as_before() {
+        use std::time::Duration;
+
+        let room_id = Uuid::new_v4();
+        let user_id = Uuid::new_v4();
+
+        let room_manager = Arc::new(RoomManager::new());
+        let room_service = room_service_with(room_id);
+        let auth_service = auth_service_with(user_id, "User");
+        let registry = Arc::new(ConnectionRegistry::new());
+        let stats: Arc<dyn StatsPort> = Arc::new(FakeStatsService::default());
+
+        // 房间已有一条历史广播
+        let room_state = room_manager.get_or_create_room(room_id);
+        let _ = crate::ws::broadcaster::broadcast_to_room(
+            &registry,
+            &room_state,
+            serde_json::json!({"type":"RoomMessage","payload":{"text":"history"},"timestamp":1}),
+        );
+
+        let (conn_id, mut rx) = register_connection(&registry, user_id, None);
+        let deps = build_deps(
+            &room_manager,
+            &room_service,
+            &auth_service,
+            &registry,
+            &stats,
+        );
+
+        let response = handle_join_room(
+            join_payload(room_id),
+            Some("rep-03".to_string()),
+            conn_id,
+            user_id,
+            &deps,
+        )
+        .await;
+        let json: serde_json::Value = serde_json::from_str(&response).unwrap();
+        assert_eq!(json["code"], 0, "J-replay-03: 普通 JoinRoom 应成功");
+
+        // 第一条应是 UserJoined（自己），不应是历史 RoomMessage
+        let first = tokio::time::timeout(Duration::from_millis(200), rx.recv())
+            .await
+            .expect("应收到 UserJoined")
+            .expect("channel open");
+        let first_json: serde_json::Value = serde_json::from_str(&first).unwrap();
+        assert_eq!(
+            first_json["type"], "UserJoined",
+            "J-replay-03: 不传 last_msg_id 不应触发任何回放"
+        );
+    }
+
+    // J-replay-04: 服务端 broadcast envelope 必含 msg_id（UUID v4 字符串），供客户端记录
+    #[tokio::test]
+    async fn j_replay_04_broadcast_envelope_contains_server_minted_msg_id() {
+        use std::time::Duration;
+
+        let room_id = Uuid::new_v4();
+        let user_a_id = Uuid::new_v4();
+
+        let room_manager = Arc::new(RoomManager::new());
+        let registry = Arc::new(ConnectionRegistry::new());
+
+        let (_conn_a, mut rx_a) = register_connection(&registry, user_a_id, Some(room_id));
+        let room_state = room_manager.get_or_create_room(room_id);
+
+        let returned_id = crate::ws::broadcaster::broadcast_to_room(
+            &registry,
+            &room_state,
+            serde_json::json!({"type":"RoomMessage","payload":{"text":"x"},"timestamp":1}),
+        );
+
+        let received = tokio::time::timeout(Duration::from_millis(200), rx_a.recv())
+            .await
+            .expect("应收到广播")
+            .expect("channel open");
+        let json: serde_json::Value = serde_json::from_str(&received).unwrap();
+
+        let msg_id = json["msg_id"]
+            .as_str()
+            .expect("J-replay-04: envelope 必须含 msg_id 字符串字段");
+        assert_eq!(
+            msg_id, returned_id,
+            "J-replay-04: 接收方看到的 msg_id 必须等于 broadcast_to_room 返回值"
+        );
+        // UUID v4 长度 36 字符（带连字符）
+        assert_eq!(
+            msg_id.len(),
+            36,
+            "J-replay-04: msg_id 应为 UUID v4 标准长度 36"
         );
     }
 }

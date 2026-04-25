@@ -1481,7 +1481,6 @@ mod tests {
         );
     }
 
-
     /// U-C-07: close_room 成功后，find_room_by_id（只查 active）应返回 None
     #[tokio::test]
     async fn uc07_after_close_find_room_by_id_returns_none() {
