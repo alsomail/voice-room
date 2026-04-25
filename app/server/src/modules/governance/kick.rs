@@ -15,9 +15,9 @@
 //! `handle_join_room` 前置调用 `KickRedis::get_kick_remaining_sec`，
 //! 存在则返回 42911 + remaining_sec。
 
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
-use std::time::Instant;
+use std::sync::Arc;
+#[cfg(any(test, feature = "test-utils"))]
+use std::{collections::HashMap, sync::Mutex, time::Instant};
 
 use async_trait::async_trait;
 use uuid::Uuid;
@@ -100,6 +100,7 @@ impl<T: KickAuditDb + ?Sized> KickAuditDb for Arc<T> {
 
 // ─── FakeKickRedis（测试用内存实现）─────────────────────────────────────────
 
+#[cfg(any(test, feature = "test-utils"))]
 struct KickRedisEntry {
     #[allow(dead_code)]
     reason: String,
@@ -107,10 +108,12 @@ struct KickRedisEntry {
 }
 
 /// 内存踢人冷却 Redis（测试专用）。
+#[cfg(any(test, feature = "test-utils"))]
 pub struct FakeKickRedis {
     data: Mutex<HashMap<String, KickRedisEntry>>,
 }
 
+#[cfg(any(test, feature = "test-utils"))]
 impl Default for FakeKickRedis {
     fn default() -> Self {
         Self {
@@ -119,6 +122,7 @@ impl Default for FakeKickRedis {
     }
 }
 
+#[cfg(any(test, feature = "test-utils"))]
 impl FakeKickRedis {
     fn kick_key(room_id: Uuid, user_id: Uuid) -> String {
         format!("kicked:{room_id}:{user_id}")
@@ -146,6 +150,7 @@ impl FakeKickRedis {
     }
 }
 
+#[cfg(any(test, feature = "test-utils"))]
 #[async_trait]
 impl KickRedis for FakeKickRedis {
     async fn set_kicked(&self, room_id: Uuid, user_id: Uuid, reason: &str) -> Result<(), AppError> {
@@ -186,6 +191,7 @@ impl KickRedis for FakeKickRedis {
 // ─── FakeKickAuditDb（测试用内存实现）───────────────────────────────────────
 
 /// 踢人审计记录（测试用快照）
+#[cfg(any(test, feature = "test-utils"))]
 #[derive(Debug, Clone)]
 pub struct KickRecord {
     pub room_id: Uuid,
@@ -195,10 +201,12 @@ pub struct KickRecord {
 }
 
 /// 内存踢人审计 DB（测试专用）。
+#[cfg(any(test, feature = "test-utils"))]
 pub struct FakeKickAuditDb {
     records: Mutex<Vec<KickRecord>>,
 }
 
+#[cfg(any(test, feature = "test-utils"))]
 impl Default for FakeKickAuditDb {
     fn default() -> Self {
         Self {
@@ -207,6 +215,7 @@ impl Default for FakeKickAuditDb {
     }
 }
 
+#[cfg(any(test, feature = "test-utils"))]
 impl FakeKickAuditDb {
     /// 测试辅助：返回已插入的审计记录数
     pub fn record_count(&self) -> usize {
@@ -219,6 +228,7 @@ impl FakeKickAuditDb {
     }
 }
 
+#[cfg(any(test, feature = "test-utils"))]
 #[async_trait]
 impl KickAuditDb for FakeKickAuditDb {
     async fn insert_kick_record(

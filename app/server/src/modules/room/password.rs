@@ -14,7 +14,9 @@
 //! | `pwd_fail:{user_id}:{room_id}` | Int    | 1800s | 失败计数     |
 //! | `pwd_lock:{user_id}:{room_id}` | String | 1800s | 锁定标记     |
 
+#[cfg(any(test, feature = "test-utils"))]
 use std::sync::Mutex;
+#[cfg(any(test, feature = "test-utils"))]
 use std::{collections::HashMap, time::Instant};
 
 use async_trait::async_trait;
@@ -171,16 +173,19 @@ pub async fn verify_password(
 ///
 /// 支持：`incr_with_ttl`、`set_nx_ex`、`get_ttl`、`del`。
 /// TTL 通过 `Instant` 模拟，`expire_all()` 方法可手动触发 TTL 到期。
+#[cfg(any(test, feature = "test-utils"))]
 #[derive(Default)]
 pub struct FakeRoomPasswordRedis {
     data: Mutex<HashMap<String, FakeEntry>>,
 }
 
+#[cfg(any(test, feature = "test-utils"))]
 struct FakeEntry {
     value: String,
     expires_at: Option<Instant>,
 }
 
+#[cfg(any(test, feature = "test-utils"))]
 impl FakeRoomPasswordRedis {
     /// 测试辅助：立即使所有 key 的 TTL 到期（模拟时间流逝）
     pub fn expire_all(&self) {
@@ -217,6 +222,7 @@ impl FakeRoomPasswordRedis {
     }
 }
 
+#[cfg(any(test, feature = "test-utils"))]
 #[async_trait]
 impl RoomPasswordRedis for FakeRoomPasswordRedis {
     async fn incr_with_ttl(&self, key: &str, ttl_secs: i64) -> Result<i64, AppError> {

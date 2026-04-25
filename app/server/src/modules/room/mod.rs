@@ -8,6 +8,7 @@ pub mod routes;
 pub mod service;
 pub mod validator;
 
+#[cfg(any(test, feature = "test-utils"))]
 pub use password::FakeRoomPasswordRedis;
 #[cfg(any(test, feature = "test-utils"))]
 pub use repository::FakeRoomRepository;

@@ -16,7 +16,7 @@ use crate::{
         gift::{gift_routes, send_gift::SendGiftServicePort, service::GiftServicePort},
         governance::kick::{KickAuditDb, KickRedis},
         governance::mute::{MuteDb, MuteRedis},
-        governance::transfer::{FakeTransferAdminRepo, TransferAdminRepo},
+        governance::transfer::TransferAdminRepo,
         ranking::{ranking_routes, RankingServicePort},
         room::{password::RoomPasswordRedis, repository::RoomRepository, room_routes, RoomService},
         wallet::{service::WalletServicePort, wallet_routes},
@@ -64,6 +64,11 @@ pub struct AppState {
 }
 
 impl AppState {
+    /// 测试 / `test-utils` feature 专用构造器：使用进程内 Fake 实现初始化所有
+    /// governance / password / mic_lock 后端依赖。
+    ///
+    /// **生产路径请勿使用** — 调用 `new_with_managers` 注入真实仓储。
+    #[cfg(any(test, feature = "test-utils"))]
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         user_repo: Arc<dyn UserRepository>,
@@ -103,12 +108,17 @@ impl AppState {
             mute_redis: Arc::new(crate::modules::governance::mute::FakeMuteRedis::default()),
             mute_db: Arc::new(crate::modules::governance::mute::FakeMuteDb::default()),
             mic_lock: Arc::new(crate::room::mic_lock::FakeMicLock::default()),
-            transfer_admin_repo: Arc::new(FakeTransferAdminRepo::default()),
+            transfer_admin_repo: Arc::new(
+                crate::modules::governance::transfer::FakeTransferAdminRepo::default(),
+            ),
         }
     }
 
-    /// 生产环境专用：接受外部预创建的 ws_registry 和 room_manager
-    /// （GiftSendService 需要与 AppState 共享同一实例）
+    /// 生产环境装配入口 — 调用方必须显式注入 **全部** 治理 / 密码房 / 抢麦锁
+    /// 真实仓储。任何 Fake* 实现 **不会** 出现在该构造器编译产物中（参见
+    /// `Cargo.toml [features] test-utils`）。
+    ///
+    /// `main.rs` 在启动期完成一次装配；DB / Redis 连接失败 → fail-fast。
     #[allow(clippy::too_many_arguments)]
     pub fn new_with_managers(
         user_repo: Arc<dyn UserRepository>,
@@ -124,6 +134,14 @@ impl AppState {
         ws_registry: Arc<ConnectionRegistry>,
         room_manager: Arc<RoomManager>,
         event_writer: Arc<dyn EventWriterPort>,
+        // ── R1 P0-1: 治理 / 密码房 / 抢麦锁仓储均为必填，生产装配显式注入 ──
+        room_password_redis: Arc<dyn RoomPasswordRedis>,
+        kick_redis: Arc<dyn KickRedis>,
+        kick_audit_db: Arc<dyn KickAuditDb>,
+        mute_redis: Arc<dyn MuteRedis>,
+        mute_db: Arc<dyn MuteDb>,
+        mic_lock: Arc<dyn crate::room::mic_lock::MicLock>,
+        transfer_admin_repo: Arc<dyn TransferAdminRepo>,
     ) -> Self {
         let auth_service = Arc::new(AuthService::new(
             user_repo,
@@ -144,58 +162,53 @@ impl AppState {
             send_gift_service,
             ranking_service,
             event_writer,
-            room_password_redis: Arc::new(crate::modules::room::FakeRoomPasswordRedis::default()),
-            kick_redis: Arc::new(crate::modules::governance::kick::FakeKickRedis::default()),
-            kick_audit_db: Arc::new(crate::modules::governance::kick::FakeKickAuditDb::default()),
-            mute_redis: Arc::new(crate::modules::governance::mute::FakeMuteRedis::default()),
-            mute_db: Arc::new(crate::modules::governance::mute::FakeMuteDb::default()),
-            mic_lock: Arc::new(crate::room::mic_lock::FakeMicLock::default()),
-            transfer_admin_repo: Arc::new(FakeTransferAdminRepo::default()),
+            room_password_redis,
+            kick_redis,
+            kick_audit_db,
+            mute_redis,
+            mute_db,
+            mic_lock,
+            transfer_admin_repo,
         }
     }
 
     /// 设置生产环境真实 Redis（用于密码房校验），替换默认的 FakeRoomPasswordRedis。
-    ///
-    /// 在 `main.rs` 中调用：`state.with_room_password_redis(Arc::new(RealRoomPasswordRedis::new(url)?))`
     pub fn with_room_password_redis(mut self, redis: Arc<dyn RoomPasswordRedis>) -> Self {
         self.room_password_redis = redis;
         self
     }
 
-    /// 设置生产环境真实 KickRedis（T-00028），替换默认的 FakeKickRedis。
+    /// 设置生产环境真实 KickRedis（T-00028）。
     pub fn with_kick_redis(mut self, redis: Arc<dyn KickRedis>) -> Self {
         self.kick_redis = redis;
         self
     }
 
-    /// 设置生产环境真实 KickAuditDb（T-00028），替换默认的 FakeKickAuditDb。
+    /// 设置生产环境真实 KickAuditDb（T-00028）。
     pub fn with_kick_audit_db(mut self, db: Arc<dyn KickAuditDb>) -> Self {
         self.kick_audit_db = db;
         self
     }
 
-    /// 设置生产环境真实 MuteRedis（T-00029），替换默认的 FakeMuteRedis。
+    /// 设置生产环境真实 MuteRedis（T-00029）。
     pub fn with_mute_redis(mut self, redis: Arc<dyn MuteRedis>) -> Self {
         self.mute_redis = redis;
         self
     }
 
-    /// 设置生产环境真实 MuteDb（T-00029），替换默认的 FakeMuteDb。
+    /// 设置生产环境真实 MuteDb（T-00029）。
     pub fn with_mute_db(mut self, db: Arc<dyn MuteDb>) -> Self {
         self.mute_db = db;
         self
     }
 
-    /// 设置生产环境真实 MicLock（T-00014 #4 / P2-12），替换默认的 FakeMicLock。
-    pub fn with_mic_lock(
-        mut self,
-        lock: Arc<dyn crate::room::mic_lock::MicLock>,
-    ) -> Self {
+    /// 设置生产环境真实 MicLock（T-00014 #4 / P2-12）。
+    pub fn with_mic_lock(mut self, lock: Arc<dyn crate::room::mic_lock::MicLock>) -> Self {
         self.mic_lock = lock;
         self
     }
 
-    /// 设置生产环境真实 TransferAdminRepo（T-00030），替换默认的 FakeTransferAdminRepo。
+    /// 设置生产环境真实 TransferAdminRepo（T-00030）。
     pub fn with_transfer_admin_repo(mut self, repo: Arc<dyn TransferAdminRepo>) -> Self {
         self.transfer_admin_repo = repo;
         self

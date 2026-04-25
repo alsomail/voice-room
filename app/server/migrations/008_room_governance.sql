@@ -5,7 +5,7 @@
 --   [x] S24-02 category=invalid 被 CHECK 约束拒绝
 --   [x] S24-03 存量房间迁移后 cover_url=空串、category=chat
 --   [x] S24-04 idx_kick_records_room_ts 索引存在
---   [x] S24-05 room_mute_records.type=sms 被 CHECK 约束拒绝
+--   [x] S24-05 room_mute_records.mute_type=sms 被 CHECK 约束拒绝
 --   [x] S24-06 admin_user_id 外键引用 users(id)，外键默认 RESTRICT（无 CASCADE）
 
 -- ────────────────────────────────────────────────
@@ -48,10 +48,10 @@ CREATE TABLE IF NOT EXISTS room_mute_records (
     room_id          UUID NOT NULL REFERENCES rooms(id),
     target_user_id   UUID NOT NULL REFERENCES users(id),
     operator_user_id UUID NOT NULL REFERENCES users(id),
-    type             VARCHAR(8) NOT NULL CHECK (type IN ('mic','chat')),
+    mute_type        VARCHAR(8) NOT NULL CHECK (mute_type IN ('mic','chat')),
     duration_sec     INT NOT NULL CHECK (duration_sec >= 0), -- 0 = 解除禁言
     reason           TEXT,
     created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_mute_records_room_ts           ON room_mute_records(room_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_mute_records_target_type_ts    ON room_mute_records(target_user_id, type, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_mute_records_target_type_ts    ON room_mute_records(target_user_id, mute_type, created_at DESC);

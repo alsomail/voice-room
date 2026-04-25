@@ -15,9 +15,9 @@
 //! - SendMessage（T-00016）：`GET chat_muted:{room_id}:{user_id}` 存在 → 40305
 //! - TakeMic（T-00014）：`GET mic_muted:{room_id}:{user_id}` 存在 → 40306
 
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
-use std::time::Instant;
+use std::sync::Arc;
+#[cfg(any(test, feature = "test-utils"))]
+use std::{collections::HashMap, sync::Mutex, time::Instant};
 
 use async_trait::async_trait;
 use uuid::Uuid;
@@ -145,6 +145,7 @@ impl<T: MuteDb + ?Sized> MuteDb for Arc<T> {
 
 // ─── FakeMuteRedis（测试用内存实现）─────────────────────────────────────────
 
+#[cfg(any(test, feature = "test-utils"))]
 struct MuteRedisEntry {
     #[allow(dead_code)]
     reason: String,
@@ -152,10 +153,12 @@ struct MuteRedisEntry {
 }
 
 /// 内存禁麦/禁言 Redis（测试专用）。
+#[cfg(any(test, feature = "test-utils"))]
 pub struct FakeMuteRedis {
     data: Mutex<HashMap<String, MuteRedisEntry>>,
 }
 
+#[cfg(any(test, feature = "test-utils"))]
 impl Default for FakeMuteRedis {
     fn default() -> Self {
         Self {
@@ -164,6 +167,7 @@ impl Default for FakeMuteRedis {
     }
 }
 
+#[cfg(any(test, feature = "test-utils"))]
 impl FakeMuteRedis {
     fn mute_key(mute_type: &str, room_id: Uuid, user_id: Uuid) -> String {
         format!("{mute_type}_muted:{room_id}:{user_id}")
@@ -191,6 +195,7 @@ impl FakeMuteRedis {
     }
 }
 
+#[cfg(any(test, feature = "test-utils"))]
 #[async_trait]
 impl MuteRedis for FakeMuteRedis {
     async fn set_mute(
@@ -251,6 +256,7 @@ impl MuteRedis for FakeMuteRedis {
 // ─── FakeMuteDb（测试用内存实现）─────────────────────────────────────────────
 
 /// 禁麦/禁言审计记录（测试用快照）
+#[cfg(any(test, feature = "test-utils"))]
 #[derive(Debug, Clone)]
 pub struct MuteRecord {
     pub room_id: Uuid,
@@ -262,10 +268,12 @@ pub struct MuteRecord {
 }
 
 /// 内存禁麦/禁言审计 DB（测试专用）。
+#[cfg(any(test, feature = "test-utils"))]
 pub struct FakeMuteDb {
     records: Mutex<Vec<MuteRecord>>,
 }
 
+#[cfg(any(test, feature = "test-utils"))]
 impl Default for FakeMuteDb {
     fn default() -> Self {
         Self {
@@ -274,6 +282,7 @@ impl Default for FakeMuteDb {
     }
 }
 
+#[cfg(any(test, feature = "test-utils"))]
 impl FakeMuteDb {
     /// 测试辅助：返回已插入的审计记录数
     pub fn record_count(&self) -> usize {
@@ -286,6 +295,7 @@ impl FakeMuteDb {
     }
 }
 
+#[cfg(any(test, feature = "test-utils"))]
 #[async_trait]
 impl MuteDb for FakeMuteDb {
     async fn insert_mute_record(

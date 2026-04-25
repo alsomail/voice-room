@@ -5,7 +5,7 @@
 //! - S24-02: category CHECK 约束枚举值完整（'invalid' 应被拒绝）
 //! - S24-03: 存量房间兼容性：cover_url DEFAULT ''，category DEFAULT 'chat'
 //! - S24-04: idx_kick_records_room_ts 索引定义存在于迁移 SQL
-//! - S24-05: room_mute_records.type CHECK 约束仅允许 'mic'/'chat'
+//! - S24-05: room_mute_records.mute_type CHECK 约束仅允许 'mic'/'chat'
 //! - S24-06: admin_user_id 外键引用 users(id)（REFERENCES users(id)）
 //!
 //! 数据库不可用时（无 DATABASE_URL），所有测试改为纯文本验证迁移 SQL 文件内容。
@@ -150,16 +150,16 @@ fn s24_04_kick_records_index_exists_in_migration() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// S24-05: room_mute_records.type CHECK 约束仅允许 'mic'/'chat'，拒绝 'sms'
+// S24-05: room_mute_records.mute_type CHECK 约束仅允许 'mic'/'chat'，拒绝 'sms'
 // ─────────────────────────────────────────────────────────────────────────────
 #[test]
 fn s24_05_mute_type_check_excludes_invalid_values() {
     let sql = load_governance_migration();
 
-    // CHECK 约束枚举
+    // CHECK 约束枚举（R1 P0-2: 列名由 `type` 重命名为 `mute_type` 全链路对齐）
     assert!(
-        sql.contains("CHECK (type IN ('mic','chat'))"),
-        "S24-05: room_mute_records.type must have CHECK (type IN ('mic','chat'))"
+        sql.contains("CHECK (mute_type IN ('mic','chat'))"),
+        "S24-05: room_mute_records.mute_type must have CHECK (mute_type IN ('mic','chat'))"
     );
 
     // 'sms' 不在枚举中

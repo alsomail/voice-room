@@ -9,8 +9,9 @@
 //! ## 原子保障
 //! DB 更新成功后才广播；任一步失败立即返回错误（不广播）。
 
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+#[cfg(any(test, feature = "test-utils"))]
+use std::{collections::HashMap, sync::Mutex};
 
 use async_trait::async_trait;
 use uuid::Uuid;
@@ -50,11 +51,13 @@ impl<T: TransferAdminRepo + ?Sized> TransferAdminRepo for Arc<T> {
 // ─── FakeTransferAdminRepo（测试用内存实现）─────────────────────────────────
 
 /// 内存 TransferAdmin DB（测试专用）。
+#[cfg(any(test, feature = "test-utils"))]
 pub struct FakeTransferAdminRepo {
     /// room_id → 最新的 admin_user_id
     data: Mutex<HashMap<Uuid, Option<Uuid>>>,
 }
 
+#[cfg(any(test, feature = "test-utils"))]
 impl Default for FakeTransferAdminRepo {
     fn default() -> Self {
         Self {
@@ -63,6 +66,7 @@ impl Default for FakeTransferAdminRepo {
     }
 }
 
+#[cfg(any(test, feature = "test-utils"))]
 impl FakeTransferAdminRepo {
     /// 测试辅助：读取指定房间当前存储的 admin_user_id。
     ///
@@ -74,6 +78,7 @@ impl FakeTransferAdminRepo {
     }
 }
 
+#[cfg(any(test, feature = "test-utils"))]
 #[async_trait]
 impl TransferAdminRepo for FakeTransferAdminRepo {
     async fn set_admin_user_id(
@@ -89,8 +94,10 @@ impl TransferAdminRepo for FakeTransferAdminRepo {
 // ─── FailingTransferAdminRepo（测试用失败实现）──────────────────────────────
 
 /// 总是返回 DB 错误的 TransferAdminRepo（用于原子性测试 TA30-14）。
+#[cfg(any(test, feature = "test-utils"))]
 pub struct FailingTransferAdminRepo;
 
+#[cfg(any(test, feature = "test-utils"))]
 #[async_trait]
 impl TransferAdminRepo for FailingTransferAdminRepo {
     async fn set_admin_user_id(

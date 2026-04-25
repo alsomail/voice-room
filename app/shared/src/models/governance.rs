@@ -41,7 +41,7 @@ pub struct RoomKickRecord {
 // MuteType — 禁言类型枚举
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// 禁言类型，对应 `room_mute_records.type` 列的 CHECK 约束。
+/// 禁言类型，对应 `room_mute_records.mute_type` 列的 CHECK 约束。
 ///
 /// - `Mic`  — 禁止上麦发言（`'mic'`）
 /// - `Chat` — 禁止文字聊天（`'chat'`）
@@ -76,7 +76,6 @@ pub struct RoomMuteRecord {
     pub operator_user_id: Uuid,
 
     /// 禁言类型：`mic`（禁麦）或 `chat`（禁文字）。
-    #[sqlx(rename = "type")]
     pub mute_type: MuteType,
 
     /// 禁言时长（秒）；`0` 表示解除禁言（CHECK duration_sec >= 0）。

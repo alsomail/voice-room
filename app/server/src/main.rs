@@ -14,10 +14,16 @@ use voice_room_server::{
     modules::{
         auth::repository::PgUserRepository,
         gift::{send_gift::GiftSendService, service::GiftService},
+        governance::{
+            kick::{RealKickAuditDb, RealKickRedis},
+            mute::{RealMuteDb, RealMuteRedis},
+            transfer::RealTransferAdminRepo,
+        },
         ranking::service::RankingService,
         room::{password::RealRoomPasswordRedis, repository::PgRoomRepository},
         wallet::{broadcaster::BalanceBroadcaster, service::WalletService},
     },
+    room::mic_lock::RealMicLock,
     stats::{snapshot_task::start_snapshot_task, StatsService},
 };
 
@@ -94,6 +100,14 @@ async fn main() -> anyhow::Result<()> {
     // 创建 RealRoomPasswordRedis（T-00026 密码房校验）
     let room_password_redis = Arc::new(RealRoomPasswordRedis::new(redis_url)?);
 
+    // ── R1 P0-1 治理模块真实仓储装配（启动期 fail-fast：Redis client open 失败直接退出）
+    let kick_redis = Arc::new(RealKickRedis::new(redis_url)?);
+    let kick_audit_db = Arc::new(RealKickAuditDb::new(pool.clone()));
+    let mute_redis = Arc::new(RealMuteRedis::new(redis_url)?);
+    let mute_db = Arc::new(RealMuteDb::new(pool.clone()));
+    let transfer_admin_repo = Arc::new(RealTransferAdminRepo::new(pool.clone()));
+    let mic_lock = Arc::new(RealMicLock::new(redis_url)?);
+
     let state = AppState::new_with_managers(
         Arc::new(PgUserRepository::new(pool.clone())),
         code_store,
@@ -108,8 +122,15 @@ async fn main() -> anyhow::Result<()> {
         ws_registry,
         room_manager,
         event_writer,
-    )
-    .with_room_password_redis(room_password_redis);
+        // 治理 / 密码房 / 抢麦锁真实仓储
+        room_password_redis,
+        kick_redis,
+        kick_audit_db,
+        mute_redis,
+        mute_db,
+        mic_lock,
+        transfer_admin_repo,
+    );
 
     // 启动 BalanceBroadcaster（HIGH-2：同时监听本进程 mpsc channel 和 Redis PubSub）
     let broadcaster = BalanceBroadcaster::new(state.ws_registry.clone());

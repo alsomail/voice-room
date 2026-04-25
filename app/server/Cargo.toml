@@ -73,3 +73,19 @@ required-features = ["test-utils"]
 [[test]]
 name = "kick_user_test"
 required-features = ["test-utils"]
+
+[[test]]
+name = "mute_user_test"
+required-features = ["test-utils"]
+
+[[test]]
+name = "transfer_admin_test"
+required-features = ["test-utils"]
+
+[[test]]
+name = "force_mic_test"
+required-features = ["test-utils"]
+
+[[test]]
+name = "governance_real_repos_test"
+required-features = ["test-utils"]
