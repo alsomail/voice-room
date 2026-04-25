@@ -111,20 +111,10 @@ pub async fn force_close_room_handler(
         .force_close_room(ctx.admin_id, room_id)
         .await;
 
-    // 业务成功后写入审计日志（fire-and-forget：失败仅 warn，不影响响应）
-    if result.is_ok() {
-        state
-            .audit_logger
-            .log_action(
-                ctx.admin_id,
-                "close_room",
-                Some("room"),
-                Some(room_id),
-                ip,
-                None,
-            )
-            .await;
-    }
+    // P2-14: 审计写入已迁移到 audit middleware（仅 2xx 响应才写）；
+    // 控制器不再手写 audit_logger.log_action。`extract_ip` 暂保留以记录 backward-
+    // compatible 信号（middleware 自身亦通过 headers 取 ip，结果一致）。
+    let _ = ip;
 
     match result {
         Ok(()) => Json(ApiResponse::ok(serde_json::Value::Null, rc.request_id())).into_response(),

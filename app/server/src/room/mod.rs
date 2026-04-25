@@ -11,6 +11,7 @@
 pub mod filter;
 pub mod handler;
 pub mod manager;
+pub mod mic_lock;
 pub mod state;
 
 pub use manager::RoomManager;

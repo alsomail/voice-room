@@ -164,6 +164,11 @@ impl AppState {
 
 /// 构建 Admin Server 路由。
 pub fn build_app(state: AppState) -> Router {
+    use crate::common::middleware::audit::{audit_middleware, AuditMiddlewareState};
+    let audit_state = AuditMiddlewareState {
+        audit_logger: state.audit_logger.clone(),
+        jwt_secret: state.jwt_secret.clone(),
+    };
     Router::new()
         .route("/api/v1/admin/login", post(login_handler))
         .route("/api/v1/admin/rooms", get(list_rooms_handler))
@@ -198,6 +203,8 @@ pub fn build_app(state: AppState) -> Router {
         // ── T-10016: 治理日志查询 ──────────────────────────────────────────────
         .route("/api/v1/admin/governance/kicks", get(list_kicks_handler))
         .route("/api/v1/admin/governance/mutes", get(list_mutes_handler))
+        // P2-14: 审计中间件 — 按 method+path 白名单自动记录敏感操作（ban/unban/close_room）
+        .layer(middleware::from_fn_with_state(audit_state, audit_middleware))
         .layer(middleware::from_fn(request_context_middleware))
         .with_state(state)
 }

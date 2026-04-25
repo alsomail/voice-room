@@ -120,40 +120,15 @@ pub async fn ban_user_handler(
     }
 
     // 在移交所有权前捕获需要的字段
-    let action_str = if req.action == "ban" {
-        "ban_user"
-    } else {
-        "unban_user"
-    };
-    let ip = extract_ip(&headers);
-
-    // P1-7: 提前捕获 ban 详情字段供审计 detail 使用
-    let audit_detail = serde_json::json!({
-        "action": req.action,
-        "ban_type": req.ban_type,
-        "duration_hours": req.duration_hours,
-        "reason": req.reason,
-    });
+    let _ = (&headers, extract_ip);
 
     let result = state
         .user_service
         .ban_user(ctx.admin_id, user_id, req)
         .await;
 
-    // 业务成功后写入审计日志（fire-and-forget：失败仅 warn，不影响响应）
-    if result.is_ok() {
-        state
-            .audit_logger
-            .log_action(
-                ctx.admin_id,
-                action_str,
-                Some("user"),
-                Some(user_id),
-                ip,
-                Some(audit_detail),
-            )
-            .await;
-    }
+    // P2-14: 审计写入已迁移到 audit middleware（按 method+path 自动拦截 ban/unban）；
+    // 控制器不再手写 audit_logger.log_action / audit_detail。
 
     match result {
         Ok(resp) => Json(ApiResponse::ok(resp, rc.request_id())).into_response(),

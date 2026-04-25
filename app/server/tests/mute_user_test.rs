@@ -322,6 +322,7 @@ async fn mu29_03_muted_user_take_mic_blocked() {
         room_manager: room_manager.clone(),
         registry: registry.clone(),
         mute_redis: Some(mute_redis.clone() as Arc<dyn MuteRedis>),
+        mic_lock: None,
     };
 
     let response = handle_take_mic(
@@ -625,6 +626,7 @@ async fn mu29_09_ttl_expired_auto_unmute() {
         room_manager: room_manager.clone(),
         registry: registry.clone(),
         mute_redis: Some(mute_redis.clone() as Arc<dyn MuteRedis>),
+        mic_lock: None,
     };
 
     let response = handle_take_mic(
@@ -806,6 +808,7 @@ async fn mu29_12_mic_and_chat_mute_are_independent() {
         room_manager: room_manager.clone(),
         registry: registry.clone(),
         mute_redis: Some(mute_redis.clone() as Arc<dyn MuteRedis>),
+        mic_lock: None,
     };
 
     let mic_response = handle_take_mic(

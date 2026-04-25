@@ -9,6 +9,7 @@ use uuid::Uuid;
 
 use crate::modules::governance::mute::MuteRedis;
 use crate::room::manager::RoomManager;
+use crate::room::mic_lock::{MicLock, MIC_LOCK_TTL_SECS};
 use crate::room::state::RoomState;
 use crate::ws::registry::ConnectionRegistry;
 
@@ -22,6 +23,8 @@ pub struct TakeMicDeps {
     pub registry: Arc<ConnectionRegistry>,
     /// 禁麦 Redis（T-00029 前置拦截）；None = 跳过拦截
     pub mute_redis: Option<Arc<dyn MuteRedis>>,
+    /// 抢麦分布式锁（T-00014 #4 / P2-12）；None = 跳过分布式锁（仅依赖 RoomState 进程内锁）
+    pub mic_lock: Option<Arc<dyn MicLock>>,
 }
 
 // ─── handle_take_mic ─────────────────────────────────────────────────────────
@@ -86,6 +89,23 @@ pub async fn handle_take_mic(
     // ── 4. 禁麦检查 ───────────────────────────────────────────────────────────
     if room_state.banned_mics.contains(&user_id) {
         return take_mic_error_response(msg_id, 40302, "user is banned from mic");
+    }
+
+    // ── 4.5 抢麦分布式锁（P2-12）— SET NX EX 短锁，跨进程并发抢麦只有一个胜出
+    // fail-open：Redis 不可用时仅 warn，回退到 RoomState 进程内 RwLock 兜底。
+    if let Some(ref ml) = deps.mic_lock {
+        match ml
+            .try_acquire(room_id, mic_index, user_id, MIC_LOCK_TTL_SECS)
+            .await
+        {
+            Ok(true) => {} // 获锁成功，继续抢麦
+            Ok(false) => {
+                return take_mic_error_response(msg_id, 40303, "slot already occupied");
+            }
+            Err(e) => {
+                tracing::warn!(error=?e, %room_id, mic_index, "mic_lock acquire failed; fallback to in-process lock");
+            }
+        }
     }
 
     // ── 5. 原子占用麦位 ───────────────────────────────────────────────────────

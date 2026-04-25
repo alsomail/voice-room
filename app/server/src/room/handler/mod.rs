@@ -848,6 +848,7 @@ mod tests {
             room_manager: room_manager.clone(),
             registry: registry.clone(),
             mute_redis: None,
+            mic_lock: None,
         }
     }
 
@@ -1086,8 +1087,7 @@ mod tests {
 
     // M09: 并发抢麦 — 两个 tokio::spawn 并发调用 take_mic_slot(0, ...)，只有一个 Ok
     #[tokio::test]
-    async fn m09_concurrent_take_mic_slot_only_one_succeeds() {
-        use crate::room::state::TakeMicError;
+    async fn m09_concurrent_take_mic_slot_only_one_succeeds() {        use crate::room::state::TakeMicError;
 
         let room_id = Uuid::new_v4();
         let user_a = Uuid::new_v4();
@@ -1131,6 +1131,81 @@ mod tests {
             snapshot[0].is_some(),
             "M09: slot 0 should be occupied by exactly one user after concurrent take"
         );
+    }
+
+    // M10 (P2-12): handle_take_mic 在注入 MicLock 后的并发 contract — 两个并发 handler 调用，恰好一个返回 code=0，另一个返回 40303。
+    #[tokio::test]
+    async fn m10_concurrent_handle_take_mic_with_mic_lock_only_one_succeeds() {
+        use crate::room::mic_lock::FakeMicLock;
+
+        let room_id = Uuid::new_v4();
+        let user_a = Uuid::new_v4();
+        let user_b = Uuid::new_v4();
+        let room_manager = Arc::new(RoomManager::new());
+        let registry = Arc::new(ConnectionRegistry::new());
+        room_manager.get_or_create_room(room_id);
+        let (conn_a, _rx_a) = register_connection(&registry, user_a, Some(room_id));
+        let (conn_b, _rx_b) = register_connection(&registry, user_b, Some(room_id));
+
+        let mic_lock: Arc<dyn crate::room::mic_lock::MicLock> = Arc::new(FakeMicLock::default());
+        let deps_a = Arc::new(TakeMicDeps {
+            room_manager: room_manager.clone(),
+            registry: registry.clone(),
+            mute_redis: None,
+            mic_lock: Some(mic_lock.clone()),
+        });
+        let deps_b = deps_a.clone();
+
+        let (resp_a, resp_b) = tokio::join!(
+            async {
+                handle_take_mic(take_mic_payload(0), Some("a".into()), conn_a, user_a, &deps_a)
+                    .await
+            },
+            async {
+                handle_take_mic(take_mic_payload(0), Some("b".into()), conn_b, user_b, &deps_b)
+                    .await
+            },
+        );
+
+        let json_a: serde_json::Value = serde_json::from_str(&resp_a).unwrap();
+        let json_b: serde_json::Value = serde_json::from_str(&resp_b).unwrap();
+        let code_a = json_a["code"].as_i64().unwrap();
+        let code_b = json_b["code"].as_i64().unwrap();
+
+        let success_count = [code_a, code_b].iter().filter(|&&c| c == 0).count();
+        let occupied_count = [code_a, code_b].iter().filter(|&&c| c == 40303).count();
+        assert_eq!(
+            success_count, 1,
+            "M10: exactly one concurrent handle_take_mic should succeed (code=0); got a={code_a} b={code_b}"
+        );
+        assert_eq!(
+            occupied_count, 1,
+            "M10: the loser must return SLOT_OCCUPIED (40303); got a={code_a} b={code_b}"
+        );
+
+        // 麦位最终只被一个用户占用
+        let snapshot = room_manager
+            .get_room(room_id)
+            .unwrap()
+            .mic_slots_snapshot();
+        assert!(snapshot[0].is_some(), "M10: slot 0 must be taken");
+    }
+
+    // M11 (P2-12): MicLock 注入为 None 时不影响既有路径（fail-safe 兼容旧调用方）
+    #[tokio::test]
+    async fn m11_handle_take_mic_without_mic_lock_still_works() {
+        let room_id = Uuid::new_v4();
+        let user_id = Uuid::new_v4();
+        let room_manager = Arc::new(RoomManager::new());
+        let registry = Arc::new(ConnectionRegistry::new());
+        room_manager.get_or_create_room(room_id);
+        let (conn_id, _rx) = register_connection(&registry, user_id, Some(room_id));
+
+        let deps = build_take_mic_deps(&room_manager, &registry); // mic_lock = None
+
+        let resp = handle_take_mic(take_mic_payload(0), None, conn_id, user_id, &deps).await;
+        let json: serde_json::Value = serde_json::from_str(&resp).unwrap();
+        assert_eq!(json["code"], 0, "M11: take_mic without mic_lock should still succeed");
     }
 
     // ── LeaveMic 测试辅助 ─────────────────────────────────────────────────────

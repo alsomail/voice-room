@@ -32,6 +32,7 @@ use crate::modules::governance::transfer::{
 use crate::modules::room::service::RoomService;
 use crate::room::handler::do_leave_room;
 use crate::room::handler::{JoinRoomDeps, LeaveRoomDeps};
+use crate::room::mic_lock::MicLock;
 use crate::room::RoomManager;
 use crate::stats::StatsPort;
 
@@ -119,6 +120,8 @@ pub struct SocketDeps {
     pub mute_redis: Arc<dyn MuteRedis>,
     /// 禁麦/禁言审计 DB（T-00029 MuteUser 信令）
     pub mute_db: Arc<dyn MuteDb>,
+    /// 抢麦分布式锁（T-00014 #4 / P2-12）
+    pub mic_lock: Arc<dyn MicLock>,
     /// 管理员任命 DB（T-00030 TransferAdmin 信令）
     pub transfer_admin_repo: Arc<dyn TransferAdminRepo>,
 }
@@ -144,6 +147,7 @@ pub async fn handle_socket(
     kick_audit_db: Arc<dyn KickAuditDb>,
     mute_redis: Arc<dyn MuteRedis>,
     mute_db: Arc<dyn MuteDb>,
+    mic_lock: Arc<dyn MicLock>,
     transfer_admin_repo: Arc<dyn TransferAdminRepo>,
 ) {
     let connection_id = Uuid::new_v4(); // 每次連接生成唯一 ID，與 user_id 解耦
@@ -231,6 +235,7 @@ pub async fn handle_socket(
                                         room_manager: room_manager.clone(),
                                         registry: registry.clone(),
                                         mute_redis: Some(mute_redis.clone()),
+                                        mic_lock: Some(mic_lock.clone()),
                                     };
                                     Some(
                                         crate::room::handler::handle_take_mic(
