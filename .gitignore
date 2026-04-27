@@ -27,8 +27,11 @@ node_modules/
 /playwright/.cache/
 /playwright/.auth/
 
-# 测试脚本
-tests/scripts/
+# E2E profile 真实 env（example 必须保留，不能被忽略）
+tests/scripts/env/.env.local
+tests/scripts/env/.env.staging
+tests/scripts/env/.env.prod
+
 # 历史报告
 tests/report-*/
 midscene_run/
