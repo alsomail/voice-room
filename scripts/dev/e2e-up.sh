@@ -28,6 +28,9 @@ export APP_JWT_SECRET="${APP_JWT_SECRET:-$JWT_SECRET}"
 export ADMIN_JWT_SECRET="${ADMIN_JWT_SECRET:-$JWT_SECRET}"
 export AGORA_APP_CERT="${AGORA_APP_CERT:-e2e-stub-cert}"
 
+echo "[e2e:up] 0/4 检测端口可用性"
+bash "$REPO_ROOT/scripts/dev/check-ports.sh"
+
 echo "[e2e:up] 1/4 拉起 docker postgres + redis"
 docker compose up -d postgres redis
 
