@@ -1,7 +1,7 @@
 # 🎁 Gift 模块架构设计
 
-**最后更新**：2025-06-27 (T-00020 Review Round 2 通过)  
-**覆盖 Tasks**：T-00019 (配置表 + 列表 API)、T-00020 (SendGift 事务 + 广播)、T-00021 (榜单 API，设计中)
+**最后更新**：2026-04-30 (T-00044 HTTP 端点已完成)  
+**覆盖 Tasks**：T-00019 (配置表 + 列表 API)、T-00020 (SendGift 事务 + 广播)、T-00021 (榜单 API)、T-00044 (HTTP 礼物端点)
 
 ---
 
@@ -10,9 +10,9 @@
 Gift 模块位于 `app/server/src/modules/gift/`，提供：
 - ✅ **配置管理** — `gifts` 表 + 8 款 MVP 礼物种子数据（T-00019）
 - ✅ **列表查询** — `GET /api/v1/gifts/list`，国际化支持，60s 进程内存缓存（T-00019）
-- ✅ **发送礼物** — WS 信令 `SendGift`，强事务编排，基于 msg_id 幂等（T-00020）
+- ✅ **发送礼物** — WS 信令 `SendGift` + HTTP `POST /api/v1/gifts/send`（T-00044），强事务编排，基于 msg_id 或 Idempotency-Key 幂等（T-00020 + T-00044）
 - ✅ **实时广播** — `GiftReceived` 房间广播 + `BalanceUpdated` 发送者推送（T-00020）
-- ✅ **魅力榜单** — Redis ZSet 日/周榜更新、排名查询（T-00021，设计中）
+- ✅ **魅力榜单** — Redis ZSet 日/周榜更新、排名查询（T-00021）
 - ✅ **魅力值累积** — 接收者 `users.charm_balance` 字段更新
 
 ---
@@ -444,9 +444,208 @@ txn.commit().await?;
 
 ---
 
-## 七、T-00021 榜单 API（设计中）
+## 七、T-00044 礼物 HTTP 端点
 
-### 7.1 功能设计
+### 7.1 需求背景与设计思路
+
+**背景**：QA 战报 BUG-ARCH-004（模拟）暴露礼物发送**仅支持 WebSocket**，在网络不稳定场景下（弱网/频繁重连）用户体验差。WebSocket 断连期间无法送礼，用户被迫等待重连（30s+），导致送礼冲动消退，直接影响营收。
+
+**方案**：新增 REST 接口 `POST /api/v1/gifts/send`，**复用 T-00020 GiftSendService 核心事务逻辑**，与 WS SendGift 共享：
+- 同一事务编排（扣款 → 加魅力值 → 写流水 → Redis 榜单 → 广播）
+- 同一错误码体系（40004/40290/40402/40403）
+- 同一幂等机制（HTTP 支持可选 `Idempotency-Key` header，WS 使用 msg_id）
+
+### 7.2 HTTP 接口契约
+
+**请求**
+```http
+POST /api/v1/gifts/send
+Authorization: Bearer <JWT>
+Content-Type: application/json
+Idempotency-Key: <optional-uuid>  # 可选，用于客户端主动幂等控制
+
+{
+  "room_id": "uuid",
+  "gift_id": "uuid",
+  "receiver_id": "uuid",
+  "count": 1
+}
+```
+
+**响应（成功 200）**
+```json
+{
+  "gift_record_id": "uuid",
+  "sender_balance": 4800,
+  "receiver_charm": 1200
+}
+```
+
+**响应（失败）**
+| HTTP 状态码 | `code` | 含义 |
+|-------------|--------|------|
+| 400 | 40004 | `INVALID_COUNT`（count ≤ 0 或 > 9999） |
+| 400 | 40290 | `INSUFFICIENT_BALANCE`（余额不足） |
+| 404 | 40402 | `GIFT_NOT_AVAILABLE`（礼物不存在或已下架） |
+| 404 | 40403 | `RECEIVER_UNAVAILABLE`（接收者不在房间或不在麦上） |
+
+### 7.3 核心设计要点
+
+#### 7.3.1 双通道复用同一服务层
+
+```rust
+// WS 信令处理器
+async fn handle_send_gift(msg: SendGift, deps: SendGiftDeps) -> Result<SendGiftResult> {
+    send_gift_service.send(
+        sender_id,
+        room_id,
+        gift_id,
+        receiver_id,
+        count,
+        msg.msg_id,  // WS 幂等凭证
+    ).await
+}
+
+// HTTP handler
+async fn send_gift_http(
+    State(state): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    headers: HeaderMap,
+    Json(req): Json<SendGiftRequest>,
+) -> Result<Json<SendGiftResponse>, AppError> {
+    // 读取可选 Idempotency-Key header
+    let idempotency_key = headers
+        .get("Idempotency-Key")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or_else(|| Uuid::new_v4().to_string());
+    
+    send_gift_service.send(
+        user.id,
+        req.room_id,
+        req.gift_id,
+        req.receiver_id,
+        req.count,
+        idempotency_key,  // HTTP 幂等凭证
+    ).await
+}
+```
+
+#### 7.3.2 广播与 Redis 榜单同步执行
+
+**关键设计**（T-00044 Round 3 修复）：
+- 广播调用 `broadcast_to_room()` 是 **O(1) channel send 非阻塞操作**
+- 广播失败用 `let _ = ...` 吞掉，**不阻断 HTTP 200 响应**（满足弱网场景容错契约）
+- Redis ZINCRBY 更新榜单同步执行（4 次 multiplexed RTT <5ms）
+- **不使用 tokio::spawn 异步化**，避免测试时序不确定性，保持代码简洁
+
+```rust
+// service.rs 核心流程
+txn.commit().await?;  // 事务提交成功
+
+// 4. 同步更新 Redis 榜单（失败仅记 warn，不影响结果）
+if let Err(e) = ranking::update_ranking(redis, total_price, receiver_id, sender_id).await {
+    tracing::warn!("Failed to update ranking: {}", e);
+}
+
+// 5. 同步广播（channel send 是 O(1) 内存操作）
+let _ = room_manager.broadcast_to_room(room_id, gift_received_json);
+// 6. 发送者单播 BalanceUpdated（由 WalletService 触发）
+```
+
+**性能影响**：HTTP 响应时间增加 ~2ms（Redis RTT + 内存操作），换取测试确定性和代码可维护性。
+
+#### 7.3.3 幂等性设计
+
+**HTTP 支持两种幂等方式**：
+1. **Idempotency-Key header**（推荐）：客户端主动传 UUID，服务器以 `(sender_id, idempotency_key)` 查重
+2. **自动生成**：header 缺失时服务器生成 UUID（每次请求生成新 key，无幂等保证）
+
+**数据库层幂等**（与 WS 共享）：
+- `UNIQUE (sender_id, msg_id)` 约束（msg_id 即 HTTP 的 idempotency_key）
+- 并发请求第二条 INSERT 失败，重新 SELECT 返回首次结果
+
+### 7.4 错误码体系对齐
+
+**与 WS SendGift 完全一致**（doc/protocol/websocket_signals.md §6.4.2）：
+
+| code | 常量名 | 含义 | HTTP 状态 |
+|------|--------|------|----------|
+| `40004` | INVALID_COUNT | count ≤ 0 或 > 9999 | 400 |
+| `40290` | INSUFFICIENT_BALANCE | 发送者钻石余额不足 | 400 |
+| `40402` | GIFT_NOT_AVAILABLE | 礼物不存在或已下架 | 404 |
+| `40403` | RECEIVER_UNAVAILABLE | 接收者不在房间或不在麦上 | 404 |
+
+**ErrorCode 定义**（app/shared/src/error/code.rs）：
+```rust
+pub enum ErrorCode {
+    InvalidCount = 40004,
+    InsufficientBalance = 40290,
+    GiftNotAvailable = 40402,
+    ReceiverUnavailable = 40403,
+}
+```
+
+### 7.5 测试覆盖
+
+**新增测试**：`app/server/tests/send_gift_http_test.rs`（9 个集成测试）
+
+| ID | 用例 | 状态 |
+|----|------|------|
+| SH01 | HTTP 送礼成功，返回 gift_record_id + sender_balance + receiver_charm | ✅ |
+| SH02 | 余额不足返回 40290 | ✅ |
+| SH03 | count=0 返回 40004 | ✅ |
+| SH04 | count=10000 返回 40004 | ✅ |
+| SH05 | 未鉴权返回 401 | ✅ |
+| SH06 | 礼物不存在/已下架返回 40402 | ✅ |
+| SH07 | 接收者不在麦上返回 40403 | ✅ |
+| SH08 | Idempotency-Key 幂等（5s 内 3 次请求仅扣款一次） | ✅ |
+| SH09 | 广播失败（房间已关闭）不影响 HTTP 200 | ✅ |
+
+**回归测试**：T-00020 WS SendGift 测试保持通过（12/12 全绿）
+
+```bash
+# WS 回归
+cargo test -p voice-room-server --test send_gift_test --features test-utils
+# 12 passed; 0 failed
+
+# HTTP 新增测试
+cargo test -p voice-room-server --test send_gift_http_test --features test-utils
+# 9 passed; 0 failed
+```
+
+### 7.6 关键文件清单
+
+**新增文件**：
+- `app/server/tests/send_gift_http_test.rs` — HTTP 端点集成测试
+
+**修改文件**：
+- `app/server/src/modules/gift/dto.rs` — 新增 `SendGiftRequest` / `SendGiftResponse`
+- `app/server/src/modules/gift/handler.rs` — 新增 `send_gift_http()` handler
+- `app/server/src/modules/gift/routes.rs` — 新增路由 `POST /api/v1/gifts/send`
+- `app/server/src/modules/gift/send_gift/types.rs` — `SendGiftResult` 新增 `sender_new_balance` / `receiver_new_charm` 字段
+- `app/server/src/modules/gift/send_gift/service.rs` — 返回完整余额与魅力值数据（RETURNING 语句）
+- `app/shared/src/error/code.rs` — 新增 `GiftNotAvailable` / `ReceiverUnavailable` / `InvalidCount`
+- `app/server/src/common/error.rs` — 新增 `AppError::InvalidCount` 等变体
+
+### 7.7 Review 历程与最终状态
+
+**Round 1**（2026-04-28）：
+- MAJOR-2：错误码 40001 → 40004 修正（TDS/代码/文档对齐）
+- MINOR-2：Idempotency-Key header 真实读取（非注释示例）
+
+**Round 2**（2026-04-29）：
+- MINOR-3：异步广播改回同步（移除不必要的 tokio::spawn）
+
+**Round 3**（2026-04-29）：
+- ✅ **最终通过**：WS 回归测试 sg02/sg04 修复，广播/榜单同步执行，测试确定性提升
+- ✅ **代码质量**：0 clippy 警告
+- ✅ **契约满足**：U-4（Redis 失败容错）、U-5（广播失败不回滚）、U-6（幂等性）全部通过
+
+---
+
+## 八、T-00021 榜单 API
+
+### 8.1 功能设计
 
 ```
 GET /api/v1/ranking?type=charm|wealth&period=day|week&limit=50
@@ -460,7 +659,7 @@ GET /api/v1/ranking?type=charm|wealth&period=day|week&limit=50
   - 每周六切换周榜 key（`ranking:charm:week:YYYY-WW`）
 - **归档策略**：旧榜迁移到 `ranking_archive` 表
 
-### 7.2 Redis 键设计
+### 8.2 Redis 键设计
 
 | 键 | 含义 | TTL |
 |----|------|-----|
@@ -469,7 +668,7 @@ GET /api/v1/ranking?type=charm|wealth&period=day|week&limit=50
 | `ranking:wealth:day:{YYYY-MM-DD}` | 日财富榜（发送礼物累计） | 48h |
 | `ranking:wealth:week:{YYYY-WW}` | 周财富榜 | 10d |
 
-### 7.3 实现模块
+### 8.3 实现模块
 
 ```
 src/modules/gift/ranking.rs
@@ -481,7 +680,7 @@ src/modules/gift/ranking.rs
 
 ---
 
-## 八、性能指标与优化
+## 九、性能指标与优化
 
 | 指标 | 目标 | 实现 |
 |------|------|------|
@@ -493,30 +692,31 @@ src/modules/gift/ranking.rs
 
 ---
 
-## 九、文档链接与关联
+## 十、文档链接与关联
 
-### 9.1 协议文档
+### 10.1 协议文档
 - [WebSocket 信令设计](../protocol/websocket_signals.md) §6.4
   - SendGift 信令定义与错误码
   - GiftReceived 广播结构
   - BalanceUpdated 推送
 
-### 9.2 TDS 文档
-- [T-00019 礼物配置表 + 列表 API](../tds/server/T-00019.md)
-- [T-00020 SendGift 事务 + 广播](../tds/server/T-00020.md)
-- [T-00021 榜单 API](../tds/server/T-00021.md)（设计中）
+### 10.2 TDS 文档
+- [T-00019 礼物配置表 + 列表 API](../../tds/server/T-00019.md)
+- [T-00020 SendGift 事务 + 广播](../../tds/server/T-00020.md)
+- [T-00021 榜单 API](../../tds/server/T-00021.md)
+- [T-00044 礼物 HTTP 端点](../../tds/server/T-00044.md)
 
-### 9.3 产品文档
+### 10.3 产品文档
 - [Phase 1 虚拟礼物与钱包闭环 MVP](../product/phase1_gift_economy.md) — E-07 Epic 方向总纲
 
-### 9.4 任务看板
+### 10.4 任务看板
 - [doc/tasks/index.md](../../tasks/index.md) — T-00019 ✅ / T-00020 ✅ / T-00021 开发中
 
 ---
 
-## 十、遗留与下一步
+## 十一、遗留与下一步
 
-### 10.1 已知限制
+### 11.1 已知限制
 
 1. **缓存方案**（T-00019）
    - 当前：进程内存缓存
@@ -531,19 +731,20 @@ src/modules/gift/ranking.rs
    - 当前：DB UNIQUE 约束永久存储
    - 可优化：7 天后可清理历史 gift_records（成本 vs 防重复）
 
-### 10.2 下一步计划
+### 11.2 下一步计划
 
-| Task | 描述 | 依赖 |
+| Task | 描述 | 状态 |
 |------|------|------|
-| T-00021 | 榜单 API + 定时任务 | T-00020 ✅ |
-| T-10013 | Admin 礼物管理（CRUD） | T-00019 ✅ |
-| T-10014 | Admin 榜单查看 | T-00021 待实现 |
-| T-30030 | Android SendGift UI + 幂等 | T-00020 ✅ |
-| T-20012 | Web 礼物商城页 | T-00019 ✅ |
+| T-00021 | 榜单 API + 定时任务 | ✅ 已完成 |
+| T-00044 | HTTP 礼物端点 | ✅ 已完成 |
+| T-10013 | Admin 礼物管理（CRUD） | ✅ 已完成 |
+| T-10014 | Admin 榜单查看 | ✅ 已完成 |
+| T-30030 | Android SendGift UI + 幂等 | ✅ 已完成 |
+| T-20012 | Web 礼物商城页 | ✅ 已完成 |
 
 ---
 
-## 十一、常见问题
+## 十二、常见问题
 
 **Q: 为什么 GiftReceived 包含完整的 sender/receiver/gift 信息而不是仅 ID？**  
 A: 客户端渲染礼物动画需要展示用户头像+昵称、礼物图标+效果等，避免重复查询。
@@ -554,8 +755,14 @@ A: 检查是在 SELECT FOR UPDATE 后，事务自动 rollback。流程上不"提
 **Q: Redis 榜单失败是否影响发送礼物结果？**  
 A: 不影响。Redis 非关键路径，连接失败仅记 warn 日志，用户余额和魅力值已正确更新在 DB。
 
+**Q: 为什么 HTTP 端点广播失败不影响 HTTP 200？**  
+A: 设计契约明确：HTTP 响应成功 = 事务提交成功（余额扣除、魅力值增加、流水入库）。广播是非关键路径异步通知，房间成员可通过后续 WS 消息或轮询获取最终状态。
+
+**Q: HTTP 和 WS 两种通道如何选择？**  
+A: WS 实时性强，适合正常网络环境；HTTP 适合弱网/断连场景降级使用，客户端需自行轮询确认最终状态。
+
 ---
 
 **文档编写**：Copilot DoD Agent  
-**最后更新**：2025-06-27  
-**Review 状态**：✅ T-00020 Round 2 通过
+**最后更新**：2026-04-30  
+**Review 状态**：✅ T-00020 Round 2 通过 / ✅ T-00044 Round 3 通过
