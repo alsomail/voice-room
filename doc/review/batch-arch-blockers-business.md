@@ -1,6 +1,6 @@
 # 全局代码审查报告：架构阻塞修复批次（业务侧 · T-00041 + T-00042 + T-00043 + T-00044）
 
-> **当前状态机**：负责人 [GlobalReview] | 状态 [⏳ In Review] | 修复轮次 [0/10]
+> **当前状态机**：负责人 [-] | 状态 [✅ Passed] | 修复轮次 [1/10]
 
 ---
 
@@ -77,6 +77,85 @@
 
 ### 【第 1 轮审查】
 
-**@GlobalReview**：等待 global-code-reviewer 子代理执行架构级审查并填写本节。
+**@GlobalReview 审查意见**（架构级批量复核 · 2026-04-29）：
+
+本批次 4 个 Task 在单 Task TDS §5 各自的 Round 1~3 已完成全部 P0/P1 整改并 ✅ Passed。本批次审查不重复单 Task 缺陷复核，仅按 §2 关切 ①~⑥ 复核**架构契约 / 跨 Task 一致性 / 数据契约**是否在合并视角下仍然成立。
+
+#### 关切 ① — T-00041：WS 心跳
+
+- ✅ **task spawn 完整性**：`app/server/src/main.rs:175-176` 通过 `snapshot_shutdown_tx.subscribe()` 真实 spawn `heartbeat_task`，与全局优雅停机 watch channel 复用（修复历史漏 spawn BUG）。
+- ✅ **Close(1000) 语义**：`heartbeat.rs` 的 `HEARTBEAT_TIMEOUT_CLOSE_CODE=1000` + reason="Heartbeat timeout"，符合 RFC6455 Normal Closure 服务端主动超时语义；`connection.rs` 出站分支显式发 Close 帧后 break 主循环。
+- 🟡 **并发 1000 真实压测**：U-2/U-3/U-5 通过 `start_paused=true` + `Instant::now()-Δ` 走真实 `select!`/`interval.tick()` 路径，但 R-3（1000 连接 60s 内存增长 <20%）仍下推 E2E（QA Gate 阶段）。单 Task TDS Round 1 已记录此弱点为 O-3，不阻断本批次。
+
+#### 关切 ② — T-00042：Admin 故障域隔离 + 协议契约
+
+- ✅ **故障域隔离（最关键）**：`app/adminServer/src/modules/user/service.rs:200-203` 与 `room/service.rs:139-141` 均为 `if let Err(e) = publish(...) { tracing::warn!(...) }` 的 fire-and-forget 模式，**Admin 主流程返回 `Ok(AdminBanUserResponse)` 不依赖 publish 成功**。Admin Server 的 `fr02_error_publisher_does_not_affect_force_close_result` 单测正向覆盖此契约。
+- ✅ **Close(4003) 协议契约**：`heartbeat.rs:close_frame_for_message` 解析 `connection_close` JSON 时 code 严格从字段读取（无硬编码），support 4003（ban）/ 1000（room_closed）；reason 字段透传。
+- ✅ **msg_id / timestamp 幂等防护**：`events/handler.rs` 的 `ban_notification_json` / `room_closed_json` 均带 UUID `msg_id` + epoch ms `timestamp`，单测 E01/E04 已断言。
+- 🟡 **U-5 事件级幂等去重**未实现（Redis 去重 / admin_logs.id 关联），TDS §4 已坦承为后续优化项；当前 fire-and-forget 模式下重复消费理论存在，但触发路径需 Redis pub/sub 主动 redeliver（pub/sub 默认 at-most-once），实际风险低，不阻断。
+
+#### 关切 ③ — T-00043：chat_messages 迁移强制契约（**T-0000M / ADR-0001 红线**）
+
+- ✅ **迁移文件路径正确**：实际存在于 `app/server/migrations/010_create_chat_messages.sql`（**不是** `db/migrations` 也不是共享目录）。
+- ✅ **跟踪表正确**：`main.rs:59-62` 调用 `voice_room_shared::migrate::run_migrations_with_table(&pool, &migrator, "_sqlx_app_migrations")`，AppServer 专属表已生效；`shared/src/migrate/mod.rs` 单测覆盖该路径。**T-0000M ADR-0001 强制契约 100% 兑现**。
+- ✅ **索引设计**：`(room_id, created_at DESC)` 复合索引 + `(user_id, created_at DESC)` 举报索引；`IF NOT EXISTS` 保证 R-1 幂等。
+- ✅ **外键策略**：`room_id ... ON DELETE CASCADE` 与 `user_id ... ON DELETE SET NULL` 与软删/匿名化策略一致。
+- ✅ **分页边界**：`normalize_pagination` limit 上限 100、offset 软上限 100_000；`COUNT(*) OVER()` 单 SQL 合并 + offset 越界单条 COUNT 兜底。
+- ✅ **重连边界**：协议文档 §6.7.5 明确 envelope.msg_id（重放窗口游标）vs payload.msg_id（DB 主键）双 ID 职责，避免大表全扫。
+
+#### 关切 ④ — T-00044：HTTP/WS 双入口共用 service（**强制复用红线**）
+
+- ✅ **真共用 service 层（最关键）**：HTTP `send_gift_http`（`handler.rs:80-83`）调用 `state.send_gift_service.send(...)`，与 WS `SendGift` 分支调用同一个 `Arc<dyn SendGiftServicePort>`（实现 `GiftSendService`）。**没有发现平行实现**。事务/扣款/广播/榜单全在 `service.rs::send` 一处，杜绝定时炸弹。
+- ✅ **幂等键策略**：HTTP 优先读 `Idempotency-Key` header，缺省回退 UUID；与 WS 共用 `(sender_id, msg_id)` 唯一约束。SH08 真 DB 验证两次 header 相同请求只入一行 `gift_records`。
+- ✅ **错误码一致**：`40290 InsufficientBalance` / `40402 GiftNotAvailable` / `40403 ReceiverUnavailable` / `40004 InvalidCount` 在 `code.rs` enum、`error.rs` 映射、TDS 表、handler 文档注释、SH03/SH04 断言五处一致。
+- ✅ **spawn 副作用回滚**：Round 3 撤回过度设计的 `tokio::spawn`（仅 O(1) channel send），改回同步 + `let _ = ...` 吞错；事务以 `tx.commit()` 为原子边界，广播/榜单失败不回滚（TDS U-5），sg02/sg04/sh09 三角覆盖。
+
+#### 关切 ⑤ — 跨 Task 一致性
+
+- ✅ **Close 语义无冲突**：T-00041 心跳 Close(1000) 走 `HEARTBEAT_TIMEOUT_MESSAGE` sentinel；T-00042 强制断连 Close(4003) 走 `connection_close` JSON。两者通过同一 `close_frame_for_message` 多分支识别，发送路径串行化于出站 mpsc，无竞态。
+- 🟡 **重连拉历史 vs 封禁拦截**：T-00043 的 `GET /rooms/:id/messages` 当前鉴权仅校验 JWT，未显式检查"被封禁用户不可拉历史"。TDS §4.1 注明"P1 跳过房间成员校验"，本批次治理面尚未要求一并补；属于后续 governance Task 范畴，不在本 4 Task scope 内，不阻断。
+
+#### 关切 ⑥ — 安全 / 测试覆盖
+
+- ✅ **真 DB / 真 Redis 集成**：T-00043 `chat_persistence_test`（含 `#[ignore]` 真 DB perf）、T-00044 SH01-SH09 + SG01-SG12 在 `DATABASE_URL=...` 真 PG/Redis 环境下 9/9 + 12/12 全绿（TDS Round 3 验收）。
+- ✅ **无硬编码凭据 / secret**：spot-check 4 Task 改动文件未发现硬编码。
+- ✅ **覆盖度对得起 DoD**：Happy + 边界（B-1/B-2/U-3 余额不足/U-5 广播失败/B-3 并发 20）+ 错误码 + 幂等 + 鉴权（401）全覆盖。
+
+---
+
+#### 跨 Task 整体观察（Nit，非阻断）
+
+- [ ] **观察 1**：[级别 P3] **被封禁用户重连后仍可拉聊天历史** — `app/server/src/modules/chat/controller.rs`（关切 ⑤）
+  - **问题说明**：T-00043 历史接口未检查封禁状态，理论上被 T-00042 踢下线的用户重连后可继续 `GET /rooms/:id/messages`。
+  - **修复建议**：作为后续治理 Task（T-00012 房间状态校验或独立 governance hook）跟进，本批次不强制。
+  - **TDD 修复记录**：[后续 Task 跟进，不阻断本批次]
+
+- [ ] **观察 2**：[级别 P3] **T-00042 事件幂等去重缺位** — Redis pub/sub 默认 at-most-once
+  - **问题说明**：当前 fire-and-forget 模式无 msg_id 去重表，理论上重复消费会触发二次 close 通知（实际无害，但日志噪音）。
+  - **修复建议**：未来引入 `processed_admin_events` 短 TTL Redis Set 去重，或基于 admin_logs.id 关联。
+  - **TDD 修复记录**：[后续优化，不阻断]
+
+- [ ] **观察 3**：[级别 P3] **T-00041 1000 并发压测真实跑下放至 E2E** — 单元测试已用 `tokio::time::pause` 充分验证逻辑
+  - **修复建议**：QA Gate 阶段在 `tests/ws.spec.ts` TC-WS-00004 跑真 1000 连接压测，断言内存增长 <20%。
+  - **TDD 修复记录**：[QA E2E 阶段执行]
+
+---
+
+#### 各 Task 独立结论
+
+| Task | 关切复核 | 单 Task TDS 状态 | 本批次结论 |
+|------|---------|----------------|-----------|
+| **T-00041** WS 心跳 30s | ✅ spawn 完整 / Close(1000) 正确 / 并发 task 生命周期清晰 | TDS §5 Round 1 🟢 Passed | 🟢 **PASS** |
+| **T-00042** Admin 强制断连 | ✅ Admin 主流程不受 publish 失败阻塞 / 4003 协议合契 / msg_id+timestamp 到位 | TDS §5 Round 2 ✅ Passed | 🟢 **PASS** |
+| **T-00043** Chat 持久化 | ✅ 迁移文件路径 + `_sqlx_app_migrations` 强制契约 100% 兑现 / 索引 / 分页全对 | TDS §5 Round 2 ✅ Passed | 🟢 **PASS** |
+| **T-00044** Gift HTTP | ✅ HTTP/WS 真共用 `GiftSendService` 同一事务函数 / 错误码五处一致 / 幂等真生效 | TDS §5 Round 3 🟢 Passed | 🟢 **PASS** |
+
+---
+
+**本轮结论**: ✅ **审查通过：4 个 AppServer 业务 Task 在合并视角下符合所有架构契约（T-0000M 迁移隔离、HTTP/WS service 复用、协议 close code、Admin 故障域隔离），无 P0/P1 问题。3 条 P3 观察项作为后续 Task 跟进，不阻断本批次。**
+
+*(文档头部状态机已修改为：`负责人 [-] | 状态 [✅ Passed] | 修复轮次 [1/10]`)*
+
+*— Reviewed by GlobalReview agent，架构级批量复核（关切 ①~⑥ 全覆盖）*
 
 ---

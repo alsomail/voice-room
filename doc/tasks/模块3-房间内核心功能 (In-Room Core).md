@@ -17,8 +17,8 @@
 | **T-00014** | App Server | Mic | 麦位上麦接口 [TDS](../tds/server/T-00014.md) | T-00012 | 处理 `TakeMic` 消息，Redis 锁防并发 | 1. 检查麦位空闲<br>2. 检查是否被禁麦<br>3. 广播 `MicTaken` 事件<br>4. 并发抢麦只有一个成功 | 5h | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | - | ⏳ Pending |
 | **T-00015** | App Server | Mic | 麦位下麦接口 [TDS](../tds/server/T-00015.md) | T-00014 | 处理 `LeaveMic` 消息 | 1. 只能下自己的麦<br>2. 广播 `MicLeft` 事件 | 2h | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | - | ⏳ Pending |
 | **T-00016** | App Server | Chat | 文本消息广播 [TDS](../tds/server/T-00016.md) | T-00012 | 处理 `SendMessage` 消息 | 1. 消息长度限制 500 字符<br>2. 敏感词过滤<br>3. 基于 msg_id 去重<br>4. 禁言用户拒绝 | 4h | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | - | ⏳ Pending |
-| **T-00041** | App Server | WebSocket | WS 心跳 30s 超时主动断开（ping/pong） [TDS](../tds/server/T-00041.md) | T-00011 | 实现服务端心跳超时检测，30s 无心跳主动关闭连接 | 1. 客户端 15s ping 保活不断开<br>2. 35s 静默后服务端关闭（close code=1000）<br>3. 并发 1000 连接稳定性不回归 | 3h | Dod | ✅ Done | [⏳ In Review](../review/batch-arch-blockers-business.md) | - | ⏳ Pending |
-| **T-00043** | App Server | Chat | Chat 消息持久化 + REST 历史查询接口 [TDS](../tds/server/T-00043.md) | T-00016 | 新建 `chat_messages` 表 + `GET /rooms/:id/messages` 分页接口 | 1. SendMessage 同步写 DB<br>2. 历史接口按时间倒序分页<br>3. 断线重连可拉取全量历史 | 5h | Dod | ✅ Done | [⏳ In Review](../review/batch-arch-blockers-business.md) | - | ⏳ Pending |
+| **T-00041** | App Server | WebSocket | WS 心跳 30s 超时主动断开（ping/pong） [TDS](../tds/server/T-00041.md) | T-00011 | 实现服务端心跳超时检测，30s 无心跳主动关闭连接 | 1. 客户端 15s ping 保活不断开<br>2. 35s 静默后服务端关闭（close code=1000）<br>3. 并发 1000 连接稳定性不回归 | 3h | Dod | ✅ Done | [✅ Passed](../review/batch-arch-blockers-business.md) | - | ⏳ Pending |
+| **T-00043** | App Server | Chat | Chat 消息持久化 + REST 历史查询接口 [TDS](../tds/server/T-00043.md) | T-00016 | 新建 `chat_messages` 表 + `GET /rooms/:id/messages` 分页接口 | 1. SendMessage 同步写 DB<br>2. 历史接口按时间倒序分页<br>3. 断线重连可拉取全量历史 | 5h | Dod | ✅ Done | [✅ Passed](../review/batch-arch-blockers-business.md) | - | ⏳ Pending |
 
 > **App Server 补充任务: 跨服务事件消费**
 
