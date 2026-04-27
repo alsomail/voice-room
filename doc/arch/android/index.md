@@ -15,6 +15,7 @@
 ## 二、 子模块索引 (Module Router)
 > ⚠️ AI 寻路提示：请点击以下具体模块查看详细架构说明、API 映射和代码存放路径。
 ### 实际目录：
+- ⚙️ [构建系统与多环境 productFlavors](./build.md) - `productFlavors {local/staging/prod}` 维度、`applicationIdSuffix` 后缀、BuildConfig 三域名注入、NetworkSecurityConfig 双锁机制、flavor-specific test sourceset（T-30050，Review Round 1 通过）。
 - 🧱 [启动装配与壳层页面](./bootstrap.md) - `Application`、`AppContainer`、`MainActivity`、`MainViewModel` 的当前链路。
 - 🌐 [核心基建与防腐层骨架](./foundation.md) - 环境配置、HTTP、WebSocket、遥测、媒体、IM 与调试适配器现状。
 - 🧩 [业务骨架与测试现状](./features.md) - `auth/room/profile` 能力现状：room 模块已完成大厅页完整链路（T-30005）、Paging3 无限滚动（T-30006）、大厅页黑金视觉升级（T-30022，RoomCard/OnlineCountBadge/HallTopBar/CategoryTabRow）、**房间页黑金视觉升级（T-30025，HostMicSlot/MicSlotCard/EmptyMicSlot/MicSlotsGrid/ChatMessageList）**及**房间底部操作栏升级（T-30026，RoomBottomBar：GoldOutlinedTextField+MicButton三态+GiftButton/EmoteButton灰禁+ExitButton二次确认）**及**创建房间表单升级（T-30036，CreateRoomScreen+CoverPreview+CategoryDropdown+AnnouncementField+PasswordInputRow+IRoomRepository接口升级+38测试）**，`profile` 已完成个人中心完整链路（T-30024，ProfileScreen/ProfileViewModel/ProfileUiState/ProfileEvent）；测试覆盖面说明。
@@ -32,6 +33,7 @@
 
 ### 核心能力
 - 🟢 Application 启动装配、`BuildConfig` 环境注入与 `AppContainer` 依赖装配
+- 🟢 productFlavors 多环境构建体系（T-30050，Review Round 1 通过）：`flavorDimensions += "env"` + `productFlavors { local / staging / prod }`；local flavor `isDefault=true` 保护迁移；3 个 flavor 各自 `buildConfigField` 注入 `API_BASE_URL`/`WS_URL`/`ANALYTICS_ENDPOINT`/`APP_ENVIRONMENT` + 独立 `applicationIdSuffix`（`.local`/`.stg`/无）；**双锁机制**：manifestPlaceholder 编译期 + `src/{local,staging,prod}/res/xml/network_security_config.xml` 运行时（local 允许明文，staging/prod 强制 HTTPS）；**flavor-specific test sourceset**（`src/test{Local,Staging,Prod}/`）物理隔离 BuildConfig 断言避免虚假失败；`local.properties` 三级 fallback 保留（D-1 开发体验不退化）；同设备可并存三档 APK；详见 [build.md](./build.md)
 - 🟢 HTTP 客户端工厂、`RoomSocketRequestFactory` 与物理机 Loopback 预警
 - 🟢 `MainActivity` Compose Navigation 改造 + `AppNavGraph` 三路由骨架 + Splash 启动页完整链路（T-30019）：`SplashScreen` / `SplashViewModel` / `SplashNavEvent` / `AppNavGraph`（splash/login/main），详见 [bootstrap.md](./bootstrap.md)
 - 🟢 `auth` Feature 登录完整链路已完成（T-30001 + T-30002）：LoginScreen / LoginViewModel / IAuthRepository / RetrofitAuthRepository / TokenManager / NavEvent，详见 [auth.md](./auth.md)
