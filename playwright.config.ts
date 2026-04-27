@@ -1,97 +1,51 @@
 import { defineConfig, devices } from '@playwright/test';
+import * as path from 'node:path';
 
 /**
- * Read environment variables from file.
- * https://github.com/motdotla/dotenv
- */
-// 核心修改 1：取消这里的注释，让 Playwright 启动时自动读取项目根目录的 .env 文件。
-// （这样 Midscene 就能顺利读到 MIDSCENE_MODEL_API_KEY 等大模型配置了）
-import dotenv from 'dotenv';
-import path from 'path';
-dotenv.config({ path: path.resolve(__dirname, '.env') });
-
-/**
- * See https://playwright.dev/docs/test-configuration.
+ * Voice Room E2E Playwright 配置（T-0000H 改造）
+ *
+ * 关键变化：
+ *   - 不再在 config 顶层 dotenv.config()；env 加载完全交由 globalSetup（envLoader）
+ *   - 新增 globalSetup / globalTeardown 指向 tests/scripts/support/
+ *   - profile=prod 时 grep '@prod-safe'（与 fixture L3 双保险）
+ *   - use.baseURL = lazy 读 process.env.ADMIN_WEB_URL（globalSetup Step4 注入）
+ *   - 单元测试见 playwright.unit.config.ts
  */
 export default defineConfig({
   testDir: './tests/scripts',
-  
-  /* 核心修改 2：延长全局超时时间。因为 AI 视觉大模型识别页面和推理需要时间，单条用例默认的 30 秒通常不够，建议延长到 120 秒 */
-  timeout: 120 * 1000,
-  expect: {
-    timeout: 15000,
-  },
+  // 排除 support/__tests__（单元测试由 playwright.unit.config.ts 单独跑）
+  testIgnore: ['**/support/__tests__/**'],
 
-  /* Run tests in files in parallel */
+  timeout: 120 * 1000,
+  expect: { timeout: 15000 },
   fullyParallel: true,
-  /* Fail the build on CI if you accidentally left test.only in the source code. */
   forbidOnly: !!process.env.CI,
-  /* Retry on CI only */
   retries: process.env.CI ? 2 : 0,
-  /* Opt out of parallel tests on CI. */
   workers: process.env.CI ? 1 : undefined,
-  
-  /* 核心修改 3：替换 Reporter。挂载 Midscene 的专属可视化合并报告 */
+
+  globalSetup: path.resolve(__dirname, 'tests/scripts/support/globalSetup.ts'),
+  globalTeardown: path.resolve(__dirname, 'tests/scripts/support/globalTeardown.ts'),
+
+  // profile=prod 时强制 grep @prod-safe（与 fixture L3 双保险）
+  grep: process.env.E2E_PROFILE === 'prod' ? /@prod-safe/ : undefined,
+
   reporter: [
-    ['list'], // 终端输出进度
-    ['@midscene/web/playwright-reporter', { type: 'merged' }], // 生成 Midscene 的 AI 视觉分析报告
-    ['html', { open: 'never' }] // 保留原生 HTML 报告作为兜底备用
+    ['list'],
+    ['@midscene/web/playwright-reporter', { type: 'merged' }],
+    ['html', { open: 'never' }],
   ],
 
-  /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
-    /* Base URL to use in actions like `await page.goto('')`. */
-    // baseURL: 'http://localhost:3000',
-
-    /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
+    // baseURL 在 globalSetup Step4 通过 writeProcessEnv 注入；冷启动前若 shell 未 export，
+    // 用户可在根 .env 设置 ADMIN_WEB_URL；T-0000J 阶段会改用 e2eEnv fixture 注入。
+    baseURL: process.env.ADMIN_WEB_URL || undefined,
     trace: 'on-first-retry',
-    /* 核心修改 4：失败时自动截图，配合 AI 排查 */
     screenshot: 'only-on-failure',
   },
 
-  /* Configure projects for major browsers */
   projects: [
-    {
-      name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
-    },
-
-    // 如果您只想先测试 Chrome 浏览器，可以暂时把 firefox 和 webkit 注释掉以节省时间
-    {
-      name: 'firefox',
-      use: { ...devices['Desktop Firefox'] },
-    },
-
-    {
-      name: 'webkit',
-      use: { ...devices['Desktop Safari'] },
-    },
-
-    /* Test against mobile viewports. */
-    // {
-    //   name: 'Mobile Chrome',
-    //   use: { ...devices['Pixel 5'] },
-    // },
-    // {
-    //   name: 'Mobile Safari',
-    //   use: { ...devices['iPhone 12'] },
-    // },
-
-    /* Test against branded browsers. */
-    // {
-    //   name: 'Microsoft Edge',
-    //   use: { ...devices['Desktop Edge'], channel: 'msedge' },
-    // },
-    // {
-    //   name: 'Google Chrome',
-    //   use: { ...devices['Desktop Chrome'], channel: 'chrome' },
-    // },
+    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
+    { name: 'webkit', use: { ...devices['Desktop Safari'] } },
   ],
-
-  /* Run your local dev server before starting the tests */
-  // webServer: {
-  //   command: 'npm run start',
-  //   url: 'http://localhost:3000',
-  //   reuseExistingServer: !process.env.CI,
-  // },
 });
