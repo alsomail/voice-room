@@ -26,7 +26,13 @@
 │   └── dev/
 │       ├── init-db.sh            # PG 容器首次启动时的 Role/DB 初始化
 │       ├── grant-permissions.sql # 最小权限隔离 SQL
-│       └── verify-permissions.sh # 本地校验权限脚本
+│       ├── verify-permissions.sh # 本地校验权限脚本
+│       ├── seed-e2e.sh           # E2E Seed 幂等脚本（T-0000G）
+│       ├── seed-e2e.sql          # E2E 数据幂等插入 SQL（T-0000G）
+│       ├── reset-e2e.sh          # E2E 数据清空脚本（T-0000G）
+│       └── preflight.sh          # 5 端健康检查脚本（T-0000G）
+├── app/shared/src/bin/
+│       └── sign_jwt.rs           # E2E 用 JWT 签发 CLI（T-0000G）
 └── .github/
     └── workflows/
         └── ci.yml                # Rust Lint + Test 流水线
@@ -90,6 +96,55 @@ GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO admin_server_user;
 
 ---
 
+## 四、E2E 测试基建脚本（T-0000G）
+
+**关联 TDS**：[T-0000G Seed/Reset/Preflight 三件套脚本](../../tds/infra/T-0000G.md)
+
+### 核心脚本
+
+| 脚本 | 位置 | 用途 | 入参 | 安全约束 |
+|------|------|------|------|---------|
+| `seed-e2e.sh` | `scripts/dev/seed-e2e.sh` | 幂等创建 E2E 测试用户/房间/Token，回填到 `.seed-output.env` | `E2E_PROFILE`、`JWT_SECRET`、PG 连接参数 | `E2E_PROFILE=local` 强制，非 local 退出码 21 |
+| `seed-e2e.sql` | `scripts/dev/seed-e2e.sql` | 幂等 SQL 语句，使用 `ON CONFLICT DO UPDATE` 确保重复执行结果一致 | UUIDv5 ID、Phone、Token 等（由 wrapper 注入） | 无直接执行，由 wrapper `psql -v` 传参 |
+| `reset-e2e.sh` | `scripts/dev/reset-e2e.sh` | 清空 E2E 测试数据（用户/房间/Token），不影响业务表结构 | `E2E_PROFILE`、PG+Redis 连接参数 | `E2E_PROFILE=local` 强制，非 local 退出码 21 |
+| `preflight.sh` | `scripts/dev/preflight.sh` | 5 端健康检查（Postgres/Redis/AppServer/AdminServer/Web），任一失败 2s 内输出彩色定位 | `E2E_PROFILE`、服务 URL、连接参数 | 串行检查、独立退出码 11-15、CI=1 关闭颜色 |
+
+### sign-jwt CLI 工具（T-0000G）
+
+**位置**：`app/shared/src/bin/sign_jwt.rs`
+
+**用途**：为 E2E Seed 脚本签发 JWT Token（AppClaims / AdminClaims）
+
+**使用方式**：
+
+```bash
+# 签发 AppClaims（C 端用户）
+sign-jwt --sub <uuid> --role user --ttl <seconds>
+  → iss="voiceroom", exp=iat+<ttl>
+
+# 签发 AdminClaims（B 端管理员）
+sign-jwt --sub <uuid> --role admin --ttl <seconds>
+  → iss="voiceroom-admin", role=super_admin, exp=iat+<ttl>
+
+# 支持的 admin role：admin, op, cs, fin
+# 映射关系：admin→super_admin, op→operator, cs→cs, fin→finance
+
+# 计算 E2E 命名空间 UUIDv5
+sign-jwt --uuid5 <name>
+  → E2E_NS = 9b3e0c6a-1ec1-4d3f-93d4-e2e000000000
+```
+
+**环境变量**：
+- `JWT_SECRET`（必需）：从 env 读取，永不 echo（安全考量）
+
+**退出码**：
+- `0`：成功
+- `2`：入参错误
+- `3`：缺少 `JWT_SECRET`
+- `4`：签发失败
+
+---
+
 ## 四、CI 流水线（T-0000D）
 
 **文件**：`.github/workflows/ci.yml`  
@@ -138,4 +193,8 @@ Rust Lint + Test (ubuntu-latest)
 | 权限校验脚本 | 🟢 完成 | `verify-permissions.sh` |
 | CI Lint + Test | 🟢 完成 | `.github/workflows/ci.yml` |
 | 环境变量模板 | 🟢 完成 | `.env.example` |
+| **E2E Seed 幂等脚本** | **🟢 完成** | **T-0000G：`seed-e2e.sh` + `seed-e2e.sql`（创建测试用户/房间/Token）** |
+| **E2E Reset 清理脚本** | **🟢 完成** | **T-0000G：`reset-e2e.sh`（清空测试数据，profile-guard 防非 local）** |
+| **E2E Preflight 健康检查** | **🟢 完成** | **T-0000G：`preflight.sh`（5 端检查，2s 超时，彩色输出）** |
+| **sign-jwt JWT 签发 CLI** | **🟢 完成** | **T-0000G：`app/shared/src/bin/sign_jwt.rs`（支持 AppClaims/AdminClaims、UUIDv5 计算）** |
 | CD 部署流水线 | 🔴 未实现 | 产物构建与部署由运维自行安排 |

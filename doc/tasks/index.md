@@ -1,6 +1,6 @@
 # Voice Room 开发任务清单
 
-> **版本**: v2.12  
+> **版本**: v2.13  
 > **更新日期**: 2026-05-31  
 > **任务总数**: 123 个 (基建: 4 + 9, App Server: 30 + 1, Admin Server: 16 + 1, Web: 14 + 1, Android: 44 + 1, E-07 15 + E-07.5 6 + E-10 18)  
 > **当前阶段**: Phase 1 - 核心营收闭环（E-07 + E-07.5 并行）→ Phase 1.5 E-10 房间治理 → Phase 1.6 E2E 测试基建（模块 9）
@@ -11,6 +11,7 @@
 
 | 版本 | 日期 | 变更内容 |
 |------|------|---------|
+| **v2.13** | **2026-05-31** | **T-0000G DoD 完成，模块 9 进度 3/12：doc/architecture/index.md 关联文档新增测试基建脚本三件套索引（T-0000G TDS + scripts/dev 路径 + sign-jwt CLI 位置）；doc/arch/infra/index.md §一目录结构补充 T-0000G 四脚本（seed-e2e.sh/sql、reset-e2e.sh、preflight.sh）+ sign-jwt.rs 二进制路径，新增 §四 E2E 测试基建脚本详解（Seed/Reset/Preflight 脚本表 + sign-jwt CLI 使用方式/参数/环保变量/退出码），能力矩阵补充四行 T-0000G 完成项；doc/tasks/模块9-E2E测试基建 (E2E QA Foundation).md T-0000G 行：研发状态 In Progress → ✅ Done，Review Gate → ✅ Passed；doc/product/index.md Phase 1.6 E2E 测试基建进度确认为 3/12（T-0000E/T-0000F/T-0000G）** |
 | **v2.12** | **2026-05-31** | **T-0000G Review Round 1 通过（🟢）：Seed/Reset/Preflight 三件套 + sign-jwt CLI 静态/Profile-guard/cargo check 全部实测通过；安全（JWT_SECRET 不泄露）、Seed ON CONFLICT 幂等、Reset profile-guard 在 psql 之前生效、Preflight 2s 超时 + fail-fast + CI=1 关色，均符合验收。偏离决议：D1/D2/D3（按真实 schema 字段名/枚举值）接受、D4（init-db.sh / e2e_runner 角色推迟）接受为已知风险（profile-guard 兜底）、D5 接受。runtime 三项（真实 psql 写入幂等、reset 行计数、5 端 /health 200）由 T-0000H 联动验收，不阻塞本任务。模块 9 任务清单 T-0000G 行：负责人 Review → DoD** |
 | **v2.11** | **2026-05-31** | **T-0000G TDD 完成（→ Review）：交付 Seed/Reset/Preflight 三件套（`scripts/dev/{seed-e2e.sql,seed-e2e.sh,reset-e2e.sh,preflight.sh}` 4 个新增 + sign-jwt CLI `app/shared/src/bin/sign_jwt.rs` 复用 `voice-room-shared::jwt::token` 算法 / workspace `uuid` 增 `v5` feature / `.gitignore` 收口 `.seed-output.env` 与 `.seed.lock`）；profile guard 三脚本均实测通过（seed staging→rc=21、缺 JWT_SECRET→rc=22、reset prod→rc=21 在 psql 之前生效）；preflight 5 端串行 + fail-fast + TTY 颜色 + CI=1 关色 + 机读行格式实测命中；sign-jwt 实测 exp-iat=86400 / op→operator iss=voiceroom-admin 映射正确；偏离 TDS：users 无 role 列、rooms 用 title/max_members、admins.role 取 super_admin/operator/cs/finance（均按真实 schema），init-db.sh / grant-permissions.sql 的 e2e_runner 角色推迟为扩展任务；DB 写入路径与真实 5 端 200 响应待 T-0000H runtime 联动；模块 9 任务清单 T-0000G 行：研发负责人 TDD → Review，状态保持 In Progress** |
 | **v2.10** | **2026-05-31** | **T-0000G TDS 完成（Plan 阶段），负责人 Plan → TDD：doc/tds/infra/T-0000G.md 重写为完整结构（背景/目标/范围/数据流/文件清单/§2.4 Seed 数据契约 4 张子表（users/admins/rooms/JWT 策略）/§2.5 Reset 清理范围表（含 schema 不动 + Redis key 范围 + profile≠local 拒绝）/§2.6 Preflight 5 端 × 命令 × 期望 × 2s 超时 × 退出码 11~15 × 彩色 hint 矩阵/§2.7 与 T-0000H globalSetup 三脚本接口契约（命令/退出码/stdout 协议）/§3 TDD 验收用例（幂等 / 安全 / 故意打挂 / 契约 共 22 条）/§六 风险矩阵 7 项（含 G-R1 误删生产 / G-R3 JWT 密钥泄露 / G-R4 并发 seed）/§七 与 T-0000E §2.5/2.6/2.10/2.11/2.12 锚点映射）；模块 9 任务清单 T-0000G 行：研发负责人 Plan → TDD，研发状态 Todo → In Progress，准备进入 TDD 阶段** |

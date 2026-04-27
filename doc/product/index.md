@@ -1,7 +1,7 @@
 # Voice Room 产品文档总索引
 
-> **版本**: v1.0  
-> **更新日期**: 2026-04-28  
+> **版本**: v3.3  
+> **更新日期**: 2026-05-31  
 > **负责人**: PM Agent  
 > **目标市场**: MENA (Middle East & North Africa) 中东北非
 
@@ -63,6 +63,7 @@
 ---
 
 **文档变更历史**:
+- 2026-05-31: v3.3，**T-0000G DoD 完成，模块 9 进度 3/12**：doc/architecture/index.md 关联文档新增测试基建脚本三件套索引（T-0000G TDS + scripts/dev 路径 + sign-jwt CLI 位置）；doc/arch/infra/index.md §一目录结构补充 T-0000G 四脚本（seed-e2e.sh/sql、reset-e2e.sh、preflight.sh）+ sign-jwt.rs 二进制路径，新增 §四 E2E 测试基建脚本详解（Seed/Reset/Preflight 脚本表 + sign-jwt CLI 使用方式/参数/环保变量/退出码），能力矩阵补充四行 T-0000G 完成项；doc/tasks/模块9-E2E测试基建 (E2E QA Foundation).md T-0000G 行：研发状态 In Progress → ✅ Done，Review Gate → ✅ Passed；doc/tasks/index.md 版本更新 v2.12 → v2.13，新增 v2.13 变更记录；doc/product/index.md Phase 1.6 E2E 测试基建进度确认为 3/12（T-0000E/T-0000F/T-0000G）
 - 2026-05-30: v3.2，**🎉 E-10 全部 18 个任务完成里程碑**，T-30044 DoD 完成，E-10 Epic 进度更新为 18/18（新增 T-30044 ✅ Android 禁麦/禁言 UI 反馈 + 抱麦集成，DoD 通过）；doc/arch/android/features.md 新增 T-30044 模块文档（SelfGovernanceState micMutedUntil/chatMutedUntil 毫秒时间戳 + isMicMuted(nowMs)/isChatMuted(nowMs) 查询、IMicPermissionChecker 接口 + AlwaysGrantedMicPermissionChecker 默认实现 + FakeMicPermissionChecker 测试用、ChatInput enabled=!isChatMuted() + placeholder 剩余时间、MicSlot 禁麦时"+"按钮 enabled=false + ShowToast、ForceTakeMic 自动权限请求→拒绝自动 LeaveMic、ForceLeaveMic stopPublishing()+onMicSelf=false+ShowToast "你已被抱下麦"、Clock 接口复用 T-30042 SystemClock/FakeClock、MEDIUM 遗留 wsClient.send() 线程安全隐患）；doc/tasks/index.md T-30044 状态 Review → ✅ Done 负责人 DoD；doc/product/index.md E-10 进度 17/18 → 18/18（**E-10 全部 18 个任务完成！**）
 - 2026-05-29: v3.1，T-30043 DoD 完成，E-10 Epic 进度更新为 17/18（新增 T-30043 ✅ Android 公告栏 + 管理员徽章 + RoomInfoUpdated，DoD 通过）；doc/arch/android/features.md 新增 T-30043 公告栏模块文档（AnnouncementPopup AlertDialog verticalScroll dismissOnClickOutside=true、AnnouncementIcon 顶部 📄 图标公告非空时显示、RoleBadge Owner 👑/Admin 🛡️/Member 无显示统一复用、AnnouncementSeenStore Application 单例 24h 防重复弹出、Clock 接口注入与 T-30042 共享 SystemClock/FakeClock、RoomInfoUpdated 更新 announcement/title/category 变化时重置 seen + 重新弹窗、AdminChanged 更新 adminUserId 触发 RoleBadge 全局重组、testTag announcement_popup/btn_announcement_close/btn_show_announcement/role_badge_{userId}）；doc/product/index.md E-10 进度 16/18 → 17/18
 - 2026-05-28: v3.0，T-30042 DoD 完成，E-10 Epic 进度更新为 16/18（新增 T-30042 ✅ Android 被踢/被禁提示弹窗，DoD 通过）；doc/arch/android/features.md 新增 T-30042 被踢/被禁提示弹窗模块文档（UserKickedDialog 全屏弹窗 dismissOnClickOutside=false、MuteStatusChip 倒计时 Chip、MuteCountdownViewModel 管理 mic/chat 独立倒计时注入 Clock 接口、KickCooldownStore Application 单例 RoomViewModel 写入 HallViewModel 读取跨 ViewModel cooldown 拦截、Clock 接口注入支持 FakeClock 单测、acknowledgeKick() 保存 cooldown 并导航回大厅、HallViewModel.enterRoom() 进入前检查 cooldown 未过期则拦截）；doc/product/index.md E-10 进度 15/18 → 16/18
