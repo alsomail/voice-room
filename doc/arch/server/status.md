@@ -20,7 +20,7 @@
 
 ### 4. 数据库（SQLx 0.8 + PostgreSQL）
 - `create_pool()` 初始化连接池，`max_connections` 与 `connect_timeout_secs` 可配置。
-- 启动时自动运行 `sqlx::migrate!("./migrations")`，确保 schema 最新。
+- 启动时调用 `voice_room_shared::migrate::run_migrations_with_table(pool, &sqlx::migrate!("./migrations"), "_sqlx_app_migrations")`，按 T-0000M 决议使用自定义登记表，避免与 AdminServer（`_sqlx_admin_migrations`）共库时互相覆盖。
 
 ### 5. Redis
 - `RedisCodeStore::new(redis_url).await` 建立 `MultiplexedConnection`，内部共享同一 TCP 连接，每次操作 `.clone()` 复用，无并发 `&mut` 竞争。

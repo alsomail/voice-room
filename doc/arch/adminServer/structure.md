@@ -36,7 +36,7 @@
 
 2. `init_tracing()` 按 `log.format` 选择 JSON 或普通文本日志。
 
-3. `create_pool()` 初始化 SQLx PostgreSQL 连接池，并运行 `sqlx::migrate!` 自动迁移。
+3. `create_pool()` 初始化 SQLx PostgreSQL 连接池；通过 `voice_room_shared::migrate::run_migrations_with_table` 以自定义登记表 `_sqlx_admin_migrations` 运行迁移，与 AppServer 的 `_sqlx_app_migrations` 物理共存、逻辑隔离（详见 [T-0000M](../../tds/infra/T-0000M.md) / [ADR-0001](../../adr/ADR-0001-migration-table-isolation.md)）。
 
 4. Redis 连接初始化（若 `redis_url` 为 None，则装 `NoopEventPublisher`；否则 `RedisEventPublisher`）。
 

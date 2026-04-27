@@ -223,3 +223,44 @@
 3. **shared 只放稳定契约，不放端内实现代码**。
 4. **scripts 必须按用途拆分**，避免一个脚本做所有事情。
 5. **环境配置必须模板化**，真实密钥不得提交仓库。
+
+## 3.2 数据库共享策略（双服务共库迁移隔离规约）
+
+> 决议：**共享 DB（`voiceroom`）+ 表/Schema 权限隔离**，物理双库延迟到 SaaS / 多租户阶段。
+> 决策细节见 [ADR-0001](../adr/ADR-0001-migration-table-isolation.md)。
+
+### 3.2.1 共享与隔离的边界
+
+| 资产 | 策略 | 说明 |
+|------|------|------|
+| 业务表（users / rooms / wallets / events / ...） | **共享**，AppServer 主权 | AdminServer 通过受限读写访问，禁止 DDL |
+| 迁移源（`*/migrations/*.sql`） | **物理分离** | 各服务在自身 crate 下管理，互不引用 |
+| 迁移登记表 | **逻辑分离**（关键约束） | AppServer = `_sqlx_app_migrations`；AdminServer = `_sqlx_admin_migrations` |
+| DB 角色 | 双账号 | `app_server_user`（受限） / `admin_server_user`（schema 全权） |
+
+### 3.2.2 为何必须分迁移登记表
+
+sqlx 默认所有迁移都登记到同一张 `_sqlx_migrations`。一旦双服务共库：
+
+1. version 重号：双方 `001..N` 互相冲突，hash 校验必失败。
+2. 「missing migration」误报：sqlx 把对方的版本视为本端的「已应用但缺失文件」，启动直接拒绝。
+3. 表所有权抢占：先启动方建表并独占 owner，对方 `INSERT` 触发 `permission denied`。
+
+### 3.2.3 实现规约（强制）
+
+- **每个 server 进程必须使用专属登记表名**，通过 `voice_room_shared::migrate::run_migrations_with_table` 注入：
+  - `app/server/src/main.rs` → `_sqlx_app_migrations`
+  - `app/adminServer/src/main.rs` → `_sqlx_admin_migrations`
+  - 集成测试统一走 `app/server/tests/common/mod.rs::run_migrations()`
+- **新增进程接入共享库时**，必须分配新的 `_sqlx_<service>_migrations` 表名并在本节登记。
+- **不得**在 main.rs 中直接调用 `sqlx::migrate!(...).run(&pool)`（会回退默认 `_sqlx_migrations`，破坏隔离）。
+- **dev/docker-compose** 起的 PG 必须由 `scripts/dev/init-db.sh` 给 `app_server_user` 授予 `CREATE ON SCHEMA public`，否则它无法建立自有登记表（详见 N-2）。
+- **staging/prod** 切「migrate-on-deploy」（ADR-0001 阶段 C）后，运行账号无需 `CREATE` 权限。
+
+### 3.2.4 物理双库的触发条件（保留）
+
+任一信号出现即评估切换至物理双库 + RPC：
+1. AdminServer 跨域查询 < 3 处（耦合度可控的反向）。
+2. C / B 端数据安全审计要求物理隔离。
+3. 多租户 SaaS 化。
+

@@ -259,7 +259,8 @@ headers.get("x-forwarded-for")
 4. env::var("JWT_SECRET")      — 必填环境变量
 5. env::var("PORT")            — 可选，默认 8081
 6. PgPool::connect()           — 初始化 PostgreSQL 连接池
-7. sqlx::migrate!()            — 运行 ./migrations 目录迁移
+7. voice_room_shared::migrate::run_migrations_with_table(pool, &sqlx::migrate!("./migrations"),
+                                  "_sqlx_admin_migrations")  — T-0000M 自定义登记表，与 AppServer 共库不互掐
 8. AppState::new(              — 注入真实 PgRepository
        PgAdminRepository,
        PgAdminLogRepository,
