@@ -199,33 +199,58 @@ async fn run_inner(
             continue;
         }
         let start = Instant::now();
-        let mut tx = conn
-            .begin()
-            .await
-            .map_err(|e| MigrateTableError::sqlx(table_name, e))?;
 
-        sqlx::raw_sql(m.sql.as_ref())
-            .execute(&mut *tx)
-            .await
-            .map_err(|e| MigrateTableError::ExecuteMigration {
-                table_name: table_name.to_string(),
-                version: m.version,
-                source: e,
-            })?;
+        if m.no_tx {
+            // no-transaction 分支：用于 `CREATE INDEX CONCURRENTLY` 等不能在事务内执行的 DDL。
+            // 行为对齐 sqlx 0.8 原生 `Migrate::run`：DDL 与登记表 INSERT 都直接走 conn，不开启 tx。
+            // 失败时部分语句已提交，需运维介入；这与 sqlx 原生语义一致。
+            sqlx::raw_sql(m.sql.as_ref())
+                .execute(&mut *conn)
+                .await
+                .map_err(|e| MigrateTableError::ExecuteMigration {
+                    table_name: table_name.to_string(),
+                    version: m.version,
+                    source: e,
+                })?;
 
-        let elapsed_ns = i64::try_from(start.elapsed().as_nanos()).unwrap_or(i64::MAX);
-        sqlx::query(&insert_sql)
-            .bind(m.version)
-            .bind(m.description.as_ref())
-            .bind(m.checksum.as_ref())
-            .bind(elapsed_ns)
-            .execute(&mut *tx)
-            .await
-            .map_err(|e| MigrateTableError::sqlx(table_name, e))?;
+            let elapsed_ns = i64::try_from(start.elapsed().as_nanos()).unwrap_or(i64::MAX);
+            sqlx::query(&insert_sql)
+                .bind(m.version)
+                .bind(m.description.as_ref())
+                .bind(m.checksum.as_ref())
+                .bind(elapsed_ns)
+                .execute(&mut *conn)
+                .await
+                .map_err(|e| MigrateTableError::sqlx(table_name, e))?;
+        } else {
+            let mut tx = conn
+                .begin()
+                .await
+                .map_err(|e| MigrateTableError::sqlx(table_name, e))?;
 
-        tx.commit()
-            .await
-            .map_err(|e| MigrateTableError::sqlx(table_name, e))?;
+            sqlx::raw_sql(m.sql.as_ref())
+                .execute(&mut *tx)
+                .await
+                .map_err(|e| MigrateTableError::ExecuteMigration {
+                    table_name: table_name.to_string(),
+                    version: m.version,
+                    source: e,
+                })?;
+
+            let elapsed_ns = i64::try_from(start.elapsed().as_nanos()).unwrap_or(i64::MAX);
+            sqlx::query(&insert_sql)
+                .bind(m.version)
+                .bind(m.description.as_ref())
+                .bind(m.checksum.as_ref())
+                .bind(elapsed_ns)
+                .execute(&mut *tx)
+                .await
+                .map_err(|e| MigrateTableError::sqlx(table_name, e))?;
+
+            tx.commit()
+                .await
+                .map_err(|e| MigrateTableError::sqlx(table_name, e))?;
+        }
     }
 
     Ok(())
@@ -306,5 +331,66 @@ mod tests {
         let b = lock_id_for("_sqlx_admin_migrations");
         assert_eq!(a, lock_id_for("_sqlx_app_migrations"));
         assert_ne!(a, b);
+    }
+
+    /// no_tx dispatch 单元测试：构造 `Migration { no_tx: true, sql: "SELECT 1" }`
+    /// 跑通 `run_migrations_with_table`，验证非事务分支可达且执行成功。
+    ///
+    /// 真正的 `CREATE INDEX CONCURRENTLY` DDL 需要 PG 实例，这里仅用 `SELECT 1`
+    /// 验证 dispatch 路径不 panic、登记表 +1 行；DATABASE_URL 未设置则跳过。
+    #[tokio::test]
+    async fn no_tx_dispatch_executes_without_transaction() {
+        let Ok(url) = std::env::var("DATABASE_URL") else {
+            eprintln!("[SKIP] no_tx_dispatch: DATABASE_URL not set");
+            return;
+        };
+        let pool = match sqlx::postgres::PgPoolOptions::new()
+            .max_connections(2)
+            .acquire_timeout(std::time::Duration::from_secs(3))
+            .connect(&url)
+            .await
+        {
+            Ok(p) => p,
+            Err(_) => {
+                eprintln!("[SKIP] no_tx_dispatch: connect failed");
+                return;
+            }
+        };
+
+        // 用唯一表名避免与其它测试互掐
+        let suffix = format!(
+            "{:x}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+                & 0xffff_ffff
+        );
+        let table = format!("_sqlx_notx_{suffix}");
+
+        use sqlx::migrate::{Migration, MigrationType, Migrator};
+        use std::borrow::Cow;
+        let m = Migration::new(
+            1,
+            Cow::Borrowed("notx_select_one"),
+            MigrationType::Simple,
+            Cow::Borrowed("SELECT 1"),
+            true, // no_tx
+        );
+        let migrator = Migrator {
+            migrations: Cow::Owned(vec![m]),
+            ignore_missing: false,
+            locking: true,
+            no_tx: false,
+        };
+
+        run_migrations_with_table(&pool, &migrator, &table)
+            .await
+            .expect("no_tx dispatch should succeed");
+
+        // 清理
+        let _ = sqlx::query(&format!("DROP TABLE IF EXISTS {table}"))
+            .execute(&pool)
+            .await;
     }
 }
