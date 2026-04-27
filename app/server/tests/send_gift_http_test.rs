@@ -418,7 +418,7 @@ async fn sh03_invalid_count_zero() {
         .await
         .unwrap();
     let body: serde_json::Value = serde_json::from_slice(&body_bytes).unwrap();
-    assert_eq!(body["code"], 40001, "SH03: code should be 40001 INVALID_COUNT");
+    assert_eq!(body["code"], 40004, "SH03: code should be 40004 INVALID_COUNT");
 }
 
 /// SH04: count=10000 → 400 + 40001 INVALID_COUNT
@@ -456,7 +456,7 @@ async fn sh04_invalid_count_overflow() {
         .await
         .unwrap();
     let body: serde_json::Value = serde_json::from_slice(&body_bytes).unwrap();
-    assert_eq!(body["code"], 40001, "SH04: code should be 40001 INVALID_COUNT");
+    assert_eq!(body["code"], 40004, "SH04: code should be 40004 INVALID_COUNT");
 }
 
 /// SH05: 未鉴权 → 401

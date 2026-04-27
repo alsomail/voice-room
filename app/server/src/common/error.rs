@@ -78,7 +78,7 @@ impl AppError {
             AppError::InvalidPhoneNumber => ErrorCode::InvalidPhoneNumber,
             AppError::ParameterMissing(_) => ErrorCode::ParameterMissing,
             AppError::ValidationError(_) => ErrorCode::ValidationError,
-            AppError::InvalidCount(_) => ErrorCode::InvalidPhoneNumber, // 复用 40001
+            AppError::InvalidCount(_) => ErrorCode::InvalidCount,
             AppError::InsufficientBalance => ErrorCode::InsufficientBalance,
             AppError::Unauthorized => ErrorCode::Unauthorized,
             AppError::TokenExpired => ErrorCode::TokenExpired,

@@ -79,10 +79,13 @@ pub async fn handle_admin_event(event: AdminEvent, registry: Arc<ConnectionRegis
         }
         AdminEvent::CloseRoom { payload, .. } => {
             let conns = registry.get_connections_in_room(payload.room_id);
+            // 1. 广播房间关闭通知
             for (_, sender) in &conns {
                 let _ = sender.send(room_closed_json());
             }
-            for (conn_id, _) in conns {
+            // 2. 发送 close 指令 + 注销连接
+            for (conn_id, sender) in conns {
+                let _ = sender.send(connection_close_json(1000, "Room closed"));
                 registry.unregister(conn_id);
             }
         }
@@ -229,7 +232,7 @@ mod tests {
 
     // ─── E04: close_room 广播关闭消息给所有成员 ──────────────────────────────
 
-    /// E04: close_room 事件 → 广播关闭消息给房间内所有连接
+    /// E04: close_room 事件 → 广播关闭消息给房间内所有连接 + 发送 close 指令（T-00042）
     #[tokio::test]
     async fn e04_close_room_broadcasts_to_room_members() {
         let registry = Arc::new(ConnectionRegistry::new());
@@ -246,35 +249,64 @@ mod tests {
         let event = close_room_event(room_id);
         super::handle_admin_event(event, registry.clone()).await;
 
-        // 房间内两个连接都必须收到关闭消息
+        // T-00042: 房间内连接应收到两条消息：RoomClosed 通知 + close 指令
         let msg1 = tokio::time::timeout(Duration::from_millis(100), rx1.recv())
             .await
             .expect("rx1 should not time out")
             .expect("rx1 channel should not be closed");
+        let msg1_close = tokio::time::timeout(Duration::from_millis(100), rx1.recv())
+            .await
+            .expect("rx1 should receive close instruction")
+            .expect("rx1 channel should not be closed");
+
+        let json1: serde_json::Value =
+            serde_json::from_str(&msg1).expect("msg1 should be valid JSON");
+        let close1: serde_json::Value =
+            serde_json::from_str(&msg1_close).expect("close instruction should be valid JSON");
+
+        assert_eq!(
+            json1["type"], "close_room",
+            "E04: room member 1 should receive close_room notification"
+        );
+        assert_eq!(
+            close1["type"], "connection_close",
+            "E04: room member 1 should receive close instruction"
+        );
+        assert_eq!(
+            close1["code"], 1000,
+            "E04: close code must be 1000 (Normal closure)"
+        );
+
+        // 房间内连接 2 也应收到相同消息
         let msg2 = tokio::time::timeout(Duration::from_millis(100), rx2.recv())
             .await
             .expect("rx2 should not time out")
             .expect("rx2 channel should not be closed");
+        let msg2_close = tokio::time::timeout(Duration::from_millis(100), rx2.recv())
+            .await
+            .expect("rx2 should receive close instruction")
+            .expect("rx2 channel should not be closed");
 
-        let json1: serde_json::Value =
-            serde_json::from_str(&msg1).expect("msg1 should be valid JSON");
         let json2: serde_json::Value =
             serde_json::from_str(&msg2).expect("msg2 should be valid JSON");
+        let close2: serde_json::Value =
+            serde_json::from_str(&msg2_close).expect("close instruction should be valid JSON");
 
-        assert_eq!(
-            json1["type"], "close_room",
-            "room member 1 should receive close_room"
-        );
         assert_eq!(
             json2["type"], "close_room",
-            "room member 2 should receive close_room"
+            "E04: room member 2 should receive close_room notification"
         );
+        assert_eq!(
+            close2["type"], "connection_close",
+            "E04: room member 2 should receive close instruction"
+        );
+        assert_eq!(close2["code"], 1000);
 
-        // 不在房间的连接不应收到消息
+        // 不在房间的连接不应收到任何消息
         let no_msg = tokio::time::timeout(Duration::from_millis(20), rx_other.recv()).await;
         assert!(
             no_msg.is_err(),
-            "connection not in room should NOT receive close_room message"
+            "E04: connection not in room should NOT receive any message"
         );
     }
 
@@ -435,6 +467,9 @@ mod tests {
             json["message"].is_string(),
             "保留 message 英文回退，供未实现 i18n 的旧客户端兜底"
         );
+
+        // T-00042: 跳过 close 指令消息，不验证（集成测试已覆盖）
+        let _ = rx.recv().await;
     }
 
     #[tokio::test]
@@ -452,6 +487,9 @@ mod tests {
             .expect("channel should not be closed");
         let json: serde_json::Value = serde_json::from_str(&msg).unwrap();
         assert_eq!(json["i18n_key"], "notification.room_closed");
+
+        // T-00042: 跳过 close 指令消息
+        let _ = rx1.recv().await;
     }
 
     #[tokio::test]

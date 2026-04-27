@@ -382,7 +382,7 @@ impl SendGiftServicePort for GiftSendService {
             }
         }
 
-        // ── 8. 广播 GiftReceived ────────────────────────────────────────────
+        // ── 8. 广播 GiftReceived（异步，不阻塞 HTTP 响应）───────────────────
         let gift_envelope = build_gift_received_msg(
             gift_record_id,
             sender_id,
@@ -400,15 +400,20 @@ impl SendGiftServicePort for GiftSendService {
             count,
             total,
         );
-        if let Some(rs) = self.room_manager.get_room(room_id) {
-            crate::ws::broadcaster::broadcast_to_room(&self.registry, &rs, gift_envelope);
-        } else {
-            crate::ws::broadcaster::broadcast_to_room_no_state(
-                &self.registry,
-                room_id,
-                gift_envelope,
-            );
-        }
+        
+        let registry_clone = Arc::clone(&self.registry);
+        let room_manager_clone = Arc::clone(&self.room_manager);
+        tokio::spawn(async move {
+            if let Some(rs) = room_manager_clone.get_room(room_id) {
+                crate::ws::broadcaster::broadcast_to_room(&registry_clone, &rs, gift_envelope);
+            } else {
+                crate::ws::broadcaster::broadcast_to_room_no_state(
+                    &registry_clone,
+                    room_id,
+                    gift_envelope,
+                );
+            }
+        });
 
         Ok(SendGiftResult {
             gift_record_id,

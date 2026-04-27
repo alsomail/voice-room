@@ -10,6 +10,8 @@ pub enum ErrorCode {
     ParameterMissing = 40002,
     #[error("VALIDATION_ERROR")]
     ValidationError = 40003,
+    #[error("INVALID_COUNT")]
+    InvalidCount = 40004,
     #[error("NOT_PASSWORD_ROOM")]
     NotPasswordRoom = 40014,
     #[error("INSUFFICIENT_BALANCE")]
