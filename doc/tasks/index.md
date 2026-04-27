@@ -1,6 +1,6 @@
 # Voice Room 开发任务清单
 
-> **版本**: v2.60  
+> **版本**: v2.57  
 > **更新日期**: 2026-04-29  
 > **任务总数**: 130 个 (基建: 4 + 12, App Server: 33 + 1, Admin Server: 16 + 1, Web: 14 + 1, Android: 44 + 1, E-07 15 + E-07.5 6 + E-10 18)  
 > **当前阶段**: Phase 1 - 核心营收闭环（E-07 + E-07.5 并行）→ Phase 1.5 E-10 房间治理 → Phase 1.6 E2E 测试基建（模块 9：14/15 ✅，T-0000P ✅ DoD，T-0000Q ✅ DoD） + QA 战报驱动架构补强（T-00041 ✅ DoD，T-00043 TDD→Review，T-00044 TDD→Review/DoD）
@@ -17,6 +17,7 @@
 | **v2.58** | **2026-04-29** | T-00043 TDD → Review，chat_messages 持久化 + REST 历史接口落地（migration 010 + 14 dedicated tests + 464 server suite 全绿）；commit [1beb68b](https://github.com/alsomail/voice-room/commit/1beb68b)。详见 [TDS](../tds/server/T-00043.md)。 |
 | **v2.58** | **2026-04-29** | T-00041 DoD 完成；TDD [084f91e](https://github.com/alsomail/voice-room/commit/084f91e) + Review Round 1 🟢 [a8c0a64](https://github.com/alsomail/voice-room/commit/a8c0a64)；修复历史漏 spawn BUG，WS 心跳 30s 超时主动 Close(1000)。详见 [TDS](../tds/server/T-00041.md)。 |
 | **v2.57** | **2026-04-29** | T-0000P DoD 完成（Midscene env 注入链 + 双注入 + 脱敏），模块 9 进度 14/15。详见 [TDS](../tds/infra/T-0000P.md)。 |
+| **v2.57** | **2026-04-29** | T-00044 Review Round 3 🟢 通过（共 3 轮：MAJOR-2 错误码 + Idempotency-Key + spawn 回滚），HTTP 9/9 + WS 12/12 全绿，进入 Dod。详见 [TDS](../tds/server/T-00044.md)。 |
 | **v2.56** | **2026-04-29** | T-0000Q DoD 完成（e2e-up.sh 端口冲突预检 5 端，跨平台 lsof/ss）。详见 [T-0000Q TDS](../tds/infra/T-0000Q.md)。 |
 | **v2.56** | **2026-04-29** | T-0000P TDD → Review，Midscene env 注入链落地（envLoader + .env.example + CI workflow + 17 unit tests）。详见 [T-0000P TDS](../tds/infra/T-0000P.md)。 |
 | **v2.56** | **2026-04-29** | T-00044 TDD → Review，HTTP 礼物端点复用 WS 事务，新增 7 个 HTTP 测试 + 12 WS 回归全绿。详见 [TDS](../tds/server/T-00044.md)。 |
