@@ -37,3 +37,4 @@
 - **E2E 测试基建多环境切换**: [doc/tds/infra/T-0000E.md](../tds/infra/T-0000E.md) —— 多环境（local/staging/prod）分层切换、健康预检、Seed 数据、启动 SOP
 - **三档 .env profile 模板**: [T-0000F TDS](../tds/infra/T-0000F.md) + [tests/scripts/env/](../../tests/scripts/env/) —— `.env.{local,staging,prod}.example` 字段表与契约
 - **测试基建脚本三件套**: [T-0000G TDS](../tds/infra/T-0000G.md) + [`scripts/dev/`](../../scripts/dev/) —— Seed/Reset/Preflight 幂等脚本、sign-jwt CLI 工具（`app/shared/src/bin/sign_jwt.rs`）
+- **E2E globalSetup/Teardown/envLoader**: [T-0000H TDS](../tds/infra/T-0000H.md) + [`tests/scripts/support/`](../../tests/scripts/support/) —— Playwright 启动期编排器（envLoader 单一加载源 + globalSetup 5 步 + globalTeardown 幂等清理 + fixtures 五道防线）

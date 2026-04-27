@@ -197,4 +197,11 @@ Rust Lint + Test (ubuntu-latest)
 | **E2E Reset 清理脚本** | **🟢 完成** | **T-0000G：`reset-e2e.sh`（清空测试数据，profile-guard 防非 local）** |
 | **E2E Preflight 健康检查** | **🟢 完成** | **T-0000G：`preflight.sh`（5 端检查，2s 超时，彩色输出）** |
 | **sign-jwt JWT 签发 CLI** | **🟢 完成** | **T-0000G：`app/shared/src/bin/sign_jwt.rs`（支持 AppClaims/AdminClaims、UUIDv5 计算）** |
+| **E2E envLoader（单一加载源）** | **🟢 完成** | **T-0000H：`tests/scripts/support/envLoader.ts`（24 字段加载链、MissingEnvError/InvalidProfileError、退出码 78 冻结）** |
+| **E2E globalSetup（启动编排 5 步）** | **🟢 完成** | **T-0000H：`tests/scripts/support/globalSetup.ts`（Step1-5：env 加载→preflight→seed→writeProcessEnv→DotFile；preflight 失败不调 seed；退出码 11-15/21-24 透传）** |
+| **E2E globalTeardown（幂等清理）** | **🟢 完成** | **T-0000H：`tests/scripts/support/globalTeardown.ts`（profile≠local skip、E2E_RESET=0 skip、reset 失败仅 warn）** |
+| **E2E fixtures（五道防线）** | **🟢 完成** | **T-0000H：`tests/scripts/support/fixtures.ts`（L1 prod.example=0 / L2 envLoader warn / L3 fixtures auto skip / L4 写 fixture skip / L5 config grep @prod-safe）** |
+| **playwright E2E config** | **🟢 完成** | **T-0000H：`playwright.config.ts`（globalSetup/Teardown 接入、grep @prod-safe 条件、use.baseURL lazy 读 ADMIN_WEB_URL）** |
+| **playwright unit config** | **🟢 完成** | **T-0000H：`playwright.unit.config.ts`（单测专用，隔离生产 setup）** |
+| **TypeScript strict config** | **🟢 完成** | **T-0000H：`tsconfig.json`（scope=support/，tsc --noEmit 0 错误）** |
 | CD 部署流水线 | 🔴 未实现 | 产物构建与部署由运维自行安排 |
