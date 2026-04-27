@@ -1465,6 +1465,7 @@ mod tests {
             room_manager: room_manager.clone(),
             registry: registry.clone(),
             mute_redis: None,
+            chat_repo: None,
         }
     }
 

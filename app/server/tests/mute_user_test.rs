@@ -366,6 +366,7 @@ async fn mu29_04_chat_muted_user_send_message_blocked() {
         room_manager: room_manager.clone(),
         registry: registry.clone(),
         mute_redis: Some(mute_redis.clone() as Arc<dyn MuteRedis>),
+        chat_repo: None,
     };
 
     let response = handle_send_message(
@@ -842,6 +843,7 @@ async fn mu29_12_mic_and_chat_mute_are_independent() {
         room_manager: room_manager2.clone(),
         registry: registry2.clone(),
         mute_redis: Some(mute_redis2.clone() as Arc<dyn MuteRedis>),
+        chat_repo: None,
     };
 
     let msg_response = handle_send_message(

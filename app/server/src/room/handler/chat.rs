@@ -7,6 +7,7 @@ use std::sync::Arc;
 
 use uuid::Uuid;
 
+use crate::modules::chat::ChatRepository;
 use crate::modules::governance::mute::MuteRedis;
 use crate::room::manager::RoomManager;
 use crate::ws::registry::ConnectionRegistry;
@@ -14,13 +15,13 @@ use crate::ws::registry::ConnectionRegistry;
 // ─── SendMessageDeps ──────────────────────────────────────────────────────────
 
 /// `handle_send_message` 所需的服务依赖。
-///
-/// 发送消息只需要 room_manager 和 registry，与 TakeMicDeps / LeaveMicDeps 同构。
 pub struct SendMessageDeps {
     pub room_manager: Arc<RoomManager>,
     pub registry: Arc<ConnectionRegistry>,
     /// 禁言 Redis（T-00029 前置拦截）；None = 跳过拦截
     pub mute_redis: Option<Arc<dyn MuteRedis>>,
+    /// 聊天消息持久化（T-00043）；None = 跳过持久化（兼容旧测试）
+    pub chat_repo: Option<Arc<dyn ChatRepository>>,
 }
 
 // ─── handle_send_message ──────────────────────────────────────────────────────
@@ -109,11 +110,39 @@ pub async fn handle_send_message(
     }
     let filtered_content = filter_content(&content);
 
-    // ── 8. 广播 RoomMessage 给房间内所有连接（含请求方）— 走统一出口 broadcast_to_room
+    // ── 7.5 持久化到 DB（T-00043）─────────────────────────────────────────────
+    // 使用过滤后的 content（与广播一致，便于审计与 REST 历史回放视图相符）。
+    // 失败 → 50000 + 不广播；保证 DB / 广播状态一致。
+    let mut db_message_id: Option<String> = None;
+    if let Some(ref repo) = deps.chat_repo {
+        match repo.insert_message(room_id, user_id, &filtered_content).await {
+            Ok(id) => {
+                db_message_id = Some(id.to_string());
+            }
+            Err(e) => {
+                tracing::error!(
+                    room_id = %room_id,
+                    user_id = %user_id,
+                    error = %e,
+                    "chat_messages insert failed"
+                );
+                return send_message_error_response(
+                    msg_id,
+                    50000,
+                    "chat persistence failed, please retry",
+                );
+            }
+        }
+    }
+
+    // ── 8. 广播 RoomMessage（payload.msg_id 优先使用 DB id，T-00043 U-2）
+    let broadcast_payload_msg_id = db_message_id
+        .clone()
+        .unwrap_or_else(|| msg_id_str.clone());
     let room_msg_envelope = serde_json::json!({
         "type": "RoomMessage",
         "payload": {
-            "msg_id": msg_id_str,
+            "msg_id": broadcast_payload_msg_id,
             "user_id": user_id.to_string(),
             "content": filtered_content,
         },

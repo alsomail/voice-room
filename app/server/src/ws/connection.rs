@@ -124,6 +124,8 @@ pub struct SocketDeps {
     pub mic_lock: Arc<dyn MicLock>,
     /// 管理员任命 DB（T-00030 TransferAdmin 信令）
     pub transfer_admin_repo: Arc<dyn TransferAdminRepo>,
+    /// 聊天消息持久化（T-00043 SendMessage）
+    pub chat_repo: Arc<dyn crate::modules::chat::ChatRepository>,
 }
 
 /// 在成功升级的 WebSocket 上运行完整的读/写生命周期。
@@ -149,6 +151,7 @@ pub async fn handle_socket(
     mute_db: Arc<dyn MuteDb>,
     mic_lock: Arc<dyn MicLock>,
     transfer_admin_repo: Arc<dyn TransferAdminRepo>,
+    chat_repo: Arc<dyn crate::modules::chat::ChatRepository>,
 ) {
     let connection_id = Uuid::new_v4(); // 每次連接生成唯一 ID，與 user_id 解耦
     let (tx, mut rx) = mpsc::unbounded_channel::<String>();
@@ -280,6 +283,7 @@ pub async fn handle_socket(
                                         room_manager: room_manager.clone(),
                                         registry: registry.clone(),
                                         mute_redis: Some(mute_redis.clone()),
+                                        chat_repo: Some(chat_repo.clone()),
                                     };
                                     Some(
                                         crate::room::handler::handle_send_message(
