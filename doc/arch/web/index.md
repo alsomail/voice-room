@@ -20,6 +20,7 @@
 
 ### 实际目录：
 - 🧱 [目录结构与入口链路](./structure.md) - `main.tsx`、`App`、`HomePage`、环境变量与基础 helper 现状。
+- ⚙️ [多 Profile 环境配置体系](./config.md) - Vite mode 加载链、4 字段冻结表、启动期 fail-fast 校验、五档 `.env.{mode}` 文件、apiClient 默认值删除（**T-20020 ✅**）。
 - 📡 [Telemetry 与网络能力现状](./status.md) - 埋点 mock、URL 约束、WS/HTTP helper 与未落地项。
 - 🔐 [Auth 模块（登录页 UI + Zustand 状态管理 + 路由守卫）](./auth.md) - `LoginPage`/`LoginForm` 组件结构、`useAuthStore` JWT 状态管理、`AuthGuard` 路由守卫、401 拦截器、localStorage XSS 风险说明（T-20001 + T-20002）。
 - 🏠 **房间管理模块**（T-20004 ✅ · T-20005 ✅ · T-20011 ✅）- 路由 `/rooms`（在 `AuthGuard` 内）；涉及以下文件：
@@ -83,6 +84,7 @@
 - 🟢 余额调整弹窗 + 礼物管理页（`AdjustBalanceModal`：Form.useWatch 动态禁用、负数二次确认、isConfirming 防并发、成功后 refreshKey 刷新余额；`GiftManagementPage`：tier/状态筛选 + Switch 乐观更新回滚 + 软删除；`GiftEditModal`：图片上传校验 + price=0 禁用 + 预览；`AppLayout`：Ant Design 侧栏 + RBAC 礼物菜单（super_admin/operator）；apiClient 新增 6 个 wallet/gift API；i18n 新增 60+ key）← **T-20012 ✅ Done**
 - 🟢 用户行为流 Tab（`EventStreamTab`：时间筛选 [1h/24h/7d/30d/custom] + DatePicker.RangePicker (≤30天) + event_name 多选 Select + 事件时间线列表 (倒序，20/页) + CSV 导出 (limit=100，最多1000条，文件名user_{id}_events_{ts}.csv)；`EventTimelineItem`：event_name Tag + server_ts + 设备信息 + properties JSON 折叠；关键字高亮防 XSS (escapeHtml+<mark> 包裹)；独立 AbortController 管理 CSV 导出请求；apiClient 新增 `listUserEvents` API；测试覆盖率 EventTimelineItem 98.82%；Review R2 通过，450 个测试全部通过）← **T-20013 ✅ Done**
 - 🟢 治理日志查询页（`/rooms/governance` 路由；GovernanceLogsPage + KickLogsTab + MuteLogsTab + FiltersBar；默认 7 天时间窗；Tab 切换重置筛选和分页；房间ID/目标用户/操作者/时间范围筛选；mute 专属类型筛选；目标用户点击弹出 Drawer；RBAC 菜单控制（super_admin/operator/cs 可见，finance 隐藏）；apiClient 新增 listKicks/listMutes；services/api/governance.ts re-export；i18n en/zh 各 32 key；26 个测试用例全部通过）← **T-20014 ✅ Done**
+- 🟢 **Web 多 profile 环境配置体系**（Vite mode 加载链：`.env.{development|test|staging|production}` 五档入库；启动期 fail-fast 校验（缺值/空白 throw `[CONFIG ERROR] VITE_XXX must be set`）；`VITE_ADMIN_API_BASE_URL` 字段新增冻结；apiClient 删除默认值兜底（强制走 env）；vitest setup.ts stub 四字段避免全用例红；14 个新增 tests + 517/517 passed；production bundle 0 条 dev URL 泄露）← **T-20020 ✅ Done**
 
 ### 遗留技术债 (Tech Debt)
 - 当前工程脚手架仍保留 C 端时期的 telemetry mock 和 WS helper，需要在后续重构中清理。

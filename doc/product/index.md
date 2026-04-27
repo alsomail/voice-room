@@ -1,6 +1,6 @@
 # Voice Room 产品文档总索引
 
-> **版本**: v3.4  
+> **版本**: v3.7  
 > **更新日期**: 2026-05-31  
 > **负责人**: PM Agent  
 > **目标市场**: MENA (Middle East & North Africa) 中东北非
@@ -63,6 +63,7 @@
 ---
 
 **文档变更历史**:
+- **2026-05-31: v3.7，T-20020 DoD 完成，模块 9 进度 7/12**：doc/arch/web/config.md 新建补充 Web 多 profile 环境配置体系文档（Vite mode 加载链、五档 `.env.{mode}` 文件、启动期 fail-fast 校验、`VITE_ADMIN_API_BASE_URL` 字段冻结、apiClient 删默认值、vitest setup.ts stub、517/517 tests passed、production bundle 0 dev URL 泄露）；doc/arch/web/index.md 子模块索引新增 config.md、能力矩阵新增 T-20020 条目；doc/architecture/index.md 关联文档新增 T-20020 TDS + doc/arch/web/config.md 链接（Web 多 profile 环境配置体系详解）；doc/tasks/模块9-E2E测试基建 (E2E QA Foundation).md T-20020 行：研发状态 In Progress → ✅ Done（Review Gate 已 ✅ Passed）；doc/tasks/index.md 版本更新 v2.25 → v2.26，新增 v2.26 变更记录；doc/product/index.md Phase 1.6 E2E 测试基建进度 6/12 → 7/12；P1 Web 多环境就绪（Vite mode/env.ts/apiClient/vitest setup 完整），M2 三端对称完成（AppServer/AdminServer/Web config 加载链均就绪），待 Android productFlavors 对齐
 - **2026-05-31: v3.6，T-10020 DoD 完成，模块 9 进度 6/12**：doc/arch/adminServer/structure.md 新建（与 doc/arch/server/structure.md 对称）补充 §一目录结构、§二启动流程 T-10020 配置加载详解、§三配置加载与多 profile 体系、§四配置文件字段冻结表（default.toml 6 章节完整骨架 + 5 档 profile 差异表）、§五测试覆盖扩展（T-10020 新增 27 单元 + 5 集成测试，总计 474 passed）、§六与 AppServer T-00040 对称差异表；doc/arch/adminServer/index.md 子模块索引新增 T-10020 条目、config 目录补充 5 档 toml、目录结构补充 infrastructure/config.rs；doc/architecture/index.md 关联文档新增 T-10020 TDS + config/ 目录链接（AdminServer 多 profile 配置体系、与 AppServer 对称、D-A1：dev REDIS_URL 缺失 → NoopEventPublisher）；doc/tasks/模块9-E2E测试基建 (E2E QA Foundation).md T-10020 行：研发状态 In Progress → ✅ Done（Review Gate 已 ✅ Passed）；doc/tasks/index.md 版本更新 v2.24 → v2.25，新增 v2.25 变更记录；doc/product/index.md Phase 1.6 E2E 测试基建进度 5/12 → 6/12；M1+ 本地多环境对称完成（AppServer/AdminServer config 加载链均就绪），待 P1 任务（Web/Android 对齐）推进
 - **2026-05-31: v3.5，T-00040 DoD 完成，模块 9 进度 5/12**：doc/arch/server/structure.md 补充 §二启动流程 T-00040 配置加载详解、§三配置加载与多 profile 体系、§四配置文件字段冻结表（default.toml 6 章节完整骨架 + 5 档 profile 差异表）、§五测试覆盖扩展（T-00040 新增 31 单元 + 3 集成测试，总计 636 passed）；doc/architecture/index.md 关联文档新增 T-00040 TDS + config/ 目录链接（AppServer 多 profile 配置体系、fail-fast 错误契约、敏感字段脱敏）；doc/tasks/模块9-E2E测试基建 (E2E QA Foundation).md T-00040 行：研发状态 In Progress → ✅ Done（Review Gate 已 ✅ Passed）；doc/tasks/index.md 版本更新 v2.19 → v2.21，新增 v2.21 变更记录；doc/product/index.md Phase 1.6 E2E 测试基建进度 4/12 → 5/12；M1+ 本地多环境就绪（globalSetup/envLoader/config 加载链完整），待 T-10020 AdminServer 对称化推进
 - 2026-05-31: v3.4，**T-0000H DoD 完成，模块 9 进度 4/12**：doc/architecture/index.md 关联文档新增 E2E globalSetup/Teardown/envLoader 索引（T-0000H TDS + tests/scripts/support/ 路径 + Playwright 启动期编排器五道防线说明）；doc/arch/infra/index.md 能力矩阵新增 T-0000H 八行（envLoader/globalSetup/globalTeardown/fixtures + playwright.config.ts/unit.config.ts/tsconfig.json）详解交付物与验收内容；doc/tasks/模块9-E2E测试基建 (E2E QA Foundation).md T-0000H 行：研发状态 In Progress → ✅ Done（Review Gate 已 ✅ Passed）；doc/tasks/index.md 版本更新 v2.16 → v2.17，新增 v2.17 变更记录；doc/product/index.md Phase 1.6 E2E 测试基建进度 3/12 → 4/12；M1 本地 E2E 链路已具备（globalSetup 五步编排完整、envLoader 单一源、fixtures 五防线齐全），待 T-0000J 接入用例验证完整流程
