@@ -5,7 +5,6 @@
  */
 import { test, expect } from '@playwright/test';
 import { execSync } from 'child_process';
-import 'dotenv/config';
 
 const sh = (cmd: string) => execSync(cmd, { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'pipe'] });
 

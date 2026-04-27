@@ -255,6 +255,9 @@ export function writeProcessEnv(env: E2EEnv): void {
   process.env.APP_SERVER_BASE_URL = env.appServerBaseUrl;
   process.env.ADMIN_SERVER_BASE_URL = env.adminServerBaseUrl;
   process.env.ADMIN_WEB_URL = env.adminWebUrl;
+  // T-0000J §2.3：双 key fallback。playwright.config.ts use.baseURL 优先读 runtime 私有 key，
+  // 退回 shell 预 export 的 ADMIN_WEB_URL；避免 globalSetup 求值时序与 shell env 双向冲突。
+  process.env._E2E_RUNTIME_ADMIN_WEB_URL = env.adminWebUrl;
   process.env.APP_WS_URL = env.appWsUrl;
   if (env.databaseUrl) process.env.DATABASE_URL = env.databaseUrl;
   if (env.redisUrl) process.env.REDIS_URL = env.redisUrl;

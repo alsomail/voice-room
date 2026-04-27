@@ -9,10 +9,8 @@ import { execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import 'dotenv/config';
 
-const APP = process.env.APP_SERVER_BASE_URL ?? 'http://localhost:3000';
-const URL = process.env.ADMIN_WEB_URL ?? 'http://localhost:5173';
+const APP = process.env.APP_SERVER_BASE_URL!;
 const APP_ID = process.env.ANDROID_APP_ID ?? 'com.voiceroom.debug';
 const T = process.env.E2E_VALID_TOKEN ?? '';
 
@@ -52,11 +50,11 @@ appId: ${APP_ID}
 `);
 
     // Step 3: Web 管理员强制关房
-    await page.goto(`${URL}/login`);
+    await page.goto('/login');
     const agent = new PlaywrightAgent(page);
     await agent.aiAction('在用户名输入 "admin_op"，密码输入 "Pass@123"，点击登录');
     await page.waitForURL(/dashboard/);
-    await page.goto(`${URL}/rooms`);
+    await page.goto('/rooms');
     await agent.aiAction(`在搜索框输入房间 ID "${rid}" 并回车`);
     await agent.aiAction('点击结果行的房间标题');
     await agent.aiAction('在右侧抽屉点击"强制关闭房间"按钮');

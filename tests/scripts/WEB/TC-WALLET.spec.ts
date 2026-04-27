@@ -4,20 +4,18 @@
  */
 import { test, expect } from '@playwright/test';
 import { PlaywrightAgent } from '@midscene/web/playwright';
-import 'dotenv/config';
 
-const URL = process.env.ADMIN_WEB_URL ?? 'http://localhost:5173';
 
 test.describe('TC-WALLET WEB - 调整余额', () => {
   test('TC-WALLET-00001: 调整余额弹窗 - 校验 + 双重确认', async ({ page }) => {
-    await page.goto(`${URL}/login`);
+    await page.goto('/login');
     const agent = new PlaywrightAgent(page);
     await agent.aiAction('在用户名输入框输入 "admin_fin"');
     await agent.aiAction('在密码输入框输入 "Pass@123"');
     await agent.aiAction('点击"登录"按钮');
     await page.waitForURL(/dashboard/);
 
-    await page.goto(`${URL}/users`);
+    await page.goto('/users');
     await agent.aiAction('点击表格第一行用户昵称，然后在详情抽屉中点击"调整余额"按钮');
     await agent.aiAssert('弹出调整余额 Modal，包含"当前余额"展示、"变动值（正负）"输入、"原因"输入、"二次确认"复选框');
 

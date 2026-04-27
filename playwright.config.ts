@@ -5,7 +5,7 @@ import * as path from 'node:path';
  * Voice Room E2E Playwright 配置（T-0000H 改造）
  *
  * 关键变化：
- *   - 不再在 config 顶层 dotenv.config()；env 加载完全交由 globalSetup（envLoader）
+ *   - 不再在 config 顶层加载 dotenv；env 加载完全交由 globalSetup（envLoader）
  *   - 新增 globalSetup / globalTeardown 指向 tests/scripts/support/
  *   - profile=prod 时 grep '@prod-safe'（与 fixture L3 双保险）
  *   - use.baseURL = lazy 读 process.env.ADMIN_WEB_URL（globalSetup Step4 注入）
@@ -36,9 +36,12 @@ export default defineConfig({
   ],
 
   use: {
-    // baseURL 在 globalSetup Step4 通过 writeProcessEnv 注入；冷启动前若 shell 未 export，
-    // 用户可在根 .env 设置 ADMIN_WEB_URL；T-0000J 阶段会改用 e2eEnv fixture 注入。
-    baseURL: process.env.ADMIN_WEB_URL || undefined,
+    // T-0000J §2.3 修复矩阵：use.baseURL 双 key fallback。
+    //   - _E2E_RUNTIME_ADMIN_WEB_URL：globalSetup Step4 writeProcessEnv 注入的 runtime 私有 key
+    //   - ADMIN_WEB_URL：shell 预 export 兜底（与 T-0000F 根 .env 字段一致）
+    // 求值时序：Playwright defineConfig 同步读取，但 globalSetup 在 worker `test()` 之前完成 Step4，
+    // 因此 worker 侧拿到的 process.env 已写入；config 顶层求值则读 shell 预 export 值。
+    baseURL: process.env._E2E_RUNTIME_ADMIN_WEB_URL ?? process.env.ADMIN_WEB_URL,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },

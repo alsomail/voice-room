@@ -5,9 +5,7 @@
  */
 import { test, expect } from '@playwright/test';
 import { PlaywrightAgent } from '@midscene/web/playwright';
-import 'dotenv/config';
 
-const ADMIN_WEB_URL = process.env.ADMIN_WEB_URL ?? 'http://localhost:5173';
 
 test.describe('TC-AUTH WEB - 管理员登录', () => {
   test.beforeEach(async ({ context }) => {
@@ -15,7 +13,7 @@ test.describe('TC-AUTH WEB - 管理员登录', () => {
   });
 
   test('TC-AUTH-00001: 登录页 UI + 记住用户名', async ({ page }) => {
-    await page.goto(`${ADMIN_WEB_URL}/login`);
+    await page.goto('/login');
     await page.evaluate(() => localStorage.clear());
     await page.reload();
     const agent = new PlaywrightAgent(page);
@@ -39,7 +37,7 @@ test.describe('TC-AUTH WEB - 管理员登录', () => {
   });
 
   test('TC-AUTH-00002: 登录失败 - 错误凭证 + 表单校验', async ({ page }) => {
-    await page.goto(`${ADMIN_WEB_URL}/login`);
+    await page.goto('/login');
     const agent = new PlaywrightAgent(page);
 
     await agent.aiAction('在用户名输入框中输入 "admin_op"');
@@ -55,7 +53,7 @@ test.describe('TC-AUTH WEB - 管理员登录', () => {
 
   test('TC-AUTH-00003: 路由守卫 - 未登录重定向', async ({ page }) => {
     await page.evaluate(() => localStorage.clear()).catch(() => {});
-    await page.goto(`${ADMIN_WEB_URL}/rooms`);
+    await page.goto('/rooms');
     await page.waitForURL(/\/login\?redirect=/);
     expect(page.url()).toMatch(/\/login\?redirect=.*rooms/);
 
@@ -66,13 +64,13 @@ test.describe('TC-AUTH WEB - 管理员登录', () => {
     await page.waitForURL(/\/rooms/, { timeout: 10_000 });
 
     // 已登录访问 /login 应重定向 dashboard
-    await page.goto(`${ADMIN_WEB_URL}/login`);
+    await page.goto('/login');
     await page.waitForURL(/\/dashboard/);
   });
 
   test('TC-AUTH-00004: Token 过期自动退出', async ({ page }) => {
     // 先走一遍登录流程
-    await page.goto(`${ADMIN_WEB_URL}/login`);
+    await page.goto('/login');
     const agent = new PlaywrightAgent(page);
     await agent.aiAction('在用户名输入框中输入 "admin_op"');
     await agent.aiAction('在密码输入框中输入 "Pass@123"');
@@ -90,7 +88,7 @@ test.describe('TC-AUTH WEB - 管理员登录', () => {
   });
 
   test('TC-AUTH-00005: i18n 中英切换 + 持久化', async ({ page }) => {
-    await page.goto(`${ADMIN_WEB_URL}/login`);
+    await page.goto('/login');
     const agent = new PlaywrightAgent(page);
     await agent.aiAction('点击右上角的“语言”下拉菜单，选择 “English”');
     await agent.aiAssert('页面中出现 "Username"、"Password"、"Login" 英文文案');

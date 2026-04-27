@@ -4,9 +4,8 @@
  */
 import { test, expect } from '@playwright/test';
 import { execSync } from 'child_process';
-import 'dotenv/config';
 
-const ADMIN = process.env.ADMIN_SERVER_BASE_URL ?? 'http://localhost:3001';
+const ADMIN = process.env.ADMIN_SERVER_BASE_URL!;
 const OP = process.env.E2E_OP_TOKEN ?? '';
 const CS = process.env.E2E_CS_TOKEN ?? '';
 const psql = (s: string) =>

@@ -4,10 +4,9 @@
  */
 import { test, expect, request as pwRequest } from '@playwright/test';
 import { execSync } from 'child_process';
-import 'dotenv/config';
 
-const APP = process.env.APP_SERVER_BASE_URL ?? 'http://localhost:3000';
-const ADMIN = process.env.ADMIN_SERVER_BASE_URL ?? 'http://localhost:3001';
+const APP = process.env.APP_SERVER_BASE_URL!;
+const ADMIN = process.env.ADMIN_SERVER_BASE_URL!;
 const T = process.env.E2E_VALID_TOKEN ?? '';
 const OP = process.env.E2E_OP_TOKEN ?? '';
 const CS = process.env.E2E_CS_TOKEN ?? '';
@@ -77,7 +76,7 @@ test.describe('TC-ROOM API - 房间', () => {
     expect((await r.json()).code).toBe(40101);
   });
 
-  test('TC-ROOM-00006: 列表 热度降序 + 分页', async ({ request }) => {
+  test('TC-ROOM-00006: 列表 热度降序 + 分页 @prod-safe', { tag: '@prod-safe' }, async ({ request }) => {
     test.skip(!T, '需要 Token');
     const r = await request.get(`${APP}/api/v1/rooms?page=1&per_page=20`, {
       headers: { Authorization: `Bearer ${T}` },
@@ -96,7 +95,7 @@ test.describe('TC-ROOM API - 房间', () => {
     for (const i of list) expect(i.status).toBe('open');
   });
 
-  test('TC-ROOM-00008: 详情 合法/非法/不存在', async ({ request }) => {
+  test('TC-ROOM-00008: 详情 合法/非法/不存在 @prod-safe', { tag: '@prod-safe' }, async ({ request }) => {
     test.skip(!T, '需要 Token');
     const good = process.env.E2E_ROOM_ID ?? '';
     if (good) {

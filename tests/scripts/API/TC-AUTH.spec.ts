@@ -4,21 +4,20 @@
  * 说明：
  *   - API 层用例直接通过 Playwright 的 `request` fixture 进行 HTTP 断言，不启动浏览器。
  *   - Redis/DB 操作通过 execSync 调用本机 redis-cli / psql（需已在环境变量中配置）。
- *   - 所有用例假设 App Server=http://localhost:3000，Admin Server=http://localhost:3001。
+ *   - 所有用例假设 App Server / Admin Server 由 envLoader 注入（base URL 必填）。
  */
 import { test, expect, request as playwrightRequest } from '@playwright/test';
 import { execSync } from 'child_process';
-import 'dotenv/config';
 
-const APP_BASE = process.env.APP_SERVER_BASE_URL ?? 'http://localhost:3000';
-const ADMIN_BASE = process.env.ADMIN_SERVER_BASE_URL ?? 'http://localhost:3001';
+const APP_BASE = process.env.APP_SERVER_BASE_URL!;
+const ADMIN_BASE = process.env.ADMIN_SERVER_BASE_URL!;
 
 const redis = (cmd: string): string =>
   execSync(`redis-cli ${cmd}`, { encoding: 'utf-8' }).trim();
 
 const psql = (sql: string): string =>
   execSync(
-    `psql "${process.env.DATABASE_URL ?? 'postgres://app_server_user:app_server_pwd@localhost:5432/voice_room'}" -tA -c "${sql.replace(/"/g, '\\"')}"`,
+    `psql "${process.env.DATABASE_URL!}" -tA -c "${sql.replace(/"/g, '\\"')}"`,
     { encoding: 'utf-8' },
   ).trim();
 

@@ -4,9 +4,8 @@
  */
 import { test, expect } from '@playwright/test';
 import { execSync } from 'child_process';
-import 'dotenv/config';
 
-const ADMIN = process.env.ADMIN_SERVER_BASE_URL ?? 'http://localhost:3001';
+const ADMIN = process.env.ADMIN_SERVER_BASE_URL!;
 const CS = process.env.E2E_CS_TOKEN ?? '';
 const OP = process.env.E2E_OP_TOKEN ?? '';
 const UID = process.env.E2E_USER_A_ID ?? '';
@@ -14,7 +13,7 @@ const psql = (s: string) =>
   execSync(`psql "${process.env.DATABASE_URL}" -tA -c "${s.replace(/"/g, '\\"')}"`, { encoding: 'utf-8' }).trim();
 
 test.describe('TC-USER API - Admin 用户管理', () => {
-  test('TC-USER-00001: 列表 - 分页/检索/XSS 安全', async ({ request }) => {
+  test('TC-USER-00001: 列表 - 分页/检索/XSS 安全 @prod-safe', { tag: '@prod-safe' }, async ({ request }) => {
     test.skip(!CS, '需要 E2E_CS_TOKEN');
     const r = await request.get(`${ADMIN}/api/v1/admin/users?page=1&per_page=20&q=user`, {
       headers: { Authorization: `Bearer ${CS}` },
@@ -31,7 +30,7 @@ test.describe('TC-USER API - Admin 用户管理', () => {
     expect(xss.status()).toBe(200);
   });
 
-  test('TC-USER-00002: 详情 - 含钱包/流水/设备', async ({ request }) => {
+  test('TC-USER-00002: 详情 - 含钱包/流水/设备 @prod-safe', { tag: '@prod-safe' }, async ({ request }) => {
     test.skip(!CS || !UID, '需要 Token/UserID');
     const r = await request.get(`${ADMIN}/api/v1/admin/users/${UID}`, {
       headers: { Authorization: `Bearer ${CS}` },

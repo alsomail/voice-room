@@ -8,9 +8,7 @@ import { execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import 'dotenv/config';
 
-const URL = process.env.ADMIN_WEB_URL ?? 'http://localhost:5173';
 const APP_ID = process.env.ANDROID_APP_ID ?? 'com.voiceroom.debug';
 const UID = process.env.E2E_USER_A_ID ?? '';
 
@@ -41,11 +39,11 @@ appId: ${APP_ID}
 `);
 
     // Step 2: Web Admin 执行封禁
-    await page.goto(`${URL}/login`);
+    await page.goto('/login');
     const agent = new PlaywrightAgent(page);
     await agent.aiAction('在用户名输入 "admin_op"，密码输入 "Pass@123"，点击登录');
     await page.waitForURL(/dashboard/);
-    await page.goto(`${URL}/users`);
+    await page.goto('/users');
     await agent.aiAction(`在搜索框输入 "${UID}" 并回车`);
     await agent.aiAction('点击匹配行的用户昵称，在详情抽屉中点击"封禁"按钮');
     await agent.aiAction('选择"临时"，时长选择"24 小时"，原因输入"E2E 测试"，点击"确定"');
@@ -68,7 +66,7 @@ appId: ${APP_ID}
 `);
 
     // Step 5: Web 刷新列表状态同步
-    await page.goto(`${URL}/users`);
+    await page.goto('/users');
     await agent.aiAction(`在搜索框输入 "${UID}" 并回车`);
     await agent.aiAssert('匹配行状态列显示红色"已封禁"标签');
 

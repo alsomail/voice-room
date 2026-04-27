@@ -4,16 +4,15 @@
  */
 import { test, expect } from '@playwright/test';
 import { execSync } from 'child_process';
-import 'dotenv/config';
 
-const APP = process.env.APP_SERVER_BASE_URL ?? 'http://localhost:3000';
+const APP = process.env.APP_SERVER_BASE_URL!;
 const T = process.env.E2E_VALID_TOKEN ?? '';
 const redis = (s: string) => execSync(`redis-cli ${s}`, { encoding: 'utf-8' }).trim();
 
 test.describe('TC-RANKING API - 排行榜', () => {
   test.skip(!T, '需要 E2E_VALID_TOKEN');
 
-  test('TC-RANKING-00001: 参数矩阵', async ({ request }) => {
+  test('TC-RANKING-00001: 参数矩阵 @prod-safe', { tag: '@prod-safe' }, async ({ request }) => {
     for (const period of ['day', 'week']) {
       for (const type of ['send', 'recv']) {
         const r = await request.get(`${APP}/api/v1/ranking?period=${period}&type=${type}&limit=50`, {
@@ -32,7 +31,7 @@ test.describe('TC-RANKING API - 排行榜', () => {
     expect(bad.status()).toBe(400);
   });
 
-  test('TC-RANKING-00002: me.rank 未上榜为 null', async ({ request }) => {
+  test('TC-RANKING-00002: me.rank 未上榜为 null @prod-safe', { tag: '@prod-safe' }, async ({ request }) => {
     const r = await request.get(`${APP}/api/v1/ranking?period=day&type=send`, {
       headers: { Authorization: `Bearer ${T}` },
     });

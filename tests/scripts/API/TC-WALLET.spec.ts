@@ -5,11 +5,10 @@
 import { test, expect } from '@playwright/test';
 import WebSocket from 'ws';
 import { execSync } from 'child_process';
-import 'dotenv/config';
 
-const APP = process.env.APP_SERVER_BASE_URL ?? 'http://localhost:3000';
-const ADMIN = process.env.ADMIN_SERVER_BASE_URL ?? 'http://localhost:3001';
-const WS = process.env.APP_WS_URL ?? 'ws://localhost:3000/ws';
+const APP = process.env.APP_SERVER_BASE_URL!;
+const ADMIN = process.env.ADMIN_SERVER_BASE_URL!;
+const WS = process.env.APP_WS_URL!;
 const T = process.env.E2E_VALID_TOKEN ?? '';
 const FIN = process.env.E2E_FIN_TOKEN ?? '';
 const UID = process.env.E2E_USER_A_ID ?? '';

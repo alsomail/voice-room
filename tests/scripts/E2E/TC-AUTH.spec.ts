@@ -6,19 +6,18 @@
  */
 import { test, expect } from '@playwright/test';
 import { execSync } from 'child_process';
-import 'dotenv/config';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
 
-const APP_BASE = process.env.APP_SERVER_BASE_URL ?? 'http://localhost:3000';
+const APP_BASE = process.env.APP_SERVER_BASE_URL!;
 
 const redis = (cmd: string): string =>
   execSync(`redis-cli ${cmd}`, { encoding: 'utf-8' }).trim();
 
 const psql = (sql: string): string =>
   execSync(
-    `psql "${process.env.DATABASE_URL ?? 'postgres://app_server_user:app_server_pwd@localhost:5432/voice_room'}" -tA -c "${sql.replace(/"/g, '\\"')}"`,
+    `psql "${process.env.DATABASE_URL!}" -tA -c "${sql.replace(/"/g, '\\"')}"`,
     { encoding: 'utf-8' },
   ).trim();
 
