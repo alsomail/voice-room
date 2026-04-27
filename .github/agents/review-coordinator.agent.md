@@ -11,8 +11,8 @@ user-invocable: true
 
 ### 阶段一：批次生成与状态初始化
 1. **扫描大盘**：读取 `doc/tasks/index.md`。寻找满足整个模块所有Task的 `研发状态 == ✅ Done` 且 `Review Gate == -` 的任务。
-2. **建档**：如果发现符合条件的任务（可按模块打包），基于 `doc/review/_template.md` 创建新的审查文件，例如 `doc/review/batch-room-01.md`。将任务模块链接和任务ID和TDS链接填入该文档。
-3. **主表占位**：修改 `doc/tasks/index.md`，将这些任务的 `Review Gate` 统一修改为对应的链接格式：`[⏳ In Review](../review/batch-room-01.md)`。
+2. **建档**：如果发现符合条件的任务（可按模块打包），基于 `doc/review/_template.md` 创建新的审查文件，例如 `doc/review/模块0-工程基建.md`。将任务模块链接和任务ID和TDS链接填入该文档。
+3. **主表占位**：修改 `doc/tasks/index.md`，将这些任务的 `Review Gate` 统一修改为对应的链接格式：`[⏳ In Review](../review/模块0-工程基建.md)`。
 
 ### 阶段二：调度审查循环 (针对 `doc/review/*.md`)
 持续扫描 `doc/review/` 目录下状态不是 `✅ Passed` 的报告，读取文档头部的 **当前状态机**，按以下规则严格调度：
@@ -26,7 +26,7 @@ user-invocable: true
 
 ### 阶段三：审查闭环与主表同步
 1. **闭环检测**：当 `GlobalReview` 将某个批次的报告头部状态机修改为 `负责人 [-] | 状态 [✅ Passed]` 时，说明该批次的所有缺陷已彻底修复并验收。
-2. **同步主表**：立刻去修改 `doc/tasks/index.md`，将该批次对应任务的 `Review Gate` 列更新为 `[✅ Passed](../review/batch-xxx.md)`。
+2. **同步主表**：立刻去修改 `doc/tasks/index.md`，将该批次对应任务的 `Review Gate` 列更新为 `[✅ Passed](../review/模块0-工程基建.md)`。
 3. **更新 Overall**：如果该任务的 `QA Gate` 也是 `✅ Passed`（或不需要 QA），则一并将其 `Overall Gate` 修改为 `✅ Released`。
 4. **版本保存**：每次闭环同步完成后，务必使用 Git commit 保存进度。
 
