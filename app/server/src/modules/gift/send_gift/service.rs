@@ -369,7 +369,7 @@ impl SendGiftServicePort for GiftSendService {
             }
         };
 
-        // ── 7. 更新 Redis 榜单（非阻断）──────────────────────────────────────
+        // ── 7. 更新 Redis 榜单（同步：榜单是事务后必须发生的副作用，测试 sg04 需要）──
         match self.redis_client.get_multiplexed_async_connection().await {
             Ok(mut conn) => {
                 ranking::update_rankings(&mut conn, receiver_id, sender_id, total).await;
@@ -382,7 +382,7 @@ impl SendGiftServicePort for GiftSendService {
             }
         }
 
-        // ── 8. 广播 GiftReceived（异步，不阻塞 HTTP 响应）───────────────────
+        // ── 8. 广播 GiftReceived（同步：broadcast_to_room 只是 channel send，O(1) 非阻塞）──
         let gift_envelope = build_gift_received_msg(
             gift_record_id,
             sender_id,
@@ -401,19 +401,17 @@ impl SendGiftServicePort for GiftSendService {
             total,
         );
         
-        let registry_clone = Arc::clone(&self.registry);
-        let room_manager_clone = Arc::clone(&self.room_manager);
-        tokio::spawn(async move {
-            if let Some(rs) = room_manager_clone.get_room(room_id) {
-                crate::ws::broadcaster::broadcast_to_room(&registry_clone, &rs, gift_envelope);
-            } else {
-                crate::ws::broadcaster::broadcast_to_room_no_state(
-                    &registry_clone,
-                    room_id,
-                    gift_envelope,
-                );
-            }
-        });
+        // 直接调用（不 spawn）：broadcast_to_room 内部只是 sender.send()，不会阻塞
+        // 广播失败用 let _ = ... 吞掉（TDS U-5 契约：不影响 HTTP 200）
+        if let Some(rs) = self.room_manager.get_room(room_id) {
+            let _ = crate::ws::broadcaster::broadcast_to_room(&self.registry, &rs, gift_envelope);
+        } else {
+            let _ = crate::ws::broadcaster::broadcast_to_room_no_state(
+                &self.registry,
+                room_id,
+                gift_envelope,
+            );
+        }
 
         Ok(SendGiftResult {
             gift_record_id,
