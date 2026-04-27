@@ -47,7 +47,7 @@ pub async fn list_gifts(
 /// - **请求**: `{ room_id, gift_id, receiver_id, count }`
 /// - **响应**: `{ code:0, data:{ gift_record_id, sender_balance, receiver_charm } }`
 /// - **错误码**:
-///   - 40001: INVALID_COUNT（count ≤ 0 或 > 9999）
+///   - 40004: INVALID_COUNT（count ≤ 0 或 > 9999）
 ///   - 40290: INSUFFICIENT_BALANCE（余额不足）
 ///   - 40402: GIFT_NOT_AVAILABLE（礼物不存在或已下架）
 ///   - 40403: RECEIVER_UNAVAILABLE（接收者不在麦上）
@@ -57,10 +57,17 @@ pub async fn send_gift_http(
     State(state): State<AppState>,
     Extension(rc): Extension<RequestContext>,
     ctx: AuthContext,
+    headers: HeaderMap,
     Json(req): Json<SendGiftRequest>,
 ) -> axum::response::Response {
-    // 构建 msg_id（HTTP 场景下使用 UUID）
-    let msg_id = uuid::Uuid::new_v4().to_string();
+    // 优先使用客户端提供的 Idempotency-Key 作为 msg_id；缺省时生成 UUID
+    let msg_id = headers
+        .get("idempotency-key")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
 
     let payload = SendGiftPayload {
         gift_id: req.gift_id,
