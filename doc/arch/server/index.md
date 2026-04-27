@@ -19,9 +19,9 @@ Server 端基于 Rust + Axum 构建。启动骨架（配置、日志、健康检
 - 🧱 [启动、配置与目录结构](./structure.md) - `main.rs`、`bootstrap`、`config`、`logging`、数据库 / Redis 初始化与测试入口现状。
 - 📊 [能力状态与缺口盘点](./status.md) - 现有可用能力、未落地模块与下一步约束。
 - 🔐 [Auth 模块架构](./auth.md) - 短信验证码（T-00002）、手机号登录（T-00003）、JWT 中间件（T-00004）、获取用户信息（T-00005）的路由、服务、Redis Key 设计与错误码映射。
-- 🗄️ [数据库 Schema 设计](./database.md) - 各业务表 DDL 说明、字段约束、索引策略与 Rust 模型映射（含 `rooms` 表 T-00006、房间治理扩字段 + `room_kick_records` + `room_mute_records` T-00024）。
+- 🗄️ [数据库 Schema 设计](./database.md) - 各业务表 DDL 说明、字段约束、索引策略与 Rust 模型映射（含 `rooms` 表 T-00006、房间治理扩字段 + `room_kick_records` + `room_mute_records` T-00024、`chat_messages` 持久化表 T-00043）。
 - 🔌 [WebSocket 模块架构](./websocket.md) - WS 握手鉴权（T-00011）、`ConnectionRegistry`、心跳检测、单连接生命周期与 `connection_id` 解耦设计。
-- 🏠 [房间运行时模块](./room_runtime.md) - `src/room/` 模块说明：`RoomManager`（DashMap 全局状态）、`RoomState`（成员表 + 麦位 + `banned_mics` + `muted_users` + `processed_msg_ids`）、`handle_join_room` WS 信令处理（T-00012）、`do_leave_room` / `handle_leave_room` 离开房间逻辑（T-00013）、`take_mic_slot` / `handle_take_mic` 上麦逻辑（T-00014）、`leave_mic_slot` / `handle_leave_mic` 下麦逻辑（T-00015）、`filter_content` 敏感词净化 / `handle_send_message` 文本消息广播（T-00016）。
+- 🏠 [房间运行时模块](./room_runtime.md) - `src/room/` 模块说明：`RoomManager`（DashMap 全局状态）、`RoomState`（成员表 + 麦位 + `banned_mics` + `muted_users` + `processed_msg_ids`）、`handle_join_room` WS 信令处理（T-00012）、`do_leave_room` / `handle_leave_room` 离开房间逻辑（T-00013）、`take_mic_slot` / `handle_take_mic` 上麦逻辑（T-00014）、`leave_mic_slot` / `handle_leave_mic` 下麦逻辑（T-00015）、`filter_content` 敏感词净化 / `handle_send_message` 文本消息 WS 广播（T-00016）；`src/modules/chat/` 聊天历史 REST API 与 DB 持久化（T-00043）。
 - 💰 [Wallet 模块架构](./wallet.md) - 余额查询 API（T-00018）、流水分页查询、`WalletService.apply_delta` 原子事务支持、`BalanceBroadcaster` Redis PubSub 跨进程推送、WS `BalanceUpdated` 信令设计。
 - 🎁 [礼物模块架构](./gift.md) - 礼物配置表与列表 API（T-00019）、国际化支持（Accept-Language）、缓存策略（60s 进程内存）、`GiftModel` 数据模型；SendGift 事务编排（T-00020）、6 步强事务流程、msg_id 幂等、并发超扣防护、房间广播与发送者推送。
 - 📊 [Analytics 模块架构](./analytics.md) - 事件表 Schema + 分区设计（T-00022）、HTTP `POST /api/v1/events/batch` 批量接收接口、PartitionScheduler 定时分区创建 + 补偿逻辑；WebSocket `ReportEvent` 信令（T-00023）与 EventWriter 共享写入层、JWT user_id 覆盖逻辑、properties 8KB 截断机制。
@@ -107,12 +107,24 @@ Server 端基于 Rust + Axum 构建。启动骨架（配置、日志、健康检
   - **`ws/connection.rs` 扩展**：信令路由新增 `LeaveMic` 分支，调用 `handle_leave_mic`
   - **关键设计**：`leave_mic_slot` 写锁不跨 `await`，与 `take_mic_slot` 对称；`do_leave_room` 内先暂存麦位再广播，确保离房与下麦广播顺序正确；未在麦上时幂等返回成功
   - 新增测试覆盖未在麦上幂等、成功下麦广播验证、`do_leave_room` 自动下麦顺序等场景；全量 182 passed, 0 failed
-- 🟢 **文本消息广播**（T-00016）：WS 信令 `SendMessage`
-  - **`room/filter.rs`**（新建）：`filter_content(text) -> String` — 基于 `SENSITIVE_WORDS` 占位常量做关键词替换（`***`），为后续接入真实敏感词库预留扩展点
-  - **`room/state.rs` 扩展**：新增 `muted_users: DashSet<Uuid>`（禁言用户集合）与 `processed_msg_ids: DashSet<String>`（已处理消息 ID，基于 `msg_id` 幂等去重）
-  - **`room/handler.rs` 扩展**：新增 `SendMessageDeps` 依赖结构体；新增 `handle_send_message` 8 步流程：payload 解析 → 内容非空校验 → 长度限制（500 字符）→ 房间存在校验 → 禁言检查（`muted_users`）→ `msg_id` 幂等去重（`processed_msg_ids`）→ 敏感词净化（`filter_content`）→ 广播 `MessageReceived` 事件 → 返回成功响应
-  - **`ws/connection.rs` 扩展**：信令路由新增 `SendMessage` 分支，调用 `handle_send_message`
-  - **关键设计**：`processed_msg_ids` 基于 `DashSet<String>` 无锁并发去重，幂等插入（`insert` 返回 `false` 表示重复）；`muted_users` DashSet 无锁并发读；敏感词净化在广播前执行，广播内容为净化后文本；全量 196 passed, 0 failed
+- 🟢 **文本消息广播与持久化**（T-00016 + T-00043 升级版）：WS 信令 `SendMessage` + REST 历史查询
+  - **T-00016 WS 信令处理**：
+    - **`room/filter.rs`**（新建）：`filter_content(text) -> String` — 基于 `SENSITIVE_WORDS` 占位常量做关键词替换（`***`），为后续接入真实敏感词库预留扩展点
+    - **`room/state.rs` 扩展**：新增 `muted_users: DashSet<Uuid>`（禁言用户集合）与 `processed_msg_ids: DashSet<String>`（已处理消息 ID，基于 `msg_id` 幂等去重）
+    - **`room/handler.rs` 扩展**：新增 `SendMessageDeps` 依赖结构体；新增 `handle_send_message` 8 步流程：payload 解析 → 内容非空校验 → 长度限制（500 字符）→ 房间存在校验 → 禁言检查（`muted_users`）→ `msg_id` 幂等去重（`processed_msg_ids`）→ 敏感词净化（`filter_content`）→ 广播 `RoomMessage` 事件 → 返回成功响应
+    - **`ws/connection.rs` 扩展**：信令路由新增 `SendMessage` 分支，调用 `handle_send_message`
+    - **关键设计**：`processed_msg_ids` 基于 `DashSet<String>` 无锁并发去重，幂等插入（`insert` 返回 `false` 表示重复）；`muted_users` DashSet 无锁并发读；敏感词净化在广播前执行，广播内容为净化后文本
+  - **T-00043 消息持久化 + REST 历史 API**（Round 1+2 审查通过 🟢）：
+    - **数据库 Schema**（迁移 010）：`chat_messages` 表（`id UUID PK DEFAULT gen_random_uuid()`、`room_id UUID REFERENCES rooms(id) ON DELETE CASCADE`、`user_id UUID REFERENCES users(id) ON DELETE SET NULL`、`content TEXT ≤500 chars`、`created_at TIMESTAMPTZ DEFAULT NOW()`）；索引 `idx_chat_messages_room_time(room_id, created_at DESC)` 加速房间历史查询
+    - **WS 持久化流程**：`handle_send_message` 步骤 7.5 敏感词净化后执行 DB 插入 → 获取 DB id (`UUID`) → 用 DB id 作 `payload.msg_id` 生成广播消息（envelope.msg_id 由 `broadcast_to_room` 独立生成，见 doc/protocol/websocket_signals.md §6.7.5）
+    - **REST 历史查询接口**：`GET /api/v1/rooms/:room_id/messages?limit=&offset=`
+      - **鉴权**：JWT 必需（`AuthContext` extractor）
+      - **分页参数**：`limit` 默认 50/上限 100；`offset` 默认 0/软上限 100_000（超出截断，防止 PG O(N) 跳表扫描）
+      - **排序与响应**：按 `created_at DESC, id DESC` 倒序；响应格式 `{ items: [{id, user_id?, nickname?, avatar_url?, content, created_at}], total, limit, offset }`
+      - **数据项包含**：`user_id` + `nickname` + `avatar_url`（LEFT JOIN `users` 表）；`content` 为净化后文本（与 WS 广播一致）；`id` 与 `GET /rooms/:id/messages` 返回的 items[].id 对齐供前端去重
+    - **错误码**：40003（参数非法）、40400（房间不存在）
+    - **Rust 模块**：`src/modules/chat/` （controller/repository/dto/routes）；`ChatRepository` trait 含 `insert_message(room_id, user_id, content)` 与 `list_messages(room_id, limit, offset)` 两个接口
+    - **测试覆盖**：R-1（迁移幂等）、U-1/U-2（单条插入+持久化）、U-3（倒序排序）、B-1（默认值与上限）、B-3（并发无丢失）；chat_persistence_test 集成覆盖；全量测试 640+ 通过
 - 🟢 **钱包模块 - Schema 与迁移**（T-00017）：`src/shared/models/wallet.rs` + `app/server/migrations/004_create_wallet.sql`
   - **数据库设计**：`users` 表新增 `diamond_balance BIGINT DEFAULT 0 CHECK(>=0)` 字段；新建 `wallet_transactions` 流水表（id, user_id, type, amount, balance_after, ref_id, reason, operator_id, created_at）
   - **约束与索引**：CHECK 约束防止余额负数；复合索引 `(user_id, created_at DESC)` 支撑流水查询；`balance_after` CHECK 约束防止非法交易记录

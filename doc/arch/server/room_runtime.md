@@ -1,6 +1,6 @@
 # 房间运行时模块架构
 
-> **关联 Task**：T-00012（进入房间）、T-00013（离开房间）、T-00014（上麦）、T-00015（下麦）、T-00016（文本消息广播）
+> **关联 Task**：T-00012（进入房间）、T-00013（离开房间）、T-00014（上麦）、T-00015（下麦）、T-00016（文本消息 WS 广播）、T-00043（消息持久化 + REST 历史查询）
 
 ## 一、模块职责
 
@@ -67,9 +67,28 @@ pub struct RoomState {
 
 - 未在麦上时幂等返回成功
 
-### 3.5 文本消息（T-00016）— `handle_send_message`
+### 3.5 文本消息 — WS 广播 (T-00016) + REST 历史 (T-00043)
 
-1. 解析 payload → 2. 内容非空校验 → 3. 长度限制（500 字符）→ 4. 房间存在校验 → 5. `muted_users` 禁言检查 → 6. `processed_msg_ids` 幂等去重 → 7. `filter_content` 敏感词净化 → 8. 广播 `MessageReceived`
+#### WS 信令处理 — `handle_send_message`
+
+1. 解析 payload → 2. 内容非空校验 → 3. 长度限制（500 字符）→ 4. 房间存在校验 → 5. `muted_users` 禁言检查 → 6. `processed_msg_ids` 幂等去重 → 7. `filter_content` 敏感词净化 → 7.5 DB 插入 → 8. 广播 `RoomMessage`
+
+**关键流程变更**（T-00043）：
+- 步骤 7.5 新增：`handle_send_message` 调用 `chat_repo.insert_message(room_id, user_id, filtered_content)` 获取 DB id (`UUID`)
+- 步骤 8：使用 DB id 作 `payload.msg_id`；envelope 顶层 `msg_id` 由 `broadcast_to_room` 独立生成，两者职责分离（见 `doc/protocol/websocket_signals.md` §6.7.5）
+- DB 插入失败返回 50000，不广播（保证 DB / 广播状态一致）
+
+#### REST 历史查询 — `GET /api/v1/rooms/:room_id/messages`
+
+- **路由**：`src/modules/chat/routes.rs` 注册 `chat_routes()`
+- **鉴权**：JWT 必需
+- **参数**：`?limit=50&offset=0`（limit 默认 50/上限 100；offset 默认 0/软上限 100_000）
+- **排序**：`created_at DESC, id DESC`
+- **响应**：`{ items: [{id, user_id?, nickname?, avatar_url?, content, created_at}], total, limit, offset }`
+  - `items[].id` 与 WS `payload.msg_id` 对齐供前端去重
+  - `nickname` / `avatar_url` 来自 LEFT JOIN `users` 表
+  - `content` 为净化后文本（与 WS 广播一致）
+- **错误码**：40003（参数非法）、40400（房间不存在）
 
 ## 四、错误枚举
 
@@ -90,4 +109,5 @@ pub enum TakeMicError {
 | T-00013 离开房间 | 10 | 自动下麦、被动断线、`UserLeft` 广播、幂等 |
 | T-00014 上麦 | 9 | 麦位越界、占用、已在麦上、禁麦、并发抢麦 |
 | T-00015 下麦 | 9+ | 未在麦上幂等、成功下麦广播、`do_leave_room` 顺序 |
-| T-00016 文本消息 | 14+ | 空内容、超长、禁言、幂等、敏感词净化 |
+| T-00016 文本消息 (WS) | 14+ | 空内容、超长、禁言、幂等、敏感词净化 |
+| T-00043 消息持久化 + REST | 10+ | 迁移幂等、DB 插入、倒序排序、分页、并发无丢失、REST 鉴权 |

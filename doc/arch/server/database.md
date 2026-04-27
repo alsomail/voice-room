@@ -15,6 +15,7 @@
 | 003 | `rooms`（索引） | `003_add_unique_active_room_per_owner.sql` | — | T-00007 | 🟢 已完成 |
 | 004 | `users`（wallet 字段）+ `wallet_transactions` | `004_create_wallet.sql` | `WalletTransactionModel` + `WalletTxnType` | T-00017 | 🟢 已完成 |
 | 008 | `rooms`（治理扩字段）+ `room_kick_records` + `room_mute_records` | `008_room_governance.sql` | `RoomModel`（扩展）+ `RoomKickRecord` + `RoomMuteRecord` + `MuteType` | T-00024 | 🟢 已完成 |
+| 010 | `chat_messages` | `010_create_chat_messages.sql` | `ChatMessageModel` | T-00043 | 🟢 已完成 |
 
 ---
 
@@ -510,6 +511,106 @@ pub struct RoomMuteRecord {
 共 23 个测试（含附加结构验证），全部通过（🟢 23/23）
 
 > ⚠️ 注意：S24-01~S24-06 当前为静态 SQL 文本分析测试，非真实 DB 集成测试（见技术债 MEDIUM-3）。
+
+---
+
+## 四.5 `chat_messages` 表（T-00043）
+
+### 4.5.1 DDL 概要
+
+```sql
+CREATE TABLE IF NOT EXISTS chat_messages (
+    id         UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    room_id    UUID         NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+    user_id    UUID         REFERENCES users(id) ON DELETE SET NULL,
+    content    TEXT         NOT NULL CHECK (char_length(content) > 0 AND char_length(content) <= 500),
+    created_at TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+-- 房间历史查询：最常见路径（room_id + 倒序时间）
+CREATE INDEX IF NOT EXISTS idx_chat_messages_room_time
+    ON chat_messages (room_id, created_at DESC);
+
+-- 用户查询：举报 / 申诉场景
+CREATE INDEX IF NOT EXISTS idx_chat_messages_user_time
+    ON chat_messages (user_id, created_at DESC);
+```
+
+### 4.5.2 字段说明
+
+| 字段 | 类型 | 默认值 | 可空 | 说明 |
+|------|------|--------|------|------|
+| `id` | UUID | `gen_random_uuid()` | 否 | 消息主键（DB id，T-00043 中作 `payload.msg_id`） |
+| `room_id` | UUID | — | 否 | 房间 ID，外键引用 `rooms(id)`，级联删除 |
+| `user_id` | UUID | — | 是 | 发送者 ID，外键引用 `users(id)`，删用户时置 NULL（申诉检查） |
+| `content` | TEXT | — | 否 | 消息内容（已敏感词净化），长度 1-500 字符 |
+| `created_at` | TIMESTAMPTZ | `NOW()` | 否 | 消息创建时间（服务端生成） |
+
+### 4.5.3 约束设计
+
+| 约束 | 说明 |
+|------|------|
+| PRIMARY KEY | `id` 唯一标识每条消息 |
+| FOREIGN KEY `rooms` | `ON DELETE CASCADE` — 房间关闭时自动删除该房间的所有消息 |
+| FOREIGN KEY `users` | `ON DELETE SET NULL` — 用户删除时保留消息记录（用于申诉），但 `user_id` 置 NULL |
+| CHECK | `content` 长度 1-500 Unicode 字符（空串与超长拒绝） |
+
+### 4.5.4 索引设计
+
+| 索引名 | 列 | 用途 | 预期场景 |
+|--------|-----|------|----------|
+| `idx_chat_messages_room_time` | `(room_id, created_at DESC)` | 加速房间历史查询，按倒序时间排序 | `GET /api/v1/rooms/:room_id/messages?limit=50&offset=0` |
+| `idx_chat_messages_user_time` | `(user_id, created_at DESC)` | 用户消息查询（举报审核） | 举报 / 申诉工作流 |
+
+### 4.5.5 与 WS 广播的职责分离
+
+**两层 msg_id**（见 `doc/protocol/websocket_signals.md` §6.7.5）：
+
+| 字段 | 含义 | 来源 | 生命周期 | 用途 |
+|------|------|------|--------|------|
+| `chat_messages.id`（DB 行 PK） | 业务级稳定标识 | WS SendMessage → `insert_message` 返回 | 永久 | 作 `payload.msg_id` 供 REST 查询对齐 / 前端去重 |
+| `RoomMessage.envelope.msg_id` | 重连续传游标 | `broadcast_to_room` 内独立生成 UUID v4 | 缓冲窗口有效（默认 ~100 消息） | WS 重连续传 `JoinRoom.last_msg_id` 回放机制（不传 DB id） |
+
+### 4.5.6 Rust 模型
+
+```rust
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct ChatMessageModel {
+    pub id:         Uuid,
+    pub room_id:    Uuid,
+    pub user_id:    Option<Uuid>,
+    pub content:    String,
+    pub created_at: DateTime<Utc>,
+}
+
+// REST 响应时的完整数据（包含用户昵称 + 头像）
+#[derive(Debug, Clone, Serialize)]
+pub struct ChatHistoryRow {
+    pub id:          Uuid,
+    pub room_id:     Uuid,
+    pub user_id:     Option<Uuid>,
+    pub nickname:    Option<String>,      // LEFT JOIN users
+    pub avatar_url:  Option<String>,      // LEFT JOIN users
+    pub content:     String,
+    pub created_at:  DateTime<Utc>,
+}
+```
+
+### 4.5.7 测试覆盖（T-00043）
+
+**文件：** `app/server/tests/chat_persistence_test.rs`
+
+- **R-1** 迁移幂等可重复执行（IF NOT EXISTS 生效）
+- **U-1** 单条消息插入持久化（DB id 返回）
+- **U-2** WS 广播时 payload.msg_id 使用 DB id
+- **U-3** 历史查询按 `created_at DESC, id DESC` 倒序
+- **B-1** 分页默认值与上限（limit 默认 50/上限 100）
+- **B-2** offset 软上限 100_000（超出截断）
+- **B-3** 并发 20 QPS 插入无丢失
+- **REST 鉴权** JWT 必需，无 token 返回 401
+- **REST 错误码** 40003（参数非法）、40400（房间不存在）
+
+共 10+ 个集成测试，全部通过（🟢 10+/10+）
 
 ---
 
