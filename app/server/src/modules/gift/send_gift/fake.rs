@@ -6,6 +6,7 @@ use uuid::Uuid;
 use super::types::{SendGiftError, SendGiftPayload, SendGiftResult, SendGiftServicePort};
 
 /// `send()` 始终返回 `Ok(SendGiftResult { ... })`；不触碰 DB / Redis / registry。
+/// 执行基本参数验证以支持测试。
 #[derive(Default)]
 pub struct FakeSendGiftService;
 
@@ -15,11 +16,18 @@ impl SendGiftServicePort for FakeSendGiftService {
         &self,
         _sender_id: Uuid,
         _room_id: Uuid,
-        _payload: SendGiftPayload,
+        payload: SendGiftPayload,
     ) -> Result<SendGiftResult, SendGiftError> {
+        // 基本参数验证（与真实服务一致）
+        if !(1..=9999).contains(&payload.count) {
+            return Err(SendGiftError::InvalidCount);
+        }
+
         Ok(SendGiftResult {
             gift_record_id: Uuid::new_v4(),
             total_price: 0,
+            sender_new_balance: 1000,
+            receiver_new_charm: 100,
         })
     }
 }

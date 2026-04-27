@@ -40,6 +40,10 @@ pub struct SendGiftPayload {
 pub struct SendGiftResult {
     pub gift_record_id: Uuid,
     pub total_price: i64,
+    /// 发送者送礼后的新余额
+    pub sender_new_balance: i64,
+    /// 接收者收礼后的新魅力值
+    pub receiver_new_charm: i64,
 }
 
 /// 送礼服务抽象接口（供 WS handler 注入，支持 Fake 替身）

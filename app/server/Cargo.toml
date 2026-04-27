@@ -33,6 +33,9 @@ futures-util = "0.3"
 
 [dev-dependencies]
 tower = "0.5"
+# T-00041: 启用 tokio test-util 以使用 `tokio::time::pause/advance` + `start_paused`，
+# 在 heartbeat_task 真实 select! / interval 路径上做时间快进单测。
+tokio = { workspace = true, features = ["test-util"] }
 
 # 集成测试需要 test-utils feature（暴露 Fake 类型和 AppState::for_test*）
 [[test]]
@@ -88,4 +91,8 @@ required-features = ["test-utils"]
 
 [[test]]
 name = "governance_real_repos_test"
+required-features = ["test-utils"]
+
+[[test]]
+name = "send_gift_http_test"
 required-features = ["test-utils"]

@@ -67,9 +67,9 @@ impl GiftSendService {
 
     /// 核心事务逻辑（供 `send()` 调用）。
     ///
-    /// **缺陷 #2 修复**：返回 `Ok(Some(id))` 表示首次插入成功；返回 `Ok(None)`
-    /// 表示 `(sender_id, msg_id)` 已存在（事务自动回滚）。`send()` 据此决定
-    /// 是否回查首次结果以保证幂等返回值一致。
+    /// **缺陷 #2 修复**：返回 `Ok(Some((id, sender_balance, receiver_charm)))` 表示首次插入成功；
+    /// 返回 `Ok(None)` 表示 `(sender_id, msg_id)` 已存在（事务自动回滚）。
+    /// `send()` 据此决定是否回查首次结果以保证幂等返回值一致。
     #[allow(clippy::too_many_arguments)]
     async fn execute_transaction(
         &self,
@@ -80,7 +80,7 @@ impl GiftSendService {
         price: i64,
         count: i32,
         msg_id: &str,
-    ) -> Result<Option<Uuid>, SendGiftError> {
+    ) -> Result<Option<(Uuid, i64, i64)>, SendGiftError> {
         let total = price * count as i64;
         let mut txn = self
             .pool
@@ -113,13 +113,13 @@ impl GiftSendService {
             .await
             .map_err(|e| SendGiftError::Internal(e.to_string()))?;
 
-        // d) 增加接收者魅力值
-        sqlx::query(
-            "UPDATE users SET charm_balance = charm_balance + $1, updated_at = now() WHERE id = $2",
+        // d) 增加接收者魅力值，并返回新值
+        let receiver_new_charm: i64 = sqlx::query_scalar(
+            "UPDATE users SET charm_balance = charm_balance + $1, updated_at = now() WHERE id = $2 RETURNING charm_balance",
         )
         .bind(total)
         .bind(receiver_id)
-        .execute(&mut *txn)
+        .fetch_one(&mut *txn)
         .await
         .map_err(|e| SendGiftError::Internal(e.to_string()))?;
 
@@ -190,23 +190,48 @@ impl GiftSendService {
             );
         }
 
-        Ok(Some(gift_record_id))
+        Ok(Some((gift_record_id, new_balance, receiver_new_charm)))
     }
 
-    /// 查询单条幂等命中记录的 (id, total_price)
+    /// 查询单条幂等命中记录的 (id, total_price, sender_balance, receiver_charm)
     async fn lookup_existing(
         &self,
         sender_id: Uuid,
+        receiver_id: Uuid,
         msg_id: &str,
-    ) -> Result<Option<(Uuid, i64)>, SendGiftError> {
-        sqlx::query_as(
+    ) -> Result<Option<(Uuid, i64, i64, i64)>, SendGiftError> {
+        // 查询 gift_record 和 users 表
+        let record: Option<(Uuid, i64)> = sqlx::query_as(
             "SELECT id, total_price FROM gift_records WHERE sender_id = $1 AND msg_id = $2 LIMIT 1",
         )
         .bind(sender_id)
         .bind(msg_id)
         .fetch_optional(&self.pool)
         .await
-        .map_err(|e| SendGiftError::Internal(e.to_string()))
+        .map_err(|e| SendGiftError::Internal(e.to_string()))?;
+
+        if let Some((id, total)) = record {
+            // 查询当前余额和魅力值
+            let sender_balance: i64 = sqlx::query_scalar(
+                "SELECT diamond_balance FROM users WHERE id = $1",
+            )
+            .bind(sender_id)
+            .fetch_one(&self.pool)
+            .await
+            .map_err(|e| SendGiftError::Internal(e.to_string()))?;
+
+            let receiver_charm: i64 = sqlx::query_scalar(
+                "SELECT charm_balance FROM users WHERE id = $1",
+            )
+            .bind(receiver_id)
+            .fetch_one(&self.pool)
+            .await
+            .map_err(|e| SendGiftError::Internal(e.to_string()))?;
+
+            Ok(Some((id, total, sender_balance, receiver_charm)))
+        } else {
+            Ok(None)
+        }
     }
 }
 
@@ -240,8 +265,8 @@ impl SendGiftServicePort for GiftSendService {
         }
 
         // ── 3. 幂等快路径：先查一次（节省常见情况下的事务开销）─────────────
-        if let Some((existing_id, existing_total)) =
-            self.lookup_existing(sender_id, &msg_id).await?
+        if let Some((existing_id, existing_total, sender_balance, receiver_charm)) =
+            self.lookup_existing(sender_id, receiver_id, &msg_id).await?
         {
             tracing::info!(
                 sender_id = %sender_id,
@@ -252,6 +277,8 @@ impl SendGiftServicePort for GiftSendService {
             return Ok(SendGiftResult {
                 gift_record_id: existing_id,
                 total_price: existing_total,
+                sender_new_balance: sender_balance,
+                receiver_new_charm: receiver_charm,
             });
         }
 
@@ -306,7 +333,7 @@ impl SendGiftServicePort for GiftSendService {
 
         // ── 6-f. 执行事务（含幂等 ON CONFLICT，缺陷 #2）─────────────────────
         let total = price * count as i64;
-        let gift_record_id = match self
+        let (gift_record_id, sender_new_balance, receiver_new_charm) = match self
             .execute_transaction(
                 sender_id,
                 receiver_id,
@@ -318,11 +345,11 @@ impl SendGiftServicePort for GiftSendService {
             )
             .await?
         {
-            Some(id) => id,
+            Some(result) => result,
             None => {
                 // 并发提交：在 fast-path 之后另一并发请求已成功插入；回查首次结果
-                let existing = self.lookup_existing(sender_id, &msg_id).await?;
-                let (existing_id, existing_total) = existing.ok_or_else(|| {
+                let existing = self.lookup_existing(sender_id, receiver_id, &msg_id).await?;
+                let (existing_id, existing_total, sender_balance, receiver_charm) = existing.ok_or_else(|| {
                     SendGiftError::Internal(
                         "ON CONFLICT triggered but no row found on re-query".into(),
                     )
@@ -336,6 +363,8 @@ impl SendGiftServicePort for GiftSendService {
                 return Ok(SendGiftResult {
                     gift_record_id: existing_id,
                     total_price: existing_total,
+                    sender_new_balance: sender_balance,
+                    receiver_new_charm: receiver_charm,
                 });
             }
         };
@@ -384,6 +413,8 @@ impl SendGiftServicePort for GiftSendService {
         Ok(SendGiftResult {
             gift_record_id,
             total_price: total,
+            sender_new_balance,
+            receiver_new_charm,
         })
     }
 }

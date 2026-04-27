@@ -16,6 +16,10 @@ pub enum AppError {
     ParameterMissing(String),
     #[error("Validation error: {0}")]
     ValidationError(String),
+    #[error("Invalid count: {0}")]
+    InvalidCount(String),
+    #[error("Insufficient balance")]
+    InsufficientBalance,
 
     // 401
     #[error("Unauthorized")]
@@ -52,6 +56,10 @@ pub enum AppError {
     // 404
     #[error("Resource not found: {0}")]
     NotFound(String),
+    #[error("Gift not available")]
+    GiftNotAvailable,
+    #[error("Receiver not available")]
+    ReceiverUnavailable,
 
     // 500
     #[error("SMS send failed: {0}")]
@@ -70,6 +78,8 @@ impl AppError {
             AppError::InvalidPhoneNumber => ErrorCode::InvalidPhoneNumber,
             AppError::ParameterMissing(_) => ErrorCode::ParameterMissing,
             AppError::ValidationError(_) => ErrorCode::ValidationError,
+            AppError::InvalidCount(_) => ErrorCode::InvalidPhoneNumber, // 复用 40001
+            AppError::InsufficientBalance => ErrorCode::InsufficientBalance,
             AppError::Unauthorized => ErrorCode::Unauthorized,
             AppError::TokenExpired => ErrorCode::TokenExpired,
             AppError::InvalidVerificationCode => ErrorCode::InvalidVerificationCode,
@@ -82,6 +92,8 @@ impl AppError {
             AppError::VerificationCodeCooldown => ErrorCode::VerificationCodeCooldown,
             AppError::VerificationCodeDailyLimit => ErrorCode::VerificationCodeDailyLimit,
             AppError::NotFound(_) => ErrorCode::NotFound,
+            AppError::GiftNotAvailable => ErrorCode::GiftNotAvailable,
+            AppError::ReceiverUnavailable => ErrorCode::ReceiverUnavailable,
             AppError::SmsSendFailed(_)
             | AppError::DatabaseError(_)
             | AppError::RedisError(_)
@@ -93,7 +105,9 @@ impl AppError {
         match self {
             AppError::InvalidPhoneNumber
             | AppError::ParameterMissing(_)
-            | AppError::ValidationError(_) => StatusCode::BAD_REQUEST,
+            | AppError::ValidationError(_)
+            | AppError::InvalidCount(_)
+            | AppError::InsufficientBalance => StatusCode::BAD_REQUEST,
             AppError::Unauthorized
             | AppError::TokenExpired
             | AppError::InvalidVerificationCode
@@ -106,6 +120,7 @@ impl AppError {
                 StatusCode::TOO_MANY_REQUESTS
             }
             AppError::NotFound(_) => StatusCode::NOT_FOUND,
+            AppError::GiftNotAvailable | AppError::ReceiverUnavailable => StatusCode::NOT_FOUND,
             AppError::SmsSendFailed(_)
             | AppError::DatabaseError(_)
             | AppError::RedisError(_)

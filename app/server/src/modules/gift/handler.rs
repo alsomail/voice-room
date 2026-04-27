@@ -4,13 +4,19 @@
 //!   - Header: `Accept-Language: ar|en`（默认 ar）
 //!   - 响应: `{ code:0, data:{ items:[...], version:"..." } }`
 //!   - 鉴权: 可选（登录/未登录皆可读取）
+//! - `send_gift_http` — POST /api/v1/gifts/send（T-00044）
+//!   - 需要 JWT 鉴权
+//!   - 响应: `{ code:0, data:{ gift_record_id, sender_balance, receiver_charm } }`
 
 use axum::{extract::State, http::HeaderMap, response::IntoResponse, Extension, Json};
 
 use crate::{
     bootstrap::AppState,
-    common::{error::err_response, response::ApiResponse, RequestContext},
+    common::{auth::AuthContext, error::err_response, response::ApiResponse, RequestContext},
 };
+
+use super::dto::{SendGiftRequest, SendGiftResponse};
+use super::send_gift::{SendGiftError, SendGiftPayload};
 
 /// GET /api/v1/gifts/list
 ///
@@ -30,6 +36,68 @@ pub async fn list_gifts(
     match state.gift_service.list_active(&lang).await {
         Ok(data) => Json(ApiResponse::ok(data, rc.request_id())).into_response(),
         Err(e) => err_response(e, rc.request_id()),
+    }
+}
+
+/// POST /api/v1/gifts/send（T-00044）
+///
+/// HTTP 礼物发送端点，复用 T-00020 SendGift 核心事务逻辑。
+///
+/// - **鉴权**: 需要 JWT（通过 AuthContext 注入）
+/// - **请求**: `{ room_id, gift_id, receiver_id, count }`
+/// - **响应**: `{ code:0, data:{ gift_record_id, sender_balance, receiver_charm } }`
+/// - **错误码**:
+///   - 40001: INVALID_COUNT（count ≤ 0 或 > 9999）
+///   - 40290: INSUFFICIENT_BALANCE（余额不足）
+///   - 40402: GIFT_NOT_AVAILABLE（礼物不存在或已下架）
+///   - 40403: RECEIVER_UNAVAILABLE（接收者不在麦上）
+///
+/// **异步广播**: HTTP 200 成功不阻塞广播；广播失败不回滚事务。
+pub async fn send_gift_http(
+    State(state): State<AppState>,
+    Extension(rc): Extension<RequestContext>,
+    ctx: AuthContext,
+    Json(req): Json<SendGiftRequest>,
+) -> axum::response::Response {
+    // 构建 msg_id（HTTP 场景下使用 UUID）
+    let msg_id = uuid::Uuid::new_v4().to_string();
+
+    let payload = SendGiftPayload {
+        gift_id: req.gift_id,
+        receiver_id: req.receiver_id,
+        count: req.count,
+        msg_id,
+    };
+
+    // 调用核心送礼服务（复用 T-00020 逻辑）
+    match state
+        .send_gift_service
+        .send(ctx.user_id, req.room_id, payload)
+        .await
+    {
+        Ok(result) => {
+            let response = SendGiftResponse {
+                gift_record_id: result.gift_record_id,
+                sender_balance: result.sender_new_balance,
+                receiver_charm: result.receiver_new_charm,
+            };
+
+            Json(ApiResponse::ok(response, rc.request_id())).into_response()
+        }
+        Err(e) => {
+            use crate::common::error::AppError;
+
+            let app_error = match e {
+                SendGiftError::InvalidCount => AppError::InvalidCount("must be 1-9999".to_string()),
+                SendGiftError::SenderNotInRoom => AppError::NotFound("sender not in room".to_string()),
+                SendGiftError::GiftUnavailable => AppError::GiftNotAvailable,
+                SendGiftError::ReceiverUnavailable => AppError::ReceiverUnavailable,
+                SendGiftError::InsufficientBalance => AppError::InsufficientBalance,
+                SendGiftError::Internal(msg) => AppError::Internal(msg),
+            };
+
+            err_response(app_error, rc.request_id())
+        }
     }
 }
 

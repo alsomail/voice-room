@@ -13,7 +13,13 @@ pub enum ErrorCode {
     #[error("NOT_PASSWORD_ROOM")]
     NotPasswordRoom = 40014,
     #[error("INSUFFICIENT_BALANCE")]
-    InsufficientBalance = 40204,
+    InsufficientBalance = 40290,
+
+    // 404 - 资源不存在（续）
+    #[error("GIFT_NOT_AVAILABLE")]
+    GiftNotAvailable = 40402,
+    #[error("RECEIVER_UNAVAILABLE")]
+    ReceiverUnavailable = 40403,
 
     // 401 - 认证错误
     #[error("UNAUTHORIZED")]
