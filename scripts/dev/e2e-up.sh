@@ -18,15 +18,36 @@ LOG_DIR="$REPO_ROOT/.e2e-logs"
 mkdir -p "$LOG_DIR"
 : > "$PIDS_FILE"
 
+# C 方案：内联 export 服务端启动必需 ENV（避免依赖缺失的 app/server/.env）
+# 与 docker-compose（POSTGRES_DB=voiceroom）/ init-db.sh（app_server_user）严格对齐
+export DATABASE_URL="${DATABASE_URL:-postgres://app_server_user:app_server_pass@localhost:5432/voiceroom}"
+export ADMIN_DATABASE_URL="${ADMIN_DATABASE_URL:-postgres://admin_server_user:admin_server_pass@localhost:5432/voiceroom}"
+export REDIS_URL="${REDIS_URL:-redis://localhost:6379}"
+export JWT_SECRET="${JWT_SECRET:-e2e-up-local-dev-secret-do-not-use-in-prod-please}"
+export APP_JWT_SECRET="${APP_JWT_SECRET:-$JWT_SECRET}"
+export ADMIN_JWT_SECRET="${ADMIN_JWT_SECRET:-$JWT_SECRET}"
+export AGORA_APP_CERT="${AGORA_APP_CERT:-e2e-stub-cert}"
+
 echo "[e2e:up] 1/4 拉起 docker postgres + redis"
 docker compose up -d postgres redis
 
-echo "[e2e:up] 2/4 后台启动 AppServer (cargo run -p server) → :3000"
-APP_PROFILE="${APP_PROFILE:-dev}" cargo run -p server >"$LOG_DIR/app-server.log" 2>&1 &
+# C 方案补强：等待 PG 健康后，幂等地补齐 app_server_user 的 schema CREATE 权限
+# （local dev 必须；放行 sqlx migrate-on-startup 的 _sqlx_migrations 表 IF NOT EXISTS）
+echo "[e2e:up] 1.5/4 等待 PG 健康并补齐 schema 权限"
+for i in 1 2 3 4 5 6 7 8 9 10; do
+  if docker exec vr-postgres pg_isready -U postgres >/dev/null 2>&1; then break; fi
+  sleep 1
+done
+docker exec vr-postgres psql -U postgres -d voiceroom -v ON_ERROR_STOP=1 -c \
+  "GRANT CREATE ON SCHEMA public TO app_server_user;" >/dev/null 2>&1 || true
+
+echo "[e2e:up] 2/4 后台启动 AppServer (cargo run -p voice-room-server) → :3000"
+APP_PROFILE="${APP_PROFILE:-dev}" cargo run -p voice-room-server >"$LOG_DIR/app-server.log" 2>&1 &
 echo "$!" >> "$PIDS_FILE"
 
-echo "[e2e:up] 3/4 后台启动 AdminServer (cargo run -p admin-server) → :3001"
-ADMIN_PROFILE="${ADMIN_PROFILE:-dev}" cargo run -p admin-server >"$LOG_DIR/admin-server.log" 2>&1 &
+echo "[e2e:up] 3/4 后台启动 AdminServer (cargo run -p voice-room-admin-server) → :3001"
+# AdminServer 必须以 admin_server_user 连库（拥有 schema public 全权 + 业务表全权）
+ADMIN_PROFILE="${ADMIN_PROFILE:-dev}" DATABASE_URL="$ADMIN_DATABASE_URL" cargo run -p voice-room-admin-server >"$LOG_DIR/admin-server.log" 2>&1 &
 echo "$!" >> "$PIDS_FILE"
 
 echo "[e2e:up] 4/4 后台启动 Web (vite) → :5173"
