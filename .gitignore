@@ -35,3 +35,5 @@ tests/scripts/env/.env.prod
 # 历史报告
 tests/report-*/
 midscene_run/
+scripts/dev/.seed-output.env
+scripts/dev/.seed.lock

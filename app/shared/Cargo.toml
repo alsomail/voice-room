@@ -12,3 +12,7 @@ bcrypt.workspace = true
 chrono.workspace = true
 uuid.workspace = true
 thiserror.workspace = true
+
+[[bin]]
+name = "sign-jwt"
+path = "src/bin/sign_jwt.rs"
