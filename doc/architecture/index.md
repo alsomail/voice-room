@@ -39,3 +39,4 @@
 - **测试基建脚本三件套**: [T-0000G TDS](../tds/infra/T-0000G.md) + [`scripts/dev/`](../../scripts/dev/) —— Seed/Reset/Preflight 幂等脚本、sign-jwt CLI 工具（`app/shared/src/bin/sign_jwt.rs`）
 - **E2E globalSetup/Teardown/envLoader**: [T-0000H TDS](../tds/infra/T-0000H.md) + [`tests/scripts/support/`](../../tests/scripts/support/) —— Playwright 启动期编排器（envLoader 单一加载源 + globalSetup 5 步 + globalTeardown 幂等清理 + fixtures 五道防线）
 - **AppServer 多 profile 配置体系**: [T-00040 TDS](../tds/server/T-00040.md) + [`app/server/config/`](../../app/server/config/) —— 配置加载链、APP_PROFILE 白名单、fail-fast 错误契约、敏感字段脱敏、4 档 .toml 文件（dev/test/staging/prod）
+- **AdminServer 多 profile 配置体系**: [T-10020 TDS](../tds/adminServer/T-10020.md) + [`app/adminServer/config/`](../../app/adminServer/config/) —— 与 AppServer 对称、ADMIN_PROFILE 白名单、fail-fast 错误契约、5 档 .toml 文件（default/dev/test/staging/prod）、D-A1：dev REDIS_URL 缺失 → NoopEventPublisher（0 回归）
