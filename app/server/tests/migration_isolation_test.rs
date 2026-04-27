@@ -9,9 +9,10 @@
 //!
 //! 运行前提：DATABASE_URL 指向可用 PostgreSQL 实例；未设置则跳过。
 //!
-//! 注意：本测试仅以 superuser（`postgres`）连接的 DATABASE_URL 才能动态创建/销毁
-//! 隔离用 schema。受限账号 `app_server_user` 在 dev 环境下有 `CREATE ON SCHEMA public`
-//! 权限，亦可执行（见 init-db.sh）。
+//! 注意：本测试**仅 superuser DATABASE_URL（如 `postgres://postgres:...`）可跑**；
+//! 受限账号 `app_server_user` 仅有 `GRANT CREATE ON SCHEMA public`（建表权限），
+//! **无** `GRANT CREATE ON DATABASE voiceroom`（建 schema 权限），
+//! `CREATE SCHEMA t0m_<uuid>` 会报 `permission denied`。
 
 mod common;
 
@@ -48,10 +49,47 @@ async fn create_isolated_schema(pool: &PgPool, schema: &str) -> Result<(), sqlx:
     Ok(())
 }
 
+#[allow(dead_code)]
 async fn drop_schema(pool: &PgPool, schema: &str) {
     let _ = sqlx::query(&format!("DROP SCHEMA IF EXISTS \"{schema}\" CASCADE"))
         .execute(pool)
         .await;
+}
+
+/// RAII guard：测试 panic 路径也保证 `DROP SCHEMA <schema> CASCADE`，
+/// 避免反复跑红时 PG 中累积孤儿 schema。
+///
+/// 由于 `Drop::drop` 是同步上下文，这里另起线程构建一次性 tokio 运行时执行
+/// 异步 `DROP SCHEMA`，并 `join()` 等待完成；与外层 tokio 测试运行时解耦，
+/// 单线程或多线程 flavor 均可工作。
+struct SchemaGuard {
+    pool: PgPool,
+    schema: String,
+}
+
+impl SchemaGuard {
+    fn new(pool: PgPool, schema: String) -> Self {
+        Self { pool, schema }
+    }
+}
+
+impl Drop for SchemaGuard {
+    fn drop(&mut self) {
+        let pool = self.pool.clone();
+        let schema = self.schema.clone();
+        let handle = std::thread::spawn(move || {
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("build cleanup rt");
+            rt.block_on(async {
+                let _ = sqlx::query(&format!("DROP SCHEMA IF EXISTS \"{schema}\" CASCADE"))
+                    .execute(&pool)
+                    .await;
+            });
+        });
+        let _ = handle.join();
+    }
 }
 
 /// 在 schema-隔离上运行：每个测试自己开 PgConnectOptions 并 application_name + search_path。
@@ -97,6 +135,7 @@ async fn u1_dual_migrations_table_coexist() {
     };
     let schema = fresh_schema_name();
     create_isolated_schema(&setup_pool, &schema).await.unwrap();
+    let _guard = SchemaGuard::new(setup_pool.clone(), schema.clone());
     let pool = isolated_pool(&schema).await.expect("isolated pool");
 
     // 先启动 AppServer（9 条迁移）
@@ -121,7 +160,6 @@ async fn u1_dual_migrations_table_coexist() {
     assert_eq!(app_count, 9, "AppServer should record 9 migrations");
     assert_eq!(admin_count, 4, "AdminServer should record 4 migrations");
 
-    drop_schema(&setup_pool, &schema).await;
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -135,6 +173,7 @@ async fn u2_startup_order_independent() {
     };
     let schema = fresh_schema_name();
     create_isolated_schema(&setup_pool, &schema).await.unwrap();
+    let _guard = SchemaGuard::new(setup_pool.clone(), schema.clone());
     let pool = isolated_pool(&schema).await.expect("isolated pool");
 
     // 反序：先 admin 再 app
@@ -156,7 +195,6 @@ async fn u2_startup_order_independent() {
     assert_eq!(count_rows(&pool, "_sqlx_app_migrations").await, 9);
     assert_eq!(count_rows(&pool, "_sqlx_admin_migrations").await, 4);
 
-    drop_schema(&setup_pool, &schema).await;
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -170,6 +208,7 @@ async fn u3_repeated_startup_is_idempotent() {
     };
     let schema = fresh_schema_name();
     create_isolated_schema(&setup_pool, &schema).await.unwrap();
+    let _guard = SchemaGuard::new(setup_pool.clone(), schema.clone());
     let pool = isolated_pool(&schema).await.expect("isolated pool");
 
     for _ in 0..3 {
@@ -193,7 +232,6 @@ async fn u3_repeated_startup_is_idempotent() {
     }
     assert_eq!(count_rows(&pool, "_sqlx_admin_migrations").await, 4);
 
-    drop_schema(&setup_pool, &schema).await;
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -207,6 +245,7 @@ async fn n1_legacy_sqlx_migrations_does_not_pollute() {
     };
     let schema = fresh_schema_name();
     create_isolated_schema(&setup_pool, &schema).await.unwrap();
+    let _guard = SchemaGuard::new(setup_pool.clone(), schema.clone());
     let pool = isolated_pool(&schema).await.expect("isolated pool");
 
     // 模拟历史残留：手工建一张默认 `_sqlx_migrations` 并塞 1 行混杂版本
@@ -242,7 +281,6 @@ async fn n1_legacy_sqlx_migrations_does_not_pollute() {
         "legacy untouched"
     );
 
-    drop_schema(&setup_pool, &schema).await;
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -256,6 +294,7 @@ async fn n3_missing_migration_error_mentions_table_name() {
     };
     let schema = fresh_schema_name();
     create_isolated_schema(&setup_pool, &schema).await.unwrap();
+    let _guard = SchemaGuard::new(setup_pool.clone(), schema.clone());
     let pool = isolated_pool(&schema).await.expect("isolated pool");
 
     // 先正常跑完 9 条迁移
@@ -306,8 +345,78 @@ async fn n3_missing_migration_error_mentions_table_name() {
 
     // 清理临时目录
     let _ = std::fs::remove_dir_all(&trimmed_dir);
-    drop_schema(&setup_pool, &schema).await;
 }
+
+// ───────────────────────────────────────────────────────────────────────────
+// N-2: 受限角色 REVOKE CREATE 后启动 helper，错误消息含表名
+// ───────────────────────────────────────────────────────────────────────────
+//
+// 复现路径：superuser 起 schema → 仅 GRANT USAGE 给 `app_server_user`（不给 CREATE）
+// → 用 `app_server_user` 连接跑 helper → `CREATE TABLE _sqlx_app_migrations`
+// 应返回 permission denied 错误（且消息含表名 `_sqlx_app_migrations` 便于运维定位）。
+//
+// 前置：DATABASE_URL 必须是 superuser；APP_SERVER_DATABASE_URL 必须是受限账号
+// `app_server_user`（默认 `postgres://app_server_user:app_server_pass@localhost:5432/voiceroom`）。
+// 任一缺失则 SKIP。
+#[tokio::test]
+async fn n2_revoke_create_emits_table_name_in_error() {
+    let Some(setup_pool) = try_pool().await else {
+        eprintln!("[SKIP] n2: DATABASE_URL not set");
+        return;
+    };
+    let app_user_url = std::env::var("APP_SERVER_DATABASE_URL").unwrap_or_else(|_| {
+        "postgres://app_server_user:app_server_pass@localhost:5432/voiceroom".to_string()
+    });
+
+    let schema = fresh_schema_name();
+    create_isolated_schema(&setup_pool, &schema).await.unwrap();
+    let _guard = SchemaGuard::new(setup_pool.clone(), schema.clone());
+
+    // 仅 GRANT USAGE（允许进入 schema 查表）但不 GRANT CREATE（不允许建表）
+    sqlx::query(&format!(
+        "GRANT USAGE ON SCHEMA \"{schema}\" TO app_server_user"
+    ))
+    .execute(&setup_pool)
+    .await
+    .expect("grant usage");
+
+    // 受限连接：search_path = 自定义 schema，确保 CREATE TABLE 落在该 schema
+    let opts: sqlx::postgres::PgConnectOptions = app_user_url
+        .parse::<sqlx::postgres::PgConnectOptions>()
+        .expect("parse app_user url")
+        .options([("search_path", schema.as_str())]);
+    let app_pool = match PgPoolOptions::new()
+        .max_connections(2)
+        .acquire_timeout(Duration::from_secs(3))
+        .connect_with(opts)
+        .await
+    {
+        Ok(p) => p,
+        Err(_) => {
+            eprintln!("[SKIP] n2: app_server_user connect failed");
+            return;
+        }
+    };
+
+    let err = run_migrations_with_table(
+        &app_pool,
+        &sqlx::migrate!("./migrations"),
+        "_sqlx_app_migrations",
+    )
+    .await
+    .expect_err("should fail with permission denied");
+    let msg = err.to_string();
+    assert!(
+        msg.contains("_sqlx_app_migrations"),
+        "error msg should mention the migrations table; got: {msg}"
+    );
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// 注：no_tx 分支单元测试见 `app/shared/src/migrate/mod.rs` 的
+// `tests::no_tx_dispatch_executes_without_transaction`（直接落 helper crate
+// 内部测试，无需启动隔离 schema）。
+// ───────────────────────────────────────────────────────────────────────────
 
 // 占位：保证 Migrator 引用不会被 cargo 标记为未使用
 #[allow(dead_code)]
