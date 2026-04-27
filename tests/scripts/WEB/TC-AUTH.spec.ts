@@ -8,6 +8,7 @@ import { PlaywrightAgent } from '@midscene/web/playwright';
 
 
 test.describe('TC-AUTH WEB - 管理员登录', () => {
+  test.skip(!process.env.MIDSCENE_MODEL_API_KEY, '[MIDSCENE] MIDSCENE_MODEL_API_KEY 未设置，跳过 AI 视觉用例');
   test.beforeEach(async ({ context }) => {
     await context.clearCookies();
   });
@@ -21,8 +22,8 @@ test.describe('TC-AUTH WEB - 管理员登录', () => {
     await agent.aiAssert(
       '页面中央显示一张登录卡片，顶部为“语聊房管理后台”Logo，包含用户名输入框、密码输入框、“记住账号”复选框和一个蓝色的“登录”按钮',
     );
-    await agent.aiAction('在用户名输入框中输入 "admin_op"');
-    await agent.aiAction('在密码输入框中输入 "Pass@123"');
+    await agent.aiAction('在用户名输入框中输入 "e2e_op"');
+    await agent.aiAction('在密码输入框中输入 "admin_password_change_me"');
     await agent.aiAssert('密码输入框内容显示为圆点遮罩');
     await agent.aiAction('勾选“记住账号”复选框');
     await agent.aiAction('点击蓝色的“登录”按钮');
@@ -33,14 +34,14 @@ test.describe('TC-AUTH WEB - 管理员登录', () => {
     // 退出再回到 /login 验证记住账号
     await agent.aiAction('点击右上角的用户头像或菜单，选择“退出登录”');
     await page.waitForURL(/\/login/, { timeout: 10_000 });
-    await agent.aiAssert('用户名输入框自动填入 "admin_op"，密码输入框为空，“记住账号”仍为勾选状态');
+    await agent.aiAssert('用户名输入框自动填入 "e2e_op"，密码输入框为空，“记住账号”仍为勾选状态');
   });
 
   test('TC-AUTH-00002: 登录失败 - 错误凭证 + 表单校验', async ({ page }) => {
     await page.goto('/login');
     const agent = new PlaywrightAgent(page);
 
-    await agent.aiAction('在用户名输入框中输入 "admin_op"');
+    await agent.aiAction('在用户名输入框中输入 "e2e_op"');
     await agent.aiAction('在密码输入框中输入 "wrong"');
     await agent.aiAction('点击“登录”按钮');
     await agent.aiAssert('页面顶部弹出红色的提示消息，内容包含“用户名或密码错误”');
@@ -58,8 +59,8 @@ test.describe('TC-AUTH WEB - 管理员登录', () => {
     expect(page.url()).toMatch(/\/login\?redirect=.*rooms/);
 
     const agent = new PlaywrightAgent(page);
-    await agent.aiAction('在用户名输入框中输入 "admin_op"');
-    await agent.aiAction('在密码输入框中输入 "Pass@123"');
+    await agent.aiAction('在用户名输入框中输入 "e2e_op"');
+    await agent.aiAction('在密码输入框中输入 "admin_password_change_me"');
     await agent.aiAction('点击“登录”按钮');
     await page.waitForURL(/\/rooms/, { timeout: 10_000 });
 
@@ -72,8 +73,8 @@ test.describe('TC-AUTH WEB - 管理员登录', () => {
     // 先走一遍登录流程
     await page.goto('/login');
     const agent = new PlaywrightAgent(page);
-    await agent.aiAction('在用户名输入框中输入 "admin_op"');
-    await agent.aiAction('在密码输入框中输入 "Pass@123"');
+    await agent.aiAction('在用户名输入框中输入 "e2e_op"');
+    await agent.aiAction('在密码输入框中输入 "admin_password_change_me"');
     await agent.aiAction('点击“登录”按钮');
     await page.waitForURL(/\/dashboard/);
 

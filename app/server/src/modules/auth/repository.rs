@@ -38,7 +38,7 @@ impl PgUserRepository {
 impl UserRepository for PgUserRepository {
     async fn find_by_phone(&self, phone: &str) -> Result<Option<UserModel>, AppError> {
         let user = sqlx::query_as::<_, UserModel>(
-            "SELECT id, phone, nickname, avatar, coin_balance, diamond_balance, vip_level, is_banned, \
+            "SELECT id, phone, nickname, avatar, coin_balance, diamond_balance, charm_balance, vip_level, is_banned, \
              created_at, updated_at, deleted_at \
              FROM users WHERE phone = $1 AND deleted_at IS NULL",
         )
@@ -50,7 +50,7 @@ impl UserRepository for PgUserRepository {
 
     async fn find_by_id(&self, id: Uuid) -> Result<Option<UserModel>, AppError> {
         let user = sqlx::query_as::<_, UserModel>(
-            "SELECT id, phone, nickname, avatar, coin_balance, diamond_balance, vip_level, is_banned, \
+            "SELECT id, phone, nickname, avatar, coin_balance, diamond_balance, charm_balance, vip_level, is_banned, \
              created_at, updated_at, deleted_at \
              FROM users WHERE id = $1 AND deleted_at IS NULL",
         )
@@ -65,7 +65,7 @@ impl UserRepository for PgUserRepository {
             return Ok(vec![]);
         }
         let users = sqlx::query_as::<_, UserModel>(
-            "SELECT id, phone, nickname, avatar, coin_balance, diamond_balance, vip_level, is_banned, \
+            "SELECT id, phone, nickname, avatar, coin_balance, diamond_balance, charm_balance, vip_level, is_banned, \
              created_at, updated_at, deleted_at \
              FROM users WHERE id = ANY($1) AND deleted_at IS NULL",
         )
@@ -78,7 +78,7 @@ impl UserRepository for PgUserRepository {
     async fn create(&self, phone: &str, nickname: &str) -> Result<UserModel, AppError> {
         let user = sqlx::query_as::<_, UserModel>(
             "INSERT INTO users (phone, nickname) VALUES ($1, $2) \
-             RETURNING id, phone, nickname, avatar, coin_balance, diamond_balance, vip_level, is_banned, \
+             RETURNING id, phone, nickname, avatar, coin_balance, diamond_balance, charm_balance, vip_level, is_banned, \
                        created_at, updated_at, deleted_at",
         )
         .bind(phone)

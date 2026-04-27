@@ -210,7 +210,7 @@ impl EventQueryRepository for FakeEventQueryRepository {
             .collect();
 
         // 按 server_ts DESC 排序（模拟 DB 行为）
-        filtered.sort_by(|a, b| b.server_ts.cmp(&a.server_ts));
+        filtered.sort_by_key(|e| std::cmp::Reverse(e.server_ts));
 
         // 分页
         let start = offset as usize;

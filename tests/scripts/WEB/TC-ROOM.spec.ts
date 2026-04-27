@@ -9,14 +9,15 @@ import { PlaywrightAgent } from '@midscene/web/playwright';
 async function login(page: any) {
   await page.goto('/login');
   const agent = new PlaywrightAgent(page);
-  await agent.aiAction('在用户名输入框输入 "admin_op"');
-  await agent.aiAction('在密码输入框输入 "Pass@123"');
+  await agent.aiAction('在用户名输入框输入 "e2e_op"');
+  await agent.aiAction('在密码输入框输入 "admin_password_change_me"');
   await agent.aiAction('点击"登录"按钮');
   await page.waitForURL(/dashboard/);
   return agent;
 }
 
 test.describe('TC-ROOM WEB - 房间监控', () => {
+  test.skip(!process.env.MIDSCENE_MODEL_API_KEY, '[MIDSCENE] MIDSCENE_MODEL_API_KEY 未设置，跳过 AI 视觉用例');
   test('TC-ROOM-00001: Dashboard 概览 + ECharts + 30s 自动刷新', async ({ page }) => {
     const agent = await login(page);
     await page.goto('/dashboard');

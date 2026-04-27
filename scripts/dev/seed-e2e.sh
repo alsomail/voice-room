@@ -83,6 +83,7 @@ ADMIN_SUPER_ID=$(uuid5 admin_super)
 ADMIN_OP_ID=$(uuid5 admin_op)
 ADMIN_CS_ID=$(uuid5 admin_cs)
 ADMIN_FIN_ID=$(uuid5 admin_fin)
+ADMIN_DISABLED_ID=$(uuid5 admin_disabled)
 
 echo "[seed] step=3 signing JWT tokens (ttl=${TTL}s)"
 VALID_TOKEN=$(sign "${APP_SECRET}"   "${USER_A_ID}"     user  "${TTL}")
@@ -102,6 +103,7 @@ PSQL_ARGS=(
     -v "admin_op_id=${ADMIN_OP_ID}"
     -v "admin_cs_id=${ADMIN_CS_ID}"
     -v "admin_fin_id=${ADMIN_FIN_ID}"
+    -v "admin_disabled_id=${ADMIN_DISABLED_ID}"
 )
 
 if ! command -v psql >/dev/null 2>&1; then
@@ -109,17 +111,12 @@ if ! command -v psql >/dev/null 2>&1; then
     exit 23
 fi
 
-if [[ -n "${DATABASE_URL:-}" ]]; then
-    if ! psql "${DATABASE_URL}" "${PSQL_ARGS[@]}" -f "${SEED_SQL}" >/dev/null; then
-        echo "[seed] SQL execution failed" >&2
-        exit 23
-    fi
-else
-    # 退化为 PGHOST/PGPORT/PGUSER/PGPASSWORD/PGDATABASE
-    if ! psql "${PSQL_ARGS[@]}" -f "${SEED_SQL}" >/dev/null; then
-        echo "[seed] SQL execution failed" >&2
-        exit 23
-    fi
+# 优先使用 SEED_DATABASE_URL（超级用户权限），否则尝试 postgres 超级用户
+SEED_DB_URL="${SEED_DATABASE_URL:-postgres://postgres:postgres@localhost:5432/voiceroom}"
+
+if ! psql "${SEED_DB_URL}" "${PSQL_ARGS[@]}" < "${SEED_SQL}" >/dev/null; then
+    echo "[seed] SQL execution failed" >&2
+    exit 23
 fi
 
 # -------- 6. 写回填文件（不含密钥/不含已过期 token） --------

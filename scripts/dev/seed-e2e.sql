@@ -19,10 +19,10 @@ BEGIN;
 -- ============================================================================
 -- 1) users — E2E User A / B
 -- ============================================================================
-INSERT INTO users (id, phone, nickname, is_banned, coin_balance, vip_level, created_at, updated_at)
+INSERT INTO users (id, phone, nickname, is_banned, coin_balance, diamond_balance, vip_level, created_at, updated_at)
 VALUES
-    (:'user_a_id'::uuid, '+966500000900', 'E2E User A', FALSE, 100000, 0, '2026-01-01 00:00:00+00', now()),
-    (:'user_b_id'::uuid, '+966500000901', 'E2E User B', FALSE, 100000, 0, '2026-01-01 00:00:00+00', now())
+    (:'user_a_id'::uuid, '+966500000900', 'E2E User A', FALSE, 100000, 100000, 0, '2026-01-01 00:00:00+00', now()),
+    (:'user_b_id'::uuid, '+966500000901', 'E2E User B', FALSE, 100000, 100000, 0, '2026-01-01 00:00:00+00', now())
 ON CONFLICT (id) DO UPDATE SET
     phone      = EXCLUDED.phone,
     nickname   = EXCLUDED.nickname,
@@ -31,30 +31,33 @@ ON CONFLICT (id) DO UPDATE SET
     updated_at = now();
 
 -- ============================================================================
--- 2) admins — 4 角色（super_admin / operator / cs / finance）
+-- 2) admins — 5 角色（super_admin / operator / cs / finance / disabled）
 --    password_hash 复用 003_seed_super_admin.sql 中已审核的 bcrypt(cost=12) hash，
 --    明文 admin_password_change_me（仅本地 E2E 使用）。
 -- ============================================================================
+-- 先清理可能残留的不同 id 但相同 username 的旧记录（幂等保证）
+DELETE FROM admin_logs WHERE admin_id IN (
+  SELECT id FROM admins WHERE username IN ('e2e_admin','e2e_op','e2e_cs','e2e_fin','e2e_disabled')
+);
+DELETE FROM admins WHERE username IN ('e2e_admin','e2e_op','e2e_cs','e2e_fin','e2e_disabled');
 INSERT INTO admins (id, username, password_hash, role, display_name, is_active, created_at, updated_at)
 VALUES
-    (:'admin_super_id'::uuid, 'e2e_admin', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj/RK.s5uWei', 'super_admin', 'E2E Super Admin', TRUE, '2026-01-01 00:00:00+00', now()),
-    (:'admin_op_id'::uuid,    'e2e_op',    '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj/RK.s5uWei', 'operator',    'E2E Operator',    TRUE, '2026-01-01 00:00:00+00', now()),
-    (:'admin_cs_id'::uuid,    'e2e_cs',    '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj/RK.s5uWei', 'cs',          'E2E CS',          TRUE, '2026-01-01 00:00:00+00', now()),
-    (:'admin_fin_id'::uuid,   'e2e_fin',   '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj/RK.s5uWei', 'finance',     'E2E Finance',     TRUE, '2026-01-01 00:00:00+00', now())
-ON CONFLICT (id) DO UPDATE SET
-    username     = EXCLUDED.username,
-    password_hash= EXCLUDED.password_hash,
-    role         = EXCLUDED.role,
-    display_name = EXCLUDED.display_name,
-    is_active    = TRUE,
-    updated_at   = now();
+    (:'admin_super_id'::uuid,    'e2e_admin',    '$2b$12$FQg0m0lriSYWkWBvArC14utVu.2nNEthominTTYS7Syjm6dwtu.Qm', 'super_admin', 'E2E Super Admin', TRUE,  '2026-01-01 00:00:00+00', now()),
+    (:'admin_op_id'::uuid,       'e2e_op',       '$2b$12$FQg0m0lriSYWkWBvArC14utVu.2nNEthominTTYS7Syjm6dwtu.Qm', 'operator',    'E2E Operator',    TRUE,  '2026-01-01 00:00:00+00', now()),
+    (:'admin_cs_id'::uuid,       'e2e_cs',       '$2b$12$FQg0m0lriSYWkWBvArC14utVu.2nNEthominTTYS7Syjm6dwtu.Qm', 'cs',          'E2E CS',          TRUE,  '2026-01-01 00:00:00+00', now()),
+    (:'admin_fin_id'::uuid,      'e2e_fin',      '$2b$12$FQg0m0lriSYWkWBvArC14utVu.2nNEthominTTYS7Syjm6dwtu.Qm', 'finance',     'E2E Finance',     TRUE,  '2026-01-01 00:00:00+00', now()),
+    (:'admin_disabled_id'::uuid, 'e2e_disabled', '$2b$12$FQg0m0lriSYWkWBvArC14utVu.2nNEthominTTYS7Syjm6dwtu.Qm', 'operator',    'E2E Disabled',    FALSE, '2026-01-01 00:00:00+00', now());
 
 -- ============================================================================
 -- 3) rooms — 唯一测试房间，房主 = User A
 -- ============================================================================
-INSERT INTO rooms (id, owner_id, title, room_type, member_count, status, password_hash, max_members, created_at, updated_at)
+-- 先关闭 User A 其他活跃房间，防止 idx_rooms_owner_active 约束冲突
+UPDATE rooms SET status='closed', updated_at=now()
+WHERE owner_id = :'user_a_id'::uuid AND status = 'active' AND id != :'room_id'::uuid;
+
+INSERT INTO rooms (id, owner_id, title, room_type, member_count, status, password_hash, max_members, cover_url, category, created_at, updated_at)
 VALUES
-    (:'room_id'::uuid, :'user_a_id'::uuid, 'E2E Test Room', 'normal', 0, 'active', NULL, 8, '2026-01-01 00:00:00+00', now())
+    (:'room_id'::uuid, :'user_a_id'::uuid, 'E2E Test Room', 'normal', 0, 'active', NULL, 8, '', 'chat', '2026-01-01 00:00:00+00', now())
 ON CONFLICT (id) DO UPDATE SET
     owner_id     = EXCLUDED.owner_id,
     title        = EXCLUDED.title,

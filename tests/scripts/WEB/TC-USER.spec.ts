@@ -6,7 +6,7 @@ import { test, expect } from '@playwright/test';
 import { PlaywrightAgent } from '@midscene/web/playwright';
 
 
-async function login(page: any, user = 'admin_op', pw = 'Pass@123') {
+async function login(page: any, user = 'e2e_op', pw = 'admin_password_change_me') {
   await page.goto('/login');
   const agent = new PlaywrightAgent(page);
   await agent.aiAction(`在用户名输入框输入 "${user}"`);
@@ -17,6 +17,7 @@ async function login(page: any, user = 'admin_op', pw = 'Pass@123') {
 }
 
 test.describe('TC-USER WEB - 用户管理', () => {
+  test.skip(!process.env.MIDSCENE_MODEL_API_KEY, '[MIDSCENE] MIDSCENE_MODEL_API_KEY 未设置，跳过 AI 视觉用例');
   test('TC-USER-00001: 列表 - 分页/搜索/角色权限', async ({ page }) => {
     const agent = await login(page);
     await page.goto('/users');
@@ -24,7 +25,7 @@ test.describe('TC-USER WEB - 用户管理', () => {
     await agent.aiAssert('表格仅显示手机号以 +966500 开头的用户');
     // 切换到 CS 账号验证权限
     await agent.aiAction('点击右上角用户头像，选择"退出登录"');
-    await login(page, 'admin_cs', 'Pass@123');
+    await login(page, 'e2e_cs', 'admin_password_change_me');
     await page.goto('/users');
     await agent.aiAssert('列表正常可见，但"封禁"按钮置灰或不可见');
   });

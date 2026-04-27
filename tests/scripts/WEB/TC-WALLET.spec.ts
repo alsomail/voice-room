@@ -7,11 +7,12 @@ import { PlaywrightAgent } from '@midscene/web/playwright';
 
 
 test.describe('TC-WALLET WEB - 调整余额', () => {
+  test.skip(!process.env.MIDSCENE_MODEL_API_KEY, '[MIDSCENE] MIDSCENE_MODEL_API_KEY 未设置，跳过 AI 视觉用例');
   test('TC-WALLET-00001: 调整余额弹窗 - 校验 + 双重确认', async ({ page }) => {
     await page.goto('/login');
     const agent = new PlaywrightAgent(page);
-    await agent.aiAction('在用户名输入框输入 "admin_fin"');
-    await agent.aiAction('在密码输入框输入 "Pass@123"');
+    await agent.aiAction('在用户名输入框输入 "e2e_fin"');
+    await agent.aiAction('在密码输入框输入 "admin_password_change_me"');
     await agent.aiAction('点击"登录"按钮');
     await page.waitForURL(/dashboard/);
 

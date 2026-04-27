@@ -48,17 +48,21 @@ test.describe('TC-INFRA - 基础设施', () => {
   });
 
   test('TC-INFRA-00004: shared JWT 编解码 + 边界', () => {
-    const out = sh('cargo test -p shared jwt -- --nocapture');
+    const out = sh('cargo test -p voice-room-shared jwt -- --nocapture');
     expect(out).toMatch(/test result: ok/);
   });
 
   test('TC-INFRA-00005: shared bcrypt 随机盐 + 校验', () => {
-    const out = sh('cargo test -p shared bcrypt -- --nocapture');
+    const out = sh('cargo test -p voice-room-shared bcrypt -- --nocapture');
     expect(out).toMatch(/test result: ok/);
   });
 
   test('TC-INFRA-00006: app_server_user 无权修改 admins', () => {
     test.skip(!process.env.DATABASE_URL, '需要 DATABASE_URL');
+    // 等待 postgres 就绪（TC-INFRA-00001 可能重启了 postgres）
+    for (let i = 0; i < 20; i++) {
+      try { sh('docker compose exec -T postgres pg_isready -U postgres'); break; } catch { execSync('sleep 1'); }
+    }
     let err = '';
     try {
       sh(`psql "${process.env.DATABASE_URL}" -c "UPDATE admins SET role='super_admin' WHERE username='admin_op';"`);

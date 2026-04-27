@@ -613,7 +613,7 @@ pub async fn handle_mute(
     }
 
     // ── 6. duration 范围校验：[60, 86400] ─────────────────────────────────────
-    if duration_sec < MUTE_DURATION_MIN || duration_sec > MUTE_DURATION_MAX {
+    if !(MUTE_DURATION_MIN..=MUTE_DURATION_MAX).contains(&duration_sec) {
         return mute_error(
             msg_id,
             40002,

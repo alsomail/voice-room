@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use axum::{
+    http::{header, Method},
     middleware,
     routing::{get, post, put},
     Json, Router,
@@ -216,6 +217,8 @@ pub fn build_app(state: AppState) -> Router {
         // P2-14: 审计中间件 — 按 method+path 白名单自动记录敏感操作（ban/unban/close_room）
         .layer(middleware::from_fn_with_state(audit_state, audit_middleware))
         .layer(middleware::from_fn(request_context_middleware))
+        // CORS: allow admin web frontend (e.g. localhost:5173) to call admin API
+        .layer(middleware::from_fn(cors_middleware))
         .with_state(state)
 }
 
@@ -223,6 +226,32 @@ pub fn build_app(state: AppState) -> Router {
 //
 // 与 /api/v1/admin/* 业务路由同层挂载于 Router 顶层，零鉴权、零 AppState 读取、
 // 零下游探测。用于 wait-on / preflight / 监控探针。
+
+// ─── CORS 中间件 ───────────────────────────────────────────────────────────────
+/// 为所有响应添加 CORS 头，允许管理前端（如 localhost:5173）跨域调用后台 API。
+/// OPTIONS 预检请求直接返回 200。
+async fn cors_middleware(
+    req: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    let is_options = *req.method() == Method::OPTIONS;
+    let mut response = if is_options {
+        axum::response::Response::new(axum::body::Body::empty())
+    } else {
+        next.run(req).await
+    };
+    let headers = response.headers_mut();
+    headers.insert(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*".parse().unwrap());
+    headers.insert(
+        header::ACCESS_CONTROL_ALLOW_METHODS,
+        "GET, POST, PUT, DELETE, OPTIONS".parse().unwrap(),
+    );
+    headers.insert(
+        header::ACCESS_CONTROL_ALLOW_HEADERS,
+        "Content-Type, Authorization".parse().unwrap(),
+    );
+    response
+}
 
 /// `/health` 响应体。结构由协议约束（status/service/version 三字段）。
 #[derive(Serialize)]

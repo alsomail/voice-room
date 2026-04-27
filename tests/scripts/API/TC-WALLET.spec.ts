@@ -16,12 +16,13 @@ const psql = (s: string) =>
   execSync(`psql "${process.env.DATABASE_URL}" -tA -c "${s.replace(/"/g, '\\"')}"`, { encoding: 'utf-8' }).trim();
 
 test.describe('TC-WALLET API - 钱包', () => {
+  test.describe.configure({ mode: 'serial' });
   test('TC-WALLET-00001: GET /wallet/balance', async ({ request }) => {
     test.skip(!T, '需要 Token');
     const r = await request.get(`${APP}/api/v1/wallet/balance`, { headers: { Authorization: `Bearer ${T}` } });
     expect(r.status()).toBe(200);
     const d = (await r.json()).data;
-    expect(typeof d.coin_balance).toBe('number');
+    expect(typeof d.diamond_balance).toBe('number');
   });
 
   test('TC-WALLET-00002: GET /wallet/transactions 分页', async ({ request }) => {
@@ -47,11 +48,11 @@ test.describe('TC-WALLET API - 钱包', () => {
       ws.on('message', (d) => { const m = JSON.parse(d.toString()); if (m.type === 'BalanceUpdated') ok(m); });
     });
     const pA = waitFor(wsA); const pB = waitFor(wsB);
-    // 触发 Admin 调整
-    const adj = await fetch(`${ADMIN}/api/v1/admin/users/${UID}/balance`, {
+    // 触发 Admin 调整 — 正确端点: POST /api/v1/admin/users/:id/wallet/adjust
+    const adj = await fetch(`${ADMIN}/api/v1/admin/users/${UID}/wallet/adjust`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${FIN}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ delta: 100, reason: 'e2e-test' }),
+      body: JSON.stringify({ amount: 100, reason: 'e2e-test' }),
     });
     expect(adj.status).toBe(200);
     const [a, b] = await Promise.all([pA, pB]);
@@ -61,28 +62,29 @@ test.describe('TC-WALLET API - 钱包', () => {
 
   test('TC-WALLET-00004: Admin 调整余额 + 事务原子性', async ({ request }) => {
     test.skip(!FIN || !UID, '需要 FIN/UID');
-    const before = Number(psql(`SELECT coin_balance FROM users WHERE id='${UID}'`));
-    const r = await request.post(`${ADMIN}/api/v1/admin/users/${UID}/balance`, {
+    const before = Number(psql(`SELECT diamond_balance FROM users WHERE id='${UID}'`));
+    // 正确端点: POST /api/v1/admin/users/:id/wallet/adjust; 字段 amount (非 delta)
+    const r = await request.post(`${ADMIN}/api/v1/admin/users/${UID}/wallet/adjust`, {
       headers: { Authorization: `Bearer ${FIN}` },
-      data: { delta: -50, reason: 'correction' },
+      data: { amount: -50, reason: 'correction' },
     });
     expect(r.status()).toBe(200);
-    const after = Number(psql(`SELECT coin_balance FROM users WHERE id='${UID}'`));
+    const after = Number(psql(`SELECT diamond_balance FROM users WHERE id='${UID}'`));
     expect(after).toBe(before - 50);
-    const tx = Number(psql(`SELECT count(*) FROM transactions WHERE user_id='${UID}' AND delta=-50 ORDER BY created_at DESC LIMIT 1`));
+    const tx = Number(psql(`SELECT count(*) FROM wallet_transactions WHERE user_id='${UID}' AND amount=-50`));
     expect(tx).toBeGreaterThanOrEqual(1);
   });
 
   test('TC-WALLET-00005: 事务失败回滚', async ({ request }) => {
     test.skip(!FIN || !UID, '需要 FIN/UID');
-    const before = Number(psql(`SELECT coin_balance FROM users WHERE id='${UID}'`));
+    const before = Number(psql(`SELECT diamond_balance FROM users WHERE id='${UID}'`));
     // 使余额为负的巨额扣减
-    const r = await request.post(`${ADMIN}/api/v1/admin/users/${UID}/balance`, {
+    const r = await request.post(`${ADMIN}/api/v1/admin/users/${UID}/wallet/adjust`, {
       headers: { Authorization: `Bearer ${FIN}` },
-      data: { delta: -99999999, reason: 'rollback-test' },
+      data: { amount: -99999999, reason: 'rollback-test' },
     });
     expect([400, 409, 422]).toContain(r.status());
-    const after = Number(psql(`SELECT coin_balance FROM users WHERE id='${UID}'`));
+    const after = Number(psql(`SELECT diamond_balance FROM users WHERE id='${UID}'`));
     expect(after).toBe(before);
   });
 });

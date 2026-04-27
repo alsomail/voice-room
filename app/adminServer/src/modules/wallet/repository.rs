@@ -123,15 +123,17 @@ impl WalletRepository for PgWalletRepository {
             .await?;
 
         // Step 4: 插入 wallet_transactions
+        // NOTE: operator_id FK references users(id), but admin operators are in the
+        // admins table (not users). Pass NULL to avoid FK constraint violation.
+        // Admin identity is recorded in admin_logs (Step 5) instead.
         sqlx::query(
             "INSERT INTO wallet_transactions \
                (user_id, type, amount, balance_after, operator_id, reason) \
-             VALUES ($1, 'admin_adjust', $2, $3, $4, $5)",
+             VALUES ($1, 'admin_adjust', $2, $3, NULL, $4)",
         )
         .bind(user_id)
         .bind(amount)
         .bind(new_balance)
-        .bind(operator_id)
         .bind(reason)
         .execute(&mut *tx)
         .await?;

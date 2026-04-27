@@ -9,14 +9,15 @@ import { PlaywrightAgent } from '@midscene/web/playwright';
 async function login(page: any) {
   await page.goto('/login');
   const agent = new PlaywrightAgent(page);
-  await agent.aiAction('在用户名输入框输入 "admin_op"');
-  await agent.aiAction('在密码输入框输入 "Pass@123"');
+  await agent.aiAction('在用户名输入框输入 "e2e_op"');
+  await agent.aiAction('在密码输入框输入 "admin_password_change_me"');
   await agent.aiAction('点击"登录"按钮');
   await page.waitForURL(/dashboard/);
   return agent;
 }
 
 test.describe('TC-LOG WEB - 审计日志', () => {
+  test.skip(!process.env.MIDSCENE_MODEL_API_KEY, '[MIDSCENE] MIDSCENE_MODEL_API_KEY 未设置，跳过 AI 视觉用例');
   test('TC-LOG-00001: 时间倒序 + 筛选 + 详情', async ({ page }) => {
     const agent = await login(page);
     await page.goto('/logs');

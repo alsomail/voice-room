@@ -32,4 +32,7 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
   GRANT ALL PRIVILEGES ON SCHEMA public TO admin_server_user;
   ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO admin_server_user;
   ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO admin_server_user;
+  -- T-0000N fix: 对迁移已建表补授（ALTER DEFAULT PRIVILEGES 仅对此命令执行后新建的表有效）
+  GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO admin_server_user;
+  GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO admin_server_user;
 EOSQL

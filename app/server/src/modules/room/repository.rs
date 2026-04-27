@@ -91,7 +91,8 @@ impl RoomRepository for PgRoomRepository {
     async fn find_active_by_owner(&self, owner_id: Uuid) -> Result<Option<RoomModel>, AppError> {
         let room = sqlx::query_as::<_, RoomModel>(
             "SELECT id, owner_id, title, room_type, member_count, status, password_hash, \
-             max_members, created_at, updated_at, deleted_at \
+             max_members, created_at, updated_at, deleted_at, \
+             cover_url, category, announcement, admin_user_id \
              FROM rooms \
              WHERE owner_id = $1 AND status = 'active' AND deleted_at IS NULL",
         )
@@ -186,7 +187,8 @@ impl RoomRepository for PgRoomRepository {
     async fn find_room_any_status(&self, room_id: Uuid) -> Result<Option<RoomModel>, AppError> {
         let room = sqlx::query_as::<_, RoomModel>(
             "SELECT id, owner_id, title, room_type, member_count, status, password_hash, \
-             max_members, created_at, updated_at, deleted_at \
+             max_members, created_at, updated_at, deleted_at, \
+             cover_url, category, announcement, admin_user_id \
              FROM rooms \
              WHERE id = $1 AND deleted_at IS NULL",
         )
