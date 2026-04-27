@@ -4,7 +4,7 @@
 
 ## 🎉 模块 9 闭环总结
 
-**状态**：🟢 已闭环（13/13 ✅ + 2 follow-up：T-0000N / T-0000O 已落 TDS、TDD 中；T-0000M 双服务共库 Migration 表隔离 GlobalReview Round 2 ✅ Passed，2026-04-27）
+**状态**：🟢 已闭环（13/13 ✅ + 2 follow-up：T-0000O TDD 中（T-0000N 研发闭环 ✅）；T-0000M 双服务共库 Migration 表隔离 GlobalReview Round 2 ✅ Passed，2026-04-27）
 
 **成就**：
 - **M1 本地 E2E 跑通** ✅（T-0000E/F/G/H + T-0000J）：个人电脑可执行全部 35 个 E2E 用例，local profile 完整链路
@@ -45,10 +45,10 @@
 | **T-0000K** | 基建 | Infra/E2E | Midscene LLM 配置接入文档 + CI Secret 流程 [TDS](../tds/infra/T-0000K.md) | T-0000F | 输出 `doc/tests/MIDSCENE_SETUP.md`：本地 Key 注入、CI Secret 注入、限流与回退策略 | 1. 文档含三种部署形态（OpenAI 直连/Azure/中转）配置示例<br>2. CI workflow 引用 `MIDSCENE_MODEL_API_KEY` Secret 而非明文<br>3. Key 缺失时 WEB 用例 skip 而非 fail | 1 | DoD | ✅ Done | [✅ Passed](../review/模块9-E2E测试基建.md) | ✅ Passed | ✅ Released |
 | **T-0000L** | 基建 | Infra/E2E | E2E 启动 SOP（E2E_RUNBOOK.md） [TDS](../tds/infra/T-0000L.md) | T-0000I, T-0000J | 输出 `doc/tests/E2E_RUNBOOK.md`：三环境切换命令矩阵、常见故障排查表、CI 接入示例 | 1. 含 local 冷启动 5 分钟可跑通的 step-by-step<br>2. 故障排查表覆盖 preflight 5 端 × 常见故障<br>3. 含 staging 远端凭据获取流程占位 | 2 | DoD | ✅ Done | [✅ Passed](../review/模块9-E2E测试基建.md) | - | ✅ Released |
 | **T-0000M** | 基建 | Infra/E2E | 双服务共库 Migration 表隔离 [TDS](../tds/infra/T-0000M.md) | T-0000H | 1. AppServer / AdminServer 同库 `voiceroom` 共享 `_sqlx_migrations` 时版本/校验互掐，冷启动 e2e:up 必现阻断<br>2. 采纳方案 B：两服务 `main.rs` 改用 `Migrator.set_table_name()` 自定义表名 `_sqlx_app_migrations` / `_sqlx_admin_migrations`<br>3. `init-db.sh` 收口 `GRANT CREATE ON SCHEMA public TO app_server_user`，撤掉 `e2e-up.sh` 的 inline workaround<br>4. server 集成测试 15 处 migrate 调用收敛到 `tests/common/mod.rs` helper | 1. 双服务进程冷启动均完成 migrate 且 `_sqlx_app_migrations`=9、`_sqlx_admin_migrations`=4（5 端 wait-on 全绿依赖 T-0000N）<br>2. 两张 `_sqlx_*_migrations` 表共存，行数 = 9 / 4<br>3. `cargo test -p voice-room-server` / `cargo test -p voice-room-admin-server` / `npm run e2e:local` 0 回归<br>4. `grep "GRANT CREATE" scripts/dev/e2e-up.sh` 0 命中 | 3 | Dod | ✅ Done | [✅ Passed](../review/模块9-E2E测试基建.md) | - | ✅ Released |
-| **T-0000N** | 基建 | Infra/E2E | AppServer / AdminServer 暴露统一 `/health` 端点 [TDS](../tds/infra/T-0000N.md) | T-0000H, T-0000M | 两服务暴露轻量 `/health`（200 探活，纯静态 JSON），让 `e2e-up.sh` `wait-on http-get://...:3000/health` 与 `preflight.sh` 5 端健康检查真生效；当前两端仅有 `/ping`（`grep '"/health"' app/server/src` 0 命中），是 T-0000H 起的预存在缺陷 | 1. AppServer GET /health 返回 200 + `{status:"ok", service:"app-server", version}`<br>2. AdminServer GET /health 返回 200 + `service:"admin-server"`<br>3. `npm run e2e:up` 5 端 wait-on 全绿<br>4. `npm run preflight` 1 秒内绿表 | 1 | TDD | 🟡 In Progress | - | - | ⏳ Pending |
+| **T-0000N** | 基建 | Infra/E2E | AppServer / AdminServer 暴露统一 `/health` 端点 [TDS](../tds/infra/T-0000N.md) | T-0000H, T-0000M | 两服务暴露轻量 `/health`（200 探活，纯静态 JSON），让 `e2e-up.sh` `wait-on http-get://...:3000/health` 与 `preflight.sh` 5 端健康检查真生效；当前两端仅有 `/ping`（`grep '"/health"' app/server/src` 0 命中），是 T-0000H 起的预存在缺陷 | 1. AppServer GET /health 返回 200 + `{status:"ok", service:"app-server", version}`<br>2. AdminServer GET /health 返回 200 + `service:"admin-server"`<br>3. `npm run e2e:up` 5 端 wait-on 全绿<br>4. `npm run preflight` 1 秒内绿表 | 1 | Dod | ✅ Done | - | - | ⏳ Pending |
 | **T-0000O** | 基建 | Infra/E2E | ranking_test::r08 perf flake known-issue 收口 [TDS](../tds/infra/T-0000O.md) | T-0000M | `ranking_test::r08_response_time_under_100ms` 在 dev 机器上 p95 偶超 100ms（实测 315ms）；触发条件：与其它 DB 测试并发 + 冷连接池 warm-up 抖动；本 Task 在测试函数加 `#[ignore]`，建立 `doc/tests/known-issues.md` 登记册，长期方向迁独立 perf 套件 | 1. r08 加 `#[ignore = "perf flake; tracked by T-0000O"]`<br>2. `doc/tests/known-issues.md` 首条记录覆盖 5 必填字段（现象/触发条件/规避/手动跑命令/长期方向）<br>3. `cargo test -p voice-room-server` 默认 0 fail 且不含 r08 输出；`-- --ignored --test-threads=1` 单跑稳定通过<br>4. RUNBOOK 故障排查链向 known-issues.md | 1 | TDD | 🟡 In Progress | - | - | ⏳ Pending |
 
-**汇总**：13 个 Task，预估总工时 **35 人时（≈4.5 人天）**。**模块 9 完成进度：13/13 ✅ + 2 follow-up（T-0000N / T-0000O 已落 TDS、TDD 中）**。
+**汇总**：13 个 Task，预估总工时 **35 人时（≈4.5 人天）**。**模块 9 完成进度：13/13 ✅ + 2 follow-up（T-0000N ✅ Dod / T-0000O TDD 中）**。
 
 ---
 
