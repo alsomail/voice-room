@@ -1,0 +1,22 @@
+# T-30050 — Android local.properties override 模板（按需复制为 local.properties）
+#
+# Android Studio 自动生成的 sdk.dir 仍在 local.properties 中，本文件仅展示 voice-room 业务键。
+# 优先级：local.properties (本文件键) > 环境变量 > flavor.buildConfigField 默认值 > defaultConfig 兜底
+#
+# 适用场景：
+#   1. 物理机调试需把 10.0.2.2 替换为 LAN IP（如 192.168.1.100）
+#   2. 本地复现 staging/prod 行为（不改 flavor 默认值）
+#   3. 接入 Sentry 上报（dev 阶段允许空字符串）
+
+# Android SDK 路径（由 Android Studio 自动写入，请勿提交）
+# sdk.dir=/Users/<you>/Library/Android/sdk
+
+# ── voice-room 业务 override 键 ───────────────────────────────────────────
+# 仅在需要覆盖 flavor 默认值时取消注释。
+# voiceRoomApiBaseUrl=http://192.168.1.100:3000/api
+# voiceRoomWsUrl=ws://192.168.1.100:3000/ws
+# voiceRoomAnalyticsEndpoint=http://192.168.1.100:3000/api/v1/events/batch
+# voiceRoomEnvironment=local
+
+# Sentry DSN（dev 阶段可留空；release 上线前必须填写）
+# SENTRY_DSN=https://<key>@o<org>.ingest.sentry.io/<project>

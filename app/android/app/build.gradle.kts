@@ -81,6 +81,58 @@ android {
         )
     }
 
+    // T-30050：环境维度（local / staging / prod 三 flavor）
+    flavorDimensions += "env"
+
+    productFlavors {
+        create("local") {
+            dimension = "env"
+            isDefault = true                          // §2.11.3 不变量：裸 assembleDebug 等价 assembleLocalDebug
+            applicationIdSuffix = ".local"
+            versionNameSuffix = "-local"
+
+            // D-1：local 仍允许 local.properties / ENV 覆盖（保 0 回归）
+            val apiBaseUrl = resolveConfigValue(
+                localProperties, "voiceRoomApiBaseUrl", "VOICE_ROOM_API_BASE_URL",
+                "http://10.0.2.2:3000/api"
+            )
+            val wsUrl = resolveConfigValue(
+                localProperties, "voiceRoomWsUrl", "VOICE_ROOM_WS_URL",
+                "ws://10.0.2.2:3000/ws"
+            )
+            val analyticsEndpoint = resolveConfigValue(
+                localProperties, "voiceRoomAnalyticsEndpoint", "VOICE_ROOM_ANALYTICS_ENDPOINT",
+                "$apiBaseUrl/v1/events/batch"
+            )
+            buildConfigField("String", "API_BASE_URL",        "\"$apiBaseUrl\"")
+            buildConfigField("String", "WS_URL",              "\"$wsUrl\"")
+            buildConfigField("String", "ANALYTICS_ENDPOINT",  "\"$analyticsEndpoint\"")
+            buildConfigField("String", "APP_ENVIRONMENT",     "\"local\"")
+            manifestPlaceholders["usesCleartextTraffic"] = "true"
+        }
+
+        create("staging") {
+            dimension = "env"
+            applicationIdSuffix = ".stg"
+            versionNameSuffix = "-stg"
+            buildConfigField("String", "API_BASE_URL",        "\"https://stg-api.example.com/api\"")
+            buildConfigField("String", "WS_URL",              "\"wss://stg-api.example.com/ws\"")
+            buildConfigField("String", "ANALYTICS_ENDPOINT",  "\"https://stg-api.example.com/api/v1/events/batch\"")
+            buildConfigField("String", "APP_ENVIRONMENT",     "\"staging\"")
+            manifestPlaceholders["usesCleartextTraffic"] = "false"
+        }
+
+        create("prod") {
+            dimension = "env"
+            // 无 applicationIdSuffix → 包名为 com.voice.room.android（与商店一致）
+            buildConfigField("String", "API_BASE_URL",        "\"https://api.example.com/api\"")
+            buildConfigField("String", "WS_URL",              "\"wss://api.example.com/ws\"")
+            buildConfigField("String", "ANALYTICS_ENDPOINT",  "\"https://api.example.com/api/v1/events/batch\"")
+            buildConfigField("String", "APP_ENVIRONMENT",     "\"prod\"")
+            manifestPlaceholders["usesCleartextTraffic"] = "false"
+        }
+    }
+
     buildFeatures {
         buildConfig = true
         compose = true
@@ -95,12 +147,12 @@ android {
         debug {
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
-            manifestPlaceholders["usesCleartextTraffic"] = "true"
+            // T-30050：移除 manifestPlaceholders["usesCleartextTraffic"]，迁移到 flavor 控制
         }
 
         release {
             isMinifyEnabled = false
-            manifestPlaceholders["usesCleartextTraffic"] = "false"
+            // T-30050：同上移除（cleartext 由 flavor 决定，与 buildType 解耦）
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

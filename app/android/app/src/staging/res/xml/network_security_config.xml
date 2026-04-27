@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  T-30050 §2.5.2 — staging flavor 网络安全配置
+  双锁机制运行时锁：系统层禁止任何明文 http/ws 请求（30050-R1）。
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+</network-security-config>
