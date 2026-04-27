@@ -429,11 +429,14 @@ async fn b2_offset_beyond_total_returns_empty() {
 }
 
 // ============================================================================
-// B-3：并发写无丢失（10 并发，COUNT == 10）
+// B-3：并发写无丢失（FakeRepo 多线程 runtime — 验证无 panic / id 唯一）
 // ============================================================================
+//
+// Round 1 Should-3：升级为 multi_thread runtime，让 RwLock<Vec> 真正承受多线程压力。
+// 真实 DB 并发写由 `b3_concurrent_db_inserts`（`#[ignore]`）覆盖。
 
-#[tokio::test]
-async fn b3_concurrent_inserts_no_loss() {
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn b3_concurrent_inserts_fake_multi_thread() {
     let repo = Arc::new(FakeChatRepository::new());
     let room_id = Uuid::new_v4();
 
@@ -452,14 +455,20 @@ async fn b3_concurrent_inserts_no_loss() {
         ids.push(j.await.unwrap());
     }
     assert_eq!(ids.len(), 10);
-    // id 互不相等
     let mut sorted = ids.clone();
     sorted.sort();
     sorted.dedup();
-    assert_eq!(sorted.len(), 10, "B-3: every insert must yield unique id");
+    assert_eq!(
+        sorted.len(),
+        10,
+        "B-3 (fake mt): every insert must yield unique id"
+    );
 
     let cnt = repo.count_messages(room_id).await.unwrap();
-    assert_eq!(cnt, 10, "B-3: COUNT must equal #concurrent inserts");
+    assert_eq!(
+        cnt, 10,
+        "B-3 (fake mt): COUNT must equal #concurrent inserts"
+    );
 }
 
 // ============================================================================
@@ -601,11 +610,14 @@ async fn invalid_room_id_returns_400() {
 }
 
 // ============================================================================
-// R-3：性能 — 单次 SendMessage（含落库 + 广播）< 50ms
+// R-3：性能 — mem-only smoke（**不**代表生产 DB 路径）
 // ============================================================================
+//
+// Round 1 Should-4：明确标注此用例仅覆盖 SendMessage 处理链路（dedupe / filter / 广播）开销，
+// 不反映 DB 插入延迟。真 DB 性能基线由 `r3_real_db_perf_smoke`（`#[ignore]`）覆盖。
 
 #[tokio::test]
-async fn r3_send_message_under_50ms() {
+async fn r3_send_message_under_50ms_mem_only_smoke() {
     let room_manager = Arc::new(RoomManager::new());
     let registry = Arc::new(ConnectionRegistry::new());
     let repo = Arc::new(FakeChatRepository::new());
@@ -643,7 +655,8 @@ async fn r3_send_message_under_50ms() {
     let elapsed = t0.elapsed();
     assert!(
         elapsed < Duration::from_millis(50),
-        "R-3: single SendMessage must be < 50ms (Fake repo); elapsed={elapsed:?}"
+        "R-3 (mem-only smoke): 单次 SendMessage 处理链路 < 50ms (Fake repo); elapsed={elapsed:?}\n\
+         注：此基线**不**代表真实 DB 写入开销，生产 DB 性能由 r3_real_db_perf_smoke 覆盖。"
     );
 }
 
@@ -702,4 +715,134 @@ async fn create_room(pool: &PgPool, owner: Uuid) -> Uuid {
     .await
     .expect("insert room");
     row.0
+}
+
+// ============================================================================
+// Round 1 Should-6：HTTP 层 offset 软上限（normalize_pagination 截断到 100_000）
+// ============================================================================
+
+#[tokio::test]
+async fn b6_offset_above_soft_cap_truncated() {
+    let repo = Arc::new(FakeChatRepository::new());
+    let room_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+    repo.insert_message(room_id, user_id, "only-one")
+        .await
+        .unwrap();
+
+    let state = AppState::for_test().with_chat_repo(repo);
+    let app = build_app(state);
+    let jwt = make_test_jwt(user_id, "test-secret");
+    // 传入 200_000 — 应被 normalize_pagination 截断到 100_000
+    let uri = format!("/api/v1/rooms/{room_id}/messages?offset=200000");
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(&uri)
+                .header("Authorization", format!("Bearer {jwt}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = body_json(resp).await;
+    assert_eq!(
+        body["data"]["offset"], 100_000,
+        "Should-6: offset > MAX_OFFSET 必须截断到 100_000"
+    );
+    assert_eq!(body["data"]["total"], 1);
+    assert_eq!(body["data"]["items"].as_array().unwrap().len(), 0);
+}
+
+// ============================================================================
+// Round 1 Should-3：真实 DB 并发写入（10 task 并发 INSERT，COUNT == 10）
+// 仅在显式开启时执行：cargo test ... -- --ignored b3_concurrent_db_inserts
+// 若 DATABASE_URL 未设置则自动跳过。
+// ============================================================================
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[ignore]
+async fn b3_concurrent_db_inserts() {
+    let Some(pool) = test_pool().await else {
+        eprintln!("[SKIP] b3_concurrent_db_inserts: DATABASE_URL not set");
+        return;
+    };
+    common::run_migrations(&pool).await.expect("migrations");
+
+    let user_id = create_user(&pool).await;
+    let room_id = create_room(&pool, user_id).await;
+    let repo = Arc::new(RealChatRepository::new(pool.clone()));
+
+    // 10 个并发 INSERT
+    let mut joins = Vec::new();
+    for i in 0..10u32 {
+        let r = repo.clone();
+        joins.push(tokio::spawn(async move {
+            r.insert_message(room_id, user_id, &format!("c{i}"))
+                .await
+                .expect("insert ok")
+        }));
+    }
+    let mut ids = Vec::new();
+    for j in joins {
+        ids.push(j.await.unwrap());
+    }
+    assert_eq!(ids.len(), 10);
+
+    // COUNT(*) == 10 — 验证无丢失
+    let cnt = repo.count_messages(room_id).await.unwrap();
+    assert_eq!(
+        cnt, 10,
+        "B-3 (real DB): 并发 INSERT 全部落盘，COUNT(*) 必须等于并发数"
+    );
+
+    // id 唯一
+    let mut sorted = ids.clone();
+    sorted.sort();
+    sorted.dedup();
+    assert_eq!(sorted.len(), 10);
+}
+
+// ============================================================================
+// Round 1 Should-4：真实 DB 单次写入性能 smoke（100 次，p95 < 50ms）
+// 仅在显式开启时执行；DATABASE_URL 未设置则跳过。
+// ============================================================================
+
+#[tokio::test]
+#[ignore]
+async fn r3_real_db_perf_smoke() {
+    let Some(pool) = test_pool().await else {
+        eprintln!("[SKIP] r3_real_db_perf_smoke: DATABASE_URL not set");
+        return;
+    };
+    common::run_migrations(&pool).await.expect("migrations");
+
+    let user_id = create_user(&pool).await;
+    let room_id = create_room(&pool, user_id).await;
+    let repo = RealChatRepository::new(pool.clone());
+
+    // 预热 5 次
+    for _ in 0..5 {
+        repo.insert_message(room_id, user_id, "warmup")
+            .await
+            .unwrap();
+    }
+
+    let mut samples = Vec::with_capacity(100);
+    for i in 0..100u32 {
+        let t0 = Instant::now();
+        repo.insert_message(room_id, user_id, &format!("perf-{i}"))
+            .await
+            .unwrap();
+        samples.push(t0.elapsed());
+    }
+    samples.sort();
+    let p95 = samples[(samples.len() as f64 * 0.95) as usize - 1];
+    assert!(
+        p95 < Duration::from_millis(50),
+        "R-3 (real DB): 100 次 INSERT p95 必须 < 50ms; got p95={p95:?}, max={:?}",
+        samples.last().unwrap()
+    );
 }

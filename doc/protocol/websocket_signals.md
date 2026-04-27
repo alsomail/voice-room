@@ -183,3 +183,17 @@ JoinRoom payload 增 `access_token?: string`（密码房必填，从 `POST /room
 - `BalanceUpdated` 等用户级（非房间级）推送。
 
 客户端如需保证看到这些事件，应通过 REST 接口（房间状态、用户余额）轮询兜底。
+
+#### 6.7.5 envelope.msg_id vs payload.msg_id（双 ID 职责分裂，T-00043 引入）
+
+在 `RoomMessage` 等聊天广播中，**两个 `msg_id` 字段并存**且语义不同，客户端需按用途区分：
+
+| 字段 | 来源 | 用途 | 稳定性 |
+|------|------|------|------|
+| `msg_id`（envelope 顶层） | 服务端 `broadcast_to_room` 注入的 **UUID v4**（每次推送独立生成） | §6.7 `last_msg_id` 重连续传游标，配合 `recent_broadcasts` 环缓冲 | 仅在缓冲窗口内有效；超出窗口 / 服务端重启后失效 |
+| `payload.msg_id` | `chat_messages.id`（**DB 行主键**，T-00043 落库返回） | 业务级稳定标识：用于 REST `GET /api/v1/rooms/:id/messages` 中的去重 / 锚定 / 引用回复等 | 永久（除非该消息被删除） |
+
+**客户端约定**：
+- **重连续传**：`JoinRoom.last_msg_id` 必须传 envelope 顶层 `msg_id`；**不要**传 `payload.msg_id`（DB id 不在缓冲索引里，永远视作"出窗"）。
+- **历史 REST 比对 / 去重**：以 `payload.msg_id` 为准（与 `GET /rooms/:id/messages` 返回的 `items[].id` 直接对齐）。
+- **其他广播**（如 `UserJoined / GiftReceived`）目前仅有 envelope `msg_id`；`payload.msg_id` 仅在 chat 类业务消息中存在。

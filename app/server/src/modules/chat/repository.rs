@@ -121,44 +121,68 @@ impl ChatRepository for RealChatRepository {
         limit: u32,
         offset: u32,
     ) -> Result<(Vec<ChatHistoryRow>, i64), AppError> {
-        let total: i64 =
+        // Round 1 Should-5：合并 SELECT + COUNT(*) → 单条 SQL，COUNT(*) OVER() 在 LIMIT/OFFSET 之前求值。
+        // 排序键 `created_at DESC, id DESC` —— Round 1 Should-2：id 仅作为 deterministic tiebreak
+        // 避免同毫秒并发写返回顺序抖动；不主张其语义反映插入序（UUID v4 随机）。
+        type Row = (
+            Uuid,
+            Option<Uuid>,
+            Option<String>,
+            Option<String>,
+            String,
+            DateTime<Utc>,
+            i64,
+        );
+        let rows: Vec<Row> = sqlx::query_as(
+            r#"SELECT cm.id,
+                      cm.user_id,
+                      u.nickname,
+                      u.avatar_url,
+                      cm.content,
+                      cm.created_at,
+                      COUNT(*) OVER() AS total_count
+               FROM chat_messages cm
+               LEFT JOIN users u ON u.id = cm.user_id
+               WHERE cm.room_id = $1
+               ORDER BY cm.created_at DESC, cm.id DESC
+               LIMIT $2 OFFSET $3"#,
+        )
+        .bind(room_id)
+        .bind(limit as i64)
+        .bind(offset as i64)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        // 当 LIMIT/OFFSET 把整个窗口剪掉（如 B-2: offset 超过 total），
+        // COUNT(*) OVER() 也无法返回值 → 退回单条 COUNT 兜底。
+        // 仅 offset > 0 且 rows 为空时才补一次（避免 happy-path 多一次往返）。
+        let total: i64 = if let Some(first) = rows.first() {
+            first.6
+        } else if offset == 0 {
+            0
+        } else {
             sqlx::query_scalar("SELECT COUNT(*)::BIGINT FROM chat_messages WHERE room_id = $1")
                 .bind(room_id)
                 .fetch_one(&self.pool)
                 .await
-                .map_err(|e| AppError::DatabaseError(e.to_string()))?;
-
-        let rows: Vec<(Uuid, Option<Uuid>, Option<String>, Option<String>, String, DateTime<Utc>)> =
-            sqlx::query_as(
-                r#"SELECT cm.id,
-                          cm.user_id,
-                          u.nickname,
-                          u.avatar_url,
-                          cm.content,
-                          cm.created_at
-                   FROM chat_messages cm
-                   LEFT JOIN users u ON u.id = cm.user_id
-                   WHERE cm.room_id = $1
-                   ORDER BY cm.created_at DESC, cm.id DESC
-                   LIMIT $2 OFFSET $3"#,
-            )
-            .bind(room_id)
-            .bind(limit as i64)
-            .bind(offset as i64)
-            .fetch_all(&self.pool)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+                .map_err(|e| AppError::DatabaseError(e.to_string()))?
+        };
 
         let items = rows
             .into_iter()
-            .map(|(id, user_id, nickname, avatar_url, content, created_at)| ChatHistoryRow {
-                id,
-                user_id,
-                nickname,
-                avatar_url,
-                content,
-                created_at,
-            })
+            .map(
+                |(id, user_id, nickname, avatar_url, content, created_at, _total)| {
+                    ChatHistoryRow {
+                        id,
+                        user_id,
+                        nickname,
+                        avatar_url,
+                        content,
+                        created_at,
+                    }
+                },
+            )
             .collect();
 
         Ok((items, total))
@@ -178,7 +202,7 @@ impl ChatRepository for RealChatRepository {
 #[cfg(any(test, feature = "test-utils"))]
 mod fake_impl {
     use super::*;
-    use std::sync::Mutex;
+    use std::sync::RwLock;
 
     /// 内存条目（与 DB schema 对齐）
     #[derive(Clone)]
@@ -188,14 +212,17 @@ mod fake_impl {
         user_id: Uuid,
         content: String,
         created_at: DateTime<Utc>,
-        seq: u64, // 单调递增序列，确保同毫秒插入有序
+        seq: u64, // 单调递增序列；Round 1 Should-2 — Fake 路径以此模拟 (created_at, id) 的 deterministic tiebreak
     }
 
-    /// 测试用聊天 Repo，内存 Mutex<Vec>
+    /// 测试用聊天 Repo，内存 RwLock<Vec>。
+    /// Round 1 Should-3：写入 / 读取使用 RwLock，配合 `tokio::test(flavor = "multi_thread")`
+    /// 至少能在多线程 runtime 上验证"无 panic / 无序号丢失"。真实并发 DB 写入由
+    /// `b3_concurrent_db_inserts`（`#[ignore]`）覆盖。
     #[derive(Default)]
     pub struct FakeChatRepository {
-        rows: Mutex<Vec<Row>>,
-        users: Mutex<std::collections::HashMap<Uuid, (String, Option<String>)>>,
+        rows: RwLock<Vec<Row>>,
+        users: RwLock<std::collections::HashMap<Uuid, (String, Option<String>)>>,
         seq: std::sync::atomic::AtomicU64,
     }
 
@@ -206,7 +233,7 @@ mod fake_impl {
 
         /// 注入用户档案（用于 nickname/avatar_url JOIN）
         pub fn seed_user(&self, user_id: Uuid, nickname: &str, avatar_url: Option<&str>) {
-            self.users.lock().unwrap().insert(
+            self.users.write().unwrap().insert(
                 user_id,
                 (nickname.to_string(), avatar_url.map(|s| s.to_string())),
             );
@@ -231,7 +258,7 @@ mod fake_impl {
             let seq = self
                 .seq
                 .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-            self.rows.lock().unwrap().push(Row {
+            self.rows.write().unwrap().push(Row {
                 id,
                 room_id,
                 user_id,
@@ -248,10 +275,10 @@ mod fake_impl {
             limit: u32,
             offset: u32,
         ) -> Result<(Vec<ChatHistoryRow>, i64), AppError> {
-            let rows = self.rows.lock().unwrap();
-            let users = self.users.lock().unwrap();
+            let rows = self.rows.read().unwrap();
+            let users = self.users.read().unwrap();
             let mut filtered: Vec<&Row> = rows.iter().filter(|r| r.room_id == room_id).collect();
-            // DESC by seq（等价 created_at DESC，且抗时钟回拨）
+            // DESC by seq（等价 created_at DESC, id DESC 的 deterministic 投影）
             filtered.sort_by(|a, b| b.seq.cmp(&a.seq));
             let total = filtered.len() as i64;
             let items: Vec<ChatHistoryRow> = filtered
@@ -279,7 +306,7 @@ mod fake_impl {
         async fn count_messages(&self, room_id: Uuid) -> Result<i64, AppError> {
             Ok(self
                 .rows
-                .lock()
+                .read()
                 .unwrap()
                 .iter()
                 .filter(|r| r.room_id == room_id)

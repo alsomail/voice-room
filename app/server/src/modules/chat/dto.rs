@@ -21,6 +21,9 @@ pub struct MessagesQuery {
 pub const DEFAULT_LIMIT: u32 = 50;
 /// 上限 limit = 100
 pub const MAX_LIMIT: u32 = 100;
+/// offset 软上限：超过此值会被截断（防止超大 OFFSET 引发 PG O(N) 跳表扫描）。
+/// Round 1 review Should-6：偏移 > 100_000 时强制截断，提示前端切换到游标分页。
+pub const MAX_OFFSET: u32 = 100_000;
 
 /// 单条历史消息（REST 序列化形态）
 #[derive(Debug, Clone, Serialize)]
@@ -61,6 +64,7 @@ pub struct ChatMessagesResponse {
 /// - `limit = 0` → `DEFAULT_LIMIT`（防呆）
 /// - `limit > MAX_LIMIT` → `MAX_LIMIT`（B-1）
 /// - `offset = None` → 0
+/// - `offset > MAX_OFFSET` → `MAX_OFFSET`（Round 1 Should-6 软上限）
 pub fn normalize_pagination(q: &MessagesQuery) -> (u32, u32) {
     let mut limit = q.limit.unwrap_or(DEFAULT_LIMIT);
     if limit == 0 {
@@ -69,7 +73,10 @@ pub fn normalize_pagination(q: &MessagesQuery) -> (u32, u32) {
     if limit > MAX_LIMIT {
         limit = MAX_LIMIT;
     }
-    let offset = q.offset.unwrap_or(0);
+    let mut offset = q.offset.unwrap_or(0);
+    if offset > MAX_OFFSET {
+        offset = MAX_OFFSET;
+    }
     (limit, offset)
 }
 
@@ -110,5 +117,29 @@ mod tests {
             offset: Some(40),
         };
         assert_eq!(normalize_pagination(&q), (20, 40));
+    }
+
+    /// Round 1 Should-6：offset 软上限测试
+    #[test]
+    fn normalize_pagination_offset_soft_cap() {
+        // 上限内不变
+        let q = MessagesQuery {
+            limit: Some(50),
+            offset: Some(MAX_OFFSET),
+        };
+        assert_eq!(normalize_pagination(&q), (50, MAX_OFFSET));
+
+        // 超出上限被截断
+        let q = MessagesQuery {
+            limit: Some(50),
+            offset: Some(MAX_OFFSET + 1),
+        };
+        assert_eq!(normalize_pagination(&q), (50, MAX_OFFSET));
+
+        let q = MessagesQuery {
+            limit: Some(50),
+            offset: Some(u32::MAX),
+        };
+        assert_eq!(normalize_pagination(&q), (50, MAX_OFFSET));
     }
 }
