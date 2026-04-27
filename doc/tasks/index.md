@@ -1,9 +1,9 @@
 # Voice Room 开发任务清单
 
-> **版本**: v1.3  
-> **更新日期**: 2026-04-21  
-> **任务总数**: 111 个 (基建: 4, App Server: 30, Admin Server: 16, Web: 14, Android: 44, E-07 15 + E-07.5 6 + E-10 18)  
-> **当前阶段**: Phase 1 - 核心营收闭环（E-07 + E-07.5 并行）→ Phase 1.5 E-10 房间治理
+> **版本**: v2.3  
+> **更新日期**: 2026-04-27  
+> **任务总数**: 123 个 (基建: 4 + 9, App Server: 30 + 1, Admin Server: 16 + 1, Web: 14 + 1, Android: 44 + 1, E-07 15 + E-07.5 6 + E-10 18)  
+> **当前阶段**: Phase 1 - 核心营收闭环（E-07 + E-07.5 并行）→ Phase 1.5 E-10 房间治理 → Phase 1.6 E2E 测试基建（模块 9）
 
 ---
 
@@ -29,6 +29,8 @@
 | **v2.1** | **2026-05-27** | **T-30041 DoD 完成，E-10 进度 15/18：doc/arch/android/features.md 新增踢人原因弹窗模块文档（KickReasonDialog AlertDialog dismissOnClickOutside=false、KickReason 枚举 HARASSMENT/SPAM/ABUSE/OTHER、KickDialogState canSubmit 逻辑（OTHER 必填 customText、isSubmitting 防重复提交）、reason 字段 JSON 安全转义（双引号→全角引号、反斜杠转义）、与 T-30040 selectedKickTarget 联动流程（ShowKickReasonDialog event→弹窗→kickUser→UserKicked 广播→dismiss+Toast）、testTag 清单 kick_reason_0~3/kick_reason_custom_input/btn_confirm_kick）；doc/tasks/index.md T-30041 确认 ✅ Done 负责人 Dod；doc/product/index.md E-10 进度 14/18 → 15/18** |
 | **v1.8** | **2026-05-18** | **T-00029 DoD 完成，E-10 进度 6/18：doc/arch/server/room.md 新增二十四~三十一章（MuteUser/UnmuteUser C→S 信令格式、UserMuted 广播格式、Redis Key mic_muted/chat_muted TTL=duration_sec、处理流程 5 步、SendMessage→40305/TakeMic→40306 双重拦截、duration_sec [60,86400] 边界、送礼不受禁麦影响、文件清单与 365 测试汇总）；doc/tasks/index.md T-00029 状态 → ✅ Done 负责人 → Dod；doc/product/index.md E-10 进度 5/18 → 6/18** |
 | **v1.7** | **2026-05-17** | **T-00028 DoD 完成，E-10 进度 5/18：doc/arch/server/room.md 新增十六~二十三章（KickUser C→S/S→C/广播信令格式、处理流程 7 步、权限校验矩阵 owner>admin>member 不可踢 owner、Redis 冷却 Key kicked:{room_id}:{user_id} TTL 600s、JoinRoom 42911 冷却拦截、并发保护 DashMap.remove() 原子性、遗留问题 MEDIUM MicLeft/UserLeft 广播顺序 + LOW TTL=-1 处理、文件清单与 366+ 测试汇总）；doc/tasks/index.md T-00028 状态 → ✅ Done 负责人 → Dod；doc/product/index.md E-10 进度 4/18 → 5/18** |
+| **v2.2** | **2026-04-27** | **模块 9 创建（E2E 测试基建 / E2E QA Foundation）：新增 12 个 Task 覆盖多环境（local / staging / prod）切换体系、Seed/Reset/Preflight 三件套、globalSetup/Teardown/envLoader、AppServer & AdminServer config 对称化、Web 多 profile env、Android productFlavors、npm scripts 一键命令、@prod-safe 标签体系、Midscene 接入文档、E2E_RUNBOOK；产出 [T-0000E 主 TDS](../tds/infra/T-0000E.md) 冻结 11 个子任务接口契约 + 11 个子 TDS（infra/T-0000F~T-0000L、server/T-00040、adminServer/T-10020、web/T-20020、android/T-30050）；任务总数 111 → 123；T-0000E 负责人 → TDD（已具备 TDS），其余 11 个负责人 → Plan（待 Plan Agent 细化时按依赖顺序激活）** |
+| **v2.3** | **2026-04-27** | **T-0000E 进入 Review 阶段：TDS（doc/tds/infra/T-0000E.md）补全 §2.11 迁移路径（6 步 Migration Path + 4 条 Invariants）、§2.12 风险矩阵（R1~R10 含概率/影响/缓解/兜底/Owner）、§4.3 11 个下游子任务接口契约冻结索引表、§4.4 验收对照表、§4.5 残余风险 3 项；与 _template.md 偏离项显式声明（新增 6 个章节作为主 TDS 超集扩展）；模块 9 任务清单 T-0000E 行：研发负责人 TDD → Review，研发状态 Todo → In Progress** |
 | **v1.6** | **2026-05-16** | **T-00027 DoD 完成，E-10 进度 4/18：doc/arch/server/room.md 新增十三~十五章（GET /api/v1/rooms/:id/members 接口契约、角色优先级 owner>admin>member、1 次批量 SQL WHERE id=ANY($1)、MemberSnapshot 单一数据源、muted_mic/muted_chat Redis Key、权限错误码、文件清单与 398 测试汇总）；doc/tasks/index.md T-00027 状态 → ✅ Done 负责人 → Dod；doc/product/index.md E-10 进度 3/18 → 4/18** |
 
 ---
@@ -119,3 +121,7 @@
 ### Phase 1.5 Epic：E-10 房间主权与管理员体系
 
 - [模块 8: 房间主权与管理员体系 (E-10)](./模块8-房间主权与管理员体系%20(E-10).md)
+
+### Phase 1.6 测试基建：E2E QA Foundation
+
+- [模块 9: E2E 测试基建 (E2E QA Foundation)](./模块9-E2E测试基建%20(E2E%20QA%20Foundation).md)
