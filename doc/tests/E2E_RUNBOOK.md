@@ -101,6 +101,7 @@
 | 5 | Web `:5173` | 端口不通 | `curl -fsS http://127.0.0.1:5173/` | 终端 C `npm --prefix app/web run dev`；端口冲突 → `lsof -nP -iTCP:5173`（注意区别于 8080 / 8081 反向代理端口） | 15 |
 | 6 | envLoader（fail-fast） | 启动期 `MissingEnvError: <字段名>` / `[CONFIG ERROR]` | `npm run preflight 2>&1 \| head -20` | `.env.local` 缺字段 → 对照 `tests/scripts/env/.env.local.example` 补齐；**禁止** `process.env.X ?? '默认值'` 兜底（T-0000J 已禁） | 78 |
 | 7 | Midscene（WEB 用例） | 日志显示 `[MIDSCENE] api key missing — skipped` | `grep MIDSCENE_MODEL_API_KEY tests/scripts/env/.env.local` | 缺 Key 行为符合预期（自动 skip）；如需跑 WEB 用例，参考 [`./MIDSCENE_SETUP.md`](./MIDSCENE_SETUP.md) §1 §4.1 注入 Key | skip |
+| **11** | **端口冲突预检（5 端）** | **`docker compose up` 启动时报 `Bind for 0.0.0.0:<port> failed: port is already allocated`** | **`bash scripts/dev/check-ports.sh`（可单独执行，输出占用进程 PID/名称）** | **e2e-up.sh 已集成预检（Step 0）；若手动启动，冲突时运行 `kill -9 <PID>`；详细排查步骤见 [T-0000Q TDS](../tds/infra/T-0000Q.md) §五** | 1 |
 
 > **退出码备忘**：rc 11~15 = preflight 5 端；rc 78 = `EX_CONFIG`（envLoader 与 Rust config 共享语义，T-0000E §4.3 / T-00040 / T-10020）。
 
