@@ -1,16 +1,28 @@
+# AppServer 默认配置（profile-agnostic）。敏感字段不在此文件，由 ENV 注入。
+# 加载链：default.toml → {APP_PROFILE}.toml → ENV
+# 字段唯一真值源：doc/tds/infra/T-0000E.md §2.4.2 + doc/tds/server/T-00040.md §2.3
+
 [app]
 name = "voice-room-server"
-environment = "dev"
+environment = "dev"               # 会被 {profile}.toml / APP_PROFILE 覆盖
 
 [server]
 host = "0.0.0.0"
 port = 3000
 
+[database]
+# DSN 完全由 DATABASE_URL 注入，禁止在 toml 写入明文凭据
+max_connections = 10
+connect_timeout_secs = 5
+
+[redis]
+# URL 完全由 REDIS_URL 注入；预留章节用于 future override（pool size 等）
+
+[jwt]
+# 密钥由 JWT_SECRET 注入；过期时间可被 ENV `APP__JWT__EXPIRE_SECS` 覆盖
+expire_secs = 86400
+
 [log]
 level = "info"
 format = "json"
 service_name = "voice-room-server"
-
-[database]
-max_connections = 10
-connect_timeout_secs = 5

@@ -1,0 +1,7 @@
+# staging profile：远端测试环境，敏感字段全部走 ENV
+[app]
+environment = "staging"
+
+[log]
+level = "info"
+format = "json"

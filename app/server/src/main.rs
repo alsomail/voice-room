@@ -29,7 +29,7 @@ use voice_room_server::{
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let settings = ServerSettings::load()?;
+    let settings = ServerSettings::load().unwrap_or_else(|e| fatal_config(e));
     init_tracing(&settings.log)?;
 
     let startup_span = tracing::info_span!(
@@ -46,7 +46,7 @@ async fn main() -> anyhow::Result<()> {
         .database
         .url
         .as_deref()
-        .expect("DATABASE_URL must be set");
+        .expect("DATABASE_URL injected by ServerSettings::load()");
     let pool = create_pool(
         db_url,
         settings.database.max_connections,
@@ -58,7 +58,7 @@ async fn main() -> anyhow::Result<()> {
     let redis_url = settings
         .redis_url
         .as_deref()
-        .unwrap_or("redis://127.0.0.1:6379");
+        .expect("REDIS_URL injected by ServerSettings::load()");
     let code_store = Arc::new(RedisCodeStore::new(redis_url).await?);
     let stats_service = Arc::new(StatsService::new(redis_url).await?);
 
@@ -200,4 +200,10 @@ async fn shutdown_signal() {
     }
 
     tracing::info!("shutdown signal received");
+}
+
+/// 配置加载失败时的 fail-fast：统一前缀 `CONFIG ERROR:` + 退出码 78（EX_CONFIG）。
+fn fatal_config(err: anyhow::Error) -> ! {
+    eprintln!("CONFIG ERROR: {err:#}");
+    std::process::exit(78);
 }

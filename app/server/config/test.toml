@@ -1,8 +1,15 @@
+# test profile：与 AdminServer (3001) / 默认 (3000) 端口隔离
 [app]
 environment = "test"
 
 [server]
-port = 3001
+port = 4000
+
+[database]
+max_connections = 5
+
+[jwt]
+expire_secs = 3600
 
 [log]
 level = "info"
