@@ -204,4 +204,5 @@ Rust Lint + Test (ubuntu-latest)
 | **playwright E2E config** | **🟢 完成** | **T-0000H：`playwright.config.ts`（globalSetup/Teardown 接入、grep @prod-safe 条件、use.baseURL lazy 读 ADMIN_WEB_URL）** |
 | **playwright unit config** | **🟢 完成** | **T-0000H：`playwright.unit.config.ts`（单测专用，隔离生产 setup）** |
 | **TypeScript strict config** | **🟢 完成** | **T-0000H：`tsconfig.json`（scope=support/，tsc --noEmit 0 错误）** |
+| **npm scripts 一键命令** | **🟢 完成** | **T-0000I：`package.json` scripts（6 条一键命令 + cross-env 跨平台、`e2e:local/staging/prod-smoke` + `db:seed/reset` + `preflight`、退出码透传 11~15/21~24）** |
 | CD 部署流水线 | 🔴 未实现 | 产物构建与部署由运维自行安排 |
