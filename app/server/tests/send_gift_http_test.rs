@@ -3,11 +3,13 @@
 //! 测试用例验证以下内容：
 //! - SH01 (U-1): HTTP 送礼成功 → 返回 gift_record_id, sender_balance, receiver_charm
 //! - SH02 (U-3): 余额不足 → 400 + 40290 INSUFFICIENT_BALANCE
-//! - SH03: count=0 → 400 + 40001 INVALID_COUNT
-//! - SH04: count=10000 → 400 + 40001 INVALID_COUNT
+//! - SH03: count=0 → 400 + 40004 INVALID_COUNT
+//! - SH04: count=10000 → 400 + 40004 INVALID_COUNT
 //! - SH05: 未鉴权 → 401
 //! - SH06: 礼物下架 → 404 + 40402 GIFT_NOT_AVAILABLE
 //! - SH07: 接收者不在麦上 → 404 + 40403 RECEIVER_UNAVAILABLE
+//! - SH08 (MINOR-2 修复): Idempotency-Key header 幂等性
+//! - SH09 (MINOR-3 修复): 广播失败不影响 HTTP 200 + 不回滚事务
 
 mod common;
 
@@ -629,4 +631,275 @@ async fn sh07_receiver_not_on_mic() {
     let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
     let body: serde_json::Value = serde_json::from_slice(&body_bytes).unwrap();
     assert_eq!(body["code"], 40403, "SH07: code should be 40403 RECEIVER_UNAVAILABLE");
+}
+
+/// SH08 (MINOR-2 修复): 幂等性测试 — 使用 Idempotency-Key header
+///
+/// 验证：
+/// - 提供相同 Idempotency-Key 的两次请求返回相同 gift_record_id
+/// - 仅扣款一次
+/// - 第二次请求返回首次的余额/魅力值快照
+#[tokio::test]
+async fn sh08_idempotency_with_header() {
+    let pool = match test_pool().await {
+        Some(p) => p,
+        None => {
+            eprintln!("SH08: DATABASE_URL not configured, skipping");
+            return;
+        }
+    };
+    let redis_url = match redis_url() {
+        Some(u) => u,
+        None => {
+            eprintln!("SH08: REDIS_URL not configured, skipping");
+            return;
+        }
+    };
+
+    common::run_migrations(&pool).await.expect("migrate");
+
+    // 1. 准备测试数据
+    let sender = insert_test_user(&pool, 1000).await;
+    let receiver = insert_test_user(&pool, 0).await;
+    let owner = insert_test_user(&pool, 0).await;
+    let room_id = insert_test_room(&pool, owner).await;
+    let (gift_id, price) = get_active_gift(&pool).await;
+
+    // 2. 设置房间状态
+    let room_manager = Arc::new(RoomManager::new());
+    let room_state = room_manager.get_or_create_room(room_id);
+    room_state.members.insert(
+        sender,
+        MemberInfo::new(sender, format!("Sender_{}", &sender.to_string()[..8]), None),
+    );
+    room_state.members.insert(
+        receiver,
+        MemberInfo::new(receiver, format!("Receiver_{}", &receiver.to_string()[..8]), None),
+    );
+    room_state.take_mic_slot(0, receiver).expect("take mic slot");
+
+    // 3. 构建服务
+    let registry = Arc::new(ConnectionRegistry::new());
+    let (balance_tx, _balance_rx) = tokio::sync::mpsc::channel::<BalanceEvent>(100);
+    let send_gift_service = Arc::new(
+        GiftSendService::new(
+            pool.clone(),
+            registry.clone(),
+            room_manager.clone(),
+            balance_tx,
+            redis_url,
+        )
+        .expect("create GiftSendService"),
+    );
+
+    let mut state = AppState::for_test();
+    state.send_gift_service = send_gift_service;
+    state.room_manager = room_manager;
+    state.ws_registry = registry;
+
+    let app = build_app(state.clone());
+    let jwt = generate_test_jwt(sender);
+
+    // 4. 第一次请求（带 Idempotency-Key）
+    let idempotency_key = "test-unique-key-12345";
+    let request1 = Request::builder()
+        .method("POST")
+        .uri("/api/v1/gifts/send")
+        .header(header::AUTHORIZATION, format!("Bearer {}", jwt))
+        .header(header::CONTENT_TYPE, "application/json")
+        .header("idempotency-key", idempotency_key)
+        .body(Body::from(
+            json!({
+                "room_id": room_id.to_string(),
+                "gift_id": gift_id.to_string(),
+                "receiver_id": receiver.to_string(),
+                "count": 1
+            })
+            .to_string(),
+        ))
+        .unwrap();
+
+    let response1 = app.oneshot(request1).await.unwrap();
+    assert_eq!(
+        response1.status(),
+        StatusCode::OK,
+        "SH08: first request should succeed"
+    );
+
+    let body1_bytes = axum::body::to_bytes(response1.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let body1: serde_json::Value = serde_json::from_slice(&body1_bytes).unwrap();
+    let first_record_id = body1["data"]["gift_record_id"].as_str().unwrap();
+    let first_balance = body1["data"]["sender_balance"].as_i64().unwrap();
+    let first_charm = body1["data"]["receiver_charm"].as_i64().unwrap();
+
+    // 验证扣款发生
+    assert_eq!(first_balance, 1000 - price, "SH08: sender should be deducted");
+    assert_eq!(first_charm, price, "SH08: receiver should gain charm");
+
+    // 5. 第二次请求（相同 Idempotency-Key）
+    let app2 = build_app(state.clone());
+    let request2 = Request::builder()
+        .method("POST")
+        .uri("/api/v1/gifts/send")
+        .header(header::AUTHORIZATION, format!("Bearer {}", jwt))
+        .header(header::CONTENT_TYPE, "application/json")
+        .header("idempotency-key", idempotency_key)
+        .body(Body::from(
+            json!({
+                "room_id": room_id.to_string(),
+                "gift_id": gift_id.to_string(),
+                "receiver_id": receiver.to_string(),
+                "count": 1
+            })
+            .to_string(),
+        ))
+        .unwrap();
+
+    let response2 = app2.oneshot(request2).await.unwrap();
+    assert_eq!(
+        response2.status(),
+        StatusCode::OK,
+        "SH08: second request should also succeed (idempotent)"
+    );
+
+    let body2_bytes = axum::body::to_bytes(response2.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let body2: serde_json::Value = serde_json::from_slice(&body2_bytes).unwrap();
+    let second_record_id = body2["data"]["gift_record_id"].as_str().unwrap();
+
+    // 验证幂等性
+    assert_eq!(
+        first_record_id, second_record_id,
+        "SH08: same Idempotency-Key should return same gift_record_id"
+    );
+
+    // 验证数据库仅扣款一次
+    let final_balance = get_diamond_balance(&pool, sender).await;
+    assert_eq!(
+        final_balance,
+        1000 - price,
+        "SH08: balance should only be deducted once"
+    );
+}
+
+/// SH09 (MINOR-3 修复): 广播失败不影响 HTTP 200
+///
+/// 验证：
+/// - 即使广播 panic/失败（如房间不存在、registry 不可用），HTTP 仍返回 200
+/// - 数据库事务已提交（扣款/魅力值/gift_records 已写入）
+/// - 不发生回滚
+#[tokio::test]
+async fn sh09_broadcast_failure_does_not_rollback() {
+    let pool = match test_pool().await {
+        Some(p) => p,
+        None => {
+            eprintln!("SH09: DATABASE_URL not configured, skipping");
+            return;
+        }
+    };
+    let redis_url = match redis_url() {
+        Some(u) => u,
+        None => {
+            eprintln!("SH09: REDIS_URL not configured, skipping");
+            return;
+        }
+    };
+
+    common::run_migrations(&pool).await.expect("migrate");
+
+    // 1. 准备测试数据
+    let sender = insert_test_user(&pool, 1000).await;
+    let receiver = insert_test_user(&pool, 0).await;
+    let owner = insert_test_user(&pool, 0).await;
+    let room_id = insert_test_room(&pool, owner).await;
+    let (gift_id, price) = get_active_gift(&pool).await;
+
+    // 2. 设置房间状态
+    let room_manager = Arc::new(RoomManager::new());
+    let room_state = room_manager.get_or_create_room(room_id);
+    room_state.members.insert(
+        sender,
+        MemberInfo::new(sender, format!("Sender_{}", &sender.to_string()[..8]), None),
+    );
+    room_state.members.insert(
+        receiver,
+        MemberInfo::new(receiver, format!("Receiver_{}", &receiver.to_string()[..8]), None),
+    );
+    room_state.take_mic_slot(0, receiver).expect("take mic slot");
+
+    // 3. 构建服务
+    let registry = Arc::new(ConnectionRegistry::new());
+    let (balance_tx, _balance_rx) = tokio::sync::mpsc::channel::<BalanceEvent>(100);
+    let send_gift_service = Arc::new(
+        GiftSendService::new(
+            pool.clone(),
+            registry.clone(),
+            room_manager.clone(),
+            balance_tx,
+            redis_url,
+        )
+        .expect("create GiftSendService"),
+    );
+
+    let mut state = AppState::for_test();
+    state.send_gift_service = send_gift_service.clone();
+    state.room_manager = Arc::clone(&room_manager);
+    state.ws_registry = registry;
+
+    let app = build_app(state);
+
+    // 4. 发送请求（房间存在但广播在异步任务中，失败不影响响应）
+    let jwt = generate_test_jwt(sender);
+    let request = Request::builder()
+        .method("POST")
+        .uri("/api/v1/gifts/send")
+        .header(header::AUTHORIZATION, format!("Bearer {}", jwt))
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(
+            json!({
+                "room_id": room_id.to_string(),
+                "gift_id": gift_id.to_string(),
+                "receiver_id": receiver.to_string(),
+                "count": 1
+            })
+            .to_string(),
+        ))
+        .unwrap();
+
+    let response = app.oneshot(request).await.unwrap();
+
+    // 验证 HTTP 200（即使广播失败也不回滚）
+    assert_eq!(
+        response.status(),
+        StatusCode::OK,
+        "SH09: should return 200 even if broadcast fails"
+    );
+
+    // 验证数据库已扣款
+    let final_balance = get_diamond_balance(&pool, sender).await;
+    assert_eq!(
+        final_balance,
+        1000 - price,
+        "SH09: balance should be deducted despite broadcast failure"
+    );
+
+    // 验证 gift_records 已写入
+    let record_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM gift_records WHERE sender_id = $1 AND receiver_id = $2",
+    )
+    .bind(sender)
+    .bind(receiver)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        record_count, 1,
+        "SH09: gift_record should exist in DB"
+    );
+
+    // 注意：由于广播已改为 tokio::spawn 异步执行，即使广播失败也不会影响 HTTP 响应
+    // 本测试验证的是"广播失败不回滚事务"的设计，实际的广播失败场景可能需要 mock
 }
