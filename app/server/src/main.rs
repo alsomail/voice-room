@@ -53,7 +53,15 @@ async fn main() -> anyhow::Result<()> {
         settings.database.connect_timeout_secs,
     )
     .await?;
-    sqlx::migrate!("./migrations").run(&pool).await?;
+    // T-0000M：双服务共库 Migration 表隔离 — 使用自定义登记表 `_sqlx_app_migrations`，
+    // 避免与 AdminServer 默认 `_sqlx_migrations` 互相覆盖／校验互掐。
+    // 详见 doc/tds/infra/T-0000M.md §2.2（保底方案：手管登记表 SQL，复用宏的 Migration 列表）。
+    voice_room_shared::migrate::run_migrations_with_table(
+        &pool,
+        &sqlx::migrate!("./migrations"),
+        "_sqlx_app_migrations",
+    )
+    .await?;
 
     let redis_url = settings
         .redis_url

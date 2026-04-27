@@ -58,8 +58,15 @@ async fn main() -> anyhow::Result<()> {
     let pool = sqlx::PgPool::connect(&database_url).await?;
     tracing::info!("database connected");
 
-    // 运行数据库迁移
-    sqlx::migrate!("./migrations").run(&pool).await?;
+    // T-0000M：双服务共库 Migration 表隔离 — 使用自定义登记表 `_sqlx_admin_migrations`，
+    // 避免与 AppServer 默认 `_sqlx_migrations` 互相覆盖／校验互掐。
+    // 详见 doc/tds/infra/T-0000M.md §2.2。
+    voice_room_shared::migrate::run_migrations_with_table(
+        &pool,
+        &sqlx::migrate!("./migrations"),
+        "_sqlx_admin_migrations",
+    )
+    .await?;
     tracing::info!("migrations applied");
 
     // 初始化 Redis 事件发布器（dev 允许缺失 → Noop；其他 profile load 阶段已 fail-fast）
