@@ -22,9 +22,11 @@ TESTS_FAILED=0
 CLEANUP_PIDS=()
 
 cleanup() {
-  for pid in "${CLEANUP_PIDS[@]}"; do
-    kill -9 "$pid" 2>/dev/null || true
-  done
+  if [[ ${#CLEANUP_PIDS[@]} -gt 0 ]]; then
+    for pid in "${CLEANUP_PIDS[@]}"; do
+      kill -9 "$pid" 2>/dev/null || true
+    done
+  fi
   # 等待端口释放
   sleep 1
 }
@@ -127,8 +129,10 @@ if wait_for_script; then
     fi
   done
 
-  output=$(bash "$REPO_ROOT/scripts/dev/check-ports.sh" 2>&1 || true)
+  set +e
+  output=$(bash "$REPO_ROOT/scripts/dev/check-ports.sh" 2>&1)
   exit_code=$?
+  set -e
 
   assert_exit_code 0 "$exit_code" "U-1: 空闲端口 → 退出码 0"
   assert_output_contains "✓ Port 5432" "$output" "U-1: 输出包含 PostgreSQL 可用"
@@ -148,8 +152,10 @@ echo "【U-2】占用 5432 → 脚本退出码非 0 + 红色错误 + kill 命令
 if wait_for_script; then
   pid=$(occupy_port 5432)
   
-  output=$(bash "$REPO_ROOT/scripts/dev/check-ports.sh" 2>&1 || true)
+  set +e
+  output=$(bash "$REPO_ROOT/scripts/dev/check-ports.sh" 2>&1)
   exit_code=$?
+  set -e
 
   assert_exit_code 1 "$exit_code" "U-2: 端口冲突 → 退出码 1"
   assert_output_contains "✗.*5432" "$output" "U-2: 输出包含端口 5432 错误"
@@ -172,8 +178,10 @@ if wait_for_script; then
   pid1=$(occupy_port 5432)
   pid2=$(occupy_port 6379)
   
-  output=$(bash "$REPO_ROOT/scripts/dev/check-ports.sh" 2>&1 || true)
+  set +e
+  output=$(bash "$REPO_ROOT/scripts/dev/check-ports.sh" 2>&1)
   exit_code=$?
+  set -e
 
   assert_exit_code 1 "$exit_code" "U-3: 多端口冲突 → 退出码 1"
   assert_output_contains "✗.*5432" "$output" "U-3: 输出包含端口 5432 错误"
@@ -196,7 +204,9 @@ echo "【U-4】进程名出现在错误信息（PID + 进程名）"
 if wait_for_script; then
   pid=$(occupy_port 5432)
   
-  output=$(bash "$REPO_ROOT/scripts/dev/check-ports.sh" 2>&1 || true)
+  set +e
+  output=$(bash "$REPO_ROOT/scripts/dev/check-ports.sh" 2>&1)
+  set -e
   
   # 获取进程名
   process_name=$(ps -p "$pid" -o comm= 2>/dev/null || echo "unknown")
