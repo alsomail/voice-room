@@ -333,6 +333,7 @@ impl AppState {
 pub fn build_app(state: AppState) -> Router {
     Router::new()
         .route("/ping", get(ping))
+        .route("/health", get(health))
         .route("/ws", get(ws_handler))
         .merge(auth_routes())
         .merge(room_routes())
@@ -356,6 +357,28 @@ async fn ping(Extension(request_context): Extension<RequestContext>) -> Json<Pin
     Json(PingResponse {
         status: "ok",
         request_id: request_context.request_id().to_owned(),
+    })
+}
+
+// ─── T-0000N: 统一 /health 端点 ────────────────────────────────────────────────
+//
+// 与 `/ping` 同层挂载，零鉴权、零 AppState 读取、零下游探测。
+// 用于 wait-on / preflight / 监控探针；语义 = 「进程存活并能响应 HTTP」。
+
+/// `/health` 响应体。结构由协议约束（status/service/version 三字段）。
+#[derive(Serialize)]
+pub struct HealthResponse {
+    pub status: &'static str,
+    pub service: &'static str,
+    pub version: &'static str,
+}
+
+/// AppServer 健康探活 handler，纯静态 JSON，零参数零依赖。
+pub async fn health() -> Json<HealthResponse> {
+    Json(HealthResponse {
+        status: "ok",
+        service: "app-server",
+        version: env!("CARGO_PKG_VERSION"),
     })
 }
 

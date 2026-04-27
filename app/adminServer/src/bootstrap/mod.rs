@@ -3,8 +3,9 @@ use std::sync::Arc;
 use axum::{
     middleware,
     routing::{get, post, put},
-    Router,
+    Json, Router,
 };
+use serde::Serialize;
 
 use crate::{
     infrastructure::logging::request_context_middleware,
@@ -170,6 +171,8 @@ pub fn build_app(state: AppState) -> Router {
         jwt_secret: state.jwt_secret.clone(),
     };
     Router::new()
+        // T-0000N: 统一 /health 端点（同层挂载，免鉴权、零 AppState 读取）
+        .route("/health", get(health))
         .route("/api/v1/admin/login", post(login_handler))
         .route("/api/v1/admin/rooms", get(list_rooms_handler))
         .route(
@@ -214,6 +217,28 @@ pub fn build_app(state: AppState) -> Router {
         .layer(middleware::from_fn_with_state(audit_state, audit_middleware))
         .layer(middleware::from_fn(request_context_middleware))
         .with_state(state)
+}
+
+// ─── T-0000N: 统一 /health 端点 ────────────────────────────────────────────────
+//
+// 与 /api/v1/admin/* 业务路由同层挂载于 Router 顶层，零鉴权、零 AppState 读取、
+// 零下游探测。用于 wait-on / preflight / 监控探针。
+
+/// `/health` 响应体。结构由协议约束（status/service/version 三字段）。
+#[derive(Serialize)]
+pub struct HealthResponse {
+    pub status: &'static str,
+    pub service: &'static str,
+    pub version: &'static str,
+}
+
+/// AdminServer 健康探活 handler，纯静态 JSON，零参数零依赖。
+pub async fn health() -> Json<HealthResponse> {
+    Json(HealthResponse {
+        status: "ok",
+        service: "admin-server",
+        version: env!("CARGO_PKG_VERSION"),
+    })
 }
 
 // ─── 测试专用路由（T-10003）──────────────────────────────────────────────────
