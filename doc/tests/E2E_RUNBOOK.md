@@ -218,6 +218,10 @@ PowerShell / cmd.exe 单引号不剥离，导致 `--grep` 收到字面 `'@prod-s
 
 跨平台依赖 `cross-env` / `@playwright/test` / `@midscene/web` 体积较大；建议 `npm config set registry https://registry.npmmirror.com` 切换镜像。
 
+### Q9. `cargo test -p voice-room-server` 中 `r08_response_time_under_100ms` perf flake
+
+已登记为 known-issue，默认 `#[ignore]` 跳过；详情、手动跑命令与长期方向见 [`./known-issues.md#r08`](./known-issues.md#r08)。
+
 ---
 
 ## §8 附录：相关文档锚点表
