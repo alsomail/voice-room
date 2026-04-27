@@ -1,0 +1,6 @@
+# dev profile：仅覆写差异字段（与 default.toml diff 化）
+[app]
+environment = "dev"
+
+[log]
+level = "debug"

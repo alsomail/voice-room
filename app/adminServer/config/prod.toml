@@ -1,0 +1,15 @@
+# prod profile：log 锁定 json，port 与 default 对齐由反向代理做端口映射；
+# 如需 8081 由部署期 ADMIN__SERVER__PORT 覆盖（详见 T-10020 §2.3 设计取舍 / R2）。
+[app]
+environment = "prod"
+
+[server]
+port = 3001
+
+[database]
+max_connections = 50
+connect_timeout_secs = 10
+
+[log]
+level = "info"
+format = "json"

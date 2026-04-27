@@ -1,0 +1,34 @@
+# AdminServer 默认配置（profile-agnostic）。敏感字段不在此文件，由 ENV 注入。
+# 加载链：default.toml → {ADMIN_PROFILE}.toml → ENV
+# 字段唯一真值源：doc/tds/infra/T-0000E.md §2.4.2 + doc/tds/adminServer/T-10020.md §2.3
+# 与 AppServer 对称差异表：T-10020.md §2.8
+
+[app]
+name = "voice-room-admin-server"
+environment = "dev"               # 会被 {profile}.toml 覆盖；ADMIN_PROFILE 为最终真源
+
+[server]
+host = "0.0.0.0"
+port = 3001                       # 与 T-00040 §2.8 对称约束：admin = 3001（app=3000）
+
+[database]
+# DSN 由 DATABASE_URL 注入，禁止在 toml 写入明文凭据
+max_connections = 10
+connect_timeout_secs = 5
+
+[redis]
+# URL 完全由 REDIS_URL 注入。dev profile 允许缺失 → main.rs 退化为 NoopEventPublisher（保 0 回归）
+# non-dev 缺失即 exit 78
+
+[jwt]
+# 密钥由 ADMIN_JWT_SECRET（优先）或 JWT_SECRET（向后兼容）注入
+expire_secs = 86400
+
+[log]
+level = "info"
+format = "json"
+service_name = "voice-room-admin-server"
+
+[storage]
+# 礼物素材上传目录；可被 ADMIN__STORAGE__GIFT_UPLOAD_DIR 或兼容 GIFT_UPLOAD_DIR 覆盖
+gift_upload_dir = "./uploads/gifts"

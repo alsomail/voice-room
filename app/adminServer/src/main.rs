@@ -3,6 +3,7 @@ use std::sync::Arc;
 use tokio::{net::TcpListener, signal};
 use voice_room_admin_server::{
     bootstrap::{build_app, AppState},
+    infrastructure::config::AdminSettings,
     modules::{
         audit::repository::PgAuditRepository,
         auth::{PgAdminLogRepository, PgAdminRepository},
@@ -19,16 +20,21 @@ use voice_room_admin_server::{
     },
 };
 
+/// 启动期 config 失败统一处理：stderr 首行 `CONFIG ERROR:`，退出码 78（EX_CONFIG）。
+/// 与 T-00040 / preflight.sh / RUNBOOK 形成 grep 锚点（T-10020 §2.5）。
+fn fatal_config(err: anyhow::Error) -> ! {
+    eprintln!("CONFIG ERROR: {err:#}");
+    std::process::exit(78);
+}
+
 /// Admin Server 入口。
 ///
-/// 读取环境变量（支持 .env 文件）→ 初始化 PgPool → 注入真实 Repository →
-/// 构建 Axum Router → 启动 HTTP 监听。
+/// 加载链：`AdminSettings::load()`（dotenv → default.toml → {profile}.toml → ENV）→
+/// 注入 PgPool → Repository → 构建 Axum Router → 启动 HTTP 监听。
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // 加载 .env 文件（文件不存在时忽略，生产环境依赖真实环境变量）
-    let _ = dotenvy::dotenv();
-
     // 初始化 tracing（默认输出到 stdout，RUST_LOG 控制级别）
+    // 注：load() 内会用 tracing::warn!/info!，所以 subscriber 必须先于 load 初始化。
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
@@ -36,13 +42,17 @@ async fn main() -> anyhow::Result<()> {
         )
         .init();
 
-    // 读取必要环境变量
-    let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-    let jwt_secret = std::env::var("JWT_SECRET").expect("JWT_SECRET must be set");
-    let port: u16 = std::env::var("PORT")
-        .unwrap_or_else(|_| "8081".to_string())
-        .parse()
-        .expect("PORT must be a valid u16");
+    // 9 步加载链 + fail-fast（任一字段缺失即 exit 78）
+    let settings = AdminSettings::load().unwrap_or_else(|e| fatal_config(e));
+
+    let database_url = settings
+        .database
+        .url
+        .clone()
+        .expect("DATABASE_URL injected by AdminSettings::load() (load fail-fast 兜底)");
+    let jwt_secret = settings.jwt_secret.clone();
+    let port = settings.server.port;
+    let host = settings.server.host.clone();
 
     // 初始化 PostgreSQL 连接池
     let pool = sqlx::PgPool::connect(&database_url).await?;
@@ -52,14 +62,14 @@ async fn main() -> anyhow::Result<()> {
     sqlx::migrate!("./migrations").run(&pool).await?;
     tracing::info!("migrations applied");
 
-    // 初始化 Redis 事件发布器（若未配置则降级为 Noop）
-    let event_publisher: Arc<dyn EventPublisher> = match std::env::var("REDIS_URL") {
-        Ok(url) => {
+    // 初始化 Redis 事件发布器（dev 允许缺失 → Noop；其他 profile load 阶段已 fail-fast）
+    let event_publisher: Arc<dyn EventPublisher> = match settings.redis_url.as_deref() {
+        Some(url) => {
             let client = redis::Client::open(url)?;
             tracing::info!("redis event publisher connected");
             Arc::new(RedisEventPublisher::new(client))
         }
-        Err(_) => {
+        None => {
             tracing::warn!(
                 "REDIS_URL not set, using NoopEventPublisher (events will not be published)"
             );
@@ -85,12 +95,12 @@ async fn main() -> anyhow::Result<()> {
 
     let app = build_app(state.clone());
 
-    // P0-3: 若设置了 REDIS_URL，则注入 AdminStatsService 以读取实时 online_users / active_rooms
-    if let Ok(url) = std::env::var("REDIS_URL") {
-        state.stats_service.try_init_redis(&url).await;
+    // P0-3: 若提供 REDIS_URL，则注入 AdminStatsService 以读取实时 online_users / active_rooms
+    if let Some(url) = settings.redis_url.as_deref() {
+        state.stats_service.try_init_redis(url).await;
     }
 
-    let bind_addr = format!("0.0.0.0:{port}");
+    let bind_addr = format!("{host}:{port}");
     let listener = TcpListener::bind(&bind_addr).await?;
 
     tracing::info!(addr = %bind_addr, "admin server started");

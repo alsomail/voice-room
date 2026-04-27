@@ -1,0 +1,18 @@
+# test profile：与 AppServer (test=4000) / default (3001) 端口隔离 → 4001
+[app]
+environment = "test"
+
+[server]
+port = 4001
+
+[database]
+max_connections = 5
+
+[jwt]
+expire_secs = 3600
+
+[log]
+level = "info"
+
+[storage]
+gift_upload_dir = "./.tmp/uploads/gifts-test"
