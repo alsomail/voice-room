@@ -174,7 +174,19 @@ pub async fn handle_socket(
             msg = rx.recv() => {
                 match msg {
                     Some(text) => {
+                        // T-00041：心跳超时通知帧 → 转发后立即发显式 Close(1000) 并断开
+                        let close_frame = crate::ws::heartbeat::close_frame_for_message(&text);
                         if socket.send(Message::Text(text.into())).await.is_err() {
+                            break;
+                        }
+                        if let Some(frame) = close_frame {
+                            tracing::warn!(
+                                %user_id,
+                                %connection_id,
+                                "heartbeat timeout: sending Close(1000) and terminating connection"
+                            );
+                            // 尽力发送 Close 帧；忽略错误（对端可能已断）
+                            let _ = socket.send(Message::Close(Some(frame))).await;
                             break;
                         }
                     }

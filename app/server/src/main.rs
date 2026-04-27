@@ -168,6 +168,13 @@ async fn main() -> anyhow::Result<()> {
     let partition_shutdown = snapshot_shutdown_tx.subscribe();
     start_partition_scheduler(pool, partition_shutdown);
 
+    // T-00041：启动 WebSocket 心跳后台 task（每 5s 扫描，30s 静默主动 Close(1000)）
+    let heartbeat_shutdown = snapshot_shutdown_tx.subscribe();
+    tokio::spawn(voice_room_server::ws::heartbeat::heartbeat_task(
+        state.ws_registry.clone(),
+        heartbeat_shutdown,
+    ));
+
     let app = build_app(state);
     let bind_addr = settings.server.bind_addr()?;
     let listener = TcpListener::bind(bind_addr).await?;
