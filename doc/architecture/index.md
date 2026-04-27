@@ -34,3 +34,4 @@
 - **产品需求**: [doc/product/index.md](../product/index.md)
 - **任务看板**: [doc/tasks/index.md](../tasks/index.md)
 - **各端实现架构**: `doc/arch/{server,adminServer,android,web}/index.md`
+- **E2E 测试基建多环境切换**: [doc/tds/infra/T-0000E.md](../tds/infra/T-0000E.md) —— 多环境（local/staging/prod）分层切换、健康预检、Seed 数据、启动 SOP

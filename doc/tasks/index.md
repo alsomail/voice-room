@@ -1,7 +1,7 @@
 # Voice Room 开发任务清单
 
-> **版本**: v2.4  
-> **更新日期**: 2026-04-27  
+> **版本**: v2.5  
+> **更新日期**: 2026-05-31  
 > **任务总数**: 123 个 (基建: 4 + 9, App Server: 30 + 1, Admin Server: 16 + 1, Web: 14 + 1, Android: 44 + 1, E-07 15 + E-07.5 6 + E-10 18)  
 > **当前阶段**: Phase 1 - 核心营收闭环（E-07 + E-07.5 并行）→ Phase 1.5 E-10 房间治理 → Phase 1.6 E2E 测试基建（模块 9）
 
@@ -32,6 +32,7 @@
 | **v2.2** | **2026-04-27** | **模块 9 创建（E2E 测试基建 / E2E QA Foundation）：新增 12 个 Task 覆盖多环境（local / staging / prod）切换体系、Seed/Reset/Preflight 三件套、globalSetup/Teardown/envLoader、AppServer & AdminServer config 对称化、Web 多 profile env、Android productFlavors、npm scripts 一键命令、@prod-safe 标签体系、Midscene 接入文档、E2E_RUNBOOK；产出 [T-0000E 主 TDS](../tds/infra/T-0000E.md) 冻结 11 个子任务接口契约 + 11 个子 TDS（infra/T-0000F~T-0000L、server/T-00040、adminServer/T-10020、web/T-20020、android/T-30050）；任务总数 111 → 123；T-0000E 负责人 → TDD（已具备 TDS），其余 11 个负责人 → Plan（待 Plan Agent 细化时按依赖顺序激活）** |
 | **v2.3** | **2026-04-27** | **T-0000E 进入 Review 阶段：TDS（doc/tds/infra/T-0000E.md）补全 §2.11 迁移路径（6 步 Migration Path + 4 条 Invariants）、§2.12 风险矩阵（R1~R10 含概率/影响/缓解/兜底/Owner）、§4.3 11 个下游子任务接口契约冻结索引表、§4.4 验收对照表、§4.5 残余风险 3 项；与 _template.md 偏离项显式声明（新增 6 个章节作为主 TDS 超集扩展）；模块 9 任务清单 T-0000E 行：研发负责人 TDD → Review，研发状态 Todo → In Progress** |
 | **v2.4** | **2026-04-27** | **T-0000E Review 通过：抽样核对 11 个下游子 TDS（infra/T-0000F~T-0000L、server/T-00040、adminServer/T-10020、web/T-20020、android/T-30050）全部存在且首章引用主 TDS 对应章节锚点，无契约漂移；§2.11 迁移路径 6 步可执行（每步含验收锚点 + 回滚策略 + 4 条不变量保护 PR 不阻塞与 cargo test 0 回归）、§2.12 风险矩阵 R1~R10 字段齐全，R1（prod 误写）五道防线足够；流程特例（TDD 同步补 §2.11/§2.12）在主 TDS「产物即文档」场景下可接受并已在 §4.2 显式声明；§4.5 残余风险 R1 不追加约束、R4/R10 由 T-0000F/T-0000I 落地时再决议；模块 9 任务清单 T-0000E 行：研发负责人 Review → Dod** |
+| **v2.5** | **2026-05-31** | **T-0000E DoD 完成，模块 9 进度 1/12：doc/architecture/index.md 关联文档新增 E2E 测试基建多环境切换索引（指向 T-0000E TDS）；doc/tasks/模块9-E2E测试基建 (E2E QA Foundation).md T-0000E 行：研发状态 In Progress → ✅ Done，Review Gate 在 Review 通过事实基础上 → ✅ Passed；doc/tasks/index.md 版本更新 v2.4 → v2.5、更新日期 2026-04-27 → 2026-05-31** |
 | **v1.6** | **2026-05-16** | **T-00027 DoD 完成，E-10 进度 4/18：doc/arch/server/room.md 新增十三~十五章（GET /api/v1/rooms/:id/members 接口契约、角色优先级 owner>admin>member、1 次批量 SQL WHERE id=ANY($1)、MemberSnapshot 单一数据源、muted_mic/muted_chat Redis Key、权限错误码、文件清单与 398 测试汇总）；doc/tasks/index.md T-00027 状态 → ✅ Done 负责人 → Dod；doc/product/index.md E-10 进度 3/18 → 4/18** |
 
 ---
