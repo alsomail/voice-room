@@ -1,9 +1,9 @@
 # Voice Room 开发任务清单
 
-> **版本**: v2.57  
+> **版本**: v2.61  
 > **更新日期**: 2026-04-29  
 > **任务总数**: 130 个 (基建: 4 + 12, App Server: 33 + 1, Admin Server: 16 + 1, Web: 14 + 1, Android: 44 + 1, E-07 15 + E-07.5 6 + E-10 18)  
-> **当前阶段**: Phase 1 - 核心营收闭环（E-07 + E-07.5 并行）→ Phase 1.5 E-10 房间治理 → Phase 1.6 E2E 测试基建（模块 9：14/15 ✅，T-0000P ✅ DoD，T-0000Q ✅ DoD） + QA 战报驱动架构补强（T-00041 ✅ DoD，T-00043 TDD→Review，T-00044 TDD→Review/DoD）
+> **当前阶段**: Phase 1 - 核心营收闭环（E-07 + E-07.5 并行）→ Phase 1.5 E-10 房间治理 → Phase 1.6 E2E 测试基建（模块 9：14/15 ✅，T-0000P ✅ DoD，T-0000Q ✅ DoD） + QA 战报驱动架构补强（T-00041 ✅ DoD，T-00043 ✅ DoD，T-00044 TDD→Review/DoD）
 
 ---
 
@@ -12,6 +12,7 @@
 | 版本 | 日期 | 变更内容 |
 |------|------|---------|
 | _规则_ | — | 本表只记录**版本级摘要**（一行 ≤ 200 字符），具体 Review/审查/实跑证据请落到对应 [TDS](../tds/) 第五节【Review 意见】或对应模块审查批次 `doc/review/模块N-XXX.md`，**严禁**在本表堆叠详细审查记录。 |
+| **v2.61** | **2026-04-29** | T-00043 DoD 完成（chat_messages 持久化 + REST 历史接口落地，Review Round 2 🟢，arch/database/room_runtime/product 文档同步）；commit [f23042d](https://github.com/alsomail/voice-room/commit/f23042d)。详见 [TDS](../tds/server/T-00043.md)。 |
 | **v2.60** | **2026-04-29** | T-00042 DoD 完成；TDD [2109c06](https://github.com/alsomail/voice-room/commit/2109c06) + R1 修复 [1f10ec3](https://github.com/alsomail/voice-room/commit/1f10ec3) 🟢 R2 通过；Admin 强制断连广播（user_banned/room_closed → connection_close 指令 → WS Close frame）；详见 [TDS](../tds/server/T-00042.md)。 |
 | **v2.59** | **2026-04-29** | T-00043 Review Round 1 → TDD 修复 6 项 Should（CASCADE/排序/真DB并发/真DB性能/COUNT(*) OVER()/offset 软上限）→ Round 2 🟢 通过；commits [a191123](https://github.com/alsomail/voice-room/commit/a191123) 修复，[ec0c935](https://github.com/alsomail/voice-room/commit/ec0c935) 状态。详见 [TDS](../tds/server/T-00043.md) §4.5/§五。 |
 | **v2.58** | **2026-04-29** | T-00043 TDD → Review，chat_messages 持久化 + REST 历史接口落地（migration 010 + 14 dedicated tests + 464 server suite 全绿）；commit [1beb68b](https://github.com/alsomail/voice-room/commit/1beb68b)。详见 [TDS](../tds/server/T-00043.md)。 |
