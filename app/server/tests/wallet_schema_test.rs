@@ -11,6 +11,8 @@
 //! 运行前提：DATABASE_URL 环境变量指向可用的 PostgreSQL 实例。
 //! 若未设置 DATABASE_URL，所有测试将被跳过。
 
+mod common;
+
 use sqlx::{postgres::PgPoolOptions, PgPool, Row};
 use std::time::Duration;
 use uuid::Uuid;
@@ -37,14 +39,12 @@ async fn w01_migration_is_idempotent() {
     };
 
     // 第一次运行迁移（或已运行过）
-    sqlx::migrate!("./migrations")
-        .run(&pool)
+    common::run_migrations(&pool)
         .await
         .expect("First migration run should succeed");
 
     // 第二次运行迁移 — 幂等，不应报错
-    sqlx::migrate!("./migrations")
-        .run(&pool)
+    common::run_migrations(&pool)
         .await
         .expect("Second migration run should also succeed (idempotent)");
 }
@@ -59,10 +59,7 @@ async fn w02_new_user_diamond_balance_defaults_to_zero() {
         return;
     };
 
-    sqlx::migrate!("./migrations")
-        .run(&pool)
-        .await
-        .expect("migrations");
+    common::run_migrations(&pool).await.expect("migrations");
 
     let mut tx = pool.begin().await.expect("begin tx");
 
@@ -92,10 +89,7 @@ async fn w03_negative_diamond_balance_rejected_by_check_constraint() {
         return;
     };
 
-    sqlx::migrate!("./migrations")
-        .run(&pool)
-        .await
-        .expect("migrations");
+    common::run_migrations(&pool).await.expect("migrations");
 
     let mut tx = pool.begin().await.expect("begin tx");
 
@@ -136,10 +130,7 @@ async fn w04_negative_balance_after_in_wallet_txn_rejected() {
         return;
     };
 
-    sqlx::migrate!("./migrations")
-        .run(&pool)
-        .await
-        .expect("migrations");
+    common::run_migrations(&pool).await.expect("migrations");
 
     let mut tx = pool.begin().await.expect("begin tx");
 
@@ -183,10 +174,7 @@ async fn w05_composite_index_on_user_id_created_at_exists() {
         return;
     };
 
-    sqlx::migrate!("./migrations")
-        .run(&pool)
-        .await
-        .expect("migrations");
+    common::run_migrations(&pool).await.expect("migrations");
 
     // 直接查询 pg_indexes 确认索引存在
     let row = sqlx::query(
@@ -221,10 +209,7 @@ async fn w06_existing_users_have_zero_diamond_balance_after_migration() {
         return;
     };
 
-    sqlx::migrate!("./migrations")
-        .run(&pool)
-        .await
-        .expect("migrations");
+    common::run_migrations(&pool).await.expect("migrations");
 
     let mut tx = pool.begin().await.expect("begin tx");
 
@@ -272,10 +257,7 @@ async fn w07_valid_wallet_transaction_insert_succeeds() {
         return;
     };
 
-    sqlx::migrate!("./migrations")
-        .run(&pool)
-        .await
-        .expect("migrations");
+    common::run_migrations(&pool).await.expect("migrations");
 
     let mut tx = pool.begin().await.expect("begin tx");
 
@@ -319,10 +301,7 @@ async fn w08_all_txn_types_accepted_by_db() {
         return;
     };
 
-    sqlx::migrate!("./migrations")
-        .run(&pool)
-        .await
-        .expect("migrations");
+    common::run_migrations(&pool).await.expect("migrations");
 
     let mut tx = pool.begin().await.expect("begin tx");
 

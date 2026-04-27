@@ -17,6 +17,8 @@
 //! 运行前提：DATABASE_URL 指向可用 PostgreSQL 实例（REDIS_URL 可选）。
 //! 未设置时测试自动跳过。
 
+mod common;
+
 use sqlx::{postgres::PgPoolOptions, PgPool, Row};
 use std::sync::Arc;
 use std::time::Duration;
@@ -206,10 +208,7 @@ async fn sg01_send_gift_success_updates_all_tables() {
         eprintln!("[SKIP] sg01: DATABASE_URL not set");
         return;
     };
-    sqlx::migrate!("./migrations")
-        .run(&pool)
-        .await
-        .expect("migrate");
+    common::run_migrations(&pool).await.expect("migrate");
 
     let sender_id = insert_test_user(&pool, 10_000).await;
     let receiver_id = insert_test_user(&pool, 0).await;
@@ -298,10 +297,7 @@ async fn sg02_gift_received_broadcast_reaches_all_room_members() {
         eprintln!("[SKIP] sg02: DATABASE_URL not set");
         return;
     };
-    sqlx::migrate!("./migrations")
-        .run(&pool)
-        .await
-        .expect("migrate");
+    common::run_migrations(&pool).await.expect("migrate");
 
     let sender_id = insert_test_user(&pool, 10_000).await;
     let receiver_id = insert_test_user(&pool, 0).await;
@@ -372,10 +368,7 @@ async fn sg03_sender_receives_balance_updated() {
         eprintln!("[SKIP] sg03: DATABASE_URL not set");
         return;
     };
-    sqlx::migrate!("./migrations")
-        .run(&pool)
-        .await
-        .expect("migrate");
+    common::run_migrations(&pool).await.expect("migrate");
 
     let sender_id = insert_test_user(&pool, 10_000).await;
     let receiver_id = insert_test_user(&pool, 0).await;
@@ -445,10 +438,7 @@ async fn sg04_redis_ranking_zincrby_updated() {
         eprintln!("[SKIP] sg04: REDIS_URL not set");
         return;
     };
-    sqlx::migrate!("./migrations")
-        .run(&pool)
-        .await
-        .expect("migrate");
+    common::run_migrations(&pool).await.expect("migrate");
 
     let sender_id = insert_test_user(&pool, 10_000).await;
     let receiver_id = insert_test_user(&pool, 0).await;
@@ -523,10 +513,7 @@ async fn sg05_insufficient_balance_rolls_back_entire_transaction() {
         eprintln!("[SKIP] sg05: DATABASE_URL not set");
         return;
     };
-    sqlx::migrate!("./migrations")
-        .run(&pool)
-        .await
-        .expect("migrate");
+    common::run_migrations(&pool).await.expect("migrate");
 
     let sender_id = insert_test_user(&pool, 1).await; // 余额仅 1 钻
     let receiver_id = insert_test_user(&pool, 0).await;
@@ -623,10 +610,7 @@ async fn sg06_idempotent_second_send_returns_same_result_no_double_deduction() {
         eprintln!("[SKIP] sg06: DATABASE_URL not set");
         return;
     };
-    sqlx::migrate!("./migrations")
-        .run(&pool)
-        .await
-        .expect("migrate");
+    common::run_migrations(&pool).await.expect("migrate");
 
     let sender_id = insert_test_user(&pool, 10_000).await;
     let receiver_id = insert_test_user(&pool, 0).await;
@@ -704,10 +688,7 @@ async fn sg07_receiver_not_on_mic_returns_receiver_unavailable() {
         eprintln!("[SKIP] sg07: DATABASE_URL not set");
         return;
     };
-    sqlx::migrate!("./migrations")
-        .run(&pool)
-        .await
-        .expect("migrate");
+    common::run_migrations(&pool).await.expect("migrate");
 
     let sender_id = insert_test_user(&pool, 10_000).await;
     let receiver_id = insert_test_user(&pool, 0).await;
@@ -765,10 +746,7 @@ async fn sg08_inactive_gift_returns_gift_unavailable() {
         eprintln!("[SKIP] sg08: DATABASE_URL not set");
         return;
     };
-    sqlx::migrate!("./migrations")
-        .run(&pool)
-        .await
-        .expect("migrate");
+    common::run_migrations(&pool).await.expect("migrate");
 
     // [L-1] 修复：使用专用下架测试礼物（UUID 隔离），避免修改种子数据造成状态污染
     let gift_id = insert_inactive_test_gift(&pool).await;
@@ -830,10 +808,7 @@ async fn sg09_invalid_count_returns_error() {
         eprintln!("[SKIP] sg09: DATABASE_URL not set");
         return;
     };
-    sqlx::migrate!("./migrations")
-        .run(&pool)
-        .await
-        .expect("migrate");
+    common::run_migrations(&pool).await.expect("migrate");
 
     let sender_id = insert_test_user(&pool, 10_000).await;
     let receiver_id = insert_test_user(&pool, 0).await;
@@ -906,10 +881,7 @@ async fn sg10_concurrent_20_requests_no_over_deduction() {
         eprintln!("[SKIP] sg10: DATABASE_URL not set");
         return;
     };
-    sqlx::migrate!("./migrations")
-        .run(&pool)
-        .await
-        .expect("migrate");
+    common::run_migrations(&pool).await.expect("migrate");
 
     // 给发送者足够的余额（20次，每次1礼，单价1），余额=20
     let sender_id = insert_test_user(&pool, 20).await;
@@ -1006,10 +978,7 @@ async fn sg11_sender_not_in_room_returns_error() {
         eprintln!("[SKIP] sg11: DATABASE_URL not set");
         return;
     };
-    sqlx::migrate!("./migrations")
-        .run(&pool)
-        .await
-        .expect("migrate");
+    common::run_migrations(&pool).await.expect("migrate");
 
     let sender_id = insert_test_user(&pool, 10_000).await;
     let receiver_id = insert_test_user(&pool, 0).await;
@@ -1064,12 +1033,10 @@ async fn sg12_migration_006_is_idempotent() {
         return;
     };
 
-    sqlx::migrate!("./migrations")
-        .run(&pool)
+    common::run_migrations(&pool)
         .await
         .expect("sg12: first migration run");
-    sqlx::migrate!("./migrations")
-        .run(&pool)
+    common::run_migrations(&pool)
         .await
         .expect("sg12: second migration run (idempotent)");
 
