@@ -12,8 +12,9 @@
 | 版本 | 日期 | 变更内容 |
 |------|------|---------|
 | _规则_ | — | 本表只记录**版本级摘要**（一行 ≤ 200 字符），具体 Review/审查/实跑证据请落到对应 [TDS](../tds/) 第五节【Review 意见】或对应模块审查批次 `doc/review/模块N-XXX.md`，**严禁**在本表堆叠详细审查记录。 |
-| **v2.60** | **2026-04-29** | T-00043 Review Round 1 → TDD 修复 6 项 Should（CASCADE/排序/真DB并发/真DB性能/COUNT(*) OVER()/offset 软上限）→ Round 2 🟢 通过；commits [a191123](https://github.com/alsomail/voice-room/commit/a191123) 修复，[ec0c935](https://github.com/alsomail/voice-room/commit/ec0c935) 状态。详见 [TDS](../tds/server/T-00043.md) §4.5/§五。 |
-| **v2.59** | **2026-04-29** | T-00043 TDD → Review，chat_messages 持久化 + REST 历史接口落地（migration 010 + 14 dedicated tests + 464 server suite 全绿）；commit [1beb68b](https://github.com/alsomail/voice-room/commit/1beb68b)。详见 [TDS](../tds/server/T-00043.md)。 |
+| **v2.60** | **2026-04-29** | T-00042 DoD 完成；TDD [2109c06](https://github.com/alsomail/voice-room/commit/2109c06) + R1 修复 [1f10ec3](https://github.com/alsomail/voice-room/commit/1f10ec3) 🟢 R2 通过；Admin 强制断连广播（user_banned/room_closed → connection_close 指令 → WS Close frame）；详见 [TDS](../tds/server/T-00042.md)。 |
+| **v2.59** | **2026-04-29** | T-00043 Review Round 1 → TDD 修复 6 项 Should（CASCADE/排序/真DB并发/真DB性能/COUNT(*) OVER()/offset 软上限）→ Round 2 🟢 通过；commits [a191123](https://github.com/alsomail/voice-room/commit/a191123) 修复，[ec0c935](https://github.com/alsomail/voice-room/commit/ec0c935) 状态。详见 [TDS](../tds/server/T-00043.md) §4.5/§五。 |
+| **v2.58** | **2026-04-29** | T-00043 TDD → Review，chat_messages 持久化 + REST 历史接口落地（migration 010 + 14 dedicated tests + 464 server suite 全绿）；commit [1beb68b](https://github.com/alsomail/voice-room/commit/1beb68b)。详见 [TDS](../tds/server/T-00043.md)。 |
 | **v2.58** | **2026-04-29** | T-00041 DoD 完成；TDD [084f91e](https://github.com/alsomail/voice-room/commit/084f91e) + Review Round 1 🟢 [a8c0a64](https://github.com/alsomail/voice-room/commit/a8c0a64)；修复历史漏 spawn BUG，WS 心跳 30s 超时主动 Close(1000)。详见 [TDS](../tds/server/T-00041.md)。 |
 | **v2.57** | **2026-04-29** | T-0000P DoD 完成（Midscene env 注入链 + 双注入 + 脱敏），模块 9 进度 14/15。详见 [TDS](../tds/infra/T-0000P.md)。 |
 | **v2.56** | **2026-04-29** | T-0000Q DoD 完成（e2e-up.sh 端口冲突预检 5 端，跨平台 lsof/ss）。详见 [T-0000Q TDS](../tds/infra/T-0000Q.md)。 |
