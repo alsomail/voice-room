@@ -70,7 +70,7 @@ const STAGING_FULL: Record<string, string> = {
 };
 const PROD_FULL: Record<string, string> = { ...STAGING_FULL, E2E_PROFILE: 'prod', E2E_ALLOW_WRITES: '0' };
 
-const ENV_KEYS = [...Object.keys(LOCAL_FULL), 'E2E_SEED', 'E2E_RESET', 'CI'];
+const ENV_KEYS = [...Object.keys(LOCAL_FULL), 'E2E_SEED', 'E2E_RESET', 'CI', 'CI_E2E_READY'];
 
 function prepareCwd(profile: string, content: Record<string, string>): string {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gsetup-'));
@@ -197,6 +197,46 @@ test.describe('globalSetup', () => {
     const deps: SetupDeps = { runShell: stub.runShell, exit: () => { throw new Error('x'); }, cwd };
     await runGlobalSetup(deps);
     expect(stub.calls[0].env?.E2E_PROFILE).toBe('local');
+  });
+
+  // 缺陷 1 修复 — CI 软门禁（与 .env.example CI_E2E_READY=0 注释语义对齐）
+  test('CI=true + CI_E2E_READY!=1 → 软门禁早退（不调 spawn / 不写 runtime.json / 不 exit）', async () => {
+    const cwd = prepareCwd('local', LOCAL_FULL);
+    process.env.E2E_PROFILE = 'local';
+    process.env.CI = 'true';
+    delete process.env.CI_E2E_READY;
+    const stub = makeStubShell([]);
+    let exited: number | null = null;
+    const deps: SetupDeps = { runShell: stub.runShell, exit: (c) => { exited = c; throw new Error('exit'); }, cwd };
+    await runGlobalSetup(deps);
+    expect(exited).toBeNull();
+    expect(stub.calls).toHaveLength(0);
+    // 不写 runtime.json
+    const runtimePath = path.join(cwd, 'tests', 'scripts', '.e2e-runtime.json');
+    expect(fs.existsSync(runtimePath)).toBe(false);
+  });
+
+  test('CI=true + CI_E2E_READY=1 → 正常执行 preflight + seed', async () => {
+    const cwd = prepareCwd('local', LOCAL_FULL);
+    process.env.E2E_PROFILE = 'local';
+    process.env.CI = 'true';
+    process.env.CI_E2E_READY = '1';
+    const stub = makeStubShell([{ exit: 0 }, { exit: 0 }]);
+    const deps: SetupDeps = { runShell: stub.runShell, exit: () => { throw new Error('x'); }, cwd };
+    await runGlobalSetup(deps);
+    expect(stub.calls.length).toBeGreaterThanOrEqual(1);
+    expect(stub.calls[0].args[0]).toContain('preflight.sh');
+  });
+
+  test('CI 未设置 → 软门禁不生效（本地开发路径）', async () => {
+    const cwd = prepareCwd('local', LOCAL_FULL);
+    process.env.E2E_PROFILE = 'local';
+    delete process.env.CI;
+    delete process.env.CI_E2E_READY;
+    const stub = makeStubShell([{ exit: 0 }, { exit: 0 }]);
+    const deps: SetupDeps = { runShell: stub.runShell, exit: () => { throw new Error('x'); }, cwd };
+    await runGlobalSetup(deps);
+    expect(stub.calls.length).toBeGreaterThanOrEqual(1);
   });
 });
 

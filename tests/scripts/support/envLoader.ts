@@ -280,6 +280,20 @@ export function writeProcessEnv(env: E2EEnv): void {
   if (env.midscene.baseUrl) process.env.MIDSCENE_OPENAI_BASE_URL = env.midscene.baseUrl;
   process.env.MIDSCENE_CACHE = env.midscene.cache ? '1' : '0';
   process.env.CI_E2E_READY = env.ciReady ? '1' : '0';
+
+  // 缺陷 2 修复（batch-e2e-foundation-01 第 1 轮）：
+  //   桥接根 .env.{profile} → Android BuildConfig 注入路径。
+  //   gradle 侧 `resolveConfigValue(localProperties, "voiceRoomApiBaseUrl",
+  //   "VOICE_ROOM_API_BASE_URL", default)` 会从 process.env 读取这些键，
+  //   实现「根 .env → envLoader → process.env → gradlew → BuildConfig」单一事实源链路。
+  //   见 doc/tests/E2E_RUNBOOK.md「Android E2E 注入路径」段。
+  process.env.VOICE_ROOM_API_BASE_URL = env.appServerBaseUrl;
+  process.env.VOICE_ROOM_WS_URL = env.appWsUrl;
+  // analyticsEndpoint 不在 E2EEnv 主字段中（24 字段表外），
+  // 留空允许 gradle fallback 到 `${API_BASE_URL}/v1/events/batch`。
+  process.env.VOICE_ROOM_ANALYTICS_ENDPOINT = process.env.VOICE_ROOM_ANALYTICS_ENDPOINT ?? '';
+  // local flavor 默认（与 build.gradle.kts 默认值保持一致），allows env 覆盖
+  process.env.VOICE_ROOM_ENVIRONMENT = process.env.VOICE_ROOM_ENVIRONMENT ?? env.profile;
 }
 
 /**

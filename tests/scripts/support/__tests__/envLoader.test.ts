@@ -259,4 +259,22 @@ test.describe('envLoader: 异常分支', () => {
     const env = loadE2EEnv({ cwd });
     expect(env.profile).toBe('local');
   });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // 缺陷 2 修复：writeProcessEnv 桥接 Android BuildConfig 所需的 VOICE_ROOM_* keys
+  // ─────────────────────────────────────────────────────────────────────────
+  test('writeProcessEnv 桥接 Android VOICE_ROOM_API_BASE_URL / WS_URL / ANALYTICS_ENDPOINT', async () => {
+    const { writeProcessEnv } = await import('../envLoader');
+    const cwd = setupTmpCwd('.env.local', LOCAL_FULL);
+    process.env.E2E_PROFILE = 'local';
+    const env = loadE2EEnv({ cwd });
+    delete process.env.VOICE_ROOM_API_BASE_URL;
+    delete process.env.VOICE_ROOM_WS_URL;
+    delete process.env.VOICE_ROOM_ANALYTICS_ENDPOINT;
+    writeProcessEnv(env);
+    expect(process.env.VOICE_ROOM_API_BASE_URL).toBe(env.appServerBaseUrl);
+    expect(process.env.VOICE_ROOM_WS_URL).toBe(env.appWsUrl);
+    // analyticsEndpoint 留空时应桥接为空字符串（gradle 端会 fallback）
+    expect(typeof process.env.VOICE_ROOM_ANALYTICS_ENDPOINT).toBe('string');
+  });
 });

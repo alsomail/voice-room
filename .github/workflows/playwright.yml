@@ -1,13 +1,25 @@
 name: Playwright Tests
+# 缺陷 1 修复（batch-e2e-foundation-01 第 1 轮）：
+# 短期落地方案 (b)：改为手动触发 + globalSetup CI 软门禁双保险，避免 push/PR 永红。
+# 长期方案 (a) 待补：services: postgres/redis + cargo run -p server / admin-server +
+# (cd app/web && npm run dev) + npx wait-on + npm run db:seed。
 on:
-  push:
-    branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
+  workflow_dispatch:
+    inputs:
+      e2e_ready:
+        description: '设为 1 才真正跑 E2E（默认 0 = 仅安装与编译期校验）。需手动起齐 5 端依赖或后续补 services。'
+        required: false
+        default: '0'
+        type: choice
+        options:
+          - '0'
+          - '1'
 jobs:
   test:
     timeout-minutes: 60
     runs-on: ubuntu-latest
+    env:
+      CI_E2E_READY: ${{ github.event.inputs.e2e_ready }}
     steps:
     - uses: actions/checkout@v4
     - uses: actions/setup-node@v4
@@ -17,7 +29,8 @@ jobs:
       run: npm ci
     - name: Install Playwright Browsers
       run: npx playwright install --with-deps
-    - name: Run Playwright tests
+    - name: Run Playwright tests (CI_E2E_READY=${{ env.CI_E2E_READY }})
+      # 当 CI_E2E_READY!=1 时 globalSetup 软门禁早退，整个 job 等价于编译期校验，不会永红。
       run: npx playwright test
     - uses: actions/upload-artifact@v4
       if: ${{ !cancelled() }}

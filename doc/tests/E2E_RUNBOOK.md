@@ -18,7 +18,10 @@
 | Android SDK | API 34（仅跑 Android E2E 时） | `sdkmanager --list` |
 | 操作系统 | macOS / Linux 一等公民；Windows 走 WSL2 或 Git Bash + `cross-env` | — |
 
-> **时长预算（5 分钟达成首条用例全绿）**：`npm install` ≈ 2min（依网速）+ env/docker/服务起齐 ≈ 1min + `npm run preflight` ≤ 1s + 首条 `@prod-safe` smoke 用例 ≈ 30s ⇒ **≤ 5 分钟 / 5min**。
+> **时长预算（首次冷启动 vs 复跑）**：
+> - **首次冷启动 8~18min**：`npm install` ≈ 2min（依网速）+ `cargo build --workspace` 首次 5~15min（Rust 工作区冷编译）+ docker 拉镜像 ≈ 30s + 服务起齐 ≈ 30s + smoke ≈ 30s。
+> - **复跑 ≤ 5min**：`npm install` 命中缓存 ≤ 5s + cargo 增量 ≤ 30s + 服务起齐 ≈ 30s + 首条 smoke ≈ 30s ⇒ ≤ 5 分钟。
+> - **加速建议**：把 `cargo build --workspace` 作为「准备工作」前置（详见 §2 设计取舍），把 `5min` 预算严格收口到「服务起齐 → 首条 smoke 全绿」段。
 
 ---
 
@@ -26,11 +29,20 @@
 
 > 严格编号、复制即用；每步独立可重入。
 
+> **设计取舍（缺陷 6 修复）**：本仓库 `docker-compose.yml` **仅托管 Postgres + Redis** 两个有状态依赖；
+> 业务服务（AppServer / AdminServer / Web）在 dev 期一律用 `cargo run` / `vite` 本地起，
+> 便于热重载与断点调试。如需「一键起全栈」聚合，使用 `npm run e2e:up`（详见 §3 命令矩阵）。
+> 该取舍意味着：纯 `docker compose up` 不会拉起 5 端，请按下方 Step 3+4 顺序启动，或直接 `npm run e2e:up`。
+
+> **预热建议（缺陷 4 修复）**：首次冷启动前先单独跑一次 `cargo build --workspace`（5~15min，依机器），
+> 把 Rust 编译耗时移出「5min 预算」窗口；之后 `cargo run -p server` 才能秒级启动。
+
 ```
 1. git clone + 安装依赖
    $ git clone <repo-url>
    $ cd voice-room
    $ npm install                         # 根 + tests/scripts 依赖一并装好
+   $ cargo build --workspace             # 推荐预热（首次 5~15min；后续增量秒级）
 
 2. 复制三档 env 模板（local 端）
    $ cp tests/scripts/env/.env.local.example tests/scripts/env/.env.local
@@ -43,11 +55,15 @@
    终端 A:  APP_PROFILE=dev   cargo run -p server          # AppServer  → :3000
    终端 B:  ADMIN_PROFILE=dev cargo run -p admin-server    # AdminServer → :3001
    终端 C:  npm --prefix app/web run dev                   # Web         → :5173
+   # 或一键聚合（缺陷 6 修复）：
+   $ npm run e2e:up                                        # 等价于 docker up + 3 服务后台 + wait-on
 
 5. 跑 E2E（首次推荐 smoke 子集 ≈ 30s 验证链路）
    $ npm run preflight                              # 5 端健康检查 ≤ 1s
-   $ npm run e2e:prod-smoke -- --list               # 列出 @prod-safe 用例
+   $ npm run e2e:local -- --list                    # 列出 local 全量用例（dry-run，不真跑）
+   $ npm run e2e:local -- --grep "@prod-safe"       # 仅跑 @prod-safe smoke 子集（最小验证链路）
    $ npm run e2e:local                              # 本地全量 ≈ 5min
+   # 注：`npm run e2e:prod-smoke` 需要已配 `.env.prod`（含 7 项 token），见 §5 远端凭据流程。
 ```
 
 > **5 端口字面备忘**：AppServer `3000` / AdminServer `3001` / Web `5173` / Postgres `5432` / Redis `6379`（与 `docker-compose.yml` 端口映射严格对齐）。如本地存在 8080/8081 反向代理或 IDE 旧端口残留，请按 §4 排查。
@@ -61,6 +77,7 @@
 | 命令 | 用途 | 前置 | 时长 | 来源契约 |
 |---|---|---|---|---|
 | `npm run preflight` | 5 端健康检查（Postgres/Redis/AppServer/AdminServer/Web） | docker + 服务起齐 | ≤ 1s | T-0000I §2.3 / T-0000G `scripts/dev/preflight.sh` |
+| `npm run e2e:up` | 一键起全栈（docker postgres+redis → cargo server → cargo admin-server → vite web → wait-on 五端健康） | npm install + cargo build 预热 | 首次 5~15min（cargo 冷编译），复跑 ≤ 30s | 缺陷 6 修复（batch-e2e-foundation-01 第 1 轮） |
 | `npm run e2e:local` | 本地全量 E2E（API + WEB + ADMIN_WEB） | 5 端启动 + `tests/scripts/env/.env.local` | ≈ 5 min | T-0000I §2.3 |
 | `npm run e2e:staging` | staging 全量 E2E（远端） | `tests/scripts/env/.env.staging` 凭据 | — | T-0000I §2.3（凭据见 §5） |
 | `npm run e2e:prod-smoke` | prod 仅 `@prod-safe` 标签子集（read-only smoke） | `tests/scripts/env/.env.prod` 凭据 | — | T-0000I §2.3 + T-0000J §2.4 |
@@ -146,6 +163,24 @@
 | `DATABASE_URL_STAGING` / `REDIS_URL_STAGING` | 远端 staging 直连（如启用） | T-0000F §2.3 |
 
 > **完整 yaml 注入示例**：参见 [`./MIDSCENE_SETUP.md`](./MIDSCENE_SETUP.md) §3（`${{ secrets.MIDSCENE_MODEL_API_KEY }}` 引用 + `set -x` 警示已冻结）。
+
+> **Android E2E 注入路径（缺陷 2 修复，batch-e2e-foundation-01 第 1 轮）**：
+>
+> ```
+> 根 .env.{profile}  →  envLoader.loadE2EEnv  →  writeProcessEnv
+>                                                      │
+>                                                      ▼
+>                       process.env.VOICE_ROOM_API_BASE_URL / WS_URL / ANALYTICS_ENDPOINT
+>                                                      │
+>                                                      ▼
+>                       gradlew (resolveConfigValue 读 env)  →  BuildConfig.{API_BASE_URL, WS_URL, ANALYTICS_ENDPOINT}
+> ```
+>
+> - 三档 flavor (`local` / `staging` / `prod`) 全部通过 `resolveConfigValue` 读 env，无任何字面 URL 硬编码；
+> - 切换 profile 仅需 `cp tests/scripts/env/.env.staging.example .env.staging` 并 `npm run e2e:up` 启 E2E 链路，gradlew 自动从 process.env 拾取；
+> - 也可显式覆盖：`VOICE_ROOM_API_BASE_URL=https://my.example.com/api ./gradlew :app:assembleStagingDebug`；
+> - 默认值（`https://stg-api.example.com/api` 等）仅作 0 回归占位，不应作为生产入口。
+> - 验证命令：`./gradlew :app:assembleStagingDebug` 在仅 env 切换、未改 Kotlin 源码的前提下产出新 staging APK。
 
 ---
 

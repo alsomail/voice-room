@@ -115,9 +115,25 @@ android {
             dimension = "env"
             applicationIdSuffix = ".stg"
             versionNameSuffix = "-stg"
-            buildConfigField("String", "API_BASE_URL",        "\"https://stg-api.example.com/api\"")
-            buildConfigField("String", "WS_URL",              "\"wss://stg-api.example.com/ws\"")
-            buildConfigField("String", "ANALYTICS_ENDPOINT",  "\"https://stg-api.example.com/api/v1/events/batch\"")
+            // 缺陷 2 修复（batch-e2e-foundation-01 第 1 轮）：
+            //   原本字面 `https://stg-api.example.com/api` 硬编码破坏单一事实源；
+            //   改为 `resolveConfigValue` 通道，允许 local.properties / env（由 envLoader.writeProcessEnv
+            //   桥接的 VOICE_ROOM_*）覆盖；默认值与历史断言一致以保 0 回归。
+            val apiBaseUrl = resolveConfigValue(
+                localProperties, "voiceRoomApiBaseUrl", "VOICE_ROOM_API_BASE_URL",
+                "https://stg-api.example.com/api"
+            )
+            val wsUrl = resolveConfigValue(
+                localProperties, "voiceRoomWsUrl", "VOICE_ROOM_WS_URL",
+                "wss://stg-api.example.com/ws"
+            )
+            val analyticsEndpoint = resolveConfigValue(
+                localProperties, "voiceRoomAnalyticsEndpoint", "VOICE_ROOM_ANALYTICS_ENDPOINT",
+                "https://stg-api.example.com/api/v1/events/batch"
+            )
+            buildConfigField("String", "API_BASE_URL",        "\"$apiBaseUrl\"")
+            buildConfigField("String", "WS_URL",              "\"$wsUrl\"")
+            buildConfigField("String", "ANALYTICS_ENDPOINT",  "\"$analyticsEndpoint\"")
             buildConfigField("String", "APP_ENVIRONMENT",     "\"staging\"")
             manifestPlaceholders["usesCleartextTraffic"] = "false"
         }
@@ -125,9 +141,23 @@ android {
         create("prod") {
             dimension = "env"
             // 无 applicationIdSuffix → 包名为 com.voice.room.android（与商店一致）
-            buildConfigField("String", "API_BASE_URL",        "\"https://api.example.com/api\"")
-            buildConfigField("String", "WS_URL",              "\"wss://api.example.com/ws\"")
-            buildConfigField("String", "ANALYTICS_ENDPOINT",  "\"https://api.example.com/api/v1/events/batch\"")
+            // 缺陷 2 修复：同 staging，改用 resolveConfigValue 实现 env 注入通道；
+            // 默认值保留商店域名以便不修改环境变量也能 release 构建（0 回归）。
+            val apiBaseUrl = resolveConfigValue(
+                localProperties, "voiceRoomApiBaseUrl", "VOICE_ROOM_API_BASE_URL",
+                "https://api.example.com/api"
+            )
+            val wsUrl = resolveConfigValue(
+                localProperties, "voiceRoomWsUrl", "VOICE_ROOM_WS_URL",
+                "wss://api.example.com/ws"
+            )
+            val analyticsEndpoint = resolveConfigValue(
+                localProperties, "voiceRoomAnalyticsEndpoint", "VOICE_ROOM_ANALYTICS_ENDPOINT",
+                "https://api.example.com/api/v1/events/batch"
+            )
+            buildConfigField("String", "API_BASE_URL",        "\"$apiBaseUrl\"")
+            buildConfigField("String", "WS_URL",              "\"$wsUrl\"")
+            buildConfigField("String", "ANALYTICS_ENDPOINT",  "\"$analyticsEndpoint\"")
             buildConfigField("String", "APP_ENVIRONMENT",     "\"prod\"")
             manifestPlaceholders["usesCleartextTraffic"] = "false"
         }

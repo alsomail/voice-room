@@ -30,6 +30,16 @@ export async function runGlobalSetup(deps: SetupDeps): Promise<void> {
   const t0 = Date.now();
   const ciTag = process.env.CI === 'true' ? '[E2E setup ci]' : '[E2E setup]';
 
+  // 缺陷 1 修复 — CI 软门禁（与 .env.example CI_E2E_READY=0 注释语义对齐）：
+  //   CI runner 默认未起 5 端依赖，preflight 必触退码 11~15。在显式开启 CI_E2E_READY=1
+  //   之前（手动 workflow_dispatch 或长期方案 a 起服务的 job），让 CI 直接早退避免永红。
+  //   本地 / staging / prod 实跑路径不受影响（CI 未置 'true'）。
+  if (process.env.CI === 'true' && process.env.CI_E2E_READY !== '1') {
+    // eslint-disable-next-line no-console
+    console.log(`${ciTag} CI 软门禁未开启（CI_E2E_READY!=1），跳过 preflight/seed。如需在 CI 跑 E2E，请显式设置 secret CI_E2E_READY=1 + 起齐 5 端依赖。`);
+    return;
+  }
+
   let env: E2EEnv;
   // ── Step 1：envLoader ──
   try {

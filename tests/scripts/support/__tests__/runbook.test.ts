@@ -144,3 +144,48 @@ test('U-11 FAQ-COUNT：FAQ 章节 ≥ 6 条编号', () => {
   const qHeads = (section.match(/^#{2,4}\s*Q\d+/gm) || []).length;
   expect(Math.max(numbered, qHeads)).toBeGreaterThanOrEqual(6);
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 缺陷 4/5/6 修复（batch-e2e-foundation-01 第 1 轮）静态守护
+// ─────────────────────────────────────────────────────────────────────────────
+
+test('U-12 BUDGET-INCLUDES-CARGO-BUILD：5min 预算说明必须含 cargo / 首次冷启动 8~18min 或预热段', () => {
+  const text = readRunbook();
+  const ok =
+    /cargo\s*build/i.test(text) ||
+    /首次\s*\d+\s*~\s*\d+\s*min/.test(text) ||
+    /冷启动.*cargo/i.test(text);
+  expect(ok, '缺陷 4：RUNBOOK 5min 预算未把 cargo 冷编译纳入说明').toBe(true);
+});
+
+test('U-13 STEP5-USES-LOCAL-PROFILE：Step 5 推荐命令必须含 e2e:local 而非以 prod-smoke 作为冷启动首条命令', () => {
+  const text = readRunbook();
+  // 抓取「冷启动 5 步」段落到下一个 ## 章节
+  const m = text.match(/##\s*§?2[^\n]*冷启动[\s\S]*?(?=\n##\s)/);
+  expect(m, '未找到冷启动 5 步章节').toBeTruthy();
+  const section = m![0];
+  expect(section, '冷启动 Step 5 必须示范 e2e:local --list 或 --grep').toMatch(
+    /npm run e2e:local\s+--\s+(--list|--grep)/,
+  );
+});
+
+test('U-14 DOCKER-COMPOSE-DESIGN-NOTE：必须明示 docker-compose 仅托管 PG/Redis 的设计取舍', () => {
+  const text = readRunbook();
+  expect(/docker-compose|docker compose/.test(text)).toBe(true);
+  // 必须含「仅托管」或「PG/Redis」+「业务服务」字样
+  const ok = /仅托管.*Postgres|仅托管.*PG|cargo.*本地起|业务服务.*本地/.test(text);
+  expect(ok, '缺陷 6：RUNBOOK §2 缺少 docker-compose 设计取舍说明').toBe(true);
+});
+
+test('U-15 E2E-UP-DOC：RUNBOOK 必须引用 npm run e2e:up 一键命令', () => {
+  const text = readRunbook();
+  expect(text).toContain('npm run e2e:up');
+});
+
+test('U-16 ANDROID-INJECT-PATH：必须含 Android E2E 注入路径段（缺陷 2）', () => {
+  const text = readRunbook();
+  const ok =
+    /Android.*E2E.*注入/i.test(text) ||
+    /VOICE_ROOM_API_BASE_URL/.test(text);
+  expect(ok, '缺陷 2：RUNBOOK 缺少 Android 注入路径说明').toBe(true);
+});
