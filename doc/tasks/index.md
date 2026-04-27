@@ -1,9 +1,9 @@
 # Voice Room 开发任务清单
 
-> **版本**: v2.54  
-> **更新日期**: 2026-04-28  
-> **任务总数**: 124 个 (基建: 4 + 10, App Server: 30 + 1, Admin Server: 16 + 1, Web: 14 + 1, Android: 44 + 1, E-07 15 + E-07.5 6 + E-10 18)  
-> **当前阶段**: Phase 1 - 核心营收闭环（E-07 + E-07.5 并行）→ Phase 1.5 E-10 房间治理 → Phase 1.6 E2E 测试基建（模块 9：13/13 ✅ + 2 follow-up（T-0000N ✅ DoD / T-0000O ✅ DoD））
+> **版本**: v2.55  
+> **更新日期**: 2026-04-29  
+> **任务总数**: 130 个 (基建: 4 + 12, App Server: 33 + 1, Admin Server: 16 + 1, Web: 14 + 1, Android: 44 + 1, E-07 15 + E-07.5 6 + E-10 18)  
+> **当前阶段**: Phase 1 - 核心营收闭环（E-07 + E-07.5 并行）→ Phase 1.5 E-10 房间治理 → Phase 1.6 E2E 测试基建（模块 9：15/15，含 T-0000P/Q 新增） + QA 战报驱动架构补强（T-00041~44/T-0000P~Q Plan→TDD）
 
 ---
 
@@ -12,6 +12,7 @@
 | 版本 | 日期 | 变更内容 |
 |------|------|---------|
 | _规则_ | — | 本表只记录**版本级摘要**（一行 ≤ 200 字符），具体 Review/审查/实跑证据请落到对应 [TDS](../tds/) 第五节【Review 意见】或对应模块审查批次 `doc/review/模块N-XXX.md`，**严禁**在本表堆叠详细审查记录。 |
+| **v2.55** | **2026-04-29** | QA 战报反向拆出 6 个新 Task（T-00041~44 App Server + T-0000P/Q 基建），全部 Plan→TDD 流转；ARCH 阻塞（WS 心跳超时/Admin 强制断连/Chat 持久化/礼物 HTTP 端点/Midscene env 链/端口冲突检测）。详见各 TDS。 |
 | **v2.54** | **2026-04-28** | T-0000O DoD 完成（ranking r08 perf flake known-issue 收口）；TDD [b793252](https://github.com/alsomail/voice-room/commit/b793252) + Review [ae20b9f](https://github.com/alsomail/voice-room/commit/ae20b9f) 🟢。详见 [TDS](../tds/infra/T-0000O.md)。 |
 | **v2.53** | **2026-04-27** | T-0000N TDD → Review Round 1 🟢通过（[TDS](../tds/infra/T-0000N.md)）+ T-0000O 规划中；AppServer/AdminServer 暴露 `/health` 统一探活端点；doc/review/batch-e2e-foundation-01/02.md 合并为 [模块9-E2E测试基建.md](../review/模块9-E2E测试基建.md)。 |
 | **v2.52** | **2026-04-27** | T-0000M Round 1 GlobalReview 暴露 DoD 失实，立 T-0000N（/health 端点）+ T-0000O（ranking r08 perf flake known-issue）作为 follow-up；T-0000M DoD #1 措辞修正为符合事实的承诺；P1.1 收敛 14 处遗留 sqlx::migrate! → common helper；P2 helper 透传 no_tx + 注释修正 + RAII guard + N-2 自动化。详见 [模块9-E2E测试基建](../review/模块9-E2E测试基建.md)。 |
