@@ -12,7 +12,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import dotenv from 'dotenv';
 
-import { loadE2EEnv, writeProcessEnv, MissingEnvError } from './envLoader';
+import { loadE2EEnv, writeProcessEnv, sanitizeEnvForRuntimeJson, MissingEnvError } from './envLoader';
 import type { E2EEnv } from './types';
 import { runShell as defaultRunShell, ShellExecError } from './runShell';
 
@@ -98,10 +98,10 @@ export async function runGlobalSetup(deps: SetupDeps): Promise<void> {
   // ── Step 4：writeProcessEnv ──
   writeProcessEnv(env);
 
-  // ── Step 5：持久化 .e2e-runtime.json ──
+  // ── Step 5：持久化 .e2e-runtime.json（T-0000K §2.7：脱敏后写盘，API Key 永不落盘）──
   const runtimePath = path.join(deps.cwd, 'tests/scripts/.e2e-runtime.json');
   fs.mkdirSync(path.dirname(runtimePath), { recursive: true });
-  fs.writeFileSync(runtimePath, JSON.stringify(env, null, 2), { mode: 0o600 });
+  fs.writeFileSync(runtimePath, JSON.stringify(sanitizeEnvForRuntimeJson(env), null, 2), { mode: 0o600 });
 
   // eslint-disable-next-line no-console
   console.log(`${ciTag} OK in ${Date.now() - t0}ms`);

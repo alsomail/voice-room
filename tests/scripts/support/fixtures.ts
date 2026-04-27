@@ -33,6 +33,34 @@ export function prodSafeGuardImpl(env: E2EEnv, testInfo: MinimalTestInfo): boole
   return false;
 }
 
+/**
+ * T-0000K：Midscene 就绪检查（auto fixture 用）。
+ *
+ * 仅当 testInfo.file 位于 `tests/scripts/WEB/` 子树时生效（跨平台路径分隔符兼容）。
+ * 当 env.midscene.apiKey 为空（且 process.env.MIDSCENE_MODEL_API_KEY 也为空）时，
+ * 调用 testInfo.skip(true, '[MIDSCENE] api key missing — skipped') 并返回 true。
+ *
+ * 与 prodSafeGuardImpl 严格对称：纯函数、无副作用（除 testInfo.skip），易单测。
+ */
+export function midsceneReadyImpl(
+  env: E2EEnv,
+  testInfo: MinimalTestInfo & { file?: string },
+): boolean {
+  const file = testInfo.file ?? '';
+  const sep = path.sep;
+  const isWebSpec =
+    file.includes(`${sep}tests${sep}scripts${sep}WEB${sep}`) ||
+    file.includes('/tests/scripts/WEB/');
+  if (!isWebSpec) return false;
+
+  const fromEnv = (env.midscene?.apiKey ?? '').trim();
+  const fromProcess = (process.env.MIDSCENE_MODEL_API_KEY ?? '').trim();
+  if (fromEnv !== '' || fromProcess !== '') return false;
+
+  testInfo.skip(true, '[MIDSCENE] api key missing — skipped');
+  return true;
+}
+
 /** L4：写操作 fixture 在 allowWrites=0 时 skip。返回 true 表示已 skip。 */
 export function apiWriteRequestSkipImpl(env: E2EEnv, testInfo: MinimalTestInfo): boolean {
   if (!env.allowWrites) {
@@ -63,6 +91,7 @@ export function readE2EEnvForWorker(cwd: string = process.cwd()): E2EEnv {
 type Fixtures = {
   e2eEnv: E2EEnv;
   prodSafeGuard: void;
+  midsceneReady: void;
   apiWriteRequest: APIRequestContext;
 };
 
@@ -77,6 +106,14 @@ export const test = base.extend<Fixtures, { e2eEnvWorker: E2EEnv }>({
 
   prodSafeGuard: [async ({ e2eEnv }, use, testInfo) => {
     prodSafeGuardImpl(e2eEnv, testInfo as unknown as MinimalTestInfo);
+    await use();
+  }, { auto: true }],
+
+  midsceneReady: [async ({ e2eEnv }, use, testInfo) => {
+    midsceneReadyImpl(
+      e2eEnv,
+      testInfo as unknown as MinimalTestInfo & { file?: string },
+    );
     await use();
   }, { auto: true }],
 

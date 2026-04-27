@@ -281,3 +281,24 @@ export function writeProcessEnv(env: E2EEnv): void {
   process.env.MIDSCENE_CACHE = env.midscene.cache ? '1' : '0';
   process.env.CI_E2E_READY = env.ciReady ? '1' : '0';
 }
+
+/**
+ * T-0000K §2.7 安全红线 #2：持久化 .e2e-runtime.json 前的脱敏副本。
+ *
+ * 黑名单：MIDSCENE_MODEL_API_KEY 永不写入磁盘运行时档案。
+ * 副作用：返回的副本 `midscene.apiKey === ''`；其他字段原样保留。
+ *
+ * Worker 端读取 runtime json 后，仍需经 process.env（writeProcessEnv 已注入）取真实 Key。
+ */
+export function sanitizeEnvForRuntimeJson(env: E2EEnv): E2EEnv {
+  const safe: E2EEnv = {
+    ...env,
+    tokens: { ...env.tokens },
+    ids: { ...env.ids },
+    midscene: {
+      ...env.midscene,
+      apiKey: '',
+    },
+  };
+  return safe;
+}
