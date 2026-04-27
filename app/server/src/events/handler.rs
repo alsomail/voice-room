@@ -25,9 +25,12 @@ pub const BROADCAST_NOTICE_I18N_KEY: &str = "notification.broadcast_notice";
 ///
 /// P3-20：附带 `i18n_key`，客户端按 locale 渲染（沿用 Android `UiText` + values-ar）。
 /// 同时保留 `message` 英文回退，供尚未实现 i18n 的旧客户端兜底。
+/// P1（T-00042 Review Round 1）：协议契约要求 `msg_id` (UUID) + `timestamp` (epoch ms)。
 fn ban_notification_json() -> String {
     serde_json::json!({
         "type": "ban_user",
+        "msg_id": uuid::Uuid::new_v4().to_string(),
+        "timestamp": chrono::Utc::now().timestamp_millis(),
         "i18n_key": BAN_NOTIFICATION_I18N_KEY,
         "message": "You have been banned from this platform."
     })
@@ -35,9 +38,13 @@ fn ban_notification_json() -> String {
 }
 
 /// 房间关闭通知消息 JSON
+///
+/// P1（T-00042 Review Round 1）：协议契约要求 `msg_id` (UUID) + `timestamp` (epoch ms)。
 fn room_closed_json() -> String {
     serde_json::json!({
         "type": "close_room",
+        "msg_id": uuid::Uuid::new_v4().to_string(),
+        "timestamp": chrono::Utc::now().timestamp_millis(),
         "i18n_key": ROOM_CLOSED_I18N_KEY,
         "message": "This room has been closed by an administrator."
     })
@@ -206,6 +213,19 @@ mod tests {
             json["type"], "ban_user",
             "ban notification must have type=ban_user"
         );
+
+        // P1: 协议契约要求 msg_id + timestamp
+        assert!(
+            json["msg_id"].is_string(),
+            "E01 P1: ban notification 必须包含 msg_id (UUID)"
+        );
+        assert!(
+            json["timestamp"].is_number(),
+            "E01 P1: ban notification 必须包含 timestamp (epoch ms)"
+        );
+        // 验证 msg_id 格式为合法 UUID
+        let msg_id_str = json["msg_id"].as_str().unwrap();
+        Uuid::parse_str(msg_id_str).expect("E01 P1: msg_id 必须为合法 UUID");
     }
 
     // ─── E02: ban_user 发送后注销连接 ────────────────────────────────────────
@@ -291,6 +311,18 @@ mod tests {
             json1["type"], "close_room",
             "E04: room member 1 should receive close_room notification"
         );
+        // P1: RoomClosed 通知也必须包含 msg_id + timestamp
+        assert!(
+            json1["msg_id"].is_string(),
+            "E04 P1: RoomClosed notification 必须包含 msg_id (UUID)"
+        );
+        assert!(
+            json1["timestamp"].is_number(),
+            "E04 P1: RoomClosed notification 必须包含 timestamp (epoch ms)"
+        );
+        Uuid::parse_str(json1["msg_id"].as_str().unwrap())
+            .expect("E04 P1: msg_id 必须为合法 UUID");
+
         assert_eq!(
             close1["type"], "connection_close",
             "E04: room member 1 should receive close instruction"

@@ -43,20 +43,52 @@ impl Default for HeartbeatConfig {
     }
 }
 
-/// T-00041：将 mpsc 下行文本帧映射为可发的 WebSocket Close 帧。
+/// T-00041 / T-00042：将 mpsc 下行文本帧映射为可发的 WebSocket Close 帧。
 ///
-/// 当且仅当文本为 `HEARTBEAT_TIMEOUT_MESSAGE` 时返回
-/// `Some(CloseFrame{1000, "Heartbeat timeout"})`，用于 connection 主循环在转发完
-/// 该文本后再发送显式 Close 帧并终止连接。其他文本返回 `None`（保持原行为）。
+/// 映射规则（按优先级）：
+/// 1. 心跳超时消息（`HEARTBEAT_TIMEOUT_MESSAGE`）→ Close(1000, "Heartbeat timeout")
+/// 2. connection_close JSON 指令（T-00042）→ Close(code, reason) 从 JSON 解析
+/// 3. 其他文本 → None（保持原行为）
+///
+/// connection_close JSON 格式（T-00042）：
+/// ```json
+/// {"type":"connection_close","code":4003,"reason":"Account banned"}
+/// ```
+/// - 必须包含 `code` 字段（数字类型），否则回退为 None（不使用默认值，保证向后兼容）
+/// - `reason` 字段可选（缺失时默认 "Connection closed"）
+/// - 解析失败时回退为 None（向后兼容）
 pub fn close_frame_for_message(text: &str) -> Option<CloseFrame> {
+    // 1. 心跳超时分支（保持原行为）
     if text == HEARTBEAT_TIMEOUT_MESSAGE {
-        Some(CloseFrame {
+        return Some(CloseFrame {
             code: HEARTBEAT_TIMEOUT_CLOSE_CODE,
             reason: HEARTBEAT_TIMEOUT_CLOSE_REASON.into(),
-        })
-    } else {
-        None
+        });
     }
+
+    // 2. connection_close JSON 指令解析（T-00042 P0）
+    if let Ok(json) = serde_json::from_str::<serde_json::Value>(text) {
+        if json.get("type").and_then(|v| v.as_str()) == Some("connection_close") {
+            // 必须包含 code 字段且为有效数字，否则回退为 None（不允许默认值）
+            let code = json
+                .get("code")
+                .and_then(|v| v.as_u64())
+                .filter(|&c| c <= u16::MAX as u64)
+                .map(|c| c as u16)?; // 使用 ? 提前返回 None
+            let reason = json
+                .get("reason")
+                .and_then(|v| v.as_str())
+                .unwrap_or("Connection closed")
+                .to_string();
+            return Some(CloseFrame {
+                code,
+                reason: reason.into(),
+            });
+        }
+    }
+
+    // 3. 其他文本回退为 None
+    None
 }
 
 /// 移除所有心跳已超时的连接（使用默认 30s 阈值，保持向后兼容）。
@@ -233,6 +265,47 @@ mod tests {
     fn t41_close_frame_for_unrelated_message_is_none() {
         assert!(close_frame_for_message(r#"{"type":"chat","msg":"hi"}"#).is_none());
         assert!(close_frame_for_message("").is_none());
+    }
+
+    // T-00042 P0 — close_frame_for_message 必须识别 connection_close JSON
+    #[test]
+    fn t42_close_frame_for_connection_close_json_code_4003() {
+        let json = r#"{"type":"connection_close","code":4003,"reason":"Account banned"}"#;
+        let frame = close_frame_for_message(json)
+            .expect("connection_close JSON 必须映射为 Close 帧");
+        assert_eq!(frame.code, 4003, "code 必须从 JSON 取值");
+        assert_eq!(
+            frame.reason.as_ref() as &str,
+            "Account banned",
+            "reason 必须从 JSON 取值"
+        );
+    }
+
+    #[test]
+    fn t42_close_frame_for_connection_close_json_code_1000() {
+        let json = r#"{"type":"connection_close","code":1000,"reason":"Room closed"}"#;
+        let frame = close_frame_for_message(json).expect("必须映射为 Close 帧");
+        assert_eq!(frame.code, 1000);
+        assert_eq!(frame.reason.as_ref() as &str, "Room closed");
+    }
+
+    #[test]
+    fn t42_close_frame_for_malformed_connection_close_fallback_to_none() {
+        // 格式错误的 JSON：解析失败，回退为 None（普通文本）
+        let bad_json = r#"{"type":"connection_close","code":"invalid"}"#;
+        assert!(
+            close_frame_for_message(bad_json).is_none(),
+            "格式错误的 JSON 应回退为 None（保持向后兼容）"
+        );
+    }
+
+    #[test]
+    fn t42_close_frame_heartbeat_timeout_still_works() {
+        // 确保心跳超时分支保持原行为（不被新逻辑破坏）
+        let frame = close_frame_for_message(HEARTBEAT_TIMEOUT_MESSAGE)
+            .expect("heartbeat timeout 分支必须继续工作");
+        assert_eq!(frame.code, 1000);
+        assert_eq!(frame.reason.as_ref() as &str, "Heartbeat timeout");
     }
 
     // T-00041 U-2：客户端静默 35s — 通过将 last_heartbeat 回拨到 35s 前模拟，
