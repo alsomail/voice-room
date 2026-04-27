@@ -1,7 +1,7 @@
 /**
  * Admin Server HTTP 客户端
  *
- * Base URL：VITE_ADMIN_API_BASE_URL（默认 http://localhost:3001/api/v1/admin）
+ * Base URL：VITE_ADMIN_API_BASE_URL（启动期由 webEnv 校验，缺值即抛 [CONFIG ERROR]）
  * 协议契约：doc/protocol.md §三 Admin 认证模块
  *
  * 功能：
@@ -16,6 +16,7 @@
  */
 
 // [L01] 从 useAuthStore 导入共享常量，消除重复定义
+import { webEnv } from '../config/env';
 import { ADMIN_TOKEN_KEY, useAuthStore } from '../../stores/useAuthStore';
 
 /** 统一响应结构（protocol.md §1.3） */
@@ -46,10 +47,7 @@ export interface AdminLoginData {
 }
 
 function getAdminApiBaseUrl(): string {
-  return (
-    (import.meta.env.VITE_ADMIN_API_BASE_URL as string | undefined) ??
-    'http://localhost:3001/api/v1/admin'
-  );
+  return webEnv.adminApiBaseUrl;
 }
 
 async function adminFetch<T>(
