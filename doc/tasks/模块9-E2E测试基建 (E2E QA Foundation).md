@@ -2,6 +2,19 @@
 
 > 返回 [任务总索引](./index.md)
 
+## 🎉 模块 9 闭环总结
+
+**状态**：✅ 完成（12/12 全部 Task Done）
+
+**成就**：
+- **M1 本地 E2E 跑通** ✅（T-0000E/F/G/H + T-0000J）：个人电脑可执行全部 35 个 E2E 用例，local profile 完整链路
+- **M2 多环境对称** ✅（T-00040/T-10020/T-20020/T-30050）：AppServer/AdminServer/Web/Android 四端配置体系一致性落地，staging/prod 远端凭据填入即可切换
+- **M3 DX 与文档闭环** ✅（T-0000I/K/L）：`npm run` 一键命令（6 个脚本）+ Midscene LLM 三形态配置（OpenAI/Azure/中转）+ E2E_RUNBOOK.md 冷启动 SOP（5 分钟新人全绿）
+
+**下游解锁**：所有 E2E 测试基建 P0/P1/P2/P3 完全闭环，后续功能模块（E-08/E-09/E-11...）可直接启用本测试体系进行跨端验证。模块 10+ 可以此为基线推进更复杂的 E2E 场景编排。
+
+---
+
 ## Phase 1.6: 测试基建（与功能 Epic 解耦，独立交付）
 
 > **背景**：截至 2026-04-26，全量功能模块（0~8）已具备较完整的单元测试与代码实现，但跨端 E2E 真跑链路存在 14 项关键缺口（详见 [T-0000E TDS](../tds/infra/T-0000E.md) 第一节体检结论）。本模块统一交付 **多环境（local / staging / prod）E2E 切换体系 + 健康预检 + Seed 数据 + 启动 SOP**，使 `tests/scripts/**` 真正可执行、可复现、可隔离。
@@ -30,9 +43,9 @@
 | **T-0000I** | 基建 | Infra/E2E | `package.json` scripts 一键命令 [TDS](../tds/infra/T-0000I.md) | T-0000H | 新增 `e2e:local` `e2e:staging` `e2e:prod-smoke` `db:seed` `db:reset` `preflight` 6 个 script | 1. `npm run preflight` 1 秒内输出健康表<br>2. `npm run e2e:local` 等价 `E2E_PROFILE=local playwright test`<br>3. `npm run e2e:prod-smoke` 仅跑 `@prod-safe` 标签 | 1 | DoD | ✅ Done | ✅ Passed | - | ✅ Passed |
 | **T-0000J** | 基建 | Infra/E2E | E2E 用例 baseURL/密码 typo 修复 + @prod-safe 标签 [TDS](../tds/infra/T-0000J.md) | T-0000H | 1. `playwright.config.ts` 由 envLoader 注入 `baseURL`<br>2. 全部用例的硬编码 DB 密码改读 env<br>3. read-only smoke 用例打 `@prod-safe` 标签 | 1. `grep -r 'app_server_pwd' tests/` 0 命中<br>2. WEB 用例可用 `page.goto('/login')` 相对路径<br>3. 至少 5 条 smoke 用例打标 | 2 | DoD | ✅ Done | ✅ Passed | ✅ Passed | ✅ Passed |
 | **T-0000K** | 基建 | Infra/E2E | Midscene LLM 配置接入文档 + CI Secret 流程 [TDS](../tds/infra/T-0000K.md) | T-0000F | 输出 `doc/tests/MIDSCENE_SETUP.md`：本地 Key 注入、CI Secret 注入、限流与回退策略 | 1. 文档含三种部署形态（OpenAI 直连/Azure/中转）配置示例<br>2. CI workflow 引用 `MIDSCENE_MODEL_API_KEY` Secret 而非明文<br>3. Key 缺失时 WEB 用例 skip 而非 fail | 1 | DoD | ✅ Done | ✅ Passed | ✅ Passed | ✅ Passed |
-| **T-0000L** | 基建 | Infra/E2E | E2E 启动 SOP（E2E_RUNBOOK.md） [TDS](../tds/infra/T-0000L.md) | T-0000I, T-0000J | 输出 `doc/tests/E2E_RUNBOOK.md`：三环境切换命令矩阵、常见故障排查表、CI 接入示例 | 1. 含 local 冷启动 5 分钟可跑通的 step-by-step<br>2. 故障排查表覆盖 preflight 5 端 × 常见故障<br>3. 含 staging 远端凭据获取流程占位 | 2 | DoD | DoD 待办 | - | - | ⏳ Pending |
+| **T-0000L** | 基建 | Infra/E2E | E2E 启动 SOP（E2E_RUNBOOK.md） [TDS](../tds/infra/T-0000L.md) | T-0000I, T-0000J | 输出 `doc/tests/E2E_RUNBOOK.md`：三环境切换命令矩阵、常见故障排查表、CI 接入示例 | 1. 含 local 冷启动 5 分钟可跑通的 step-by-step<br>2. 故障排查表覆盖 preflight 5 端 × 常见故障<br>3. 含 staging 远端凭据获取流程占位 | 2 | DoD | ✅ Done | - | - | ✅ Passed |
 
-**汇总**：12 个 Task，预估总工时 **32 人时（≈4 人天）**。
+**汇总**：12 个 Task，预估总工时 **32 人时（≈4 人天）**。**模块 9 完成进度：12/12 ✅**。
 
 ---
 
@@ -65,5 +78,5 @@ T-0000E (主设计)
 |--------|---------|------|------|
 | **M1：本地 E2E 跑通** | T-0000E/F/G/H + T-0000J 完成 | 个人电脑可执行全部 35 个 E2E 用例 | **✅ 已完成** |
 | **M2：多环境对称** | T-00040/T-10020/T-20020/T-30050 完成 | staging 远端凭据填入即可切换 | **✅ 已完成** |
-| **M3：DX 与文档闭环** | T-0000I/K/L 完成 | 一键命令 + Runbook + Midscene 集成完整 | ⏳ 进行中（T-0000I ✅ + T-0000J ✅ + T-0000K ✅，待 T-0000L）|
+| **M3：DX 与文档闭环** | T-0000I/K/L 完成 | 一键命令 + Runbook + Midscene 集成完整 | **✅ 完成（3/3）** |
 
