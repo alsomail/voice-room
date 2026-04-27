@@ -50,4 +50,8 @@ export interface E2EEnv {
 
   // CI 软门禁
   ciReady: boolean;
+
+  // T-0000P 扩展：Azure / 自定义 baseURL 可选字段（internal，由 writeProcessEnv 透传）
+  _azureEndpoint?: string;
+  _azureApiKey?: string;
 }

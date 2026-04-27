@@ -137,7 +137,29 @@ export function loadE2EEnv(opts: LoadOpts = {}): E2EEnv {
     return undefined;
   };
 
-  // ── Step 3：必填字段校验 ──
+  // ── Step 3：Midscene env 读取（T-0000P §二 改造点位 1）──
+  // 优先级链：process.env.MIDSCENE_MODEL_API_KEY > .env.MIDSCENE_MODEL_API_KEY
+  //          > process.env.OPENAI_API_KEY > .env.OPENAI_API_KEY
+  // 缺失时仅 warn（不计入必填字段，不阻塞 API/INFRA 测试）
+  let midsceneApiKey = get('MIDSCENE_MODEL_API_KEY');
+  if (!midsceneApiKey) {
+    midsceneApiKey = get('OPENAI_API_KEY');
+  }
+  if (!midsceneApiKey) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      '\x1b[33m⚠️  Midscene AI key not set (MIDSCENE_MODEL_API_KEY or OPENAI_API_KEY missing).\n' +
+      '   WEB E2E tests using AI assertions will be skipped.\n' +
+      '   See doc/tests/MIDSCENE_SETUP.md for setup instructions.\x1b[0m'
+    );
+  }
+
+  // 可选字段：MIDSCENE_MODEL_BASE_URL / AZURE 双字段（若设置则透传，不做 fallback 推导）
+  const midsceneBaseUrl = get('MIDSCENE_MODEL_BASE_URL') || get('MIDSCENE_OPENAI_BASE_URL');
+  const azureEndpoint = get('AZURE_OPENAI_ENDPOINT');
+  const azureApiKey = get('AZURE_OPENAI_API_KEY');
+
+  // ── Step 4：必填字段校验 ──
   const missing: string[] = [];
   const required = (key: string) => {
     const v = get(key);
@@ -180,7 +202,7 @@ export function loadE2EEnv(opts: LoadOpts = {}): E2EEnv {
     throw new MissingEnvError(profile, missing, profileFile);
   }
 
-  // ── Step 4：类型 / URL 校验 ──
+  // ── Step 5：类型 / URL 校验 ──
   for (const [field, val] of [
     ['APP_SERVER_BASE_URL', appServerBaseUrl!],
     ['ADMIN_SERVER_BASE_URL', adminServerBaseUrl!],
@@ -208,7 +230,7 @@ export function loadE2EEnv(opts: LoadOpts = {}): E2EEnv {
   const midsceneCache = parseBool('MIDSCENE_CACHE', get('MIDSCENE_CACHE'), true);
   const ciReady = parseBool('CI_E2E_READY', get('CI_E2E_READY'), false);
 
-  // ── Step 5：组装 + 冻结 ──
+  // ── Step 6：组装 + 冻结 ──
   const env: E2EEnv = {
     profile,
     allowWrites,
@@ -234,12 +256,15 @@ export function loadE2EEnv(opts: LoadOpts = {}): E2EEnv {
       userBId: idVals.E2E_USER_B_ID ?? '',
     },
     midscene: {
-      apiKey: get('MIDSCENE_MODEL_API_KEY') ?? '',
+      apiKey: midsceneApiKey ?? '',
       modelName: get('MIDSCENE_MODEL_NAME') ?? 'gpt-4o',
-      baseUrl: get('MIDSCENE_OPENAI_BASE_URL'),
+      baseUrl: midsceneBaseUrl,
       cache: midsceneCache,
     },
     ciReady,
+    // T-0000P 扩展：Azure / 自定义 baseURL 可选字段（不冻结到主对象，由 writeProcessEnv 透传）
+    _azureEndpoint: azureEndpoint,
+    _azureApiKey: azureApiKey,
   };
   // 深冻结 nested 对象
   Object.freeze(env.tokens);
@@ -275,10 +300,21 @@ export function writeProcessEnv(env: E2EEnv): void {
   process.env.E2E_USER_A_ID = env.ids.userAId;
   process.env.E2E_USER_B_ID = env.ids.userBId;
 
-  if (env.midscene.apiKey) process.env.MIDSCENE_MODEL_API_KEY = env.midscene.apiKey;
+  // T-0000P §二 改造点位 1：Midscene env 双注入（兼容性保障）
+  if (env.midscene.apiKey) {
+    process.env.MIDSCENE_MODEL_API_KEY = env.midscene.apiKey;
+    process.env.OPENAI_API_KEY = env.midscene.apiKey;
+  }
   process.env.MIDSCENE_MODEL_NAME = env.midscene.modelName;
-  if (env.midscene.baseUrl) process.env.MIDSCENE_OPENAI_BASE_URL = env.midscene.baseUrl;
+  if (env.midscene.baseUrl) {
+    process.env.MIDSCENE_MODEL_BASE_URL = env.midscene.baseUrl;
+    process.env.MIDSCENE_OPENAI_BASE_URL = env.midscene.baseUrl; // 旧版兼容
+  }
   process.env.MIDSCENE_CACHE = env.midscene.cache ? '1' : '0';
+  // Azure 可选字段透传
+  if (env._azureEndpoint) process.env.AZURE_OPENAI_ENDPOINT = env._azureEndpoint;
+  if (env._azureApiKey) process.env.AZURE_OPENAI_API_KEY = env._azureApiKey;
+
   process.env.CI_E2E_READY = env.ciReady ? '1' : '0';
 
   // 缺陷 2 修复（batch-e2e-foundation-01 第 1 轮）：
@@ -313,6 +349,9 @@ export function sanitizeEnvForRuntimeJson(env: E2EEnv): E2EEnv {
       ...env.midscene,
       apiKey: '',
     },
+    // T-0000P：清除 Azure 敏感字段
+    _azureEndpoint: undefined,
+    _azureApiKey: undefined,
   };
   return safe;
 }

@@ -20,6 +20,9 @@ jobs:
     runs-on: ubuntu-latest
     env:
       CI_E2E_READY: ${{ github.event.inputs.e2e_ready }}
+      # T-0000P §二 改造点位 3：Midscene env 注入 Secret
+      MIDSCENE_MODEL_API_KEY: ${{ secrets.MIDSCENE_MODEL_API_KEY }}
+      MIDSCENE_MODEL_BASE_URL: ${{ secrets.MIDSCENE_MODEL_BASE_URL }}
     steps:
     - uses: actions/checkout@v4
     - uses: actions/setup-node@v4
