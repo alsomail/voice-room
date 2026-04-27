@@ -15,6 +15,8 @@
 //! 运行前提：G01~G07 使用 FakeGiftService，无需数据库连接。
 //! 带 DB 标记的测试（G_db 系列）若未设置 DATABASE_URL 则跳过。
 
+mod common;
+
 use std::time::{Duration, Instant};
 
 use axum::{
@@ -598,10 +600,9 @@ async fn g_db01_migration_creates_8_gifts_in_db() {
     };
 
     // 运行迁移
-    sqlx::migrate!("./migrations")
-        .run(&pool)
+    common::run_migrations(&pool)
         .await
-        .expect("migrations should run");
+        .expect("migrations");
 
     // 验证 gifts 表有 8 行
     let row = sqlx::query("SELECT COUNT(*) as cnt FROM gifts WHERE is_deleted = false")
@@ -636,8 +637,7 @@ async fn g_db02_inactive_gift_excluded_from_query() {
         return;
     };
 
-    sqlx::migrate!("./migrations")
-        .run(&pool)
+    common::run_migrations(&pool)
         .await
         .expect("migrations");
 

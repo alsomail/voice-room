@@ -10,6 +10,8 @@
 //! 运行前提：DATABASE_URL 指向已迁移 PG，REDIS_URL（或默认 redis://127.0.0.1:6379）可达。
 //! 未配置时单测自动跳过（事件写入 / Wallet 集成测试沿用同款骨架）。
 
+mod common;
+
 use std::time::Duration;
 
 use sqlx::{postgres::PgPoolOptions, PgPool, Row};
@@ -30,7 +32,7 @@ async fn test_pool() -> Option<PgPool> {
         .connect(&url)
         .await
         .ok()?;
-    sqlx::migrate!("./migrations").run(&pool).await.ok()?;
+    common::run_migrations(&pool).await.ok()?;
     Some(pool)
 }
 

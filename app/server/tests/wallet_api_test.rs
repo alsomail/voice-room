@@ -14,6 +14,8 @@
 //! 运行前提：DATABASE_URL 环境变量指向可用的 PostgreSQL 实例（B02~B06、B08 需要）。
 //! 若未设置 DATABASE_URL，DB 相关测试将被跳过。
 
+mod common;
+
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 
@@ -139,8 +141,7 @@ async fn b02_authenticated_user_initial_balance_is_zero() {
         return;
     };
 
-    sqlx::migrate!("./migrations")
-        .run(&pool)
+    common::run_migrations(&pool)
         .await
         .expect("migrations");
 
@@ -184,8 +185,7 @@ async fn b03_empty_transactions_returns_zero() {
         return;
     };
 
-    sqlx::migrate!("./migrations")
-        .run(&pool)
+    common::run_migrations(&pool)
         .await
         .expect("migrations");
 
@@ -230,8 +230,7 @@ async fn b04_filter_by_type_returns_only_matching() {
         return;
     };
 
-    sqlx::migrate!("./migrations")
-        .run(&pool)
+    common::run_migrations(&pool)
         .await
         .expect("migrations");
 
@@ -336,8 +335,7 @@ async fn b05_apply_delta_triggers_ws_balance_updated_within_500ms() {
         return;
     };
 
-    sqlx::migrate!("./migrations")
-        .run(&pool)
+    common::run_migrations(&pool)
         .await
         .expect("migrations");
 
@@ -445,8 +443,7 @@ async fn b06_multi_connection_same_user_all_receive_push() {
         return;
     };
 
-    sqlx::migrate!("./migrations")
-        .run(&pool)
+    common::run_migrations(&pool)
         .await
         .expect("migrations");
 
@@ -583,8 +580,7 @@ async fn b08_apply_delta_negative_balance_rolls_back() {
         return;
     };
 
-    sqlx::migrate!("./migrations")
-        .run(&pool)
+    common::run_migrations(&pool)
         .await
         .expect("migrations");
 

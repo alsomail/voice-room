@@ -14,6 +14,8 @@
 //!           DATABASE_URL 指向可用 PostgreSQL 实例（R01~R04、R08）。
 //! 未设置时对应测试自动跳过。
 
+mod common;
+
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -112,10 +114,9 @@ async fn r01_top_n_sorted_by_score_descending() {
         eprintln!("[SKIP] R01: DATABASE_URL or REDIS_URL not set");
         return;
     };
-    sqlx::migrate!("./migrations")
-        .run(&pool)
+    common::run_migrations(&pool)
         .await
-        .expect("migrate");
+        .expect("migrations");
 
     let mut conn = test_redis_conn(&redis_url).await.expect("redis connection");
 
@@ -175,10 +176,9 @@ async fn r02_viewer_not_in_list_rank_null() {
         eprintln!("[SKIP] R02: DATABASE_URL or REDIS_URL not set");
         return;
     };
-    sqlx::migrate!("./migrations")
-        .run(&pool)
+    common::run_migrations(&pool)
         .await
-        .expect("migrate");
+        .expect("migrations");
 
     let mut conn = test_redis_conn(&redis_url).await.expect("redis connection");
     let test_suffix = Uuid::new_v4().to_string().replace('-', "");
@@ -222,10 +222,9 @@ async fn r03_viewer_rank_42() {
         eprintln!("[SKIP] R03: DATABASE_URL or REDIS_URL not set");
         return;
     };
-    sqlx::migrate!("./migrations")
-        .run(&pool)
+    common::run_migrations(&pool)
         .await
-        .expect("migrate");
+        .expect("migrations");
 
     let mut conn = test_redis_conn(&redis_url).await.expect("redis connection");
     let test_suffix = Uuid::new_v4().to_string().replace('-', "");
@@ -278,10 +277,9 @@ async fn r04_top3_medals() {
         eprintln!("[SKIP] R04: DATABASE_URL or REDIS_URL not set");
         return;
     };
-    sqlx::migrate!("./migrations")
-        .run(&pool)
+    common::run_migrations(&pool)
         .await
-        .expect("migrate");
+        .expect("migrations");
 
     let mut conn = test_redis_conn(&redis_url).await.expect("redis connection");
     let test_suffix = Uuid::new_v4().to_string().replace('-', "");
@@ -462,10 +460,9 @@ async fn r08_response_time_under_100ms() {
         eprintln!("[SKIP] R08: DATABASE_URL or REDIS_URL not set");
         return;
     };
-    sqlx::migrate!("./migrations")
-        .run(&pool)
+    common::run_migrations(&pool)
         .await
-        .expect("migrate");
+        .expect("migrations");
 
     let mut conn = test_redis_conn(&redis_url).await.expect("redis connection");
     let test_suffix = Uuid::new_v4().to_string().replace('-', "");
