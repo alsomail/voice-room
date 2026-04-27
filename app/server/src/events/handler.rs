@@ -54,6 +54,20 @@ fn notice_json(message: String) -> String {
     .to_string()
 }
 
+/// 连接关闭指令消息 JSON（T-00042）
+///
+/// 用于指示 WebSocket connection 主循环发送 Close frame 并终止连接。
+/// - `code = 4003`：Account banned（用户封禁）
+/// - `code = 1000`：Normal closure（房间关闭等正常场景）
+fn connection_close_json(code: u16, reason: &str) -> String {
+    serde_json::json!({
+        "type": "connection_close",
+        "code": code,
+        "reason": reason
+    })
+    .to_string()
+}
+
 // ─── 事件分发入口 ─────────────────────────────────────────────────────────────
 
 /// 处理一个 AdminEvent，对 registry 执行相应操作。
@@ -61,12 +75,21 @@ fn notice_json(message: String) -> String {
 /// 所有操作均为尽力投递（best-effort）：
 /// - channel 已关闭：静默跳过（不 panic，不影响主服务）
 /// - 用户/房间不在线：静默忽略
+///
+/// T-00042：封禁和房间关闭事件改为两段式处理：
+/// 1. 发送通知消息（UserBanned / RoomClosed）
+/// 2. 发送 connection_close 指令（触发 WebSocket Close frame）
+/// 3. 注销连接
 pub async fn handle_admin_event(event: AdminEvent, registry: Arc<ConnectionRegistry>) {
     match event {
         AdminEvent::BanUser { payload, .. } => {
             let conns = registry.get_by_user_id(payload.user_id);
             for (conn_id, sender) in conns {
+                // 1. 发送封禁通知
                 let _ = sender.send(ban_notification_json());
+                // 2. 发送 close 指令（code 4003 = Account banned）
+                let _ = sender.send(connection_close_json(4003, "Account banned"));
+                // 3. 注销连接
                 registry.unregister(conn_id);
             }
         }

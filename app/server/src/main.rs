@@ -138,6 +138,9 @@ async fn main() -> anyhow::Result<()> {
         mute_db,
         mic_lock,
         transfer_admin_repo,
+        Arc::new(voice_room_server::modules::chat::RealChatRepository::new(
+            pool.clone(),
+        )),
     );
 
     // 启动 BalanceBroadcaster（HIGH-2：同时监听本进程 mpsc channel 和 Redis PubSub）

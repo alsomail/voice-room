@@ -12,6 +12,7 @@ use crate::{
     },
     modules::{
         auth::{auth_routes, repository::UserRepository, service::AuthService},
+        chat::{chat_routes, ChatRepository},
         events::events_routes,
         gift::{gift_routes, send_gift::SendGiftServicePort, service::GiftServicePort},
         governance::kick::{KickAuditDb, KickRedis},
@@ -61,6 +62,8 @@ pub struct AppState {
     pub mic_lock: Arc<dyn crate::room::mic_lock::MicLock>,
     /// 管理员任命 DB（T-00030 TransferAdmin 信令）
     pub transfer_admin_repo: Arc<dyn TransferAdminRepo>,
+    /// 聊天消息持久化（T-00043 SendMessage 落库 + REST 历史查询）
+    pub chat_repo: Arc<dyn ChatRepository>,
 }
 
 impl AppState {
@@ -111,6 +114,7 @@ impl AppState {
             transfer_admin_repo: Arc::new(
                 crate::modules::governance::transfer::FakeTransferAdminRepo::default(),
             ),
+            chat_repo: Arc::new(crate::modules::chat::FakeChatRepository::default()),
         }
     }
 
@@ -142,6 +146,7 @@ impl AppState {
         mute_db: Arc<dyn MuteDb>,
         mic_lock: Arc<dyn crate::room::mic_lock::MicLock>,
         transfer_admin_repo: Arc<dyn TransferAdminRepo>,
+        chat_repo: Arc<dyn ChatRepository>,
     ) -> Self {
         let auth_service = Arc::new(AuthService::new(
             user_repo,
@@ -169,6 +174,7 @@ impl AppState {
             mute_db,
             mic_lock,
             transfer_admin_repo,
+            chat_repo,
         }
     }
 
@@ -211,6 +217,12 @@ impl AppState {
     /// 设置生产环境真实 TransferAdminRepo（T-00030）。
     pub fn with_transfer_admin_repo(mut self, repo: Arc<dyn TransferAdminRepo>) -> Self {
         self.transfer_admin_repo = repo;
+        self
+    }
+
+    /// 设置生产环境真实 ChatRepository（T-00043）。
+    pub fn with_chat_repo(mut self, repo: Arc<dyn ChatRepository>) -> Self {
+        self.chat_repo = repo;
         self
     }
 
@@ -336,6 +348,7 @@ pub fn build_app(state: AppState) -> Router {
         .route("/health", get(health))
         .route("/ws", get(ws_handler))
         .merge(auth_routes())
+        .merge(chat_routes())
         .merge(room_routes())
         .merge(wallet_routes())
         .merge(gift_routes())
