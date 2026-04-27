@@ -36,7 +36,7 @@ Server 端基于 Rust + Axum 构建。启动骨架（配置、日志、健康检
 - 🟢 tracing 初始化、请求级 span 与访问日志字段注入
 - 🟢 `app/shared` crate 集成（JWT encode/decode + iss 校验、bcrypt 密码工具、公共错误码）
 - 🟢 配置分层读取（`.env` + `config/*.toml` + 环境变量覆盖）
-- 🟢 数据库连接池（SQLx 0.8 + PostgreSQL）与自动 migration（`sqlx::migrate!`）
+- 🟢 数据库连接池（SQLx 0.8 + PostgreSQL）与自动 migration（`sqlx::migrate!`）；**双服务共库迁移表隔离**（T-0000M）：AppServer 使用自定义表 `_sqlx_app_migrations` 由 `voice_room_shared::migrate::run_migrations_with_table` helper 接管
 - 🟢 Redis 连接（`MultiplexedConnection` 缓存复用）
 - 🟢 **Auth 模块**：`POST /api/v1/auth/verification-codes`（T-00002）、`POST /api/v1/auth/login`（T-00003）、JWT 鉴权中间件（T-00004）、`GET /api/v1/users/me`（T-00005）
 - 🟢 SMS 防腐层（`SmsProvider` trait）：生产用 Twilio，开发/CI 用 Mock

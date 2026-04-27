@@ -4,7 +4,7 @@
 
 ## 🎉 模块 9 闭环总结
 
-**状态**：🟡 进行中（12/13 Done；T-0000M 双服务共库 Migration 隔离 进行中，2026-04-27 由 e2e:up 联调暴露架构级阻断）
+**状态**：🟢 已闭环（13/13 ✅ Done；T-0000M 双服务共库 Migration 表隔离 DoD 完成，2026-04-27）
 
 **成就**：
 - **M1 本地 E2E 跑通** ✅（T-0000E/F/G/H + T-0000J）：个人电脑可执行全部 35 个 E2E 用例，local profile 完整链路
@@ -44,9 +44,9 @@
 | **T-0000J** | 基建 | Infra/E2E | E2E 用例 baseURL/密码 typo 修复 + @prod-safe 标签 [TDS](../tds/infra/T-0000J.md) | T-0000H | 1. `playwright.config.ts` 由 envLoader 注入 `baseURL`<br>2. 全部用例的硬编码 DB 密码改读 env<br>3. read-only smoke 用例打 `@prod-safe` 标签 | 1. `grep -r 'app_server_pwd' tests/` 0 命中<br>2. WEB 用例可用 `page.goto('/login')` 相对路径<br>3. 至少 5 条 smoke 用例打标 | 2 | DoD | ✅ Done | [✅ Passed](../review/batch-e2e-foundation-01.md) | ✅ Passed | ✅ Released |
 | **T-0000K** | 基建 | Infra/E2E | Midscene LLM 配置接入文档 + CI Secret 流程 [TDS](../tds/infra/T-0000K.md) | T-0000F | 输出 `doc/tests/MIDSCENE_SETUP.md`：本地 Key 注入、CI Secret 注入、限流与回退策略 | 1. 文档含三种部署形态（OpenAI 直连/Azure/中转）配置示例<br>2. CI workflow 引用 `MIDSCENE_MODEL_API_KEY` Secret 而非明文<br>3. Key 缺失时 WEB 用例 skip 而非 fail | 1 | DoD | ✅ Done | [✅ Passed](../review/batch-e2e-foundation-01.md) | ✅ Passed | ✅ Released |
 | **T-0000L** | 基建 | Infra/E2E | E2E 启动 SOP（E2E_RUNBOOK.md） [TDS](../tds/infra/T-0000L.md) | T-0000I, T-0000J | 输出 `doc/tests/E2E_RUNBOOK.md`：三环境切换命令矩阵、常见故障排查表、CI 接入示例 | 1. 含 local 冷启动 5 分钟可跑通的 step-by-step<br>2. 故障排查表覆盖 preflight 5 端 × 常见故障<br>3. 含 staging 远端凭据获取流程占位 | 2 | DoD | ✅ Done | [✅ Passed](../review/batch-e2e-foundation-01.md) | - | ✅ Released |
-| **T-0000M** | 基建 | Infra/E2E | 双服务共库 Migration 表隔离 [TDS](../tds/infra/T-0000M.md) | T-0000H | 1. AppServer / AdminServer 同库 `voiceroom` 共享 `_sqlx_migrations` 时版本/校验互掐，冷启动 e2e:up 必现阻断<br>2. 采纳方案 B：两服务 `main.rs` 改用 `Migrator.set_table_name()` 自定义表名 `_sqlx_app_migrations` / `_sqlx_admin_migrations`<br>3. `init-db.sh` 收口 `GRANT CREATE ON SCHEMA public TO app_server_user`，撤掉 `e2e-up.sh` 的 inline workaround<br>4. server 集成测试 15 处 migrate 调用收敛到 `tests/common/mod.rs` helper | 1. `docker compose down -v && npm run e2e:up` 一遍过 5 端绿<br>2. 两张 `_sqlx_*_migrations` 表共存，行数 = 9 / 4<br>3. `cargo test -p voice-room-server` / `cargo test -p voice-room-admin-server` / `npm run e2e:local` 0 回归<br>4. `grep "GRANT CREATE" scripts/dev/e2e-up.sh` 0 命中 | 3 | Dod | ⏳ In Progress | - | - | ⏳ Pending |
+| **T-0000M** | 基建 | Infra/E2E | 双服务共库 Migration 表隔离 [TDS](../tds/infra/T-0000M.md) | T-0000H | 1. AppServer / AdminServer 同库 `voiceroom` 共享 `_sqlx_migrations` 时版本/校验互掐，冷启动 e2e:up 必现阻断<br>2. 采纳方案 B：两服务 `main.rs` 改用 `Migrator.set_table_name()` 自定义表名 `_sqlx_app_migrations` / `_sqlx_admin_migrations`<br>3. `init-db.sh` 收口 `GRANT CREATE ON SCHEMA public TO app_server_user`，撤掉 `e2e-up.sh` 的 inline workaround<br>4. server 集成测试 15 处 migrate 调用收敛到 `tests/common/mod.rs` helper | 1. `docker compose down -v && npm run e2e:up` 一遍过 5 端绿<br>2. 两张 `_sqlx_*_migrations` 表共存，行数 = 9 / 4<br>3. `cargo test -p voice-room-server` / `cargo test -p voice-room-admin-server` / `npm run e2e:local` 0 回归<br>4. `grep "GRANT CREATE" scripts/dev/e2e-up.sh` 0 命中 | 3 | Dod | ✅ Done | - | - | ⏳ Pending |
 
-**汇总**：13 个 Task，预估总工时 **35 人时（≈4.5 人天）**。**模块 9 完成进度：12/13（T-0000M 进行中）**。
+**汇总**：13 个 Task，预估总工时 **35 人时（≈4.5 人天）**。**模块 9 完成进度：13/13 ✅**。
 
 ---
 
@@ -80,5 +80,5 @@ T-0000E (主设计)
 | **M1：本地 E2E 跑通** | T-0000E/F/G/H + T-0000J 完成 | 个人电脑可执行全部 35 个 E2E 用例 | **✅ 已完成** |
 | **M2：多环境对称** | T-00040/T-10020/T-20020/T-30050 完成 | staging 远端凭据填入即可切换 | **✅ 已完成** |
 | **M3：DX 与文档闭环** | T-0000I/K/L 完成 | 一键命令 + Runbook + Midscene 集成完整 | **✅ 完成（3/3）** |
-| **M4：双服务共库迁移隔离** | T-0000M 完成 | `npm run e2e:up` 冷启动消除架构级阻断，AppServer / AdminServer 共库迁移互不感知 | **🟡 进行中** |
+| **M4：双服务共库迁移隔离** | T-0000M 完成 | `npm run e2e:up` 冷启动消除架构级阻断，AppServer / AdminServer 共库迁移互不感知 | **✅ Done** |
 
