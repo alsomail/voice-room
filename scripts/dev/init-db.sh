@@ -23,6 +23,11 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
   GRANT CONNECT ON DATABASE voiceroom TO app_server_user;
   GRANT CONNECT ON DATABASE voiceroom TO admin_server_user;
 
+  -- T-0000M：AppServer 需要在 public schema 下自建 _sqlx_app_migrations 登记表，
+  -- 因此必须显式 GRANT CREATE ON SCHEMA public（幂等：DO 守卫不存在则授）。
+  -- 撤掉了 scripts/dev/e2e-up.sh 的 inline 临时补丁。
+  GRANT CREATE ON SCHEMA public TO app_server_user;
+
   -- admin_server_user 拥有 public schema 全权（含后续新建表）
   GRANT ALL PRIVILEGES ON SCHEMA public TO admin_server_user;
   ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO admin_server_user;
