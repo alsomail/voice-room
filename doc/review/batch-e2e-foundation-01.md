@@ -1,5 +1,5 @@
 # 全局代码审查报告: 模块9 E2E 测试基建 (E2E QA Foundation)
-> **当前状态机**：负责人 [GlobalReview] | 状态 [⏳ In Review] | 修复轮次 [1/10]
+> **当前状态机**：负责人 [-] | 状态 [✅ Passed] | 修复轮次 [1/10]
 
 ---
 
@@ -228,5 +228,71 @@
 #### 四、本轮总结
 
 **本轮结论**：6 个缺陷（P1×3 + P2×3）已逐条按 TDD 红绿循环修复，所有新增/修改测试用例全绿，AdminWeb 与 Android 既有单测 0 回归。状态机切回 `负责人 [GlobalReview] | 状态 [⏳ In Review] | 修复轮次 [1/10]`，等待第 3 轮复审。
+
+---
+
+### 【第 3 轮审查】
+**@GlobalReview 审查意见：**
+
+#### 一、第 1 轮 6 个缺陷的代码现状逐条核对（实地 grep + view 验证，非自述）
+
+| # | 缺陷 | 复核证据（行号 + grep 命中） | 复核结论 |
+|---|---|---|---|
+| 1 (P1) | CI `playwright.yml` 永红 | `.github/workflows/playwright.yml:6-25`：触发器改为 `workflow_dispatch` + `inputs.e2e_ready` choice，job env `CI_E2E_READY` 透传；`tests/scripts/support/globalSetup.ts:37-41` 入口判 `process.env.CI === 'true' && process.env.CI_E2E_READY !== '1'` 早退；`globalSetup.test.ts:202-235` 含 3 用例（缺旗标早退 / =1 正常跑 / 本地不受影响），单测 `94 passed + 2 skipped`。CI 默认 `e2e_ready=0` → 软门禁早退、不再永红。 | ✅ 已修复 |
+| 2 (P1) | Android staging/prod 硬编码 + envLoader 桥接缺失 | `app/android/app/build.gradle.kts:114-163` staging/prod flavor 全部改为 `resolveConfigValue(localProperties, "voiceRoomApiBaseUrl", "VOICE_ROOM_API_BASE_URL", default)` 通道（与 local 同写法），无字面 `https://...` 直写赋值；`tests/scripts/support/envLoader.ts:284-296` `writeProcessEnv` 末尾追加 4 个桥接键 `VOICE_ROOM_API_BASE_URL/WS_URL/ANALYTICS_ENDPOINT/ENVIRONMENT`，其中 URL 与 WS 直接由 `env.appServerBaseUrl/appWsUrl` 派生。`androidGradle.test.ts` + `envLoader.test.ts:266` 静态守护 + bridging 用例全绿。 | ✅ 已修复 |
+| 3 (P1) | AdminWeb env 双源 | `app/web/vite.config.ts:57-113` 重构为函数式 `defineConfig`，`PROFILE_BY_MODE` 表把 `mode` 映射为 `local/staging/prod`，从 `path.resolve(__dirnameSafe, '../../tests/scripts/env')` 同时读 `.env.{profile}.example` + 真值 `.env.{profile}`，再通过 `define` 注入 4 个 `import.meta.env.VITE_*`；`app/web/.env.{development,staging,production,test}` 4 文件全部清空 URL（仅留注释，已实际查看 staging 文件确认）；`viteConfig.test.ts` U-V1/U-V2/U-V3 三用例全绿（U-V3 实际跑工厂 mode=staging 验证派生值）。 | ✅ 已修复 |
+| 4 (P2) | RUNBOOK 5min 预算未计 cargo 冷编译 | `doc/tests/E2E_RUNBOOK.md:21-24` 改为「**首次 8~18min** = npm install 2min + cargo build --workspace 5~15min + docker 30s + 服务起齐 30s + smoke 30s；**复跑 ≤ 5min**」，并补「加速建议」前置 `cargo build --workspace`；`§2 Step 1` 第 45 行新增 `cargo build --workspace` 预热行；`runbook.test.ts` U-12 守护。 | ✅ 已修复 |
+| 5 (P2) | RUNBOOK Step 5 推荐命令与已复制 env 不匹配 | `E2E_RUNBOOK.md:61-66` Step 5 改为 `npm run preflight` → `npm run e2e:local -- --list` → `npm run e2e:local -- --grep "@prod-safe"` → `npm run e2e:local`，并以注释形式提示 `e2e:prod-smoke` 需先配 `.env.prod`（移到 §5 远端凭据流程）；不再有「冷启用 prod」误导。`runbook.test.ts` U-13 守护命令矩阵。 | ✅ 已修复 |
+| 6 (P2) | docker-compose 不含业务服务 + 缺一键起栈 | `E2E_RUNBOOK.md:32-35` §2 顶部新增「设计取舍」段明示 docker 仅托管 PG/Redis、业务走 cargo/vite；`package.json:10` 新增 `"e2e:up": "bash scripts/dev/e2e-up.sh"`；`scripts/dev/e2e-up.sh` 41 行实现 docker up + 3 后台进程 + `wait-on@^7` 五端健康（`http-get://:3000/health` `:3001/health` `:5173/` + `tcp::5432 :6379`），PID 写 `.e2e-up.pids`；`scripts/dev/e2e-down.sh` 配套停服；`runbook.test.ts` U-14/U-15 守护。 | ✅ 已修复 |
+
+> **复核方法**：直接 view 关键源文件全文 + grep 关键变量名（`VOICE_ROOM_API_BASE_URL`、`envDir`、`loadEnv`、`CI_E2E_READY`、`e2e:up`、`resolveConfigValue`），并实跑 `npx playwright test --config=playwright.unit.config.ts` → **94 passed + 2 skipped**，0 fail；含本轮新增 7 用例（U-V1/V2/V3、U-12~U-16、envLoader 桥接、globalSetup CI 软门禁 ×3）全绿。
+
+#### 二、四个 PO 关切的复核结论
+
+| # | 关切 | 第 3 轮结论 | 关键变化 |
+|---|---|---|---|
+| ① | 5min 冷启动 | ✅ **已兑现**（口径修订 + 一键起栈） | 预算改为「首次 8~18min / 复跑 ≤5min」诚实口径；`npm run e2e:up` + `cargo build --workspace` 预热让复跑严格 ≤5min；preflight 退码 11~15 + envLoader 78 + Midscene skip 行为全保留。 |
+| ② | 一键部署 + 一键测试 | ✅ **已兑现** | `npm run e2e:up` 聚合 docker + 3 后台进程 + `wait-on` 五端健康；`@prod-safe` 三道防线（CLI/config/fixture L3）维持；RUNBOOK §3 命令矩阵 1:1 对账 package.json。 |
+| ③ | 跨端 env 自动注入 / 单一事实源 | ✅ **已兑现** | (a) **AdminWeb**：vite.config `loadEnv + define` 从根 `tests/scripts/env/.env.{profile}` 读端点，子项目 4 个 .env.* 已清空 URL；(b) **Android**：staging/prod flavor 全改 `resolveConfigValue` 通道 + `envLoader.writeProcessEnv` 桥接 4 键；(c) 单一事实源链路 `根 .env.{profile} → envLoader → process.env → {Vite define / gradle resolveConfigValue}` 完整闭合，RUNBOOK §6 含 ASCII 路径图。 |
+| ④ | 基建健壮性 | ✅ **已兑现** | CI 软门禁双保险（workflow_dispatch input + globalSetup 早退）解除永红；Seed 幂等、Teardown local-only/non-fatal、@prod-safe 三道防线、envLoader 类型安全 + sanitizeEnvForRuntimeJson 脱敏全保留；`runbook.test.ts` 11+ 用例守护文档与代码强耦合。 |
+
+#### 三、回归扫描（原已落地优点是否保留）
+
+| 项 | 状态 | 证据 |
+|---|---|---|
+| preflight 退码 11~15 / hint | ✅ 保留 | `scripts/dev/preflight.sh` 未变；globalSetup Step 2 仍透传 `ShellExecError.exitCode` |
+| envLoader 类型安全 + 24 字段 | ✅ 保留 | `envLoader.ts:148-218` required/optional 分支不变，仅末尾新增 13 行桥接 |
+| @prod-safe 三道防线 | ✅ 保留 | `playwright.config.ts` config grep + `package.json:13` CLI grep + `fixtures.ts` fixture L3 维持 |
+| Seed 幂等 + UUIDv5 | ✅ 保留 | `scripts/dev/seed-e2e.sql/sh` 未变 |
+| Teardown local-only + non-fatal | ✅ 保留 | `globalTeardown.ts` 未变 |
+| Midscene 缺 Key 自动 skip | ✅ 保留 | `fixtures.ts:45-62` 未变；`midsceneSkip.test.ts` 全绿 |
+| sanitizeEnvForRuntimeJson 脱敏 | ✅ 保留 | `envLoader.ts:307-310` 未变，`.e2e-runtime.json` 仍 0o600 |
+
+#### 四、新增/潜在缺陷扫描
+
+实地扫描修复引入的副作用，未发现 P0/P1 新增缺陷。两条 **LOW（信息）级**观察留档（不阻断本轮通过）：
+
+- [ ] **观察 1**：[级别 P3 / 信息] **`writeProcessEnv` 把 `VOICE_ROOM_ANALYTICS_ENDPOINT` 默认置为空串**
+  - **文件与行号**：`tests/scripts/support/envLoader.ts:294`
+  - **问题说明**：`process.env.VOICE_ROOM_ANALYTICS_ENDPOINT = process.env.VOICE_ROOM_ANALYTICS_ENDPOINT ?? ''`。Kotlin `resolveConfigValue` 用 `?:` 做 null-coalesce 而非 empty-coalesce，若 Node 父进程在同一会话内 spawn `gradlew`，子进程会继承空串并跳过 build.gradle 中的 staging/prod 默认值（`https://stg-api.example.com/api/v1/events/batch`），最终 `BuildConfig.ANALYTICS_ENDPOINT == ""`。
+  - **影响**：当前 E2E 链路不在 globalSetup 内调用 gradlew，影响为 0；仅当未来在 Node 测试运行器中嵌套调用 Android 构建时才触发。
+  - **修复建议**（择期）：`writeProcessEnv` 中改为「仅当未设置时不要主动写空串」；或 gradle 端 `resolveConfigValue` 改为 `.takeIf { it.isNotEmpty() }`。
+  - **TDD 修复记录**：可作为下一批次的 NICE-TO-HAVE 跟进，本轮不阻断。
+
+- [ ] **观察 2**：[级别 P3 / 信息] **vite.config.ts 自实现 `parseDotenv` 不剥离行尾内联注释**
+  - **文件与行号**：`app/web/vite.config.ts:38-55`
+  - **问题说明**：`parseDotenv` 仅过滤整行 `#` 注释，未处理 `KEY=VALUE  # inline comment` 形态。当前 `tests/scripts/env/.env.{local,staging,prod}.example` 已 grep 验证不含行尾 `#` 注释，无实际影响；但为防止未来 SRE 在 `.env.staging` 里加 `APP_SERVER_BASE_URL=https://x.com  # tier-A` 而把 `  # tier-A` 拼进 URL，建议在切分后 `v = v.replace(/\s+#.*$/, '').trim()`。
+  - **TDD 修复记录**：可作为下一批次的 NICE-TO-HAVE 跟进，本轮不阻断。
+
+#### 五、本轮总结
+
+**本轮结论**：✅ **审查通过**。
+- 第 1 轮 6 个缺陷（P1×3 + P2×3）经实地源码核对**全部真实修复**，非 TDD 自述真实兑现；
+- 4 个 PO 关切**全部从 ⚠️/❌ 升级为 ✅**，跨端单一事实源链路 `根 .env → envLoader → {Vite define / gradle resolveConfigValue}` 闭合可验证；
+- 单测套件 `94 passed + 2 skipped`（含本轮新增 7 用例）实跑全绿；
+- 原已落地优点（preflight 退码、envLoader 类型安全、@prod-safe 三道防线、seed 幂等、teardown non-fatal、Midscene skip、运行时档案脱敏）**全部保留**；
+- 新增 2 条 LOW 级观察（VOICE_ROOM_ANALYTICS_ENDPOINT 空串、parseDotenv 内联注释）**不阻断本轮通过**，作为下一批次 NICE-TO-HAVE 跟进。
+
+*(已将文档头部状态机修改为：`负责人 [-] | 状态 [✅ Passed] | 修复轮次 [1/10]`)*
 
 ---
