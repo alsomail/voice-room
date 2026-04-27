@@ -58,6 +58,31 @@
    - 记录 `tracing::warn!` 日志：包含 `user_id`、`connection_id`、`elapsed_secs`、`timeout_secs`
    - 关闭 TCP socket，触发 connection cleanup（自动下麦、离房等）
 
+#### `close_frame_for_message` 扩展：识别 `connection_close` 指令（T-00042）
+
+**背景**：Admin 强制断连场景（用户封禁 / 房间关闭）需在 Redis 事件处理层发送关闭指令，复用心跳超时的 Close frame 下发机制。
+
+**新增 JSON 指令识别**（`ws/heartbeat.rs:70-87`）：
+```json
+{
+  "type": "connection_close",
+  "code": 4003,  // 或 1000
+  "reason": "Account banned"  // 或 "Room closed"
+}
+```
+
+- **解析逻辑**：
+  - 先尝试解析为 JSON，提取 `type` / `code` / `reason` 字段
+  - `code` 来自 JSON 而非硬编码，支持自定义关闭码（4003 封禁 / 1000 正常关闭）
+  - 解析失败时回退为 `None`（当成普通文本消息）
+  - 心跳超时分支完整保留，互不干扰
+
+- **测试覆盖**：
+  - `t42_close_frame_for_connection_close_json_code_4003`：验证封禁场景
+  - `t42_close_frame_for_connection_close_json_code_1000`：验证房间关闭场景
+  - `t42_close_frame_for_malformed_connection_close_fallback_to_none`：格式错误回退
+  - `t42_close_frame_heartbeat_timeout_still_works`：心跳分支回归验证
+
 #### 配置化支持
 - 可在启动前通过 `HeartbeatConfig` 调整参数（支持单元测试快进）
 - TDD 验收覆盖：正常保活 / 边界 29s / 超时 31s / 并发场景 ✅
@@ -100,6 +125,68 @@ enum AdminEvent {
 - `ban_user`：`get_by_user_id` 取所有连接 → 发封禁通知 → `unregister` 断开
 - `close_room`：两阶段处理（先遍历广播关闭消息，再遍历断开连接），确保所有成员收到通知
 - `broadcast_notice`：`registry.broadcast_to_all`
+
+#### Admin 强制断连流程（T-00042）
+
+**端到端链路**：Admin 操作 → Redis PubSub → App Server 事件处理器 → WS 连接主循环 → 真实断开
+
+1. **用户封禁**（`user_banned` 事件）：
+   - Admin Server `POST /admin/users/:id/ban` 发布事件到 `admin:events` 频道（T-10009）
+   - App Server 订阅端 `handle_admin_event` 处理：
+     - `get_by_user_id(user_id)` 获取该用户所有 WS 连接（支持多连接）
+     - 发送 `UserBanned` 文本帧（包含 `msg_id`、`timestamp`、`reason`、`duration_sec`）
+     - 发送 `connection_close` 指令（JSON，`code=4003`）
+     - `unregister(connection_id)` 注销连接
+   - WS 主循环（`ws/connection.rs`）出站分支检测到 `connection_close` 指令：
+     - `close_frame_for_message()` 解析 JSON 并构造 WebSocket Close frame（code=4003, reason="Account banned"）
+     - 下发 Close 帧并 `break` 终止循环，真实断开连接
+
+2. **房间关闭**（`room_closed` 事件）：
+   - Admin Server `DELETE /admin/rooms/:id` 发布事件到 `admin:events` 频道（T-10006）
+   - App Server 订阅端处理：
+     - `get_connections_in_room(room_id)` 获取房间所有成员连接
+     - 广播 `RoomClosed` 文本帧（包含 `msg_id`、`timestamp`、`reason`）
+     - 给每个成员发送 `connection_close` 指令（`code=1000`）
+     - `unregister` 所有连接
+   - WS 主循环同样通过 `close_frame_for_message()` 识别指令，下发 Close 帧（code=1000, reason="Room closed"）
+
+**协议 Schema**：
+
+- **UserBanned 通知**（S→C）：
+  ```json
+  {
+    "type": "UserBanned",
+    "msg_id": "uuid",
+    "timestamp": 1720000000000,
+    "i18n_key": "notification.user_banned",
+    "message": "{reason} 封禁 {duration_sec}s"
+  }
+  ```
+
+- **RoomClosed 广播**（S→房间）：
+  ```json
+  {
+    "type": "RoomClosed",
+    "msg_id": "uuid",
+    "timestamp": 1720000000000,
+    "i18n_key": "notification.room_closed",
+    "message": "房间已关闭：{reason}"
+  }
+  ```
+
+- **connection_close 指令**（内部消息，非公开协议）：
+  ```json
+  {
+    "type": "connection_close",
+    "code": 4003,  // 封禁: 4003, 房间关闭: 1000
+    "reason": "Account banned"
+  }
+  ```
+
+**测试覆盖**：
+- **单元测试**（`events/handler.rs`）：E01-E11，验证通知格式、msg_id/timestamp 字段、幂等性
+- **集成测试**（`admin_force_disconnect_test.rs`）：U01-U03，验证多连接场景全部断开
+- **回归保证**：voice-room-server 467 单测 + 3 集成测试全通过
 
 ### 3.3 订阅者（`events/subscriber.rs`）
 

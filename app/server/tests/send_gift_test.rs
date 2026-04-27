@@ -488,7 +488,8 @@ async fn sg04_redis_ranking_zincrby_updated() {
         .expect("redis conn");
     use redis::AsyncCommands;
 
-    let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+    // 使用 Riyadh 时区日期（与 ranking.rs 保持一致，缺陷 #3）
+    let today = voice_room_server::common::time::riyadh::today_riyadh_str();
     let charm_key = format!("ranking:charm:day:{}", today);
     let score: Option<f64> = conn
         .zscore(&charm_key, receiver_id.to_string())

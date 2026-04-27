@@ -61,11 +61,19 @@ Server 端基于 Rust + Axum 构建。启动骨架（配置、日志、健康检
   - 13 个新增测试；全量 122 passed, 0 failed
 - 🟢 **Redis 事件订阅**（T-00011B）：`admin:events` Pub/Sub 频道
   - **`events/admin_event.rs`**：`AdminEvent` enum（`BanUser` / `CloseRoom` / `BroadcastNotice`）+ serde internally-tagged（`#[serde(tag = "type", rename_all = "snake_case")]`）；S01–S04 反序列化测试含未知事件类型 Err 不 panic 验证
-  - **`events/handler.rs`**：`handle_admin_event(event, registry)` — ban_user：`get_by_user_id` 取所有连接 → 发封禁通知 → `unregister`；close_room：两阶段（先遍历广播再遍历断开）确保所有成员收到关闭消息；broadcast_notice：`registry.broadcast_to_all`；E01–E07 测试覆盖三路分支 + 离线用户不 panic + 容错
+  - **`events/handler.rs`**：`handle_admin_event(event, registry)` — ban_user：`get_by_user_id` 取所有连接 → 发封禁通知（含 `msg_id` + `timestamp`）→ 发送 `connection_close` 指令（code=4003）→ `unregister`；close_room：两阶段（先遍历广播 RoomClosed 通知，再发送 `connection_close` 指令 code=1000 并注销）确保所有成员收到关闭消息；broadcast_notice：`registry.broadcast_to_all`；E01–E11 测试覆盖三路分支 + 离线用户不 panic + i18n_key 字段 + msg_id/timestamp 验证
   - **`events/subscriber.rs`**：`start_admin_event_subscriber(redis_url, registry, shutdown)` — 订阅 `admin:events` 频道；每条消息 `tokio::spawn` 隔离处理（单事件失败不影响主循环）；连接/订阅失败等待 2s 后重试；`tokio::select!` 监听消息流与 shutdown 信号实现优雅停机
   - **`ws/registry.rs` 扩展**：`ConnectionHandle` 新增 `room_id: Option<Uuid>`；`get_by_user_id()` 返回 `Vec<(Uuid, UnboundedSender<String>)>`（含 connection_id 用于精确注销）；新增 `get_connections_in_room(room_id)`
-  - **关键设计**：两阶段处理确保 close_room 全员收到通知；`unregister` 通过 drop sender 自然触发 WS 连接关闭；`futures-util = "0.3"` 支持 `StreamExt::next()`
-  - 11 个新增测试（S01–S04 + E01–E07）；全量 133 passed, 0 failed
+  - **`ws/heartbeat.rs` 扩展**（T-00042）：`close_frame_for_message()` 新增识别 `{"type":"connection_close","code":4003/1000,"reason":"..."}` JSON 指令，提取 code 和 reason 构造 WebSocket Close frame；心跳超时分支完整保留；解析失败回退为 `None`（普通文本）；4 个新增单测覆盖（code 4003/1000 + 格式错误 + 心跳回归）
+  - **关键设计**：两阶段处理确保 close_room 全员收到通知；`unregister` 通过 drop sender 自然触发 WS 连接关闭；Admin 强制断连复用心跳超时 Close frame 下发机制，`connection_close` 指令在 `ws/connection.rs` 主循环出站分支识别后发送真实 Close 帧并断开；`futures-util = "0.3"` 支持 `StreamExt::next()`
+  - 11 个新增测试（S01–S04 + E01–E07）+ T-00042 新增 3 个集成测试 + 4 个单元测试；全量 505 passed, 0 failed
+- 🟢 **Admin 强制断连广播事件**（T-00042）：`user_banned` / `room_closed` 端到端流程
+  - **Admin Server 事件发布**：`POST /admin/users/:id/ban`（T-10009）和 `DELETE /admin/rooms/:id`（T-10006）已在 DB 更新后发布 Redis `admin:events` 事件，fire-and-forget 失败不影响主流程
+  - **App Server 订阅处理**：`events/handler.rs` 扩展 `connection_close_json()` 生成关闭指令（JSON 格式，含 code + reason）；`ban_user` 发送 `UserBanned` 文本帧（含 `msg_id` + `timestamp`）→ 发送 `connection_close` 指令（code=4003）→ `unregister`；`close_room` 广播 `RoomClosed`（含 `msg_id` + `timestamp`）→ 发送 `connection_close` 指令（code=1000）→ `unregister`
+  - **WS 主循环集成**：`ws/connection.rs:181-193` 出站分支调用 `close_frame_for_message()`，检测到 `connection_close` 指令时构造 Close frame 并 `break` 断开连接
+  - **协议 Schema**：UserBanned 通知（code=4003, reason="Account banned"）/ RoomClosed 广播（code=1000, reason="Room closed"）；通知消息均包含 `msg_id`（UUID）+ `timestamp`（epoch ms）+ `i18n_key` 字段
+  - **测试覆盖**：3 个集成测试（U01-U03，验证封禁/房间关闭/多连接断开）+ 4 个单元测试（heartbeat.rs 解析逻辑）+ 11 个 handler 单测扩展（E01/E04 验证 msg_id/timestamp）；全量 505 passed（467 单元 + 3 集成 + 其他）
+  - **Review Round 2 🟢 通过**：commit [1f10ec3](https://github.com/alsomail/voice-room/commit/1f10ec3)，修复 P0 BLOCKER（connection_close 指令兑现）+ P1（msg_id/timestamp 字段）+ P2（commit 原子性 + 测试覆盖）；详见 [TDS](../tds/server/T-00042.md) §五
 - 🟢 **在线统计上报**（T-00011C）：`src/stats/` 模块
   - **`stats/service.rs`**：`StatsPort` trait（`user_online` / `user_offline` / `user_join_room` / `user_leave_room` / `get_online_count` / `get_active_room_count` / `take_snapshot`）；`StatsService` 真实 Redis 实现（HLL + Set + `redis::pipe().atomic()` 原子 pipeline 快照）；`FakeStatsService`（`Mutex<HashSet>` + `AtomicU32`，供单元测试注入）
   - **`stats/snapshot_task.rs`**：`snapshot_task(stats, interval_duration, shutdown)` — `tokio::time::interval` + `tokio::select!` 双路监听；快照失败仅记 `warn` 日志不退出；`shutdown.changed()` 验证返回值，`Err` 路径（sender dropped）记 `warn` 后优雅退出；`start_snapshot_task` 便捷函数供 `main.rs` 一行接入优雅停机 channel
