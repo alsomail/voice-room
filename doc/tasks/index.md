@@ -1,9 +1,9 @@
 # Voice Room 开发任务清单
 
-> **版本**: v2.51  
+> **版本**: v2.52  
 > **更新日期**: 2026-04-27  
 > **任务总数**: 124 个 (基建: 4 + 10, App Server: 30 + 1, Admin Server: 16 + 1, Web: 14 + 1, Android: 44 + 1, E-07 15 + E-07.5 6 + E-10 18)  
-> **当前阶段**: Phase 1 - 核心营收闭环（E-07 + E-07.5 并行）→ Phase 1.5 E-10 房间治理 → Phase 1.6 E2E 测试基建（模块 9：13/13 ✅ Done）
+> **当前阶段**: Phase 1 - 核心营收闭环（E-07 + E-07.5 并行）→ Phase 1.5 E-10 房间治理 → Phase 1.6 E2E 测试基建（模块 9：13/13 ✅ + 2 follow-up（T-0000N/O））
 
 ---
 
@@ -12,6 +12,7 @@
 | 版本 | 日期 | 变更内容 |
 |------|------|---------|
 | _规则_ | — | 本表只记录**版本级摘要**（一行 ≤ 200 字符），具体 Review/审查/实跑证据请落到对应 [TDS](../tds/) 第五节【Review 意见】或对应模块审查批次 `doc/review/batch-*.md`，**严禁**在本表堆叠详细审查记录。 |
+| **v2.52** | **2026-04-27** | T-0000M Round 1 GlobalReview 暴露 DoD 失实，立 T-0000N（/health 端点）+ T-0000O（ranking r08 perf flake known-issue）作为 follow-up；T-0000M DoD #1 措辞修正为符合事实的承诺；P1.1 收敛 14 处遗留 sqlx::migrate! → common helper；P2 helper 透传 no_tx + 注释修正 + RAII guard + N-2 自动化。详见 [batch-02](../review/batch-e2e-foundation-02.md)。 |
 | **v2.51** | **2026-04-27** | T-0000M DoD 完成 → 模块 9 全部闭环（13/13 ✅，M4 双服务共库迁移隔离）。详见 [T-0000M TDS](../tds/infra/T-0000M.md)、[ADR-0001](../adr/ADR-0001-migration-table-isolation.md)；doc/arch/* 更新引用；doc/tasks/模块9 状态行 ✅；doc/product/index.md v3.13。 |
 | **v2.50** | **2026-04-27** | 模块 9 新增 T-0000M（双服务共库 Migration 表隔离），由 e2e:up 联调暴露架构级阻断；PM→Plan→TDD，TDS 完成。详见 [T-0000M TDS](../tds/infra/T-0000M.md)。 |
 | **v2.49** | **2026-06-04** | T-0000L DoD 完成 → 模块 9 全部闭环（12/12 ✅，研发口径）。详见 [T-0000L TDS](../tds/infra/T-0000L.md) §五。 |
