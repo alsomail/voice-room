@@ -91,3 +91,4 @@
 - `src/services/` 下的 RTC/IM 适配层在 Admin Web 中不需要，应删除或标记为 deprecated。
 - ~~Ant Design 尚未引入~~ — **T-20001 已引入**，登录页完整使用 antd v6 组件。
 - ~~API 客户端尚未配置 Admin Server 的 baseURL 和 JWT 拦截器~~ — **T-20001 已完成** baseURL 配置与 JWT 自动附加；**T-20002 已完成** 完整 JWT 鉴权逻辑（useAuthStore + AuthGuard + 401 拦截器）。
+- ~~WEB E2E 用例缺少 Midscene AI 断言环境变量注入能力~~ — **T-0000P 已完成**（[TDS](../../tds/infra/T-0000P.md)），`envLoader.ts` 四层 fallback 注入链 + CI Secret 双链路就绪，WEB E2E 用例现已具备本地 + CI 双环境 Midscene AI 视觉断言能力。
