@@ -14,14 +14,15 @@
 - **回归级别**：`P0`
 
 **【前置条件】**
-1. U1 登录获得 `TOKEN_U1`。
+1. 全局前置见 [_README.md §一](../_README.md#一所有用例默认前置条件隐式前置)；占位符映射见 §二/§三。
+2. `TOKEN_U1` = `E2E_VALID_TOKEN`（来自 seed 输出）。
 
 **【执行步骤与断言】**
 | 步骤序号 | 目标端 | 操作动作 (Action) | 预期结果 (Assertion) |
 | :------: | :----- | :---------------- | :------------------- |
-| 1 | `AppServer` | WS 连接 `ws://localhost:3000/ws?token={TOKEN_U1}` | HTTP 101 Switching Protocols，连接建立 |
-| 2 | `AppServer` | WS 连接 `?token=invalid_token` | 连接被服务端立即关闭，close code=4001 或 1008 |
-| 3 | `AppServer` | WS 连接不带 token 参数 | 连接被拒绝，握手返回 401 或立即关闭 |
+| 1 | `AppServer` | WS 连接 `${APP_WS_URL}?token={TOKEN_U1}` | HTTP 101 Switching Protocols，连接建立 |
+| 2 | `AppServer` | WS 连接 `${APP_WS_URL}?token=invalid_token` | 连接被服务端立即关闭，close code=4001 或 1008 |
+| 3 | `AppServer` | WS 连接 `${APP_WS_URL}` 不带 token 参数 | 连接被拒绝，握手返回 401 或立即关闭 |
 
 **【数据清理】**
 - 关闭连接。

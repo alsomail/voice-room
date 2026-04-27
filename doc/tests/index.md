@@ -38,6 +38,16 @@
 - **WEB 用例** (`tests/scripts/WEB/`): 前端界面交互测试 + Midscene 辅助
 - **Admin WEB 用例** (`tests/scripts/ADMIN_WEB/`): 管理后台界面测试
 
+## 用例编写约定（必读）
+
+> **新增/修改任何 TC-*.md 用例前，先读 [cases/_README.md](./cases/_README.md)**：声明全局隐式前置（preflight + seed + profile）、URL/Token 占位符 → env 字段映射、profile 切换矩阵、作者检查清单。该约定让现有用例无需逐个重写就能受益于模块 9 的多环境基建。
+
+## 模块 9（E2E 测试基建）专项用例
+
+> 模块 9 自身的测试基建（env 模板 / Seed/Reset/Preflight / globalSetup / 多端 config / npm scripts / Midscene / RUNBOOK）作为 CLI/脚本级集成测试，统一收口于 [cases/API/TC-INFRA-E2E.md](./cases/API/TC-INFRA-E2E.md)，共 20 条用例覆盖 T-0000E~L + T-00040 + T-10020 + T-20020 + T-30050。
+>
+> 模块 0 工程基建（Docker Compose / shared crate / DB 权限 / CI）见 [cases/API/TC-INFRA.md](./cases/API/TC-INFRA.md)。
+
 ---
 
 ## 关键约定

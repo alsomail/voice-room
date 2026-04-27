@@ -14,7 +14,7 @@
 - **回归级别**：`P0`
 
 **【前置条件】**
-1. 打开 `https://admin.voiceroom.test/login`（本地 Vite `http://localhost:5173/login`）。
+1. 全局前置见 [_README.md §一](../_README.md#一所有用例默认前置条件隐式前置)；Playwright `use.baseURL` 已由 envLoader 注入为 `${ADMIN_WEB_URL}`，用例可直接 `page.goto('/login')`（相对路径）。
 2. 浏览器 localStorage 清空。
 
 **【执行步骤与断言】**

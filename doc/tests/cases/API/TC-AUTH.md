@@ -14,8 +14,9 @@
 - **回归级别**：`P0`
 
 **【前置条件】**
-1. App Server 运行于 `http://localhost:3000`，SmsProvider 配置为 Mock。
-2. Redis 中 `sms:cooldown:+966512345678` 与 `sms:code:+966512345678` 均不存在。
+1. 全局前置见 [_README.md §一](../_README.md#一所有用例默认前置条件隐式前置)（preflight + seed + profile=local 已就绪）。
+2. AppServer 接口根地址使用占位符 `${APP_SERVER_BASE_URL}`（envLoader 注入），SmsProvider 配置为 Mock。
+3. Redis 中 `sms:cooldown:+966512345678` 与 `sms:code:+966512345678` 均不存在。
 
 **【执行步骤与断言】**
 | 步骤序号 | 目标端 | 操作动作 (Action) | 预期结果 (Assertion) |
@@ -235,8 +236,9 @@
 - **回归级别**：`P0`
 
 **【前置条件】**
-1. Admin Server 运行于 `http://localhost:3001`。
-2. `admins` 表存在 `username=admin_op, role=operator`，密码 bcrypt 为 `Pass@123`。
+1. 全局前置见 [_README.md §一](../_README.md#一所有用例默认前置条件隐式前置)。
+2. AdminServer 接口根地址使用占位符 `${ADMIN_SERVER_BASE_URL}`（envLoader 注入）。
+3. `admins` 表存在 `username=admin_op, role=operator`，密码 bcrypt 为 `Pass@123`（由 `npm run db:seed` 创建）。
 
 **【执行步骤与断言】**
 | 步骤序号 | 目标端 | 操作动作 (Action) | 预期结果 (Assertion) |
