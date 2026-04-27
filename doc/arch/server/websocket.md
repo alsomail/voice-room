@@ -1,6 +1,6 @@
 # WebSocket 模块架构
 
-> **关联 Task**：T-00011（WS 连接管理）、T-00011B（Redis 事件订阅）、T-00011C（在线统计上报）
+> **关联 Task**：T-00011（WS 连接管理）、T-00011B（Redis 事件订阅）、T-00011C（在线统计上报）、T-00041（心跳超时主动断开）
 
 ## 一、模块职责
 
@@ -18,7 +18,8 @@
 ### 2.2 连接注册表（`ws/registry.rs`）
 
 - **`ConnectionRegistry`**：`DashMap<Uuid, ConnectionHandle>` 以 `connection_id` 为 key
-- **`ConnectionHandle`**：包含 `user_id: Uuid`、`sender: UnboundedSender<String>`、`room_id: Option<Uuid>`、`last_heartbeat: Instant`
+- **`ConnectionHandle`**：包含 `user_id: Uuid`、`sender: UnboundedSender<String>`、`room_id: Option<Uuid>`、`last_pong_at: Instant`
+  - `last_pong_at`：记录最后收到心跳（ping）的时刻，由 connection.rs 在 ping 处理时更新，由 heartbeat.rs 定期扫描用于超时判定（T-00041）
 - **关键方法**：
   - `register(connection_id, handle)` / `unregister(connection_id)` — 连接生命周期管理
   - `broadcast_to_all(message)` — 全局广播，自动清除失效连接
@@ -27,17 +28,58 @@
   - `set_room_id(connection_id, room_id)` / `get_room_id(connection_id)` / `clear_room_id(connection_id)` — 连接-房间关联管理
 - **关键设计**：`connection_id` 解耦 `user_id`，同一用户第二个连接注销时仅删除自身条目，不影响已有连接
 
-### 2.3 心跳检测（`ws/heartbeat.rs`）
+### 2.3 心跳检测与超时机制（`ws/heartbeat.rs`、`ws/connection.rs`，T-00041）
 
-- 10s 扫描间隔，30s 超时断开
-- 接受 `watch::Receiver<bool>` 实现优雅停机
-- `tokio::select!` 同时监听定时器与 shutdown 信号
+#### 设计概览
+- **扫描周期**：5s（`HeartbeatConfig::scan_interval_secs`）
+- **超时阈值**：30s（`HeartbeatConfig::timeout_secs`）
+- **配置源**：`HeartbeatConfig { timeout_secs: 30, scan_interval_secs: 5 }`（可在运行时定制）
+- **关键修复**（commit `084f91e`）：
+  - heartbeat_task 此前定义但未在 main.rs spawn，导致超时检测从未执行 ➜ **现已在 `main.rs` 启动**
+  - 新增 `last_pong_at` 时间戳追踪，在 ping/pong 处理时更新
+  - sweeper 任务每 5s 扫描 registry，检测 `now - last_pong_at > 30s` 的连接
+
+#### 超时触发与断开流程
+1. **心跳更新**：
+   - 客户端发送 `ping` 消息时，connection.rs 更新 `last_pong_at`
+   - 服务端立即回复 `pong`
+
+2. **超时检测**（heartbeat_task）：
+   - 每 5s 遍历 registry 所有活跃连接
+   - 检查 `Instant::now() - connection.last_pong_at > 30s`
+   - 若超时，向 connection 的 sender 发送特殊信号
+
+3. **断开动作**（connection.rs 出站分支）：
+   - 收到超时信号后，向客户端发送 **Close frame**：
+     ```
+     Code: 1000（Normal Closure）
+     Reason: "Heartbeat timeout"
+     ```
+   - 记录 `tracing::warn!` 日志：包含 `user_id`、`connection_id`、`elapsed_secs`、`timeout_secs`
+   - 关闭 TCP socket，触发 connection cleanup（自动下麦、离房等）
+
+#### 配置化支持
+- 可在启动前通过 `HeartbeatConfig` 调整参数（支持单元测试快进）
+- TDD 验收覆盖：正常保活 / 边界 29s / 超时 31s / 并发场景 ✅
+
+#### 相关源文件
+| 文件 | 职责 |
+|-----|------|
+| `ws/heartbeat.rs` | 后台 sweeper 任务，定期扫描 registry 检测超时 |
+| `ws/connection.rs` | 处理超时信号，发送 Close frame |
+| `ws/registry.rs` | 存储 `last_pong_at`，供 heartbeat 任务查询 |
+| `main.rs` | **[重要]** 在启动时 `tokio::spawn(heartbeat_task(...))` |
+
+#### 参考标准
+- RFC 6455 §7.4：Close Code 1000 表示"正常关闭"
+- 测试用例：U-1~U-5（功能）、R-1（单元）、S-2（安全）[TDS T-00041 §三]
+- Review Round 1 🟢：commit `a8c0a64` [详见 TDS 第五节]
 
 ### 2.4 单连接生命周期（`ws/connection.rs`）
 
 - `tokio::select!` 双向读写（读 WS 消息 + 写 sender 队列）
-- 信令路由：`Ping` → pong 回传原始 `msg_id`；`JoinRoom` / `LeaveRoom` / `TakeMic` / `LeaveMic` / `SendMessage` → 对应 handler
-- `last_heartbeat` 在 ping 处理时更新
+- 信令路由：`Ping` → pong 回传原始 `msg_id`，**同时更新 `last_pong_at`**；`JoinRoom` / `LeaveRoom` / `TakeMic` / `LeaveMic` / `SendMessage` → 对应 handler
+- **超时处理**（T-00041）：出站分支收到 heartbeat_task 的超时信号后，立即发送 `Message::Close(CloseFrame { code: 1000, reason: "Heartbeat timeout" })` 并退出主循环
 - 退出时自动触发 `do_leave_room`（被动断线退房）
 
 ## 三、Redis 事件订阅（`src/events/`，T-00011B）
@@ -99,6 +141,7 @@ enum AdminEvent {
 | 模块 | 测试数 | 说明 |
 |------|--------|------|
 | WS 连接管理（T-00011） | 13 | 握手、注册、心跳、信令路由 |
+| WS 心跳超时（T-00041） | 6 | 正常保活、30s 超时、边界值 29/31s、并发场景、close frame 映射 |
 | Redis 事件订阅（T-00011B） | 11 | S01-S04 反序列化 + E01-E07 三路事件处理 |
 | 在线统计（T-00011C） | 10 | ST01-ST10 含 sender dropped 优雅退出 |
-| **合计** | **34** | — |
+| **合计** | **40** | — |
