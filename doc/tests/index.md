@@ -10,7 +10,7 @@
 | 文档 | 内容 | 关联 Task |
 |------|------|----------|
 | [MIDSCENE_SETUP.md](./MIDSCENE_SETUP.md) | Midscene LLM 三形态配置指南（OpenAI 直连/Azure/中转）+ GitHub Actions Secret 注入 + 缺 Key 自动 skip + runtime json 脱敏安全规约 | T-0000K |
-| [E2E_RUNBOOK.md](./E2E_RUNBOOK.md) | E2E 启动 SOP：三环境切换命令矩阵、常见故障排查表、CI 接入示例 | T-0000L（待编写） |
+| [E2E_RUNBOOK.md](./E2E_RUNBOOK.md) | E2E 启动 SOP：冷启动 5 步 + 一键命令矩阵 + preflight 5 端排查表 + staging/prod-safe 凭据流程 + CI Secrets + FAQ | T-0000L |
 
 ---
 
