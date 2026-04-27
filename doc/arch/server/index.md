@@ -33,6 +33,7 @@ Server 端基于 Rust + Axum 构建。启动骨架（配置、日志、健康检
 ### 核心能力
 - 🟢 Server 启动装配、优雅停机与 Axum 路由注册
 - 🟢 `GET /ping` 健康检查、JSON 响应与 `x-request-id`
+- 🟢 `GET /health` 统一轻量探活端点（T-0000N）：200 OK + `{status:"ok", service:"app-server", version:"x.x.x"}`，零鉴权、零依赖，与 `/ping` 同层挂载，供 wait-on / preflight / 监控探针使用
 - 🟢 tracing 初始化、请求级 span 与访问日志字段注入
 - 🟢 `app/shared` crate 集成（JWT encode/decode + iss 校验、bcrypt 密码工具、公共错误码）
 - 🟢 配置分层读取（`.env` + `config/*.toml` + 环境变量覆盖）

@@ -12,7 +12,7 @@
 | 版本 | 日期 | 变更内容 |
 |------|------|---------|
 | _规则_ | — | 本表只记录**版本级摘要**（一行 ≤ 200 字符），具体 Review/审查/实跑证据请落到对应 [TDS](../tds/) 第五节【Review 意见】或对应模块审查批次 `doc/review/模块N-XXX.md`，**严禁**在本表堆叠详细审查记录。 |
-| **v2.53** | **2026-04-27** | T-0000N（AppServer/AdminServer `/health` 端点）+ T-0000O（ranking r08 perf flake known-issue 收口）Plan 阶段落 TDS，负责人 PM→TDD；doc/review/batch-e2e-foundation-01/02.md 合并为 [模块9-E2E测试基建.md](../review/模块9-E2E测试基建.md)并同步 doc/review/index.md / doc/product/index.md / T-0000M.md 引用，老文档保留 banner 重定向。 |
+| **v2.53** | **2026-04-27** | T-0000N TDD → Review Round 1 🟢通过（[TDS](../tds/infra/T-0000N.md)）+ T-0000O 规划中；AppServer/AdminServer 暴露 `/health` 统一探活端点；doc/review/batch-e2e-foundation-01/02.md 合并为 [模块9-E2E测试基建.md](../review/模块9-E2E测试基建.md)。 |
 | **v2.52** | **2026-04-27** | T-0000M Round 1 GlobalReview 暴露 DoD 失实，立 T-0000N（/health 端点）+ T-0000O（ranking r08 perf flake known-issue）作为 follow-up；T-0000M DoD #1 措辞修正为符合事实的承诺；P1.1 收敛 14 处遗留 sqlx::migrate! → common helper；P2 helper 透传 no_tx + 注释修正 + RAII guard + N-2 自动化。详见 [模块9-E2E测试基建](../review/模块9-E2E测试基建.md)。 |
 | **v2.51** | **2026-04-27** | T-0000M DoD 完成 → 模块 9 全部闭环（13/13 ✅，M4 双服务共库迁移隔离）。详见 [T-0000M TDS](../tds/infra/T-0000M.md)、[ADR-0001](../adr/ADR-0001-migration-table-isolation.md)；doc/arch/* 更新引用；doc/tasks/模块9 状态行 ✅；doc/product/index.md v3.13。 |
 | **v2.50** | **2026-04-27** | 模块 9 新增 T-0000M（双服务共库 Migration 表隔离），由 e2e:up 联调暴露架构级阻断；PM→Plan→TDD，TDS 完成。详见 [T-0000M TDS](../tds/infra/T-0000M.md)。 |
