@@ -205,4 +205,5 @@ Rust Lint + Test (ubuntu-latest)
 | **playwright unit config** | **🟢 完成** | **T-0000H：`playwright.unit.config.ts`（单测专用，隔离生产 setup）** |
 | **TypeScript strict config** | **🟢 完成** | **T-0000H：`tsconfig.json`（scope=support/，tsc --noEmit 0 错误）** |
 | **npm scripts 一键命令** | **🟢 完成** | **T-0000I：`package.json` scripts（6 条一键命令 + cross-env 跨平台、`e2e:local/staging/prod-smoke` + `db:seed/reset` + `preflight`、退出码透传 11~15/21~24）** |
+| **E2E 用例 baseURL 注入 + typo 清理 + @prod-safe 标签** | **🟢 完成** | **T-0000J：`playwright.config.ts` 双 key fallback（`_E2E_RUNTIME_ADMIN_WEB_URL ?? ADMIN_WEB_URL`）；21 个 spec 文件去硬编码（删除 `import 'dotenv/config'` + 删密码 typo 字面值 + `page.goto()` 改相对路径）；6 条 @prod-safe smoke 用例标签（USER×2 + ROOM×2 + RANKING×2）；`tests/scripts/support/__tests__/specHardening.test.ts` 12 条 TDD 验收用例** |
 | CD 部署流水线 | 🔴 未实现 | 产物构建与部署由运维自行安排 |
