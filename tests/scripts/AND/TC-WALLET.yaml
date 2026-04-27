@@ -1,0 +1,54 @@
+# 测试套件：WALLET 钱包（Android）
+# 用例来源：doc/tests/cases/AND/TC-WALLET.md
+appId: com.voiceroom.debug
+---
+# TC-WALLET-00001: WalletScreen 展示 + 下拉刷新
+- launchApp
+- tapOn: "我的|Me"
+- tapOn: "钻石|Diamond"
+- assertVisible: "余额|Balance"
+- assertVisible:
+    id: "transaction_list"
+- swipe:
+    direction: DOWN
+    from:
+      id: "transaction_list"
+- extendedWaitUntil:
+    visible: "已刷新|Refreshed|更新完成"
+    timeout: 5000
+
+---
+# TC-WALLET-00002: BalanceUpdated 实时更新
+- launchApp
+- tapOn: "我的|Me"
+- tapOn: "钻石|Diamond"
+- assertVisible:
+    id: "balance_amount"
+# Admin 侧调整余额后（外部触发 curl /admin/users/{id}/balance），UI 应自动刷新
+- extendedWaitUntil:
+    visible:
+      id: "balance_amount"
+    timeout: 10000
+
+---
+# TC-WALLET-00003: 充值入口 Phase 1 占位
+- launchApp
+- tapOn: "我的|Me"
+- tapOn: "钻石|Diamond"
+- tapOn: "充值|Recharge"
+- assertVisible: "敬请期待|Coming Soon"
+
+---
+# TC-WALLET-00004: InsufficientBalanceDialog
+- launchApp
+- tapOn: "大厅|Hall"
+- tapOn:
+    index: 0
+- tapOn:
+    id: "gift_button"
+- tapOn: "火箭|Rocket"
+- tapOn:
+    id: "send_gift_button"
+- assertVisible: "余额不足|Insufficient Balance"
+- tapOn: "充值|Recharge"
+- assertVisible: "钱包|Wallet"

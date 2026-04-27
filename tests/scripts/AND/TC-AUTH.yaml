@@ -1,0 +1,120 @@
+# 测试套件：AUTH 用户认证（Android）
+# 用例来源：doc/tests/cases/AND/TC-AUTH.md
+# 使用方法：maestro test --format junit --output tests/report/.../raw.xml tests/scripts/AND/TC-AUTH.yaml
+# 注意：多场景通过 launchApp + clearState 隔离。真机需已通过 adb 连接。
+appId: com.voiceroom.debug
+env:
+  APP_ID: com.voiceroom.debug
+---
+# ============================================================
+# TC-AUTH-00001: 登录页 UI - +966 前缀 + RTL（需系统语言阿拉伯语）
+# ============================================================
+- launchApp:
+    clearState: true
+- assertVisible: "\\+966"
+- assertVisible:
+    id: "phone_input"
+- tapOn:
+    id: "phone_input"
+- inputText: "512345678"
+- assertVisible: "512345678"
+- assertVisible: "获取验证码|Get code|إرسال"
+
+---
+# ============================================================
+# TC-AUTH-00002: 60 秒倒计时 + 冷却提示
+# ============================================================
+- launchApp:
+    clearState: true
+- tapOn:
+    id: "phone_input"
+- inputText: "512345678"
+- tapOn: "获取验证码"
+- assertVisible: "s 后重发|Resend in"
+- assertNotVisible: "获取验证码"
+# 尝试强点（应无反应）
+- tapOn: "s 后重发"
+- assertVisible: "s 后重发"
+
+---
+# ============================================================
+# TC-AUTH-00003: E2E 新用户一键登录进入大厅
+# 前置：Mock SMS 固定验证码 123456，DB 无 +966500000100
+# ============================================================
+- launchApp:
+    clearState: true
+- tapOn:
+    id: "phone_input"
+- inputText: "500000100"
+- tapOn: "获取验证码"
+- tapOn:
+    id: "code_input"
+- inputText: "123456"
+- tapOn: "登录"
+- extendedWaitUntil:
+    visible: "语聊房|Voice Room"
+    timeout: 5000
+- assertVisible: "语聊房|Voice Room"
+
+# 杀掉 App 后重启验证 JWT 持久化
+- stopApp
+- launchApp
+- extendedWaitUntil:
+    visible: "语聊房|Voice Room"
+    timeout: 5000
+- assertNotVisible: "登录"
+
+---
+# ============================================================
+# TC-AUTH-00004: 验证码错误提示
+# ============================================================
+- launchApp:
+    clearState: true
+- tapOn:
+    id: "phone_input"
+- inputText: "500000200"
+- tapOn: "获取验证码"
+- tapOn:
+    id: "code_input"
+- inputText: "000000"
+- tapOn: "登录"
+- assertVisible: "验证码错误|Invalid code"
+
+---
+# ============================================================
+# TC-AUTH-00005: JWT 过期 401 自动退出（需后端协助吊销 token）
+# ============================================================
+# 假定已登录态存在
+- launchApp
+- swipe:
+    direction: DOWN
+# 手动吊销 token 由外部脚本触发（见前置条件）
+- swipe:
+    direction: DOWN
+- extendedWaitUntil:
+    visible: "登录已过期|Session expired|登录"
+    timeout: 8000
+- assertVisible: "登录|Login"
+
+---
+# ============================================================
+# TC-AUTH-00006: UserRepository - 离线使用 Room 缓存
+# ============================================================
+- launchApp
+- tapOn: "我的|Me"
+- assertVisible:
+    id: "profile_nickname"
+# 通过 Maestro 无法直接开关飞行模式；需人工或 adb shell cmd svc wifi disable
+- runScript:
+    script: |
+      adb shell svc wifi disable
+      adb shell svc data disable
+- stopApp
+- launchApp
+- tapOn: "我的|Me"
+- assertVisible:
+    id: "profile_nickname"
+- runScript:
+    script: |
+      adb shell svc wifi enable
+      adb shell svc data enable

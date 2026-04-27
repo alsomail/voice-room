@@ -1,0 +1,33 @@
+# 测试套件：THEME 主题（Android）
+# 用例来源：doc/tests/cases/AND/TC-THEME.md
+# 说明：主题与 RTL 断言对 Maestro 有限，尽量用 id 存在性 + 截图对比。
+appId: com.voiceroom.debug
+---
+# TC-THEME-00001: MenaTheme 色值与 Typography
+- launchApp
+- tapOn: "大厅|Hall"
+- takeScreenshot: screenshots/theme_hall
+- assertVisible:
+    id: "primary_gold_text"
+
+---
+# TC-THEME-00002: GoldButton / GoldOutlinedTextField / AvatarWithFrame
+- launchApp:
+    clearState: true
+- assertVisible:
+    id: "phone_input"
+- takeScreenshot: screenshots/theme_login
+- tapOn: "大厅|Hall"
+
+---
+# TC-THEME-00003: RTL 阿语下主题自动镜像
+- runScript:
+    script: |
+      adb shell settings put system user_setup_complete 1
+      adb shell "setprop persist.sys.locale ar-SA; stop; start"
+- launchApp
+- takeScreenshot: screenshots/theme_rtl
+- assertVisible: "الرئيسية|大厅|Hall"
+- runScript:
+    script: |
+      adb shell "setprop persist.sys.locale zh-CN; stop; start"

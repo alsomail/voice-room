@@ -1,7 +1,7 @@
 # Voice Room 开发任务清单
 
-> **版本**: v2.7  
-> **更新日期**: 2026-04-27  
+> **版本**: v2.9  
+> **更新日期**: 2026-05-31  
 > **任务总数**: 123 个 (基建: 4 + 9, App Server: 30 + 1, Admin Server: 16 + 1, Web: 14 + 1, Android: 44 + 1, E-07 15 + E-07.5 6 + E-10 18)  
 > **当前阶段**: Phase 1 - 核心营收闭环（E-07 + E-07.5 并行）→ Phase 1.5 E-10 房间治理 → Phase 1.6 E2E 测试基建（模块 9）
 
@@ -36,6 +36,7 @@
 | **v2.8** | **2026-04-27** | **T-0000F Review 通过（Round 1），负责人 Review → Dod：实跑核验四档 `.example` 字段集合 1:1 对齐（24 keys/文件）、`prod.example E2E_ALLOW_WRITES=0`、`git check-ignore` 真实 env 全 IGNORED + `.example` 全 NOT-IGNORED、URL 合法性 8/8、`cargo check` 0 回归；偏离项 1（5 个 docker/server 字段改注释行 + 失去 JWT placeholder 默认值）按选项 A 接受——严格遵守 TDS §2.3 附表注脚 + server 启动 fail-fast 反而更安全，dev onboarding 风险跟踪到 T-0000L Runbook；偏离项 2（`.gitignore` 收窄暴露 tests/scripts/ 历史 spec）经实跑确认 `git status` 全 untracked、未入库、无真实凭据泄露事实，untracked 治理跟踪到 T-0000J；F-R4 typo `app_server_pwd` 残留确认归属 T-0000J；T-0000F TDS §八 Review Round 1 已落记；模块 9 任务清单 T-0000F 行：研发负责人 Review → Dod** |
 | **v2.7** | **2026-04-27** | **T-0000F TDD 完成，负责人 TDD → Review：根 `.env.example` 重写为「docker/server 注释段 + 24 主字段段」结构，新增 `tests/scripts/env/.env.{local,staging,prod}.example` 三档模板（字段集合 1:1 对齐 T-0000F TDS §2.3）；prod 默认 `E2E_ALLOW_WRITES=0` 并加 ⚠️ 头部注释；`.gitignore` 删除整目录 `tests/scripts/` ignore，改为 3 行精确忽略真实 `.env.{local,staging,prod}`；TDD 验收 §3.1 字段 diff / §3.2 ignore 行为 / URL 合法性 / cargo check 全绿；遗留 typo `app_server_pwd` 命中点（tests/scripts/{API,E2E}/TC-AUTH.spec.ts）按 TDS 范围交由 T-0000J 处理；模块 9 任务清单 T-0000F 行：研发负责人 TDD → Review** |
 | **v2.5** | **2026-05-31** | **T-0000E DoD 完成，模块 9 进度 1/12：doc/architecture/index.md 关联文档新增 E2E 测试基建多环境切换索引（指向 T-0000E TDS）；doc/tasks/模块9-E2E测试基建 (E2E QA Foundation).md T-0000E 行：研发状态 In Progress → ✅ Done，Review Gate 在 Review 通过事实基础上 → ✅ Passed；doc/tasks/index.md 版本更新 v2.4 → v2.5、更新日期 2026-04-27 → 2026-05-31** |
+| **v2.9** | **2026-05-31** | **T-0000F DoD 完成，模块 9 进度 2/12：doc/architecture/index.md 关联文档补充三档 `.env.example` 索引说明（tests/scripts/env/ 中 `.env.{local,staging,prod}.example` 与 T-0000F TDS）；doc/tasks/模块9-E2E测试基建 (E2E QA Foundation).md T-0000F 行：研发状态 In Progress → ✅ Done，Review Gate → ✅ Passed；doc/product/index.md Phase 1.6 E2E 测试基建进度确认为 2/12（T-0000E/T-0000F）** |
 | **v1.6** | **2026-05-16** | **T-00027 DoD 完成，E-10 进度 4/18：doc/arch/server/room.md 新增十三~十五章（GET /api/v1/rooms/:id/members 接口契约、角色优先级 owner>admin>member、1 次批量 SQL WHERE id=ANY($1)、MemberSnapshot 单一数据源、muted_mic/muted_chat Redis Key、权限错误码、文件清单与 398 测试汇总）；doc/tasks/index.md T-00027 状态 → ✅ Done 负责人 → Dod；doc/product/index.md E-10 进度 3/18 → 4/18** |
 
 ---

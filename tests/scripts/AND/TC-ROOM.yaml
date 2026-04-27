@@ -1,0 +1,78 @@
+# 测试套件：ROOM 房间（Android）
+# 用例来源：doc/tests/cases/AND/TC-ROOM.md
+appId: com.voiceroom.debug
+---
+# TC-ROOM-00001: 房间大厅网格渲染 + 分页下拉
+- launchApp
+- tapOn: "大厅|Hall"
+- assertVisible:
+    id: "room_grid"
+- swipe:
+    direction: UP
+- extendedWaitUntil:
+    visible: "加载|Loading|没有更多|No more"
+    timeout: 5000
+
+---
+# TC-ROOM-00002: 弱网 / 断网场景
+- launchApp
+- runScript:
+    script: |
+      adb shell svc wifi disable
+      adb shell svc data disable
+- tapOn: "大厅|Hall"
+- assertVisible: "网络错误|Network error|重试|Retry"
+- runScript:
+    script: |
+      adb shell svc wifi enable
+      adb shell svc data enable
+- tapOn: "重试|Retry"
+- extendedWaitUntil:
+    visible:
+      id: "room_grid"
+    timeout: 10000
+
+---
+# TC-ROOM-00003: 创建房间 Bottom Sheet - E2E 成功
+- launchApp
+- tapOn: "大厅|Hall"
+- tapOn:
+    id: "create_room_fab"
+- assertVisible: "创建房间|Create Room"
+- tapOn:
+    id: "room_title_input"
+- inputText: "Maestro Test"
+- tapOn:
+    id: "room_category_chat"
+- tapOn: "创建|Create"
+- extendedWaitUntil:
+    visible: "Maestro Test"
+    timeout: 8000
+
+---
+# TC-ROOM-00004: 标题边界 UI 校验
+- launchApp
+- tapOn: "大厅|Hall"
+- tapOn:
+    id: "create_room_fab"
+# 空标题
+- tapOn: "创建|Create"
+- assertVisible: "请输入标题|Title required"
+# 超长
+- tapOn:
+    id: "room_title_input"
+- inputText: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+- assertVisible: "30/30|31/30"
+
+---
+# TC-ROOM-00005: 房间卡片点击 进入 RoomScreen
+- launchApp
+- tapOn: "大厅|Hall"
+- tapOn:
+    index: 0
+- extendedWaitUntil:
+    visible:
+      id: "room_screen_root"
+    timeout: 5000
+- assertVisible:
+    id: "mic_seat_0"

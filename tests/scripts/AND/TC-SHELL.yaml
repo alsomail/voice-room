@@ -1,0 +1,67 @@
+# 测试套件：SHELL 壳与导航（Android）
+# 用例来源：doc/tests/cases/AND/TC-SHELL.md
+appId: com.voiceroom.debug
+---
+# TC-SHELL-00001: Splash Logo 动画 + 跳转分流
+- launchApp:
+    clearState: true
+- assertVisible:
+    id: "splash_logo"
+- extendedWaitUntil:
+    visible:
+      id: "phone_input"
+    timeout: 5000
+
+---
+# TC-SHELL-00002: MainScreen 底部 3 Tab + 状态保留
+- launchApp
+- assertVisible: "大厅|Hall"
+- assertVisible: "消息|Messages"
+- assertVisible: "我的|Me"
+- tapOn: "消息|Messages"
+- tapOn: "大厅|Hall"
+- swipe:
+    direction: UP
+- tapOn: "消息|Messages"
+- tapOn: "大厅|Hall"
+- assertNotVisible:
+    id: "room_grid_scroll_top"
+
+---
+# TC-SHELL-00003: LoginScreen 视觉升级
+- launchApp:
+    clearState: true
+- assertVisible:
+    id: "login_gold_logo"
+- assertVisible:
+    id: "phone_input"
+
+---
+# TC-SHELL-00004: HallScreen 黑金升级 + OnlineCountBadge + FAB
+- launchApp
+- tapOn: "大厅|Hall"
+- assertVisible:
+    id: "online_count_badge"
+- assertVisible:
+    id: "create_room_fab"
+
+---
+# TC-SHELL-00005: RoomScreen 黑金升级 + 主副麦 + 弹幕 + 底栏
+- launchApp
+- tapOn: "大厅|Hall"
+- tapOn:
+    index: 0
+- assertVisible:
+    id: "host_mic"
+- assertVisible:
+    id: "mic_seat_1"
+- assertVisible:
+    id: "chat_input"
+- assertVisible:
+    id: "gift_button"
+
+---
+# TC-SHELL-00006: Messages Tab 占位页
+- launchApp
+- tapOn: "消息|Messages"
+- assertVisible: "敬请期待|Coming Soon"

@@ -1,0 +1,84 @@
+# 测试套件：CHAT 公屏聊天（Android）
+# 用例来源：doc/tests/cases/AND/TC-CHAT.md
+appId: com.voiceroom.debug
+---
+# TC-CHAT-00001: WS 自动重连 + JoinRoom 回放
+- launchApp
+- tapOn: "大厅|Hall"
+- tapOn:
+    index: 0
+- assertVisible:
+    id: "chat_input"
+- runScript:
+    script: |
+      adb shell svc wifi disable
+- runScript:
+    script: |
+      sleep 2 && adb shell svc wifi enable
+- extendedWaitUntil:
+    visible: "已连接|Connected"
+    timeout: 15000
+- assertVisible:
+    id: "chat_input"
+
+---
+# TC-CHAT-00002: 公屏发送 + 接收 + 自动滚动
+- launchApp
+- tapOn: "大厅|Hall"
+- tapOn:
+    index: 0
+- tapOn:
+    id: "chat_input"
+- inputText: "hello from maestro"
+- tapOn: "发送|Send"
+- assertVisible: "hello from maestro"
+# 多条消息后自动滚动
+- repeat:
+    times: 10
+    commands:
+      - tapOn:
+          id: "chat_input"
+      - inputText: "msg"
+      - tapOn: "发送|Send"
+- assertVisible: "msg"
+
+---
+# TC-CHAT-00003: msg_id 去重 + 弱网重发
+- launchApp
+- tapOn: "大厅|Hall"
+- tapOn:
+    index: 0
+- runScript:
+    script: |
+      adb shell svc data disable
+      adb shell svc wifi disable
+- tapOn:
+    id: "chat_input"
+- inputText: "offline message"
+- tapOn: "发送|Send"
+- assertVisible: "发送中|pending|离线"
+- runScript:
+    script: |
+      adb shell svc data enable
+      adb shell svc wifi enable
+- extendedWaitUntil:
+    visible: "offline message"
+    timeout: 10000
+
+---
+# TC-CHAT-00004: 键盘弹起 + 旋转 状态保持
+- launchApp
+- tapOn: "大厅|Hall"
+- tapOn:
+    index: 0
+- tapOn:
+    id: "chat_input"
+- inputText: "before rotation"
+- runScript:
+    script: |
+      adb shell settings put system accelerometer_rotation 0
+      adb shell settings put system user_rotation 1
+- assertVisible: "before rotation"
+- runScript:
+    script: |
+      adb shell settings put system user_rotation 0

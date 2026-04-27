@@ -1,0 +1,44 @@
+# 测试套件：RANKING 排行榜（Android）
+# 用例来源：doc/tests/cases/AND/TC-RANKING.md
+appId: com.voiceroom.debug
+---
+# TC-RANKING-00001: 双 Tab 切换 + Top3 奖牌
+- launchApp
+- tapOn: "大厅|Hall"
+- tapOn:
+    id: "ranking_entry"
+- assertVisible: "日榜|Daily"
+- assertVisible: "周榜|Weekly"
+- assertVisible:
+    id: "rank_medal_1"
+- assertVisible:
+    id: "rank_medal_2"
+- assertVisible:
+    id: "rank_medal_3"
+- tapOn: "周榜|Weekly"
+- assertVisible: "周榜|Weekly"
+
+---
+# TC-RANKING-00002: 未上榜提示
+- launchApp
+- tapOn: "大厅|Hall"
+- tapOn:
+    id: "ranking_entry"
+- scrollUntilVisible:
+    element:
+      id: "me_rank_card"
+- assertVisible: "未上榜|Not ranked"
+
+---
+# TC-RANKING-00003: 入口 - 大厅 🏆 + 房间菜单
+- launchApp
+- tapOn: "大厅|Hall"
+- assertVisible:
+    id: "ranking_entry"
+- back
+- tapOn: "大厅|Hall"
+- tapOn:
+    index: 0
+- tapOn:
+    id: "room_menu"
+- assertVisible: "排行榜|Ranking"

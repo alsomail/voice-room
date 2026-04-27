@@ -1,0 +1,51 @@
+# 测试套件：MIC 麦位（Android）
+# 用例来源：doc/tests/cases/AND/TC-MIC.md
+appId: com.voiceroom.debug
+---
+# TC-MIC-00001: 权限申请 - 拒绝后 Fallback 到系统设置
+- launchApp:
+    clearState: true
+    permissions:
+      all: deny
+- tapOn: "大厅|Hall"
+- tapOn:
+    index: 0
+- tapOn:
+    id: "mic_seat_3"
+- assertVisible: "需要麦克风权限|Microphone permission"
+- tapOn: "去设置|Settings"
+- assertVisible: "应用信息|App info"
+- back
+
+---
+# TC-MIC-00002: 上麦 → RTC publish → 下麦 E2E
+- launchApp:
+    permissions:
+      all: allow
+- tapOn: "大厅|Hall"
+- tapOn:
+    index: 0
+- tapOn:
+    id: "mic_seat_3"
+- extendedWaitUntil:
+    visible:
+      id: "mic_seat_3_occupied"
+    timeout: 5000
+- assertVisible:
+    id: "rtc_publishing"
+- tapOn:
+    id: "mic_seat_3_occupied"
+- tapOn: "下麦|Leave mic"
+- assertVisible:
+    id: "mic_seat_3"
+
+---
+# TC-MIC-00003: 麦位被占 - 错误提示
+- launchApp
+- tapOn: "大厅|Hall"
+- tapOn:
+    index: 0
+- tapOn:
+    id: "mic_seat_0_occupied"
+# 试图上已占麦位
+- assertVisible: "麦位被占|Occupied"

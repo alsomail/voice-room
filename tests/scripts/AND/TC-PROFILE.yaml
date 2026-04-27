@@ -1,0 +1,79 @@
+# 测试套件：PROFILE 个人主页（Android）
+# 用例来源：doc/tests/cases/AND/TC-PROFILE.md
+appId: com.voiceroom.debug
+---
+# TC-PROFILE-00001: 页面布局 + 用户信息渲染
+- launchApp
+- tapOn: "我的|Me"
+- assertVisible:
+    id: "profile_avatar"
+- assertVisible:
+    id: "profile_nickname"
+- assertVisible:
+    id: "profile_user_id"
+- assertVisible: "钻石|Diamond"
+
+---
+# TC-PROFILE-00002: 复制 ID 到剪贴板
+- launchApp
+- tapOn: "我的|Me"
+- tapOn:
+    id: "profile_user_id"
+- assertVisible: "已复制|Copied"
+
+---
+# TC-PROFILE-00003: 钻石余额入口 → WalletScreen
+- launchApp
+- tapOn: "我的|Me"
+- tapOn: "钻石|Diamond"
+- assertVisible: "钱包|Wallet"
+- assertVisible: "余额|Balance"
+
+---
+# TC-PROFILE-00004: 编辑资料 / 关于 / 设置
+- launchApp
+- tapOn: "我的|Me"
+- tapOn: "编辑资料|Edit Profile"
+- assertVisible: "昵称|Nickname"
+- back
+- tapOn: "关于|About"
+- assertVisible: "版本|Version"
+- back
+- tapOn: "设置|Settings"
+- assertVisible: "语言|Language"
+
+---
+# TC-PROFILE-00005: 退出登录 二次确认 + 清栈
+- launchApp
+- tapOn: "我的|Me"
+- tapOn: "设置|Settings"
+- tapOn: "退出登录|Logout"
+- assertVisible: "确认退出|Confirm"
+- tapOn: "取消|Cancel"
+- assertVisible: "设置|Settings"
+- tapOn: "退出登录|Logout"
+- tapOn: "确定|OK"
+- extendedWaitUntil:
+    visible:
+      id: "phone_input"
+    timeout: 5000
+
+---
+# TC-PROFILE-00006: 离线使用 Room 缓存
+- launchApp
+- tapOn: "我的|Me"
+- assertVisible:
+    id: "profile_nickname"
+- runScript:
+    script: |
+      adb shell svc wifi disable
+      adb shell svc data disable
+- stopApp
+- launchApp
+- tapOn: "我的|Me"
+- assertVisible:
+    id: "profile_nickname"
+- runScript:
+    script: |
+      adb shell svc wifi enable
+      adb shell svc data enable
