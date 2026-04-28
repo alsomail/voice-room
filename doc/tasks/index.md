@@ -1,9 +1,9 @@
 # Voice Room 开发任务清单
 
-> **版本**: v2.66  
+> **版本**: v2.67  
 > **更新日期**: 2026-04-29  
 > **任务总数**: 132 个 (基建: 4 + 14, App Server: 33 + 1, Admin Server: 16 + 1, Web: 14 + 1, Android: 44 + 1, E-07 15 + E-07.5 6 + E-10 18)  
-> **当前阶段**: Phase 1 - 核心营收闭环（E-07 + E-07.5 并行）→ Phase 1.5 E-10 房间治理 → Phase 1.6 E2E 测试基建（模块 9：15/17，T-0000R/S Todo） + QA 战报驱动架构补强 + v3 战报反向拆出 WEB FAIL 修复 + SKIP-KNOWN 收口
+> **当前阶段**: Phase 1 - 核心营收闭环（E-07 + E-07.5 并行）→ Phase 1.5 E-10 房间治理 → Phase 1.6 E2E 测试基建（模块 9：16/17，T-0000R In Progress）+ QA 战报驱动架构补强 + v3 战报反向拆出 WEB FAIL 修复 + SKIP-KNOWN 收口
 
 ---
 
@@ -12,6 +12,7 @@
 | 版本 | 日期 | 变更内容 |
 |------|------|---------|
 | _规则_ | — | 本表只记录**版本级摘要**（一行 ≤ 200 字符），具体 Review/审查/实跑证据请落到对应 [TDS](../tds/) 第五节【Review 意见】或对应模块审查批次 `doc/review/模块N-XXX.md`，**严禁**在本表堆叠详细审查记录。 |
+| **v2.67** | **2026-04-29** | T-0000S DoD 完成（E2E fixture token + redis-cli 容器化解锁 26/29 SKIP-KNOWN），Review Round 1 🟢 通过；fixture 三角色 token + redis-cli 优先 docker→native→unavailable 三分支 + fail-fast 校验；6 份 spec 收敛 redis-cli 路径，26 个 SKIP-KNOWN 用例全 PASS；模块 9 进度 15/17 → 16/17。详见 [T-0000S TDS](../tds/infra/T-0000S.md)。 |
 | **v2.66** | **2026-04-29** | v3 QA 战报（report-20260428-154125）反向拆出 2 个新 Task：T-0000R（WEB E2E 9-FAIL 测试侧硬化，非业务 bug，挂模块 9）+ T-0000S（fixture token 三角色自动注入 + redis-cli 容器化，解锁 26/29 SKIP-KNOWN）。详见 [T-0000R TDS](../tds/infra/T-0000R.md) / [T-0000S TDS](../tds/infra/T-0000S.md)。 |
 | **v2.64** | **2026-04-29** | T-00044 单 Task 流转完整闭环（TDD→Review×3→Dod→Done），版本号冲突修正：原 v2.56/v2.57/v2.58 重号 → v2.61/v2.62/v2.63；顶部版本对齐 v2.64。 |
 | **v2.65** | **2026-04-29** | 批次审查文档归档与合并：①`batch-e2e-foundation-followups.md`（T-0000N/O）+ `batch-arch-blockers-infra.md`（T-0000P/Q）合并入 [模块9-E2E测试基建.md](../review/模块9-E2E测试基建.md) 作为批次 C / 批次 D；②`batch-arch-blockers-business.md`（T-00041~44 跨模块 3/6/8）独立成新文件 [模块3-6-8-架构阻塞修复.md](../review/模块3-6-8-架构阻塞修复.md)；③三个老 batch 文件保留并加重定向 banner，全量跨引用（4 个 task 表 + 6 个 TDS + review/index.md）已切换到合并后主文档。 |
