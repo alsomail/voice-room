@@ -32,9 +32,8 @@ test.describe('TC-WS API - WebSocket 网关', () => {
   });
 
   test('TC-WS-00002: 30s 无心跳断开', async () => {
-    test.skip(process.env.CI_E2E_READY !== '1', '耗时用例');
-    // BUG-WS-003: Server may not implement 30s heartbeat timeout; skipping to avoid 45s wait
-    test.skip(true, 'BUG-WS-003: Server heartbeat timeout not verified; test takes 45s+');
+    // T-00041: heartbeat implemented; test takes 45s+ so only run in CI_E2E_READY
+    test.skip(process.env.CI_E2E_READY !== '1', 'SKIP-KNOWN: 45s+ heartbeat timeout test, set CI_E2E_READY=1 to enable');
     const w = new WebSocket(`${WS}?token=${T}`);
     await new Promise<void>((r) => w.once('open', () => r()));
     const closed = await new Promise<boolean>((ok) => {
@@ -70,8 +69,8 @@ test.describe('TC-WS API - WebSocket 网关', () => {
   });
 
   test('TC-WS-00005: 管理员封禁事件推送', async () => {
-    // BUG-WS-002: WS broadcast events not delivered to connected clients
-    test.skip(true, 'BUG-WS-002: ban event push not delivered via WS broadcast');
+    // T-00042: admin force-disconnect broadcast implemented
+    test.skip(!T || !OP || !UID, '需要 E2E_VALID_TOKEN / E2E_OP_TOKEN / E2E_USER_A_ID');
     const w = new WebSocket(`${WS}?token=${T}`);
     await new Promise<void>((r) => w.once('open', () => r()));
     const wait = new Promise<any>((ok) => {
@@ -95,8 +94,8 @@ test.describe('TC-WS API - WebSocket 网关', () => {
   });
 
   test('TC-WS-00006: 关闭房间广播', async () => {
-    // BUG-WS-002: WS broadcast events not delivered to connected clients
-    test.skip(true, 'BUG-WS-002: room closed broadcast not delivered via WS');
+    // T-00042: room_closed broadcast implemented
+    test.skip(!T || !OP, '需要 E2E_VALID_TOKEN / E2E_OP_TOKEN');
     const RID = process.env.E2E_ROOM_ID ?? '';
     const w = new WebSocket(`${WS}?token=${T}`);
     await new Promise<void>((r) => w.once('open', () => r()));

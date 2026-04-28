@@ -34,13 +34,45 @@ test.describe('TC-MIC API - 麦位', () => {
   test.skip(!T || !ROOM, '需要 Token/房间');
 
   test('TC-MIC-00001: 上麦空位成功 + 广播', async () => {
-    // BUG-WS-002: WS broadcast events not delivered to other connected clients
-    test.skip(true, 'BUG-WS-002: WS broadcast not working');
+    // T-00042: WS broadcast fixed
+    test.skip(!TB, '需要 E2E_USER_B_TOKEN');
+    test.setTimeout(10_000);
+    const a = await open(T); const b = await open(TB);
+    await join(a, 'ja1'); await join(b, 'jb1');
+    // 清理麦位 8
+    await new Promise((r) => setTimeout(r, 200));
+    psql(`UPDATE mic_seats SET user_id=NULL, nickname=NULL WHERE room_id='${ROOM}' AND seat=8`);
+    const seat = 8;
+    const msgId = `ta_${Date.now()}`;
+    // A 上麦，B 监听广播
+    const bWait = recv(b, (m) => (m.type === 'MicTaken' || m.type === 'SeatUpdate') && m.seat === seat, 5000);
+    a.send(JSON.stringify({ type: 'TakeMic', room_id: ROOM, seat, msg_id: msgId }));
+    const ack = await recv(a, (m) => m.msg_id === msgId || m.type === 'MicTaken' || m.type === 'Error', 5000);
+    expect(ack.type).not.toBe('Error');
+    const broadcast = await bWait;
+    expect(broadcast).toBeTruthy();
+    a.close(); b.close();
   });
 
   test('TC-MIC-00002: 麦位被占返回错误', async () => {
-    // BUG-WS-002: WS broadcast events not delivered to other connected clients
-    test.skip(true, 'BUG-WS-002: WS broadcast not working, recv() times out');
+    // T-00042: WS broadcast fixed; test seat-occupied error
+    test.skip(!TB, '需要 E2E_USER_B_TOKEN');
+    test.setTimeout(10_000);
+    const a = await open(T); const b = await open(TB);
+    await join(a, 'ja2'); await join(b, 'jb2');
+    // 清理麦位 9, A 先占麦位 9
+    await new Promise((r) => setTimeout(r, 200));
+    psql(`UPDATE mic_seats SET user_id=NULL, nickname=NULL WHERE room_id='${ROOM}' AND seat=9`);
+    a.send(JSON.stringify({ type: 'TakeMic', room_id: ROOM, seat: 9, msg_id: `ta2_${Date.now()}` }));
+    await recv(a, (m) => m.type === 'MicTaken' || m.type === 'SeatUpdate' || m.type === 'Error', 5000);
+    await new Promise((r) => setTimeout(r, 300));
+    // B 也试图上麦位 9（已被占）
+    const msgId2 = `tb2_${Date.now()}`;
+    b.send(JSON.stringify({ type: 'TakeMic', room_id: ROOM, seat: 9, msg_id: msgId2 }));
+    const err = await recv(b, (m) => m.msg_id === msgId2 || m.type === 'Error', 5000);
+    expect(err.type).toBe('Error');
+    expect([40301, 40303]).toContain(err.code);
+    a.close(); b.close();
   });
 
   test('TC-MIC-00003: 禁麦用户无法上麦', async () => {
