@@ -56,7 +56,7 @@ test.describe('TC-ROOM WEB - 房间监控', () => {
   });
 
   test('TC-ROOM-00003: 详情弹窗 - 强制关闭完整闭环', async ({ page, request }) => {
-    // Pre-condition: verify there are active rooms; skip if none
+    // Pre-condition: verify there are active rooms (T-0000R 第二轮：自愈式前置)
     const opToken = process.env.E2E_OP_TOKEN;
     if (opToken) {
       const activeResp = await request.get('http://localhost:3001/api/v1/admin/rooms?status=active&page_size=1', {
@@ -64,8 +64,19 @@ test.describe('TC-ROOM WEB - 房间监控', () => {
       });
       const activeData = await activeResp.json() as { data: { total: number } };
       if (!activeData.data?.total) {
-        test.skip(true, '无活跃房间可供测试：当前数据库无活跃状态房间，请重新运行 seed 脚本');
-        return;
+        // 自愈：通过 Docker psql 直接激活 3 个已关闭的房间（不依赖 AdminServer API）
+        console.log('[TC-ROOM-00003] 无活跃房间，执行自愈：重新激活 3 个已关闭房间');
+        const { execSync } = await import('child_process');
+        try {
+          const sqlCmd = `UPDATE rooms SET status='active', updated_at=now() WHERE id IN (SELECT id FROM rooms WHERE status='closed' AND deleted_at IS NULL LIMIT 3);`;
+          execSync(
+            `docker exec -i vr-postgres psql -U postgres -d voiceroom -c "${sqlCmd}"`,
+            { stdio: 'inherit', encoding: 'utf-8' }
+          );
+          console.log('[TC-ROOM-00003] 自愈成功：已激活 3 个房间');
+        } catch (err) {
+          throw new Error(`[TC-ROOM-00003] 自愈失败：无法通过 Docker 激活房间。原始错误: ${err}`);
+        }
       }
     }
     const agent = await login(page);

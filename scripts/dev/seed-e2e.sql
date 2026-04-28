@@ -18,13 +18,15 @@
 BEGIN;
 
 -- ============================================================================
--- 1) users — E2E User A / B
+-- 1) users — E2E User A / B / Muted / C / D（T-0000R 第二轮：新增 User C/D 作为房主）
 -- ============================================================================
 INSERT INTO users (id, phone, nickname, is_banned, coin_balance, diamond_balance, vip_level, created_at, updated_at)
 VALUES
     (:'user_a_id'::uuid,     '+966500000900', 'E2E User A',     FALSE, 100000, 100000, 0, '2026-01-01 00:00:00+00', now()),
     (:'user_b_id'::uuid,     '+966500000901', 'E2E User B',     FALSE, 100000, 100000, 0, '2026-01-01 00:00:00+00', now()),
-    (:'user_muted_id'::uuid, '+966500000902', 'E2E User Muted', FALSE, 100000, 100000, 0, '2026-01-01 00:00:00+00', now())
+    (:'user_muted_id'::uuid, '+966500000902', 'E2E User Muted', FALSE, 100000, 100000, 0, '2026-01-01 00:00:00+00', now()),
+    ('10000000-0000-4000-8000-000000000011'::uuid, '+966500000903', 'E2E User C', FALSE, 100000, 100000, 0, '2026-01-01 00:00:00+00', now()),
+    ('10000000-0000-4000-8000-000000000012'::uuid, '+966500000904', 'E2E User D', FALSE, 100000, 100000, 0, '2026-01-01 00:00:00+00', now())
 ON CONFLICT (id) DO UPDATE SET
     phone      = EXCLUDED.phone,
     nickname   = EXCLUDED.nickname,
@@ -51,15 +53,54 @@ VALUES
     (:'admin_disabled_id'::uuid, 'e2e_disabled', '$2b$12$FQg0m0lriSYWkWBvArC14utVu.2nNEthominTTYS7Syjm6dwtu.Qm', 'operator',    'E2E Disabled',    FALSE, '2026-01-01 00:00:00+00', now());
 
 -- ============================================================================
--- 3) rooms — 唯一测试房间，房主 = User A
+-- 3) rooms — 多个测试房间（T-0000R 第二轮：确保至少 3 个 active 房间，满足 TC-ROOM-00003）
+--    每个用户只能有一个 active 房间（idx_rooms_owner_active 约束），故分配给不同用户
 -- ============================================================================
--- 先关闭 User A 其他活跃房间，防止 idx_rooms_owner_active 约束冲突
+-- 先关闭 User A/B/C/D 其他活跃房间，防止 idx_rooms_owner_active 约束冲突
 UPDATE rooms SET status='closed', updated_at=now()
-WHERE owner_id = :'user_a_id'::uuid AND status = 'active' AND id != :'room_id'::uuid;
+WHERE owner_id IN (
+    :'user_a_id'::uuid,
+    :'user_b_id'::uuid,
+    '10000000-0000-4000-8000-000000000011'::uuid,
+    '10000000-0000-4000-8000-000000000012'::uuid
+) AND status = 'active' AND id NOT IN (
+    :'room_id'::uuid,
+    '10000000-0000-4000-8000-000000000002'::uuid,
+    '10000000-0000-4000-8000-000000000003'::uuid
+);
 
+-- Room 1: 主测试房间（User A 房主）
 INSERT INTO rooms (id, owner_id, title, room_type, member_count, status, password_hash, max_members, cover_url, category, created_at, updated_at)
 VALUES
     (:'room_id'::uuid, :'user_a_id'::uuid, 'E2E Test Room', 'normal', 0, 'active', NULL, 8, '', 'chat', '2026-01-01 00:00:00+00', now())
+ON CONFLICT (id) DO UPDATE SET
+    owner_id     = EXCLUDED.owner_id,
+    title        = EXCLUDED.title,
+    room_type    = EXCLUDED.room_type,
+    status       = 'active',
+    password_hash= NULL,
+    max_members  = EXCLUDED.max_members,
+    deleted_at   = NULL,
+    updated_at   = now();
+
+-- Room 2: 备用活跃房间（User B 房主，确保 TC-ROOM-00003 有足够 active 房间）
+INSERT INTO rooms (id, owner_id, title, room_type, member_count, status, password_hash, max_members, cover_url, category, created_at, updated_at)
+VALUES
+    ('10000000-0000-4000-8000-000000000002'::uuid, :'user_b_id'::uuid, 'E2E Backup Room 1', 'normal', 0, 'active', NULL, 8, '', 'chat', '2026-01-01 00:00:00+00', now())
+ON CONFLICT (id) DO UPDATE SET
+    owner_id     = EXCLUDED.owner_id,
+    title        = EXCLUDED.title,
+    room_type    = EXCLUDED.room_type,
+    status       = 'active',
+    password_hash= NULL,
+    max_members  = EXCLUDED.max_members,
+    deleted_at   = NULL,
+    updated_at   = now();
+
+-- Room 3: 备用活跃房间 2（User C 房主，进一步保证 active 房间数量）
+INSERT INTO rooms (id, owner_id, title, room_type, member_count, status, password_hash, max_members, cover_url, category, created_at, updated_at)
+VALUES
+    ('10000000-0000-4000-8000-000000000003'::uuid, '10000000-0000-4000-8000-000000000011'::uuid, 'E2E Backup Room 2', 'normal', 0, 'active', NULL, 8, '', 'chat', '2026-01-01 00:00:00+00', now())
 ON CONFLICT (id) DO UPDATE SET
     owner_id     = EXCLUDED.owner_id,
     title        = EXCLUDED.title,
@@ -74,8 +115,18 @@ COMMIT;
 
 -- 行数断言（machine-readable，wrapper 校验幂等）
 \echo '--seed-counts--'
-SELECT 'users:'   AS k, COUNT(*) AS n FROM users  WHERE id IN (:'user_a_id'::uuid, :'user_b_id'::uuid, :'user_muted_id'::uuid) AND deleted_at IS NULL
+SELECT 'users:'   AS k, COUNT(*) AS n FROM users  WHERE id IN (
+    :'user_a_id'::uuid,
+    :'user_b_id'::uuid,
+    :'user_muted_id'::uuid,
+    '10000000-0000-4000-8000-000000000011'::uuid,
+    '10000000-0000-4000-8000-000000000012'::uuid
+) AND deleted_at IS NULL
 UNION ALL
 SELECT 'admins:'  AS k, COUNT(*) AS n FROM admins WHERE username IN ('e2e_admin','e2e_op','e2e_cs','e2e_fin')
 UNION ALL
-SELECT 'rooms:'   AS k, COUNT(*) AS n FROM rooms  WHERE id = :'room_id'::uuid AND deleted_at IS NULL;
+SELECT 'rooms:'   AS k, COUNT(*) AS n FROM rooms  WHERE id IN (
+    :'room_id'::uuid,
+    '10000000-0000-4000-8000-000000000002'::uuid,
+    '10000000-0000-4000-8000-000000000003'::uuid
+) AND deleted_at IS NULL;

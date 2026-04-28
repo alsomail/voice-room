@@ -109,8 +109,22 @@ test.describe('TC-USER WEB - 用户管理', () => {
       headers: { Authorization: `Bearer ${opToken}` },
     });
     const usersData = await usersResp.json() as { data: { items: Array<{ id: string; status: string }> } };
-    const normalUser = usersData.data?.items?.find((u) => u.status === 'normal');
-    if (!normalUser) { test.skip(); return; }
+    let normalUser = usersData.data?.items?.find((u) => u.status === 'normal');
+    if (!normalUser) {
+      // T-0000R 第二轮：自愈式前置 - 若无 normal user，尝试解封一个已封禁用户再重新封禁
+      console.log('[TC-USER-00003] 无正常用户，执行自愈：解封一个已封禁用户');
+      const bannedUser = usersData.data?.items?.find((u) => u.status === 'banned');
+      if (!bannedUser) {
+        throw new Error('自愈失败：数据库中既无 normal 也无 banned 用户，请重新运行 seed 脚本');
+      }
+      // 先解封这个用户
+      await request.post(`http://localhost:3001/api/v1/admin/users/${bannedUser.id}/unban`, {
+        data: { reason: 'e2e auto-heal: need normal user for test' },
+        headers: { Authorization: `Bearer ${opToken}`, 'Content-Type': 'application/json' },
+      });
+      normalUser = bannedUser; // 现在这个用户是 normal 状态
+      console.log(`[TC-USER-00003] 自愈成功：用户 ${bannedUser.id} 已解封为 normal 状态`);
+    }
     await request.post(`http://localhost:3001/api/v1/admin/users/${normalUser.id}/ban`, {
       data: { action: 'ban', ban_type: 'permanent', reason: 'e2e pre-condition' },
       headers: { Authorization: `Bearer ${opToken}`, 'Content-Type': 'application/json' },
