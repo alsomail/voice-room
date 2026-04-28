@@ -178,6 +178,24 @@ async fn main() -> anyhow::Result<()> {
         heartbeat_shutdown,
     ));
 
+    // T-00042：启动 Admin 事件订阅 task（Redis Pub/Sub admin:events 频道）
+    // 封禁/关房事件由 AdminServer 通过 Redis PUBLISH 推送，AppServer 订阅后
+    // 调用 handle_admin_event 向 WS 连接广播通知并主动断连。
+    let admin_event_shutdown = snapshot_shutdown_tx.subscribe();
+    let admin_registry_clone = state.ws_registry.clone();
+    let admin_redis_url = redis_url.to_string();
+    tokio::spawn(async move {
+        if let Err(e) = voice_room_server::events::start_admin_event_subscriber(
+            admin_redis_url,
+            admin_registry_clone,
+            admin_event_shutdown,
+        )
+        .await
+        {
+            tracing::warn!(error = %e, "admin event subscriber exited with error");
+        }
+    });
+
     let app = build_app(state);
     let bind_addr = settings.server.bind_addr()?;
     let listener = TcpListener::bind(bind_addr).await?;
