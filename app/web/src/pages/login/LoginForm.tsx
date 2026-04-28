@@ -53,8 +53,14 @@ export function LoginForm({ onSubmit }: LoginFormProps) {
         localStorage.removeItem(REMEMBER_KEY);
       }
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : t('login.error.unknown');
+      const rawMsg = err instanceof Error ? err.message : '';
+      // Map known API error messages to localized translations
+      const isInvalidCredentials =
+        rawMsg.toLowerCase().includes('invalid') &&
+        rawMsg.toLowerCase().includes('credentials');
+      const message = isInvalidCredentials
+        ? t('login.error.invalidCredentials')
+        : rawMsg || t('login.error.unknown');
       setError(message);
     } finally {
       setLoading(false);

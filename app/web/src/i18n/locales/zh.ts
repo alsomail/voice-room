@@ -6,6 +6,9 @@ const zh = {
   common: {
     requestError: '请求失败，请重试',
   },
+  auth: {
+    logout: '退出登录',
+  },
   login: {
     title: '管理员登录',
     subtitle: 'Voice Room 管理后台',
@@ -21,6 +24,7 @@ const zh = {
     },
     error: {
       unknown: '发生未知错误，请重试。',
+      invalidCredentials: '用户名或密码错误',
     },
   },
   dashboard: {
@@ -261,6 +265,8 @@ const zh = {
       errorLoad: '加载礼物失败',
       switchError: '状态更新失败',
       deleteSuccess: '礼物已删除',
+      createSuccess: '新增成功',
+      updateSuccess: '保存成功',
     },
     form: {
       code: '编码',

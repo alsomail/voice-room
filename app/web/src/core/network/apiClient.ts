@@ -143,6 +143,9 @@ export interface AdminGetRoomsParams {
 
 /** 单个房间条目 */
 export interface AdminRoomItem {
+  /** API list endpoint returns 'id' (not 'room_id') — aliased here for frontend use */
+  id: string;
+  /** Alias for id: populated by the transform layer in fetchAdminRooms */
   room_id: string;
   title: string;
   room_type: 'normal' | 'password' | 'paid';
@@ -179,6 +182,11 @@ export async function adminGetRooms(
       ).toString()
     : '';
   const res = await adminFetch<AdminRoomsData>(`/rooms${query}`, { signal });
+  // Backend list API returns 'id' field; add 'room_id' alias for UI compatibility
+  res.data.items = res.data.items.map((item: any) => ({
+    ...item,
+    room_id: item.room_id ?? item.id,
+  }));
   return res.data;
 }
 
@@ -249,9 +257,9 @@ export interface AdminStatsOverviewData {
   /** 今日 DAU */
   dau: number;
   /** 今日新增用户数 */
-  new_users_today: number;
-  /** 历史趋势（最近 N 天） */
-  trend: AdminStatsTrendPoint[];
+  new_users: number;
+  /** 历史趋势（最近 N 天） — 后端当前版本不返回此字段，保留类型声明 */
+  trend?: AdminStatsTrendPoint[];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

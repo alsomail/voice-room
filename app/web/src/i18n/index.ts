@@ -17,8 +17,8 @@ i18n.use(initReactI18next).init({
     en: { translation: en },
     zh: { translation: zh },
   },
-  lng: 'en',
-  fallbackLng: 'en',
+  lng: 'zh',
+  fallbackLng: 'zh',
   interpolation: {
     escapeValue: false, // React 已自动转义 XSS
   },

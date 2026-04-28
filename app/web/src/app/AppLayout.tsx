@@ -17,7 +17,7 @@
  */
 
 import { useState } from 'react';
-import { Layout, Menu } from 'antd';
+import { Layout, Menu, Button } from 'antd';
 import {
   DashboardOutlined,
   TeamOutlined,
@@ -25,6 +25,7 @@ import {
   FileTextOutlined,
   GiftOutlined,
   SafetyOutlined,
+  LogoutOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -45,6 +46,7 @@ export function AppLayout() {
   const [collapsed, setCollapsed] = useState(false);
 
   const admin = useAuthStore((s) => s.admin);
+  const logout = useAuthStore((s) => s.logout);
   const role = admin?.role ?? '';
 
   const canSeeGiftMenu = GIFT_MENU_ROLES.includes(role);
@@ -146,6 +148,34 @@ export function AppLayout() {
             ),
           }))}
         />
+
+        {/* 退出登录按钮 */}
+        <div
+          style={{
+            position: 'absolute',
+            bottom: 48,
+            width: '100%',
+            padding: '8px 16px',
+            boxSizing: 'border-box',
+          }}
+        >
+          <Button
+            data-testid="logout-btn"
+            type="text"
+            icon={<LogoutOutlined />}
+            style={{
+              color: 'rgba(255,255,255,0.65)',
+              width: '100%',
+              textAlign: 'left',
+            }}
+            onClick={() => {
+              logout();
+              void navigate('/login');
+            }}
+          >
+            {!collapsed && t('auth.logout')}
+          </Button>
+        </div>
       </Sider>
 
       <Layout>

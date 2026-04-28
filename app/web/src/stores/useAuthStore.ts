@@ -22,6 +22,7 @@ import type { AdminLoginData } from '../core/network/apiClient';
  * 如需更高安全级别，可考虑改用 HttpOnly Cookie（需后端配合）。
  */
 export const ADMIN_TOKEN_KEY = 'adminToken';
+const ADMIN_INFO_KEY = 'adminInfo';
 
 export interface AuthStore {
   token: string | null;
@@ -62,17 +63,26 @@ function isTokenValid(token: string | null): boolean {
   return exp > Math.floor(Date.now() / 1000);
 }
 
-/** 从 localStorage 读取初始 token */
+/** 从 localStorage 读取初始 token 和 admin */
 const initialToken = localStorage.getItem(ADMIN_TOKEN_KEY);
+const initialAdmin = (() => {
+  try {
+    const raw = localStorage.getItem(ADMIN_INFO_KEY);
+    return raw ? (JSON.parse(raw) as AdminLoginData['admin']) : null;
+  } catch {
+    return null;
+  }
+})();
 
 export const useAuthStore = create<AuthStore>((set, get) => ({
   token: initialToken,
-  admin: null,
+  admin: initialAdmin,
   isAuthenticated: isTokenValid(initialToken),
 
   login: async (username: string, password: string) => {
     const data = await adminLogin({ username, password });
     localStorage.setItem(ADMIN_TOKEN_KEY, data.token);
+    localStorage.setItem(ADMIN_INFO_KEY, JSON.stringify(data.admin));
     set({
       token: data.token,
       admin: data.admin,
@@ -82,6 +92,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
 
   logout: () => {
     localStorage.removeItem(ADMIN_TOKEN_KEY);
+    localStorage.removeItem(ADMIN_INFO_KEY);
     set({ token: null, admin: null, isAuthenticated: false });
   },
 

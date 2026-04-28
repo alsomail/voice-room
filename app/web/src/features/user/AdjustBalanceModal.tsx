@@ -32,6 +32,7 @@ import {
   Space,
   Alert,
   Typography,
+  message,
 } from 'antd';
 import { WarningOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
@@ -85,6 +86,7 @@ export function AdjustBalanceModal({
     setAdjustError(null);
     try {
       const result = await adminAdjustBalance(userId, values);
+      void message.success(t('wallet.adjust.successMsg'));
       onSuccess(result.new_balance);
       onClose();
     } catch (err) {

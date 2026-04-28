@@ -8,6 +8,7 @@ import { execSync } from 'child_process';
 const APP = process.env.APP_SERVER_BASE_URL!;
 const T = process.env.E2E_VALID_TOKEN ?? '';
 const redis = (s: string) => execSync(`redis-cli ${s}`, { encoding: 'utf-8' }).trim();
+const hasRedisCli = (() => { try { execSync('redis-cli --version', { stdio: 'pipe' }); return true; } catch { return false; } })();
 
 test.describe('TC-RANKING API - 排行榜', () => {
   test.skip(!T, '需要 E2E_VALID_TOKEN');
@@ -57,6 +58,7 @@ test.describe('TC-RANKING API - 排行榜', () => {
   });
 
   test('TC-RANKING-00004: 日/周键 归档', async () => {
+    test.skip(!hasRedisCli, 'SKIP-KNOWN: redis-cli not in PATH');
     // UTC+3 的 day key 格式 ranking:send:day:YYYYMMDD
     const allKeys = execSync("redis-cli KEYS 'ranking:*:day:*'", { encoding: 'utf-8' }).trim().split('\n').filter(Boolean);
     // Filter to keys ending with 8-digit date (e.g. 20260427), excluding test-created keys

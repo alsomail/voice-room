@@ -6,6 +6,9 @@ const en = {
   common: {
     requestError: 'Request failed, please try again',
   },
+  auth: {
+    logout: 'Logout',
+  },
   login: {
     title: 'Admin Login',
     subtitle: 'Voice Room Management',
@@ -21,6 +24,7 @@ const en = {
     },
     error: {
       unknown: 'An unknown error occurred. Please try again.',
+      invalidCredentials: 'Invalid username or password',
     },
   },
   dashboard: {
@@ -261,6 +265,8 @@ const en = {
       errorLoad: 'Failed to load gifts',
       switchError: 'Failed to update status',
       deleteSuccess: 'Gift deleted',
+      createSuccess: 'Gift created',
+      updateSuccess: 'Gift updated',
     },
     form: {
       code: 'Code',

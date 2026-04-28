@@ -96,10 +96,10 @@ export function useDashboardStats(): UseDashboardStatsReturn {
           statsResult.status === 'fulfilled' ? statsResult.value.dau : null,
         newUsersToday:
           statsResult.status === 'fulfilled'
-            ? statsResult.value.new_users_today
+            ? statsResult.value.new_users
             : null,
         trend:
-          statsResult.status === 'fulfilled' ? statsResult.value.trend : [],
+          statsResult.status === 'fulfilled' ? (statsResult.value.trend ?? []) : [],
       });
       setLastUpdatedAt(new Date());
     }

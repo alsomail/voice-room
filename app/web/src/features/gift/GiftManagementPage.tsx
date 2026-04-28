@@ -146,7 +146,8 @@ export function GiftManagementPage() {
   };
 
   // ── 编辑成功后刷新
-  const handleEditSuccess = () => {
+  const handleEditSuccess = (isCreate: boolean) => {
+    void message.success(isCreate ? t('gift.mgmt.createSuccess') : t('gift.mgmt.updateSuccess'));
     void fetchGifts({
       page,
       size: 50,

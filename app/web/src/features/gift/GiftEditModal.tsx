@@ -50,7 +50,7 @@ export interface GiftEditModalProps {
   gift: AdminGiftItem | null;
   open: boolean;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (isCreate: boolean) => void;
 }
 
 // 允许的图片 MIME 类型
@@ -151,7 +151,7 @@ export function GiftEditModal({ gift, open, onClose, onSuccess }: GiftEditModalP
       } else {
         await adminCreateGift(values);
       }
-      onSuccess();
+      onSuccess(!gift);
       handleClose();
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : t('common.requestError'));

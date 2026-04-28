@@ -27,13 +27,15 @@ export function TrendChart({ trend, loading }: TrendChartProps) {
   const { t } = useTranslation();
 
   // [H-01] useMemo 缓存 option 对象，避免 trend/t 未变时触发 ECharts 重绘
+  // [BUG-FIX] guard against undefined trend (API may not return trend field)
+  const safeTrend = trend ?? [];
   const option = useMemo(
     () => ({
       tooltip: { trigger: 'axis' },
       legend: { data: [t('dashboard.dau'), t('dashboard.newUsersToday')] },
       xAxis: {
         type: 'category',
-        data: trend.map((p) => p.date),
+        data: safeTrend.map((p) => p.date),
       },
       yAxis: { type: 'value' },
       series: [
@@ -41,24 +43,24 @@ export function TrendChart({ trend, loading }: TrendChartProps) {
           name: t('dashboard.dau'),
           type: 'line',
           smooth: true,
-          data: trend.map((p) => p.dau),
+          data: safeTrend.map((p) => p.dau),
         },
         {
           name: t('dashboard.newUsersToday'),
           type: 'line',
           smooth: true,
-          data: trend.map((p) => p.new_users),
+          data: safeTrend.map((p) => p.new_users),
         },
       ],
     }),
-    [trend, t],
+    [safeTrend, t],
   );
 
   if (loading) {
     return <Skeleton active paragraph={{ rows: 4 }} />;
   }
 
-  if (trend.length === 0) {
+  if (safeTrend.length === 0) {
     return (
       <Empty
         data-testid="trend-empty"
