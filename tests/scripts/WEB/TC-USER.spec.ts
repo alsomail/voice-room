@@ -102,28 +102,16 @@ test.describe('TC-USER WEB - 用户管理', () => {
   });
 
   test('TC-USER-00003: 解封弹窗 - 原因必填 + 二次确认', async ({ page, request }) => {
-    // 前置条件：通过 API 封禁一个用户，确保测试有可解封的对象
+    // T-0000R Round1：seed 已幂等保证多个 normal 用户，直接封禁一个即可（无需 spec 内自愈）
     const opToken = process.env.E2E_OP_TOKEN;
     if (!opToken) { test.skip(); return; }
-    const usersResp = await request.get('http://localhost:3001/api/v1/admin/users?page=1&page_size=5', {
+    const usersResp = await request.get('http://localhost:3001/api/v1/admin/users?page=1&page_size=20', {
       headers: { Authorization: `Bearer ${opToken}` },
     });
     const usersData = await usersResp.json() as { data: { items: Array<{ id: string; status: string }> } };
-    let normalUser = usersData.data?.items?.find((u) => u.status === 'normal');
+    const normalUser = usersData.data?.items?.find((u) => u.status === 'normal');
     if (!normalUser) {
-      // T-0000R 第二轮：自愈式前置 - 若无 normal user，尝试解封一个已封禁用户再重新封禁
-      console.log('[TC-USER-00003] 无正常用户，执行自愈：解封一个已封禁用户');
-      const bannedUser = usersData.data?.items?.find((u) => u.status === 'banned');
-      if (!bannedUser) {
-        throw new Error('自愈失败：数据库中既无 normal 也无 banned 用户，请重新运行 seed 脚本');
-      }
-      // 先解封这个用户
-      await request.post(`http://localhost:3001/api/v1/admin/users/${bannedUser.id}/unban`, {
-        data: { reason: 'e2e auto-heal: need normal user for test' },
-        headers: { Authorization: `Bearer ${opToken}`, 'Content-Type': 'application/json' },
-      });
-      normalUser = bannedUser; // 现在这个用户是 normal 状态
-      console.log(`[TC-USER-00003] 自愈成功：用户 ${bannedUser.id} 已解封为 normal 状态`);
+      throw new Error('seed 未正确保证 normal 用户，请检查 seed-e2e.sql 幂等逻辑');
     }
     await request.post(`http://localhost:3001/api/v1/admin/users/${normalUser.id}/ban`, {
       data: { action: 'ban', ban_type: 'permanent', reason: 'e2e pre-condition' },

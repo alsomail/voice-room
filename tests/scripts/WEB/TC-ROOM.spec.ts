@@ -44,41 +44,19 @@ test.describe('TC-ROOM WEB - 房间监控', () => {
     await page.locator('.ant-select-item-option').filter({ hasText: '已关闭' }).click();
     await page.waitForTimeout(1500);
     await agent.aiAssert('表格行状态列均显示"已关闭"，或表格提示无数据');
-    // 重置为全部后测试分页
+    // 重置为全部后测试分页（T-0000R Round1：seed 已保证 ≥12 房间，分页必然可用）
     await page.locator('[data-testid="status-filter"] .ant-select-content').click();
     await page.waitForTimeout(500);
     await page.locator('.ant-select-item-option').filter({ hasText: '全部' }).first().click();
     await page.waitForTimeout(1000);
-    await agent.aiAction('点击分页控件的"下一页"或第 2 页按钮（如果存在）');
+    await agent.aiAction('点击分页控件的"下一页"或第 2 页按钮');
     await page.waitForTimeout(1500);
-    // BUG-WEB-002 fix: 当数据不足一页时无法翻到第2页，改为宽松断言
-    await agent.aiAssert('点击下一页后，分页控件或表格有响应（页码变化、或当前只有一页而未发生跳转均属正常）');
+    // T-0000R Round1 修复：seed 已保证 12 房间 + 默认 page_size=10 → 必然有第 2 页，真实验证分页功能
+    await agent.aiAssert('分页器当前页码显示为 2，且表格行刷新为第二页数据');
   });
 
-  test('TC-ROOM-00003: 详情弹窗 - 强制关闭完整闭环', async ({ page, request }) => {
-    // Pre-condition: verify there are active rooms (T-0000R 第二轮：自愈式前置)
-    const opToken = process.env.E2E_OP_TOKEN;
-    if (opToken) {
-      const activeResp = await request.get('http://localhost:3001/api/v1/admin/rooms?status=active&page_size=1', {
-        headers: { Authorization: `Bearer ${opToken}` },
-      });
-      const activeData = await activeResp.json() as { data: { total: number } };
-      if (!activeData.data?.total) {
-        // 自愈：通过 Docker psql 直接激活 3 个已关闭的房间（不依赖 AdminServer API）
-        console.log('[TC-ROOM-00003] 无活跃房间，执行自愈：重新激活 3 个已关闭房间');
-        const { execSync } = await import('child_process');
-        try {
-          const sqlCmd = `UPDATE rooms SET status='active', updated_at=now() WHERE id IN (SELECT id FROM rooms WHERE status='closed' AND deleted_at IS NULL LIMIT 3);`;
-          execSync(
-            `docker exec -i vr-postgres psql -U postgres -d voiceroom -c "${sqlCmd}"`,
-            { stdio: 'inherit', encoding: 'utf-8' }
-          );
-          console.log('[TC-ROOM-00003] 自愈成功：已激活 3 个房间');
-        } catch (err) {
-          throw new Error(`[TC-ROOM-00003] 自愈失败：无法通过 Docker 激活房间。原始错误: ${err}`);
-        }
-      }
-    }
+  test('TC-ROOM-00003: 详情弹窗 - 强制关闭完整闭环', async ({ page }) => {
+    // T-0000R Round1：seed 已幂等保证至少 9 个 active 房间，无需 spec 内自愈（移至 globalSetup 前置）
     const agent = await login(page);
     await page.goto('/rooms');
     await page.waitForLoadState('domcontentloaded');
