@@ -76,10 +76,17 @@ test.describe('TC-CHAT API - 公屏聊天', () => {
     test.setTimeout(15_000);
     const ws1 = await openWs(TOKEN);
     const ws2 = await openWs(TOKEN_B);
+    // Register BOTH JoinRoomResult listeners BEFORE awaiting either.
+    // Race-condition fix: if both JoinRoom sends are issued before any listener is up,
+    // ws2's JoinRoomResult could arrive while we are blocked awaiting jr1 — message lost.
+    const jr1P = recvUntil(ws1, (m) => m.type === 'JoinRoomResult', 5000);
+    const jr2P = recvUntil(ws2, (m) => m.type === 'JoinRoomResult', 5000);
     ws1.send(JSON.stringify({ type: 'JoinRoom', payload: { room_id: chatRoomId }, msg_id: 'jc1' }));
     ws2.send(JSON.stringify({ type: 'JoinRoom', payload: { room_id: chatRoomId }, msg_id: 'jc2' }));
-    await recvUntil(ws1, (m) => m.type === 'JoinRoomResult', 5000);
-    await recvUntil(ws2, (m) => m.type === 'JoinRoomResult', 5000);
+    const jr1 = await jr1P;
+    expect(jr1.code, `ws1 JoinRoom failed (chatRoomId=${chatRoomId}): code=${jr1.code}`).toBe(0);
+    const jr2 = await jr2P;
+    expect(jr2.code, `ws2 JoinRoom failed (chatRoomId=${chatRoomId}): code=${jr2.code}`).toBe(0);
     const msgId = `chat_${Date.now()}`;
     const content = 'hello e2e';
     // ws2 listens for broadcast RoomMessage

@@ -234,6 +234,7 @@ pub async fn handle_socket(
                                         room_manager: room_manager.clone(),
                                         registry: registry.clone(),
                                         stats: stats.clone(),
+                                        mic_lock: Some(mic_lock.clone()),
                                     };
                                     Some(
                                         crate::room::handler::handle_leave_room(
@@ -267,6 +268,7 @@ pub async fn handle_socket(
                                     let deps = crate::room::handler::LeaveMicDeps {
                                         room_manager: room_manager.clone(),
                                         registry: registry.clone(),
+                                        mic_lock: Some(mic_lock.clone()),
                                     };
                                     Some(
                                         crate::room::handler::handle_leave_mic(
@@ -466,6 +468,7 @@ pub async fn handle_socket(
         room_manager: room_manager.clone(),
         registry: registry.clone(),
         stats: stats.clone(),
+        mic_lock: Some(mic_lock.clone()),
     };
     do_leave_room(connection_id, user_id, &leave_deps).await;
 

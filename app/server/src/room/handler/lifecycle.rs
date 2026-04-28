@@ -24,6 +24,7 @@ use voice_room_shared::auth::room_access::decode_room_access_token;
 use crate::modules::auth::service::AuthService;
 use crate::modules::governance::kick::KickRedis;
 use crate::modules::room::service::RoomService;
+use crate::room::mic_lock::MicLock;
 use crate::stats::StatsPort;
 use crate::ws::registry::ConnectionRegistry;
 
@@ -243,6 +244,8 @@ pub struct LeaveRoomDeps {
     pub room_manager: Arc<RoomManager>,
     pub registry: Arc<ConnectionRegistry>,
     pub stats: Arc<dyn StatsPort>,
+    /// 抢麦分布式锁（T-00014 #4）；None = 跳过释放
+    pub mic_lock: Option<Arc<dyn MicLock>>,
 }
 
 // ─── do_leave_room ───────────────────────────────────────────────────────────
@@ -271,6 +274,13 @@ pub async fn do_leave_room(connection_id: Uuid, user_id: Uuid, deps: &LeaveRoomD
 
     // 4. 自动下麦（若在麦上），暂存麦位索引，广播延迟到 clear_room_id 之后
     let left_mic_index = room_state.leave_mic_slot(user_id);
+
+    // 4.1 释放分布式麦位锁（best-effort：锁已过期时忽略错误）
+    if let (Some(mic_index), Some(ref ml)) = (left_mic_index, &deps.mic_lock) {
+        if let Err(e) = ml.release(room_id, mic_index).await {
+            tracing::warn!(error=?e, %room_id, mic_index, "mic_lock release on disconnect failed (best-effort, ignored)");
+        }
+    }
 
     // 5. 先清除 room_id，使后续广播时自然排除离开者
     deps.registry.clear_room_id(connection_id);

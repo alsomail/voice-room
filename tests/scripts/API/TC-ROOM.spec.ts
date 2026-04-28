@@ -19,13 +19,17 @@ test.describe('TC-ROOM API - 房间', () => {
 
   test.beforeAll(() => {
     // 关闭 User A 所有活跃房间（包含 seed 房间），确保每轮从干净状态开始
+    // afterAll 会恢复 seed 房间，以免破坏后续 TC-CHAT/TC-MIC 套件
     const uid = process.env.E2E_USER_A_ID ?? '';
     if (uid) psql(`UPDATE rooms SET status='closed' WHERE owner_id='${uid}' AND status='active'`);
   });
   test.afterAll(() => {
     // 测试后清理 User A 创建的房间
     const uid = process.env.E2E_USER_A_ID ?? '';
+    const seedRoomId = process.env.E2E_ROOM_ID ?? '';
     if (uid) psql(`UPDATE rooms SET status='closed' WHERE owner_id='${uid}' AND status='active'`);
+    // 恢复 seed 房间为 active，避免后续套件（TC-CHAT/TC-MIC/TC-WS）因房间关闭而失败
+    if (seedRoomId) psql(`UPDATE rooms SET status='active' WHERE id='${seedRoomId}'`);
   });
 
   test('TC-ROOM-00001: 创建房间 201', async ({ request }) => {

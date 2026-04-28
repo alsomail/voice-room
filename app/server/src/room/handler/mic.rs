@@ -13,8 +13,6 @@ use crate::room::mic_lock::{MicLock, MIC_LOCK_TTL_SECS};
 use crate::room::state::RoomState;
 use crate::ws::registry::ConnectionRegistry;
 
-// ─── TakeMicDeps ─────────────────────────────────────────────────────────────
-
 /// `handle_take_mic` 所需的依赖。
 ///
 /// 上麦无需验证房间 active 状态，也不需要用户详情，比 `JoinRoomDeps` 更轻量。
@@ -93,28 +91,47 @@ pub async fn handle_take_mic(
 
     // ── 4.5 抢麦分布式锁（P2-12）— SET NX EX 短锁，跨进程并发抢麦只有一个胜出
     // fail-open：Redis 不可用时仅 warn，回退到 RoomState 进程内 RwLock 兜底。
-    if let Some(ref ml) = deps.mic_lock {
+    let mic_lock_acquired = if let Some(ref ml) = deps.mic_lock {
         match ml
             .try_acquire(room_id, mic_index, user_id, MIC_LOCK_TTL_SECS)
             .await
         {
-            Ok(true) => {} // 获锁成功，继续抢麦
+            Ok(true) => true, // 获锁成功，继续抢麦
             Ok(false) => {
                 return take_mic_error_response(msg_id, 40303, "slot already occupied");
             }
             Err(e) => {
                 tracing::warn!(error=?e, %room_id, mic_index, "mic_lock acquire failed; fallback to in-process lock");
+                false
             }
         }
-    }
+    } else {
+        false
+    };
 
     // ── 5. 原子占用麦位 ───────────────────────────────────────────────────────
     match room_state.take_mic_slot(mic_index, user_id) {
         Ok(()) => {}
         Err(TakeMicError::AlreadyOnMic) => {
+            // 释放刚刚获取的分布式锁（best-effort）
+            if mic_lock_acquired {
+                if let Some(ref ml) = deps.mic_lock {
+                    if let Err(e) = ml.release(room_id, mic_index).await {
+                        tracing::warn!(error=?e, %room_id, mic_index, "mic_lock release after AlreadyOnMic failed (best-effort)");
+                    }
+                }
+            }
             return take_mic_error_response(msg_id, 40301, "user already on mic");
         }
         Err(TakeMicError::SlotOccupied) => {
+            // 释放刚刚获取的分布式锁（best-effort）
+            if mic_lock_acquired {
+                if let Some(ref ml) = deps.mic_lock {
+                    if let Err(e) = ml.release(room_id, mic_index).await {
+                        tracing::warn!(error=?e, %room_id, mic_index, "mic_lock release after SlotOccupied failed (best-effort)");
+                    }
+                }
+            }
             return take_mic_error_response(msg_id, 40303, "slot already occupied");
         }
     }
@@ -160,6 +177,8 @@ fn take_mic_error_response(msg_id: Option<String>, code: i64, message: &str) -> 
 pub struct LeaveMicDeps {
     pub room_manager: Arc<RoomManager>,
     pub registry: Arc<ConnectionRegistry>,
+    /// 抢麦分布式锁（T-00014 #4 / P2-12）；None = 跳过（不需要释放）
+    pub mic_lock: Option<Arc<dyn MicLock>>,
 }
 
 // ─── handle_leave_mic ────────────────────────────────────────────────────────
@@ -196,6 +215,13 @@ pub async fn handle_leave_mic(
             return leave_mic_error_response(msg_id, 40304, "user not on mic");
         }
     };
+
+    // ── 3.5 释放分布式麦位锁（best-effort：锁已过期时忽略错误）────────────────
+    if let Some(ref ml) = deps.mic_lock {
+        if let Err(e) = ml.release(room_id, mic_index).await {
+            tracing::warn!(error=?e, %room_id, mic_index, "mic_lock release failed (best-effort, ignored)");
+        }
+    }
 
     // ── 4. 广播 MicLeft 给房间内所有连接（含请求方）— 走统一出口 broadcast_to_room
     broadcast_mic_left(&deps.registry, &room_state, mic_index, user_id, false);

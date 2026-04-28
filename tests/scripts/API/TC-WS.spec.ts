@@ -12,6 +12,7 @@ const ADMIN = process.env.ADMIN_SERVER_BASE_URL!;
 const T = process.env.E2E_VALID_TOKEN ?? '';
 const EXP = process.env.E2E_EXPIRED_TOKEN ?? '';
 const OP = process.env.E2E_OP_TOKEN ?? '';
+const MUTED = process.env.E2E_MUTED_TOKEN ?? '';
 const UID = process.env.E2E_USER_A_ID ?? '';
 // T-0000S: 容器化 redis-cli（优先 docker exec vr-redis）。
 const REDIS_PREFIX = resolveRedisCliMode() === 'docker'
@@ -121,31 +122,55 @@ test.describe('TC-WS API - WebSocket 网关', () => {
     // T-00042: room_closed broadcast implemented
     test.skip(!T || !OP, '需要 E2E_VALID_TOKEN / E2E_OP_TOKEN');
     const APP = process.env.APP_SERVER_BASE_URL!;
-    // Create a fresh room for this test to avoid destroying the shared E2E_ROOM_ID
+    // Pre-cleanup: close any leftover active rooms owned by MUTED user
+    // (prevents 409 / !RID skip if a previous run crashed without cleanup)
+    const MUTED_ID = process.env.E2E_MUTED_ID ?? 'f1ff1b29-aebd-5df5-82b3-e39a7af7437b';
+    try {
+      execSync(
+        `docker exec vr-postgres psql -U postgres -d voiceroom ` +
+        `-c "UPDATE rooms SET status='closed' WHERE owner_id='${MUTED_ID}' AND status='active';"`,
+        { stdio: 'pipe' },
+      );
+    } catch { /* ignore — DB may not be reachable via execSync in some envs */ }
+    // Create a fresh room using MUTED user (USER_A already has active room_main — unique constraint)
+    const creatorToken = MUTED || T;
     const createResp = await fetch(`${APP}/api/v1/rooms`, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${T}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: 'ws-e2e-close-room', room_type: 'public' }),
+      headers: { Authorization: `Bearer ${creatorToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'ws-e2e-close-room', room_type: 'normal' }),
     });
     const createBody = await createResp.json();
     const RID = createBody.data?.room_id ?? createBody.data?.id ?? '';
     test.skip(!RID, '无法创建测试用房间');
     const w = new WebSocket(`${WS}?token=${T}`);
-    await new Promise<void>((r) => w.once('open', () => r()));
-    w.send(JSON.stringify({ type: 'JoinRoom', room_id: RID, msg_id: 'jr6' }));
-    // Server sends type: "close_room" (T-00042 handler.rs room_closed_json)
-    const p = new Promise<any>((ok) => {
-      w.on('message', (d) => { const m = JSON.parse(d.toString()); if (m.type === 'close_room') ok(m); });
-    });
-    // Wait for JoinRoom to register in server's room state
-    await new Promise((r) => setTimeout(r, 300));
-    await fetch(`${ADMIN}/api/v1/admin/rooms/${RID}/force-close`, {
-      method: 'POST', headers: { Authorization: `Bearer ${OP}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ reason: 'ws-test' }),
-    });
-    const m = await Promise.race([p, new Promise((_, ko) => setTimeout(() => ko(new Error('t')), 5000))]);
-    expect((m as any).type).toBe('close_room');
-    w.close();
+    try {
+      await new Promise<void>((r) => w.once('open', () => r()));
+      w.send(JSON.stringify({ type: 'JoinRoom', payload: { room_id: RID }, msg_id: 'jr6' }));
+      // Server sends type: "close_room" (T-00042 handler.rs room_closed_json)
+      const p = new Promise<any>((ok) => {
+        w.on('message', (d) => { const m = JSON.parse(d.toString()); if (m.type === 'close_room') ok(m); });
+      });
+      // Wait for JoinRoom to register in server's room state (await JoinRoomResult before timing OP close)
+      await new Promise<void>((res, rej) => {
+        const t = setTimeout(() => rej(new Error('join timeout')), 3000);
+        w.on('message', (d) => { const m = JSON.parse(d.toString()); if (m.type === 'JoinRoomResult') { clearTimeout(t); res(); } });
+      });
+      // FIXED: admin force-close endpoint is DELETE /api/v1/admin/rooms/{id}
+      // (NOT POST /api/v1/admin/rooms/{id}/force-close — that route does not exist → 404)
+      await fetch(`${ADMIN}/api/v1/admin/rooms/${RID}`, {
+        method: 'DELETE', headers: { Authorization: `Bearer ${OP}` },
+      });
+      const m = await Promise.race([p, new Promise((_, ko) => setTimeout(() => ko(new Error('close_room broadcast timeout (5s)')), 5000))]);
+      expect((m as any).type).toBe('close_room');
+    } finally {
+      w.close();
+      // Post-cleanup: ensure test room is closed even if the test fails mid-way
+      try {
+        await fetch(`${ADMIN}/api/v1/admin/rooms/${RID}`, {
+          method: 'DELETE', headers: { Authorization: `Bearer ${OP}` },
+        });
+      } catch { /* ignore */ }
+    }
   });
 
   test('TC-WS-00007: 事件处理失败不影响主服务', async () => {

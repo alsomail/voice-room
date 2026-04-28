@@ -47,6 +47,11 @@ pub trait MicLock: Send + Sync {
         owner: Uuid,
         ttl_secs: u64,
     ) -> Result<bool, AppError>;
+
+    /// 主动释放 `(room_id, slot_index)` 的锁（LeaveMic 时调用）。
+    ///
+    /// 释放是 best-effort：若锁已过期或不存在，忽略错误。
+    async fn release(&self, room_id: Uuid, slot_index: usize) -> Result<(), AppError>;
 }
 
 /// Blanket impl：允许 `Arc<T: MicLock>` 透明用作 `&dyn MicLock`。
@@ -62,6 +67,10 @@ impl<T: MicLock + ?Sized> MicLock for Arc<T> {
         (**self)
             .try_acquire(room_id, slot_index, owner, ttl_secs)
             .await
+    }
+
+    async fn release(&self, room_id: Uuid, slot_index: usize) -> Result<(), AppError> {
+        (**self).release(room_id, slot_index).await
     }
 }
 
@@ -138,6 +147,12 @@ impl MicLock for FakeMicLock {
         );
         Ok(true)
     }
+
+    async fn release(&self, room_id: Uuid, slot_index: usize) -> Result<(), AppError> {
+        let key = lock_key(room_id, slot_index);
+        self.data.lock().unwrap().remove(&key);
+        Ok(())
+    }
 }
 
 // ─── RealMicLock（生产 Redis 实现）────────────────────────────────────────────
@@ -182,6 +197,21 @@ impl MicLock for RealMicLock {
             .map_err(|e| AppError::RedisError(e.to_string()))?;
         // SET NX：成功返回 "OK"，失败（已存在）返回 nil
         Ok(res.is_some())
+    }
+
+    async fn release(&self, room_id: Uuid, slot_index: usize) -> Result<(), AppError> {
+        let key = lock_key(room_id, slot_index);
+        let mut conn = self
+            .client
+            .get_multiplexed_async_connection()
+            .await
+            .map_err(|e| AppError::RedisError(e.to_string()))?;
+        let _: () = redis::cmd("DEL")
+            .arg(&key)
+            .query_async(&mut conn)
+            .await
+            .map_err(|e| AppError::RedisError(e.to_string()))?;
+        Ok(())
     }
 }
 

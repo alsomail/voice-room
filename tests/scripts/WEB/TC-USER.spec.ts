@@ -105,7 +105,7 @@ test.describe('TC-USER WEB - 用户管理', () => {
     // T-0000R Round1：seed 已幂等保证多个 normal 用户，直接封禁一个即可（无需 spec 内自愈）
     const opToken = process.env.E2E_OP_TOKEN;
     if (!opToken) { test.skip(); return; }
-    const usersResp = await request.get('http://localhost:3001/api/v1/admin/users?page=1&page_size=20', {
+    const usersResp = await request.get('http://localhost:3001/api/v1/admin/users?page=1&page_size=20&status=normal', {
       headers: { Authorization: `Bearer ${opToken}` },
     });
     const usersData = await usersResp.json() as { data: { items: Array<{ id: string; status: string }> } };

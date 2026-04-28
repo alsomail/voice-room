@@ -460,6 +460,7 @@ mod tests {
             room_manager: room_manager.clone(),
             registry: registry.clone(),
             stats: stats.clone(),
+            mic_lock: None,
         }
     }
 
@@ -1218,6 +1219,7 @@ mod tests {
         LeaveMicDeps {
             room_manager: room_manager.clone(),
             registry: registry.clone(),
+            mic_lock: None,
         }
     }
 
