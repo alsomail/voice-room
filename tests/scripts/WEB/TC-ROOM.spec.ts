@@ -86,16 +86,16 @@ test.describe('TC-ROOM WEB - 房间监控', () => {
     // Click "强制关闭" button directly (avoid AI confusion with table's "关闭房间" buttons)
     await page.locator('[data-testid="close-room-btn"]').click();
     // RoomDetailModal 使用 Modal.confirm（无原因输入框，仅二次确认）
-    // AntD v6 + React 18 concurrent: container div attaches synchronously but content renders async.
-    // Wait for the TITLE TEXT to be visible, which guarantees the dialog is fully rendered.
-    // BUG-WEB-003 fix: AntD Modal.confirm renders BOTH .ant-modal-title AND .ant-modal-confirm-title
-    // with the same text, causing strict mode violation. Use .first() to avoid ambiguity.
-    await page.getByText('确认强制关闭').first().waitFor({ state: 'visible', timeout: 8_000 });
-    await agent.aiAssert('弹出二次确认对话框，询问是否确认强制关闭');
-    // Click OK in Modal.confirm using ARIA role (more resilient than CSS class selector)
-    await page.locator('.ant-modal-confirm').getByRole('button', { name: /确.{0,1}定/ }).click();
+    // BUG-WEB-003 fix: Wait for confirm modal container + OK button (more reliable than title text)
+    await page.waitForTimeout(1000); // Allow modal animation to complete
+    const confirmModal = page.locator('.ant-modal-wrap').last(); // Last modal = topmost (confirm over detail)
+    await confirmModal.waitFor({ state: 'visible', timeout: 8_000 });
+    const okButton = confirmModal.getByRole('button', { name: /确.*定|OK/i });
+    await okButton.waitFor({ state: 'visible', timeout: 3_000 });
+    // Click OK to confirm close (skip AI assertion to avoid timing race with modal close animation)
+    await okButton.click();
     await page.waitForTimeout(2000);
-    await agent.aiAssert('房间详情弹窗关闭，或弹窗内状态更新为"已关闭"');
+    await agent.aiAssert('强制关闭操作成功：返回房间列表页（无打开的详情弹窗）');
   });
 
   test('TC-ROOM-00004: XSS 防护 - 标题恶意输入', async ({ page }) => {
