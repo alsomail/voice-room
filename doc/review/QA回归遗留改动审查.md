@@ -20,7 +20,7 @@
 ## 1. 审查上下文
 
 - **关联任务（门禁连带）**：
-  - **T-00042**（Admin 强制断连 / 模块 8）：本批次内 `app/server/src/main.rs` 是其 admin 事件订阅 task 的真集成点 —— 之前 `批次-架构阻塞修复-业务侧.md` Round 1 ✅ 通过的范围只包含 service / events 模块，未覆盖 main.rs spawn 入口；本批次补做 **T-00042 Round 2 增量审查**。审查通过前，T-00042 主表 Overall Gate 已临时撤回为 `⏳ Pending`。
+  - **T-00042**（Admin 强制断连 / 模块 8）：本批次内 `app/server/src/main.rs` 是其 admin 事件订阅 task 的真集成点 —— 之前 `模块3-6-8-架构阻塞修复.md` Round 1 ✅ 通过的范围只包含 service / events 模块，未覆盖 main.rs spawn 入口；本批次补做 **T-00042 Round 2 增量审查**。审查通过前，T-00042 主表 Overall Gate 已临时撤回为 `⏳ Pending`。
   - **T-0000P**（Midscene env 注入 / 模块 9）：本批次内 i18n 默认值切换 + 9 个 WEB 测试自愈属于 P 之后的 web e2e 缺陷面，**本批次不修复 9 个 WEB FAIL**（由 product-manager 拆新 Task 处理）。T-0000P Review/QA Gate 不受本批次影响，但 Overall Gate 从越权 `✅ Released` 修正为 `⚠️ Conditional`（带 9 WEB FAIL pending 备注）。
 - **关联 TDS**：
   - [T-00042](../tds/server/T-00042.md)（追加 Round 2 main.rs 集成审查记录）
