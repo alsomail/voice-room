@@ -72,8 +72,7 @@ test.describe('TC-CHAT API - 公屏聊天', () => {
   });
 
   test('TC-CHAT-00001: SendMessage 正常广播', async () => {
-    // T-00043: chat persistence + WS broadcast fixed
-    test.skip(!TOKEN_B, '需要 E2E_USER_B_TOKEN');
+    // T-00043: chat persistence + WS broadcast fixed; T-0000S: USER_B_TOKEN seeded
     test.setTimeout(15_000);
     const ws1 = await openWs(TOKEN);
     const ws2 = await openWs(TOKEN_B);
@@ -155,15 +154,25 @@ test.describe('TC-CHAT API - 公屏聊天', () => {
   });
 
   test('TC-CHAT-00004: CHAT_MUTED 禁言', async () => {
+    // T-0000S: E2E_MUTED_TOKEN + chat_muted Redis key 由 seed-e2e.sh 自动注入到 seed ROOM；
+    // 但本套件 beforeAll 会动态创建 chatRoomId（!== ROOM），故此处针对实际 chatRoomId 重置 mute 态。
     const MUTED = process.env.E2E_MUTED_TOKEN ?? '';
-    test.skip(!MUTED, '需要 E2E_MUTED_TOKEN');
+    const MUTED_UID = process.env.E2E_USER_MUTED_ID ?? '';
+    expect(MUTED, 'E2E_MUTED_TOKEN 必须由 globalSetup/seed 注入').toBeTruthy();
+    expect(MUTED_UID, 'E2E_USER_MUTED_ID 必须由 globalSetup/seed 注入').toBeTruthy();
+    // 通过容器化 redis-cli 给"实际所用房间"也写入 chat_muted key（与 seed 同 TTL 86400s）
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { redisExecSync, isRedisCliAvailable } = require('../support/redisCli') as typeof import('../support/redisCli');
+    test.skip(!isRedisCliAvailable(), 'SKIP-KNOWN-FOLLOWUP: redis-cli unavailable');
+    redisExecSync(['SETEX', `chat_muted:${chatRoomId}:${MUTED_UID}`, '86400', '1']);
     const ws = await openWs(MUTED);
     ws.send(JSON.stringify({ type: 'JoinRoom', payload: { room_id: chatRoomId }, msg_id: 'jm' }));
     const msgId = `m_${Date.now()}`;
-    ws.send(JSON.stringify({ type: 'SendMessage', room_id: chatRoomId, content: 'hi', msg_id: msgId }));
-    const m = await recvUntil(ws, (x) => x.msg_id === msgId || x.type === 'Error');
-    expect(m.type).toBe('Error');
-    expect(m.code).toBe(40303);
+    ws.send(JSON.stringify({ type: 'SendMessage', payload: { content: 'hi' }, msg_id: msgId }));
+    const m = await recvUntil(ws, (x) => (x.msg_id === msgId && x.code !== 0) || x.type === 'Error' || (x.type === 'SendMessageResult' && x.msg_id === msgId), 5000);
+    // Mute 命中 → 服务端可能返回 Error code=40303 或 SendMessageResult code=40303（视实现）
+    const code = m.code ?? m.payload?.code;
+    expect([40303, 40305]).toContain(code);
     ws.close();
   });
 

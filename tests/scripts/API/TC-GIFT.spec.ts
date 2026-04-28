@@ -4,6 +4,7 @@
  */
 import { test, expect } from '@playwright/test';
 import { execSync } from 'child_process';
+import { resolveRedisCliMode, isRedisCliAvailable } from '../support/redisCli';
 
 const APP = process.env.APP_SERVER_BASE_URL!;
 const ADMIN = process.env.ADMIN_SERVER_BASE_URL!;
@@ -16,14 +17,18 @@ const A = process.env.E2E_USER_A_ID ?? '';
 const B = process.env.E2E_USER_B_ID ?? '';
 const psql = (s: string) =>
   execSync(`psql "${process.env.DATABASE_URL}" -tA -c "${s.replace(/"/g, '\\"')}"`, { encoding: 'utf-8' }).trim();
-const redis = (s: string) => execSync(`redis-cli ${s}`, { encoding: 'utf-8' }).trim();
-const hasRedisCli = (() => { try { execSync('redis-cli --version', { stdio: 'pipe' }); return true; } catch { return false; } })();
+// T-0000S: redis-cli 容器化（优先 docker exec vr-redis）。
+const REDIS_PREFIX = resolveRedisCliMode() === 'docker'
+  ? 'docker exec vr-redis redis-cli'
+  : 'redis-cli';
+const redis = (s: string) => execSync(`${REDIS_PREFIX} ${s}`, { encoding: 'utf-8' }).trim();
+const hasRedisCli = isRedisCliAvailable();
 
 test.describe('TC-GIFT API - 礼物', () => {
   test.describe.configure({ mode: 'serial' });
   test('TC-GIFT-00001: 礼物列表 排序 + 缓存 + Accept-Language', async ({ request }) => {
     test.skip(!T, '需要 E2E_VALID_TOKEN');
-    test.skip(!hasRedisCli, 'SKIP-KNOWN: redis-cli not in PATH (需要 redis-cli 清理 gift list 缓存)');
+    test.skip(!hasRedisCli, 'SKIP-KNOWN-FOLLOWUP: redis-cli unavailable (neither docker nor PATH)');
     redis('DEL gifts:list:zh-CN gifts:list:ar');
     const r1 = await request.get(`${APP}/api/v1/gifts/list`, {
       headers: { Authorization: `Bearer ${T}`, 'Accept-Language': 'zh-CN' },

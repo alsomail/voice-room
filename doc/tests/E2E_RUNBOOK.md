@@ -225,6 +225,40 @@ PowerShell / cmd.exe 单引号不剥离，导致 `--grep` 收到字面 `'@prod-s
 
 ---
 
+## §7.5 特殊角色 Token / redis-cli 自动注入说明（T-0000S）
+
+> 为消除 API 套件长期 26 个 SKIP-KNOWN（"环境/fixture 缺失"而非逻辑漏洞），seed-e2e.sh + globalSetup 已自动注入 USER_B / MUTED 两个特殊角色 token 与容器化 `redis-cli` 调用入口。开发者**无需任何额外配置**即可让原 SKIP 用例默认跑通。
+
+### 三个特殊角色 token 的构造与作用
+
+| Token 环境变量 | sub（uuid5(name) E2E ns） | iss / role | 用途 | 注入路径 |
+|---|---|---|---|---|
+| `E2E_VALID_TOKEN` | `uuid5(user_a)` = `98026d7e-...` | `voiceroom` / 普通用户 | 通用合法 C 端 token | seed-e2e.sh → .seed-output.env |
+| `E2E_USER_B_TOKEN` | `uuid5(user_b)` = `584a89d8-...` | `voiceroom` / 普通用户 | 第二个普通用户，用于"双人房"场景：TC-MIC（4 用例）/ TC-CHAT-00001 / TC-GIFT 双向送礼 | seed-e2e.sh →  .seed-output.env（**T-0000S 新增**） |
+| `E2E_MUTED_TOKEN` | `uuid5(user_muted)` = `f1ff1b29-...` | `voiceroom` / 普通用户 | 已禁言用户，用于 TC-CHAT-00004（CHAT_MUTED 40303） | seed-e2e.sh → .seed-output.env（**T-0000S 新增**） |
+| `E2E_OP_TOKEN` | `uuid5(admin_op)` | `voiceroom-admin` / `operator` | Admin 运营角色 token | 已由 seed-e2e.sh 注入（T-0000G） |
+
+> **禁言态**真值并非 token 内 `muted` claim（AppClaims 不含此字段），而是 Redis key `chat_muted:{ROOM_ID}:{USER_MUTED_ID}` 的存在性。`scripts/dev/seed-e2e.sh` 末尾通过 `docker exec vr-redis redis-cli SETEX chat_muted:... 86400 1` 写入；TTL 与 token 寿命一致（24h），重跑 seed 即续期。
+
+### redis-cli 容器化（docker exec → native fallback）
+
+API 套件中 TC-AUTH（13）/ TC-WS（3）/ TC-RANKING（1）/ TC-GIFT（1）共 18 个用例需要直接读写 Redis。原实现要求宿主 `brew install redis` 把 `redis-cli` 装到 PATH，否则全部 `SKIP-KNOWN`。T-0000S 改为：
+
+1. **优先** `docker exec vr-redis redis-cli ...`（与 `docker-compose.yml` `container_name: vr-redis` 对接，零额外依赖）；
+2. **回退** 宿主 PATH 中的 `redis-cli`（保留传统路径）；
+3. 都不可用时 `isRedisCliAvailable() === false` → 用例打 `SKIP-KNOWN-FOLLOWUP`（不再失败）。
+
+实现入口：[`tests/scripts/support/redisCli.ts`](../../tests/scripts/support/redisCli.ts)。`globalSetup` 启动时会日志记录当前 mode（`docker` / `native` / `unavailable`）。
+
+### 解锁进度
+
+- **本 Task 直接解锁**：26 / 29 SKIP-KNOWN 用例（USER_B + MUTED + redis-cli 容器化覆盖区）。
+- **剩余 3 个**由 follow-up T-0000T 收口：
+  - TC-INFRA-00001 / TC-INFRA-00002（Docker 控制权限：要求 Playwright 进程能 `docker stop vr-postgres / vr-redis` 模拟服务挂掉）
+  - TC-INFRA-Q-I-2（干净端口环境：要求 5432/6379 未被占用以验证 preflight 报错）
+
+
+
 ## §8 附录：相关文档锚点表
 
 | 主题 | 文档锚点 |

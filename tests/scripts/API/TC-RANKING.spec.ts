@@ -4,11 +4,15 @@
  */
 import { test, expect } from '@playwright/test';
 import { execSync } from 'child_process';
+import { resolveRedisCliMode, isRedisCliAvailable } from '../support/redisCli';
 
 const APP = process.env.APP_SERVER_BASE_URL!;
 const T = process.env.E2E_VALID_TOKEN ?? '';
-const redis = (s: string) => execSync(`redis-cli ${s}`, { encoding: 'utf-8' }).trim();
-const hasRedisCli = (() => { try { execSync('redis-cli --version', { stdio: 'pipe' }); return true; } catch { return false; } })();
+const REDIS_PREFIX = resolveRedisCliMode() === 'docker'
+  ? 'docker exec vr-redis redis-cli'
+  : 'redis-cli';
+const redis = (s: string) => execSync(`${REDIS_PREFIX} ${s}`, { encoding: 'utf-8' }).trim();
+const hasRedisCli = isRedisCliAvailable();
 
 test.describe('TC-RANKING API - 排行榜', () => {
   test.skip(!T, '需要 E2E_VALID_TOKEN');
@@ -58,9 +62,9 @@ test.describe('TC-RANKING API - 排行榜', () => {
   });
 
   test('TC-RANKING-00004: 日/周键 归档', async () => {
-    test.skip(!hasRedisCli, 'SKIP-KNOWN: redis-cli not in PATH');
+    test.skip(!hasRedisCli, 'SKIP-KNOWN-FOLLOWUP: redis-cli unavailable (neither docker nor PATH)');
     // UTC+3 的 day key 格式 ranking:send:day:YYYYMMDD
-    const allKeys = execSync("redis-cli KEYS 'ranking:*:day:*'", { encoding: 'utf-8' }).trim().split('\n').filter(Boolean);
+    const allKeys = execSync(`${REDIS_PREFIX} KEYS 'ranking:*:day:*'`, { encoding: 'utf-8' }).trim().split('\n').filter(Boolean);
     // Filter to keys ending with 8-digit date (e.g. 20260427), excluding test-created keys
     const keys = allKeys.filter(k => /\d{8}$/.test(k));
     expect(keys.length).toBeGreaterThanOrEqual(0);

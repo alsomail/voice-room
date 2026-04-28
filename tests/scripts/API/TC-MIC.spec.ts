@@ -34,8 +34,7 @@ test.describe('TC-MIC API - 麦位', () => {
   test.skip(!T || !ROOM, '需要 Token/房间');
 
   test('TC-MIC-00001: 上麦空位成功 + 广播', async () => {
-    // T-00042: WS broadcast fixed
-    test.skip(!TB, '需要 E2E_USER_B_TOKEN');
+    // T-00042: WS broadcast fixed; T-0000S: USER_B_TOKEN 由 seed 自动注入
     test.setTimeout(10_000);
     const a = await open(T); const b = await open(TB);
     await join(a, 'ja1'); await join(b, 'jb1');
@@ -55,8 +54,7 @@ test.describe('TC-MIC API - 麦位', () => {
   });
 
   test('TC-MIC-00002: 麦位被占返回错误', async () => {
-    // T-00042: WS broadcast fixed; test seat-occupied error
-    test.skip(!TB, '需要 E2E_USER_B_TOKEN');
+    // T-00042: WS broadcast fixed; test seat-occupied error; T-0000S: USER_B_TOKEN seeded
     test.setTimeout(10_000);
     const a = await open(T); const b = await open(TB);
     await join(a, 'ja2'); await join(b, 'jb2');
@@ -87,7 +85,7 @@ test.describe('TC-MIC API - 麦位', () => {
   });
 
   test('TC-MIC-00004: 并发抢同一空位仅一成功', async () => {
-    test.skip(!TB, '需要 E2E_USER_B_TOKEN');
+    // T-0000S: USER_B_TOKEN seeded
     const a = await open(T); const b = await open(TB);
     await join(a, 'ca'); await join(b, 'cb');
     a.send(JSON.stringify({ type: 'TakeMic', room_id: ROOM, seat: 6, msg_id: `race_a` }));
@@ -99,7 +97,7 @@ test.describe('TC-MIC API - 麦位', () => {
   });
 
   test('TC-MIC-00005: 仅本人/房主可下麦', async () => {
-    test.skip(!TB, '需要 E2E_USER_B_TOKEN');
+    // T-0000S: USER_B_TOKEN seeded
     const a = await open(T); const b = await open(TB);
     await join(a, 'la'); await join(b, 'lb');
     a.send(JSON.stringify({ type: 'TakeMic', room_id: ROOM, seat: 7, msg_id: 'la2' }));
@@ -112,7 +110,7 @@ test.describe('TC-MIC API - 麦位', () => {
   });
 
   test('TC-MIC-00006: MuteUser / TransferAdmin 房主权限 + 幂等', async () => {
-    test.skip(!OWNER || !TB, '需要 OWNER/B Token');
+    test.skip(!OWNER, '需要 E2E_ROOM_OWNER_TOKEN（房主 token，未由 seed 注入；如需可手动设置或 follow-up）');
     const o = await open(OWNER);
     await join(o, 'jo');
     const BID = process.env.E2E_USER_B_ID ?? '';

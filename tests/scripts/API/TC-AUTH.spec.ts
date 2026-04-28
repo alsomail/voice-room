@@ -8,14 +8,19 @@
  */
 import { test, expect, request as playwrightRequest } from '@playwright/test';
 import { execSync } from 'child_process';
+import { resolveRedisCliMode, isRedisCliAvailable } from '../support/redisCli';
 
 const APP_BASE = process.env.APP_SERVER_BASE_URL!;
 const ADMIN_BASE = process.env.ADMIN_SERVER_BASE_URL!;
 
+// T-0000S: redis-cli 容器化 — 优先 `docker exec vr-redis redis-cli`，回退本地 PATH。
+const REDIS_PREFIX = resolveRedisCliMode() === 'docker'
+  ? 'docker exec vr-redis redis-cli'
+  : 'redis-cli';
 const redis = (cmd: string): string =>
-  execSync(`redis-cli ${cmd}`, { encoding: 'utf-8' }).trim();
+  execSync(`${REDIS_PREFIX} ${cmd}`, { encoding: 'utf-8' }).trim();
 
-const hasRedisCli = (() => { try { execSync('redis-cli --version', { stdio: 'pipe' }); return true; } catch { return false; } })();
+const hasRedisCli = isRedisCliAvailable();
 
 const psql = (sql: string): string =>
   execSync(
@@ -25,9 +30,9 @@ const psql = (sql: string): string =>
 
 test.describe('TC-AUTH API - 用户认证', () => {
   test.describe.configure({ mode: 'serial' });
-  // All TC-AUTH tests depend on redis-cli for SMS code setup/teardown
+  // T-0000S: redis-cli 已由 globalSetup 容器化探测；此处仅保留极端 fallback skip（docker 与本地 PATH 都缺）。
   test.beforeEach(() => {
-    test.skip(!hasRedisCli, 'SKIP-KNOWN: redis-cli not in PATH (需要 redis-cli 操作 SMS 缓存)');
+    test.skip(!hasRedisCli, 'SKIP-KNOWN-FOLLOWUP: neither docker(vr-redis) nor system redis-cli available');
   });
   test('TC-AUTH-00001: 发送验证码 - 合法沙特手机号首次成功', async ({ request }) => {
     const phone = '+966512345678';

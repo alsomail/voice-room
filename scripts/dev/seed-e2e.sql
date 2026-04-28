@@ -10,7 +10,8 @@
 --   - admins.role 合法枚举 = super_admin|operator|cs|finance（非 TDS 描述的 admin/op/cs/fin 简写）
 --
 -- 入参变量（由 wrapper 通过 psql -v 注入）：
---   :user_a_id :user_b_id :room_id :admin_super_id :admin_op_id :admin_cs_id :admin_fin_id
+--   :user_a_id :user_b_id :user_muted_id :room_id :admin_super_id :admin_op_id :admin_cs_id :admin_fin_id
+--   T-0000S 新增：:user_muted_id（与 chat_muted:{room}:{user} Redis key 对接）
 
 \set ON_ERROR_STOP on
 
@@ -21,8 +22,9 @@ BEGIN;
 -- ============================================================================
 INSERT INTO users (id, phone, nickname, is_banned, coin_balance, diamond_balance, vip_level, created_at, updated_at)
 VALUES
-    (:'user_a_id'::uuid, '+966500000900', 'E2E User A', FALSE, 100000, 100000, 0, '2026-01-01 00:00:00+00', now()),
-    (:'user_b_id'::uuid, '+966500000901', 'E2E User B', FALSE, 100000, 100000, 0, '2026-01-01 00:00:00+00', now())
+    (:'user_a_id'::uuid,     '+966500000900', 'E2E User A',     FALSE, 100000, 100000, 0, '2026-01-01 00:00:00+00', now()),
+    (:'user_b_id'::uuid,     '+966500000901', 'E2E User B',     FALSE, 100000, 100000, 0, '2026-01-01 00:00:00+00', now()),
+    (:'user_muted_id'::uuid, '+966500000902', 'E2E User Muted', FALSE, 100000, 100000, 0, '2026-01-01 00:00:00+00', now())
 ON CONFLICT (id) DO UPDATE SET
     phone      = EXCLUDED.phone,
     nickname   = EXCLUDED.nickname,
@@ -72,7 +74,7 @@ COMMIT;
 
 -- 行数断言（machine-readable，wrapper 校验幂等）
 \echo '--seed-counts--'
-SELECT 'users:'   AS k, COUNT(*) AS n FROM users  WHERE id IN (:'user_a_id'::uuid, :'user_b_id'::uuid) AND deleted_at IS NULL
+SELECT 'users:'   AS k, COUNT(*) AS n FROM users  WHERE id IN (:'user_a_id'::uuid, :'user_b_id'::uuid, :'user_muted_id'::uuid) AND deleted_at IS NULL
 UNION ALL
 SELECT 'admins:'  AS k, COUNT(*) AS n FROM admins WHERE username IN ('e2e_admin','e2e_op','e2e_cs','e2e_fin')
 UNION ALL

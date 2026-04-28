@@ -103,6 +103,32 @@ export async function runGlobalSetup(deps: SetupDeps): Promise<void> {
       for (const [k, v] of Object.entries(parsed)) process.env[k] = v;
       env = loadE2EEnv({ cwd: deps.cwd });
     }
+
+    // T-0000S：fail-fast 校验 USER_B / MUTED token + USER_MUTED_ID 已被 seed 注入。
+    // 这三项是 26/29 SKIP-KNOWN 用例的解锁前提，缺失即认为 seed 失败。
+    const requiredFromSeed = ['E2E_USER_B_TOKEN', 'E2E_MUTED_TOKEN', 'E2E_USER_MUTED_ID'] as const;
+    const missingSeed = requiredFromSeed.filter((k) => !process.env[k]);
+    if (missingSeed.length > 0) {
+      process.stderr.write(`${ciTag} seed completed but missing required keys: ${missingSeed.join(', ')}\n`);
+      deps.exit(22);
+      throw new Error('seed missing required keys');
+    }
+
+    // T-0000S：诊断 redis-cli 容器化路径（不阻塞，仅日志）。
+    try {
+      // 延迟 require 以避免 unit-config 加载 globalSetup 时副作用
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { resolveRedisCliMode, _resetRedisCliCacheForTest } = require('./redisCli') as typeof import('./redisCli');
+      _resetRedisCliCacheForTest();
+      const mode = resolveRedisCliMode(undefined, { useCache: true });
+      // eslint-disable-next-line no-console
+      console.log(`${ciTag} redis-cli mode = ${mode} (docker→native→unavailable)`);
+      if (mode === 'unavailable') {
+        process.stderr.write(`${ciTag} WARN: redis-cli unavailable; TC-AUTH/TC-WS/TC-RANKING redis-dependent cases will SKIP-KNOWN-FOLLOWUP\n`);
+      }
+    } catch (e) {
+      process.stderr.write(`${ciTag} WARN: redisCli probe failed: ${(e as Error).message}\n`);
+    }
   }
 
   // ── Step 4：writeProcessEnv ──

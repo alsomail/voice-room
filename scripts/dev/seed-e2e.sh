@@ -78,6 +78,7 @@ sign() {
 echo "[seed] step=2 computing deterministic UUIDv5 ids"
 USER_A_ID=$(uuid5 user_a)
 USER_B_ID=$(uuid5 user_b)
+USER_MUTED_ID=$(uuid5 user_muted)
 ROOM_ID=$(uuid5 room_main)
 ADMIN_SUPER_ID=$(uuid5 admin_super)
 ADMIN_OP_ID=$(uuid5 admin_op)
@@ -87,6 +88,8 @@ ADMIN_DISABLED_ID=$(uuid5 admin_disabled)
 
 echo "[seed] step=3 signing JWT tokens (ttl=${TTL}s)"
 VALID_TOKEN=$(sign "${APP_SECRET}"   "${USER_A_ID}"     user  "${TTL}")
+USER_B_TOKEN=$(sign "${APP_SECRET}"  "${USER_B_ID}"     user  "${TTL}")
+MUTED_TOKEN=$(sign "${APP_SECRET}"   "${USER_MUTED_ID}" user  "${TTL}")
 ADMIN_TOKEN=$(sign "${ADMIN_SECRET}" "${ADMIN_SUPER_ID}" admin "${TTL}")
 OP_TOKEN=$(sign    "${ADMIN_SECRET}" "${ADMIN_OP_ID}"    op    "${TTL}")
 CS_TOKEN=$(sign    "${ADMIN_SECRET}" "${ADMIN_CS_ID}"    cs    "${TTL}")
@@ -98,6 +101,7 @@ PSQL_ARGS=(
     -v "ON_ERROR_STOP=1"
     -v "user_a_id=${USER_A_ID}"
     -v "user_b_id=${USER_B_ID}"
+    -v "user_muted_id=${USER_MUTED_ID}"
     -v "room_id=${ROOM_ID}"
     -v "admin_super_id=${ADMIN_SUPER_ID}"
     -v "admin_op_id=${ADMIN_OP_ID}"
@@ -127,8 +131,11 @@ cat > "${OUT_FILE}" <<EOF
 # DO NOT COMMIT. .gitignore covers this file.
 E2E_USER_A_ID=${USER_A_ID}
 E2E_USER_B_ID=${USER_B_ID}
+E2E_USER_MUTED_ID=${USER_MUTED_ID}
 E2E_ROOM_ID=${ROOM_ID}
 E2E_VALID_TOKEN=${VALID_TOKEN}
+E2E_USER_B_TOKEN=${USER_B_TOKEN}
+E2E_MUTED_TOKEN=${MUTED_TOKEN}
 E2E_ADMIN_TOKEN=${ADMIN_TOKEN}
 E2E_OP_TOKEN=${OP_TOKEN}
 E2E_CS_TOKEN=${CS_TOKEN}
@@ -136,4 +143,25 @@ E2E_FIN_TOKEN=${FIN_TOKEN}
 EOF
 
 echo "seed: wrote scripts/dev/.seed-output.env"
+
+# -------- 7. T-0000S: 写入禁言态到 Redis（chat_muted:{room}:{user_muted}） --------
+# 真值：app/server/src/modules/governance/mute.rs 读取 key `chat_muted:{room_id}:{user_id}`，
+# 命中即在 SendMessage 前置返回 40303。TTL 86400s 与 token 一致（24h）。
+# 容器名：vr-redis（docker-compose.yml `container_name: vr-redis`）。
+# 失败仅 warn，不阻塞 seed 整体退出码（globalSetup 会再做一次自检诊断）。
+if command -v docker >/dev/null 2>&1 && docker ps --format '{{.Names}}' 2>/dev/null | grep -q '^vr-redis$'; then
+    if docker exec vr-redis redis-cli SETEX "chat_muted:${ROOM_ID}:${USER_MUTED_ID}" 86400 1 >/dev/null 2>&1; then
+        echo "[seed] step=5 chat_muted Redis key set via docker exec vr-redis"
+    else
+        echo "[seed] step=5 WARN: failed to SETEX chat_muted via docker exec vr-redis (TC-CHAT-00004 may skip)" >&2
+    fi
+elif command -v redis-cli >/dev/null 2>&1; then
+    if redis-cli SETEX "chat_muted:${ROOM_ID}:${USER_MUTED_ID}" 86400 1 >/dev/null 2>&1; then
+        echo "[seed] step=5 chat_muted Redis key set via local redis-cli"
+    else
+        echo "[seed] step=5 WARN: failed to SETEX chat_muted via local redis-cli" >&2
+    fi
+else
+    echo "[seed] step=5 WARN: no docker(vr-redis) nor redis-cli; skipping mute state injection" >&2
+fi
 exit 0

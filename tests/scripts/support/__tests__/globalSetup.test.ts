@@ -103,7 +103,7 @@ test.describe('globalSetup', () => {
       { exit: 0, onCall: () => {                      // seed → 写 .seed-output.env
         fs.writeFileSync(
           path.join(cwd, 'scripts', 'dev', '.seed-output.env'),
-          'E2E_VALID_TOKEN=seeded-tok-valid\nE2E_ROOM_ID=seeded-room\nE2E_USER_A_ID=seeded-a\nE2E_USER_B_ID=seeded-b\nE2E_EXPIRED_TOKEN=seeded-exp\n',
+          'E2E_VALID_TOKEN=seeded-tok-valid\nE2E_ROOM_ID=seeded-room\nE2E_USER_A_ID=seeded-a\nE2E_USER_B_ID=seeded-b\nE2E_EXPIRED_TOKEN=seeded-exp\nE2E_USER_B_TOKEN=seeded-tok-b\nE2E_MUTED_TOKEN=seeded-tok-muted\nE2E_USER_MUTED_ID=seeded-muted\n',
         );
       } },
     ]);
