@@ -29,7 +29,7 @@ npm run stop
 | `npm run stop`    | 按 `.e2e-up.pids` 停业务进程，docker 容器保留                        |
 | `npm run e2e:up`  | **严格模式**：端口被占用即 fail（CI/干净环境用）                     |
 | `npm run preflight` | fail-fast 健康检查，10s 内出结果                                   |
-| `npm run db:seed` | 灌 E2E 测试种子数据                                                   |
+| `npm run db:seed` | 灌 E2E 测试种子数据（详见 §11）                                       |
 | `npm run db:reset`| 清理 E2E 测试数据                                                     |
 
 ---
@@ -471,6 +471,104 @@ local.properties > ENV (VOICE_ROOM_*) > flavor 默认值
 - E2E 测试 RUNBOOK：`doc/tests/E2E_RUNBOOK.md`
 - 排障 SOP：`doc/DEBUG_SOP.md`
 - Server / AdminServer / Web / Android 各端架构：`doc/arch/<端>/index.md`
+
+---
+
+## 11. 测试账号
+
+### 11.1 后台 Admin（开箱可用，无需 seed）
+
+由迁移 `app/adminServer/migrations/003_seed_super_admin.sql` 内置：
+
+| 用户名         | 密码                          | 角色          |
+| -------------- | ----------------------------- | ------------- |
+| `super_admin`  | `admin_password_change_me`    | super_admin   |
+
+> ⚠️ 生产环境务必修改默认密码，或在迁移层用 secret store 注入。
+
+登录拿 token：
+
+```bash
+curl -X POST http://localhost:3001/api/v1/admin/login \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"super_admin","password":"admin_password_change_me"}'
+# 响应：{ "data": { "token": "<JWT>", "expires_in": 86400 }, "code": 200 }
+```
+
+### 11.2 跑 seed 后追加的账号
+
+```bash
+npm run db:seed                        # 幂等，重复跑安全
+cat scripts/dev/.seed-output.env       # 看签好的 token
+```
+
+#### Admin 扩展（`scripts/dev/seed-e2e.sql`）
+
+| 用户名         | 密码                          | 角色          | 状态      |
+| -------------- | ----------------------------- | ------------- | --------- |
+| `e2e_admin`    | `admin_password_change_me`    | super_admin   | ✅ 启用   |
+| `e2e_op`       | `admin_password_change_me`    | operator      | ✅ 启用   |
+| `e2e_cs`       | `admin_password_change_me`    | cs            | ✅ 启用   |
+| `e2e_fin`      | `admin_password_change_me`    | finance       | ✅ 启用   |
+| `e2e_disabled` | `admin_password_change_me`    | operator      | ❌ 禁用   |
+
+#### C 端用户（无密码，JWT 直发）
+
+| 名称        | 手机号           | 备注                              |
+| ----------- | ---------------- | --------------------------------- |
+| User A      | +966 50 000 0900 | 房主，10 万金币 + 10 万钻石       |
+| User B      | +966 50 000 0901 | 普通用户                          |
+| User Muted  | +966 50 000 0902 | **已被禁言 24 h**（用于禁言态测试） |
+| User C–L    | +966 50 000 0903 ~ 0912 | 房主集合（共 10 个房间用例）|
+
+`scripts/dev/.seed-output.env` 关键字段：
+
+```ini
+E2E_VALID_TOKEN=<User A 的 JWT>
+E2E_USER_B_TOKEN=<User B 的 JWT>
+E2E_MUTED_TOKEN=<User Muted 的 JWT>
+E2E_ADMIN_TOKEN=<super_admin 的 JWT>
+```
+
+### 11.3 手动签发 JWT（不通过 seed）
+
+```bash
+# 编译 CLI（首次）
+cargo build -p voice-room-shared --bin sign-jwt
+
+# 签 C 端用户 token
+JWT_SECRET="$APP_JWT_SECRET" target/debug/sign-jwt \
+  --sub '10000000-0000-4000-8000-000000000001' \
+  --role 'user' \
+  --ttl 86400
+
+# 签 Admin token
+JWT_SECRET="$ADMIN_JWT_SECRET" target/debug/sign-jwt \
+  --sub '10000000-0000-4000-8000-000000000000' \
+  --role 'admin' \
+  --ttl 86400
+```
+
+### 11.4 用 token 调用 API
+
+```bash
+# C 端示例
+TOKEN="$(grep E2E_VALID_TOKEN scripts/dev/.seed-output.env | cut -d= -f2)"
+curl -H "Authorization: Bearer $TOKEN" http://localhost:3000/api/v1/rooms
+
+# Admin 端示例
+ADMIN_TOKEN="$(grep E2E_ADMIN_TOKEN scripts/dev/.seed-output.env | cut -d= -f2)"
+curl -H "Authorization: Bearer $ADMIN_TOKEN" http://localhost:3001/api/v1/admin/users
+```
+
+### 11.5 清理 / 重置
+
+```bash
+npm run db:reset                       # 仅清 seed 数据（保留迁移 + super_admin）
+docker compose down -v                 # 核弹级：清空 PG 数据卷
+```
+
+> ⚠️ `db:reset` 仅在 `E2E_PROFILE=local` 时被允许，防止误操作生产。
 
 ---
 
