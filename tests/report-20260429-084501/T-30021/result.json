@@ -1,0 +1,32 @@
+{
+  "task_id": "T-30021",
+  "module": "模块4 — 中东黑金主题与App壳体",
+  "name": "登录页视觉升级",
+  "report_ts": "2026-04-29T08:45:01+08:00",
+  "device": "Pixel 4 / Android 13 / 9A251FFAZ00EAJ",
+  "test_class": ["LoginScreenVisualTest"],
+  "total": 19,
+  "pass": 7,
+  "fail": 12,
+  "skip": 0,
+  "qa_gate": "❌ Fail",
+  "fuse_triggered": true,
+  "bug_id": "BUG-ANDROID-002",
+  "fuse_reason": "12 failures ≥ 3, same root cause: GoldOutlinedTextField & GoldButton components not found in Compose semantic tree. Arabic text query 'تسجيل الدخول' returns 0 nodes at index 1.",
+  "failures": [
+    { "name": "VU02_phoneInput_displaysPlaceholder",    "error": "Assert failed: The component is not displayed!" },
+    { "name": "VU03_codeInput_displaysPlaceholder",     "error": "Assert failed: The component is not displayed!" },
+    { "name": "VU04_countdownButton_displaysText",      "error": "Assert failed: The component is not displayed!" },
+    { "name": "VU05_loginButton_displaysText",          "error": "Assert failed: The component is not displayed!" },
+    { "name": "VU07_subtitle_isDisplayedInMenaTheme",   "error": "Assert failed: The component is not displayed!" },
+    { "name": "EC02_countdownState_rendersInMenaTheme", "error": "Assert failed: The component is not displayed!" },
+    { "name": "EC03_disabledLoginButton_notClickable",  "error": "Can't retrieve node at index '1' of 'Text + EditableText contains 'تسجيل الدخول''" },
+    { "name": "RG04_sendButton_disabled_whenPhoneEmpty","error": "Assert failed: The component is not displayed!" },
+    { "name": "RG04_sendButton_disabled_duringCountdown","error": "Assert failed: The component is not displayed!" },
+    { "name": "RG05_loginButton_disabled_whenCodeMissing","error": "Can't retrieve node at index '1' of 'Text + EditableText contains 'تسجيل الدخول''" },
+    { "name": "RG05_loginButton_enabled_whenPhoneAndCodeValid","error": "Can't retrieve node at index '1' of 'Text + EditableText contains 'تسجيل الدخول''" },
+    { "name": "RG05_loginButton_clickTriggersCallback","error": "Can't retrieve node at index '1' of 'Text + EditableText contains 'تسجيل الدخول''" }
+  ],
+  "logcat_fragment": "Expected to find node with text 'تسجيل الدخول' at index 1, but found 0 nodes matching selector. Compose semantic tree shows GoldButton renders wrapped in a Container that may not propagate Text semantics.",
+  "note": "与 T-30001 共享同一测试文件。GoldButton/GoldOutlinedTextField 视觉升级后，测试通过 onNodeWithText(arabic_text).get(1) 查找的节点不存在，根因一致，属 BUG-ANDROID-002。"
+}

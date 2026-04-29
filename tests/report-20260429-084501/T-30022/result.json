@@ -1,0 +1,20 @@
+{
+  "task_id": "T-30022",
+  "module": "模块4 — 中东黑金主题与App壳体",
+  "name": "大厅页视觉升级",
+  "report_ts": "2026-04-29T08:45:01+08:00",
+  "device": "Pixel 4 / Android 13 / 9A251FFAZ00EAJ",
+  "test_class": ["HallScreenVisualUpgradeTest"],
+  "total": 12,
+  "pass": 10,
+  "fail": 2,
+  "skip": 0,
+  "qa_gate": "⚠️ Partial",
+  "fuse_triggered": false,
+  "bug_id": "BUG-ANDROID-002",
+  "failures": [
+    { "name": "R06_passwordRoom_showsLockIcon",  "error": "Assert failed: The component is not displayed! — 加密房间 lock icon 不可见" },
+    { "name": "V04_onlineCountBadge_isDisplayed","error": "Assert failed: The component is not displayed! — OnlineCountBadge 徽标不可见" }
+  ],
+  "note": "2 failures ≤ 2，继续。lock icon 和 OnlineCountBadge 在视觉升级后测试不可见，与 BUG-ANDROID-002 同类。"
+}

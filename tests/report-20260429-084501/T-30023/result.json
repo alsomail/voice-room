@@ -1,0 +1,25 @@
+{
+  "task_id": "T-30023",
+  "module": "模块4 — 中东黑金主题与App壳体",
+  "name": "消息Tab占位页",
+  "report_ts": "2026-04-29T08:45:01+08:00",
+  "device": "Pixel 4 / Android 13 / 9A251FFAZ00EAJ",
+  "test_class": ["PlaceholderScreenTest"],
+  "total": 11,
+  "pass": 8,
+  "fail": 3,
+  "skip": 0,
+  "qa_gate": "❌ Fail",
+  "fuse_triggered": true,
+  "bug_id": "BUG-ANDROID-003",
+  "fuse_reason": "3 failures ≥ 3. Root causes: 2x 'The component is not displayed' (PlaceholderScreen content invisible in Messages tab context); 1x 'Cannot call setContent twice per test' (RTL test setup reuse issue).",
+  "failures": [
+    { "name": "PH07_messagesPlaceholder_showsComingSoonTitle",
+      "error": "Assert failed: The component is not displayed! — '即将上线' 标题不可见" },
+    { "name": "PH08_messagesPlaceholder_showsSubtitle",
+      "error": "Assert failed: The component is not displayed! — 副标题不可见" },
+    { "name": "PH09_rtlLayout_doesNotCrash_andDisplaysContent",
+      "error": "java.lang.IllegalStateException: Cannot call setContent twice per test! — RTL 测试重复调用 setContent" }
+  ],
+  "note": "BUG-ANDROID-003: PlaceholderScreen '即将上线' 文本节点在消息Tab上下文中不可见(2个)；PH09 RTL测试用例存在 setContent 重复调用问题(独立问题)。"
+}

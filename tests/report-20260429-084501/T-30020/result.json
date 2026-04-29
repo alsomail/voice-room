@@ -1,0 +1,20 @@
+{
+  "task_id": "T-30020",
+  "module": "模块4 — 中东黑金主题与App壳体",
+  "name": "MainScreen 底部三Tab框架",
+  "report_ts": "2026-04-29T08:45:01+08:00",
+  "device": "Pixel 4 / Android 13 / 9A251FFAZ00EAJ",
+  "test_class": ["MainScreenTest"],
+  "total": 8,
+  "pass": 7,
+  "fail": 1,
+  "skip": 0,
+  "qa_gate": "⚠️ Partial",
+  "fuse_triggered": false,
+  "bug_id": "BUG-ANDROID-002",
+  "failures": [
+    { "name": "TB07_messagesTab_showsPlaceholder",
+      "error": "Assert failed: The component is not displayed! — 消息Tab占位页组件不可见" }
+  ],
+  "note": "1 failure ≤ 2，继续。消息Tab占位页组件不可见，与 BUG-ANDROID-002 (PlaceholderScreen 渲染问题) 相关。"
+}

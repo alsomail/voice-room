@@ -37,8 +37,8 @@
 
 | Task ID | 归属端 | 模块 | 任务名称 | 前置依赖 | 核心描述 | TDD 验收标准 | 预估工时 | 研发负责人 | 研发状态 | Review Gate 审查门禁 | QA Gate 测试门禁 | Overall Gate 最终门禁 |
 |---------|--------|------|----------|----------|----------|-------------|----------|------------|----------|---------------------|------------------|----------------------|
-| **T-30005** | Android | Room | 大厅页 UI (Compose) [TDS](../tds/android/T-30005.md) | T-00008 | LazyVerticalGrid 展示房间列表 | 1. Coil 加载房主头像<br>2. 显示在线人数<br>3. 点击导航到房间页 | 6h | Dod | ✅ Done | [✅ Passed](../review/模块2-房间大厅与列表.md) | ⚠️ 未执行 · 阻塞于 BUG-ANDROID-001 · [report](../../tests/report-20260429-081255/ANDROID.md) | ⏳ Pending |
-| **T-30006** | Android | Room | 房间列表 ViewModel [TDS](../tds/android/T-30006.md) | T-00008, T-30005 | Paging3 分页加载 | 1. 下拉刷新<br>2. 上拉自动加载<br>3. 错误重试 | 5h | Dod | ✅ Done | [✅ Passed](../review/模块2-房间大厅与列表.md) | ⚠️ 未执行 · 阻塞于 BUG-ANDROID-001 · [report](../../tests/report-20260429-081255/ANDROID.md) | ⏳ Pending |
-| **T-30007** | Android | Room | 创建房间对话框 [TDS](../tds/android/T-30007.md) | T-00007 | BottomSheet 输入房间信息 | 1. 标题输入框<br>2. 房间类型选择<br>3. 创建成功导航到房间 | 4h | Dod | ✅ Done | [✅ Passed](../review/模块2-房间大厅与列表.md) | ⚠️ 未执行 · 阻塞于 BUG-ANDROID-001 · [report](../../tests/report-20260429-081255/ANDROID.md) | ⏳ Pending |
+| **T-30005** | Android | Room | 大厅页 UI (Compose) [TDS](../tds/android/T-30005.md) | T-00008 | LazyVerticalGrid 展示房间列表 | 1. Coil 加载房主头像<br>2. 显示在线人数<br>3. 点击导航到房间页 | 6h | Dod | ✅ Done | [✅ Passed](../review/模块2-房间大厅与列表.md) | ⚠️ Partial · 5P/1F · BUG-ANDROID-002 · [report](../../tests/report-20260429-084501/SUMMARY.md) | ⏳ Pending |
+| **T-30006** | Android | Room | 房间列表 ViewModel [TDS](../tds/android/T-30006.md) | T-00008, T-30005 | Paging3 分页加载 | 1. 下拉刷新<br>2. 上拉自动加载<br>3. 错误重试 | 5h | Dod | ✅ Done | [✅ Passed](../review/模块2-房间大厅与列表.md) | ✅ Pass · 6P/0F · [report](../../tests/report-20260429-084501/SUMMARY.md) | ⏳ Pending |
+| **T-30007** | Android | Room | 创建房间对话框 [TDS](../tds/android/T-30007.md) | T-00007 | BottomSheet 输入房间信息 | 1. 标题输入框<br>2. 房间类型选择<br>3. 创建成功导航到房间 | 4h | Dod | ✅ Done | [✅ Passed](../review/模块2-房间大厅与列表.md) | ⏭️ SKIP-OOS (无androidTest) · [report](../../tests/report-20260429-084501/SUMMARY.md) | ⏳ Pending |
 
 ---

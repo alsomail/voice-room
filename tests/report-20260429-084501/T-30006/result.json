@@ -1,0 +1,15 @@
+{
+  "task_id": "T-30006",
+  "module": "模块2 — 房间大厅与列表",
+  "name": "房间列表 ViewModel (Paging3)",
+  "report_ts": "2026-04-29T08:45:01+08:00",
+  "device": "Pixel 4 / Android 13 / 9A251FFAZ00EAJ",
+  "test_class": ["HallScreenPagingTest"],
+  "total": 6,
+  "pass": 6,
+  "fail": 0,
+  "skip": 0,
+  "qa_gate": "✅ Pass",
+  "fuse_triggered": false,
+  "note": "Paging3 分页逻辑全部通过，6/6 PASS。"
+}
