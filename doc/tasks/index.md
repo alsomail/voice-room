@@ -1,6 +1,6 @@
 # Voice Room 开发任务清单
 
-> **版本**: v2.70  
+> **版本**: v2.71  
 > **更新日期**: 2026-04-29  
 > **任务总数**: 132 个 (基建: 4 + 14, App Server: 33 + 1, Admin Server: 16 + 1, Web: 14 + 1, Android: 44 + 1, E-07 15 + E-07.5 6 + E-10 18)  
 > **当前阶段**: Phase 1 - 核心营收闭环（E-07 + E-07.5 并行）→ Phase 1.5 E-10 房间治理 → Phase 1.6 E2E 测试基建（模块 9：16/17，T-0000R In Progress）+ QA 战报驱动架构补强 + v3 战报反向拆出 WEB FAIL 修复 + SKIP-KNOWN 收口
@@ -12,6 +12,7 @@
 | 版本 | 日期 | 变更内容 |
 |------|------|---------|
 | _规则_ | — | 本表只记录**版本级摘要**（一行 ≤ 200 字符），具体 Review/审查/实跑证据请落到对应 [TDS](../tds/) 第五节【Review 意见】或对应模块审查批次 `doc/review/模块N-XXX.md`，**严禁**在本表堆叠详细审查记录。 |
+| **v2.71** | **2026-04-29** | T-30099 follow-up 修复后正式 QA 回归（[report-20260429-120907](../../tests/report-20260429-120907/SUMMARY.md)）：`:app:connectedLocalDebugAndroidTest` **180/180 PASS（100%）**，5 个熔断 Task（T-30001/30021/30023/30024/30025）全部出池；10 个回归 Task（T-30001/05/18/20/21/22/23/24/25/26）QA Gate 全数 ✅ Passed；BUG-ANDROID-002/003/004 + UI09 known flaky 全部闭环；JVM unit 675/678 持平（3 历史遗留 BuildConfigFlavor 与本轮无关）。 |
 | **v2.70** | **2026-04-29** | T-30099 follow-up TDS 闭环（BUG-ANDROID-002/003/004 系统性修复 P0/P1）：跨 Task 修复登录页/消息 Tab 占位页/个人中心/房间页视觉升级 + GoldOutlinedTextField onValueChange。androidTest 137/180 → 179/180 PASS（+42），unit 675/678 持平。Round 1 [370c611] + Round 2 [a1b1ac4] + Review 🟢 [c31b671]。详见 [T-30099 TDS](../tds/android/T-30099.md)。1 个 known flaky（UI09）作为 follow-up。 |
 | **v2.69** | **2026-04-29** | T-30018 Round 2 闭环（BUG-ANDROID-001 P0）：MenaColors 11 处 `Color(*_VALUE)` → `Color(*_VALUE.toInt())`，根因 `Color(ULong)` 重载误把低 6 位当 colorspace ID。androidTest 0/57 → 138/180 PASS，AIOOBE 清零；剩余 42 例属其他 bug（B1–B6 待 master 立单）。Review Round 3 🟢，commits [b9948e9] TDD + [758ccc8] Review。详见 [T-30018 TDS](../tds/android/T-30018.md) 第五节。 |
 | **v2.68** | **2026-04-29** | T-30018 QA 回流（BUG-ANDROID-001 P0）：研发状态 ✅ Done → In Progress，回 TDD 修复 `MenaColors.kt` 11 处 `Color(ULong)` → `Color(Int)`（colorspace ID 误读 → ArrayIndexOutOfBoundsException）。详见 [T-30018 TDS](../tds/android/T-30018.md)。 |
