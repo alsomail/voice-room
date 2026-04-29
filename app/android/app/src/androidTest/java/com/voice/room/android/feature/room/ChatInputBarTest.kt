@@ -1,14 +1,8 @@
 package com.voice.room.android.feature.room
 
 import androidx.activity.ComponentActivity
-import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertIsEnabled
-import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
-import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performImeAction
-import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -221,7 +215,11 @@ class ChatInputBarTest {
         }
         composeTestRule.waitForIdle()
 
-        composeTestRule.onNodeWithTag("chat_input_field").performTextInput("Hi")
+        // Round 3 BUG-004 修复：performTextInput 需要在 EditableText 节点上调用，
+        // 使用 hasSetTextAction() 查找 chat_input_field 容器内的可编辑节点
+        composeTestRule
+            .onNode(hasSetTextAction() and hasAnyAncestor(hasTestTag("chat_input_field")), useUnmergedTree = true)
+            .performTextInput("Hi")
         composeTestRule.waitForIdle()
 
         // onInputTextChange 应至少被调用一次，且最终值含有输入的字符

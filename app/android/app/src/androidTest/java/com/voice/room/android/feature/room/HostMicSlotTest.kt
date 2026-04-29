@@ -61,9 +61,10 @@ class HostMicSlotTest {
             .assertWidthIsAtLeast(80.dp)
             .assertHeightIsAtLeast(80.dp)
 
-        // avatar_frame testTag 存在（AvatarWithFrame showFrame=true 时渲染）
+        // Round 3 BUG-002 修复：avatar_frame 在 AvatarWithFrame 内部（未被 clickable merge），
+        // 改用 useUnmergedTree=true 查找
         composeTestRule
-            .onNodeWithTag("avatar_frame")
+            .onNodeWithTag("avatar_frame", useUnmergedTree = true)
             .assertIsDisplayed()
     }
 
@@ -88,9 +89,10 @@ class HostMicSlotTest {
             .onNodeWithTag("mic_slot_empty_0")
             .assertIsDisplayed()
 
-        // avatar_frame 不渲染（showFrame=false，空位无金色边框）
+        // Round 3 BUG-002：空位无 avatar_frame（showFrame=false），
+        // 仍用 useUnmergedTree=true 保持一致性
         composeTestRule
-            .onNodeWithTag("avatar_frame")
+            .onNodeWithTag("avatar_frame", useUnmergedTree = true)
             .assertDoesNotExist()
 
         // mic_slot_occupied_0 不存在
@@ -148,9 +150,10 @@ class HostMicSlotTest {
         composeTestRule
             .onNodeWithTag("mic_slot_occupied_0")
             .assertIsDisplayed()
-        // 昵称 "Alice" 应在视图树中可见
+        // Round 3 BUG-002 修复：host_mic_nickname 在 clickable 容器内部，
+        // 改用 useUnmergedTree=true 查找
         composeTestRule
-            .onNodeWithTag("host_mic_nickname")
+            .onNodeWithTag("host_mic_nickname", useUnmergedTree = true)
             .assertIsDisplayed()
     }
 }

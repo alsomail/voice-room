@@ -195,13 +195,17 @@ fun RoomBottomBar(
                     onClick = {
                         showExitDialog = false
                         onLeaveRoom()
-                    }
+                    },
+                    modifier = Modifier.testTag("exit_dialog_confirm_button"),
                 ) {
                     Text(stringResource(id = R.string.dialog_confirm), color = MenaColors.Error)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showExitDialog = false }) {
+                TextButton(
+                    onClick = { showExitDialog = false },
+                    modifier = Modifier.testTag("exit_dialog_cancel_button"),
+                ) {
                     Text(stringResource(id = R.string.dialog_cancel))
                 }
             },

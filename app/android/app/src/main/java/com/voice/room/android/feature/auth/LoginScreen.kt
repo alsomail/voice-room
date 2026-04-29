@@ -22,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -132,7 +133,8 @@ fun LoginScreenContent(
                     text = stringResource(id = R.string.login_subtitle),
                     style = MaterialTheme.typography.titleMedium,
                     color = MenaColors.Primary,
-                    textAlign = TextAlign.Center
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.testTag("login_subtitle"),
                 )
 
                 Spacer(modifier = Modifier.height(24.dp))
@@ -142,7 +144,9 @@ fun LoginScreenContent(
                     phoneNumber = uiState.phoneNumber,
                     onPhoneNumberChanged = onPhoneNumberChanged,
                     countryCode = uiState.defaultCountryCode,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("login_phone_input")
                 )
 
                 // ── 发送验证码按钮（含倒计时）─────────────────────
@@ -150,7 +154,8 @@ fun LoginScreenContent(
                     isEnabled = uiState.isSendButtonEnabled,
                     isCountingDown = uiState.isCountingDown,
                     countdownLabel = uiState.countdownLabel,
-                    onSendCode = onSendCode
+                    onSendCode = onSendCode,
+                    modifier = Modifier.testTag("login_send_code_button"),
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -159,7 +164,9 @@ fun LoginScreenContent(
                 CodeInput(
                     code = uiState.verificationCode,
                     onCodeChanged = onVerificationCodeChanged,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("login_code_input"),
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -172,6 +179,7 @@ fun LoginScreenContent(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(52.dp)
+                        .testTag("login_button")
                 )
             }
         }

@@ -6,12 +6,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
-import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -74,7 +70,12 @@ class GoldOutlinedTextFieldTest {
         }
         composeTestRule.waitForIdle()
 
-        composeTestRule.onNodeWithTag("gold_tf").performTextInput("Hello")
+        // Round 3 BUG-004 修复：performTextInput 需要在 EditableText 节点上调用。
+        // OutlinedTextField 内部的 EditableText 可通过 hasSetTextAction() 查找，
+        // 并使用 useUnmergedTree 模式（因外层可能被 merge）。
+        composeTestRule
+            .onNode(hasSetTextAction() and hasAnyAncestor(hasTestTag("gold_tf")), useUnmergedTree = true)
+            .performTextInput("Hello")
         composeTestRule.waitForIdle()
 
         assertTrue("onValueChange should have been called", changedValues.isNotEmpty())

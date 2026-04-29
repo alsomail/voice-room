@@ -14,6 +14,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 
 /**
@@ -55,7 +56,11 @@ fun GoldButton(
                 onClick = onClick,
                 role = Role.Button,
             )
-            .padding(horizontal = 24.dp, vertical = 12.dp),
+            .padding(horizontal = 24.dp, vertical = 12.dp)
+            // Round 3 BUG-002 修复：合并 Box + 内部 Text 的语义节点，
+            // 这样 GoldButton 在 Compose 测试 merged-tree 中只暴露一个节点，
+            // 既可被 testTag/onNodeWithText 唯一定位，也可参与 assertTextEquals。
+            .semantics(mergeDescendants = true) {},
         contentAlignment = Alignment.Center,
     ) {
         Text(

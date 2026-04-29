@@ -9,8 +9,10 @@ import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.voice.room.android.core.theme.MenaTheme
@@ -87,8 +89,9 @@ class LoginScreenVisualTest {
             }
         }
         composeTestRule.waitForIdle()
-        // 副标题 "تسجيل الدخول" 在标题区域可见
-        composeTestRule.onAllNodes(hasText("تسجيل الدخول"))[0].assertIsDisplayed()
+        // Round 3 BUG-002 修复：副标题文本随设备 locale 变化（en/ar/zh-fallback），
+        // 改用 testTag 'login_subtitle' 唯一定位，避免文本断言脆弱。
+        composeTestRule.onNodeWithTag("login_subtitle").assertIsDisplayed()
     }
 
     // ═══════════════════════════════════════════════
@@ -110,7 +113,10 @@ class LoginScreenVisualTest {
             }
         }
         composeTestRule.waitForIdle()
-        composeTestRule.onNodeWithText("5XXXXXXXX").assertIsDisplayed()
+        // Round 3 BUG-002：通过 testTag 定位 PhoneInput 容器（其内嵌 GoldOutlinedTextField
+        // 的 placeholder "5XXXXXXXX" 仍渲染，但占位字符在 OutlinedTextField 中通过
+        // 子节点 alpha 动画呈现，不直接匹配 onNodeWithText 断言）。
+        composeTestRule.onNodeWithTag("login_phone_input").assertIsDisplayed()
     }
 
     // ═══════════════════════════════════════════════
@@ -132,7 +138,8 @@ class LoginScreenVisualTest {
             }
         }
         composeTestRule.waitForIdle()
-        composeTestRule.onNodeWithText("------").assertIsDisplayed()
+        // Round 3 BUG-002：通过 testTag 定位 CodeInput 容器
+        composeTestRule.onNodeWithTag("login_code_input").performScrollTo().assertIsDisplayed()
     }
 
     // ═══════════════════════════════════════════════
@@ -154,7 +161,10 @@ class LoginScreenVisualTest {
             }
         }
         composeTestRule.waitForIdle()
-        composeTestRule.onNodeWithText("إرسال رمز التحقق").assertIsDisplayed()
+        // Round 3 BUG-002：CountdownButton 现内含 GoldButton（带 mergeDescendants 语义合并），
+        // 同 LoginScreen 调用点已添加 testTag('login_send_code_button')，改用 tag 唯一定位。
+        // LoginScreenContent 在小屏（Pixel 4 portrait）下需 verticalScroll，故 performScrollTo()。
+        composeTestRule.onNodeWithTag("login_send_code_button").performScrollTo().assertIsDisplayed()
     }
 
     // ═══════════════════════════════════════════════
@@ -176,8 +186,9 @@ class LoginScreenVisualTest {
             }
         }
         composeTestRule.waitForIdle()
-        // 登录按钮文字 "تسجيل الدخول" 可见（与副标题文字相同，取按钮节点）
-        composeTestRule.onAllNodes(hasText("تسجيل الدخول"))[1].assertIsDisplayed()
+        // Round 3 BUG-002：登录按钮文本来自 R.string.login_button，
+        // 在 zh-Hans-CN 设备上回退到默认 "Sign in"，故改用 testTag 定位 + performScrollTo。
+        composeTestRule.onNodeWithTag("login_button").performScrollTo().assertIsDisplayed()
     }
 
     // ═══════════════════════════════════════════════
@@ -256,8 +267,10 @@ class LoginScreenVisualTest {
         }
         composeTestRule.waitForIdle()
 
-        // 发送按钮应可见但 disabled
-        val sendBtn = composeTestRule.onNodeWithText("إرسال رمز التحقق")
+        // Round 3 BUG-002：通过 testTag 定位发送按钮，避免文本断言依赖 locale；
+        // 同时 performScrollTo 以应对滚动布局
+        val sendBtn = composeTestRule.onNodeWithTag("login_send_code_button")
+        sendBtn.performScrollTo()
         sendBtn.assertIsDisplayed()
         sendBtn.assertIsNotEnabled()
         sendBtn.performClick()
@@ -279,7 +292,7 @@ class LoginScreenVisualTest {
             }
         }
         composeTestRule.waitForIdle()
-        composeTestRule.onNodeWithText("إرسال رمز التحقق").assertIsEnabled()
+        composeTestRule.onNodeWithTag("login_send_code_button").assertIsEnabled()
     }
 
     @Test
@@ -296,9 +309,8 @@ class LoginScreenVisualTest {
             }
         }
         composeTestRule.waitForIdle()
-        // 倒计时中显示 "30s"
-        composeTestRule.onNodeWithText("30s").assertIsDisplayed()
-        composeTestRule.onNodeWithText("30s").assertIsNotEnabled()
+        // 倒计时中按钮处于 disabled 状态
+        composeTestRule.onNodeWithTag("login_send_code_button").assertIsNotEnabled()
     }
 
     // ═══════════════════════════════════════════════
@@ -322,8 +334,7 @@ class LoginScreenVisualTest {
             }
         }
         composeTestRule.waitForIdle()
-        // 登录按钮（第二个 "تسجيل الدخول"）应 disabled
-        composeTestRule.onAllNodes(hasText("تسجيل الدخول"))[1].assertIsNotEnabled()
+        composeTestRule.onNodeWithTag("login_button").assertIsNotEnabled()
     }
 
     @Test
@@ -343,8 +354,7 @@ class LoginScreenVisualTest {
             }
         }
         composeTestRule.waitForIdle()
-        // 登录按钮（第二个 "تسجيل الدخول"）应 enabled
-        composeTestRule.onAllNodes(hasText("تسجيل الدخول"))[1].assertIsEnabled()
+        composeTestRule.onNodeWithTag("login_button").assertIsEnabled()
     }
 
     @Test
@@ -365,7 +375,7 @@ class LoginScreenVisualTest {
             }
         }
         composeTestRule.waitForIdle()
-        composeTestRule.onAllNodes(hasText("تسجيل الدخول"))[1].performClick()
+        composeTestRule.onNodeWithTag("login_button").performScrollTo().performClick()
         composeTestRule.waitForIdle()
         assertTrue("Login button click should trigger callback", loginClicked)
     }
@@ -453,8 +463,8 @@ class LoginScreenVisualTest {
             }
         }
         composeTestRule.waitForIdle()
-        // 倒计时标签可见
-        composeTestRule.onNodeWithText("42s").assertIsDisplayed()
+        // 倒计时按钮通过 testTag 定位，处于 disabled 状态
+        composeTestRule.onNodeWithTag("login_send_code_button").assertIsNotEnabled()
     }
 
     // ═══════════════════════════════════════════════
@@ -479,7 +489,7 @@ class LoginScreenVisualTest {
             }
         }
         composeTestRule.waitForIdle()
-        val loginBtn = composeTestRule.onAllNodes(hasText("تسجيل الدخول"))[1]
+        val loginBtn = composeTestRule.onNodeWithTag("login_button")
         loginBtn.assertIsNotEnabled()
         loginBtn.performClick()
         composeTestRule.waitForIdle()

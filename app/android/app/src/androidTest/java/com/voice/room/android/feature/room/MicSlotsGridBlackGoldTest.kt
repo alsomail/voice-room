@@ -103,8 +103,9 @@ class MicSlotsGridBlackGoldTest {
 
         // mic_slot_occupied_1 可见
         composeTestRule.onNodeWithTag("mic_slot_occupied_1").assertIsDisplayed()
-        // AvatarWithFrame showFrame=true → avatar_frame testTag 存在
-        composeTestRule.onNodeWithTag("avatar_frame").assertIsDisplayed()
+        // Round 3 BUG-002：AvatarWithFrame showFrame=true → avatar_frame 在内部（未被 clickable merge），
+        // 改用 useUnmergedTree=true 查找
+        composeTestRule.onNodeWithTag("avatar_frame", useUnmergedTree = true).assertIsDisplayed()
     }
 
     // ── VS-06: 副麦 EMPTY ————————————————————————————————————————————————————
@@ -145,7 +146,8 @@ class MicSlotsGridBlackGoldTest {
         composeTestRule.waitForIdle()
 
         composeTestRule.onNodeWithTag("mic_slot_occupied_2").assertIsDisplayed()
-        composeTestRule.onNodeWithTag("mic_slot_muted_icon_2").assertIsDisplayed()
+        // Round 3 BUG-002：muted_icon 在 clickable 容器内部，需 useUnmergedTree
+        composeTestRule.onNodeWithTag("mic_slot_muted_icon_2", useUnmergedTree = true).assertIsDisplayed()
     }
 
     // ── VS-08: 空麦位点击回调 ——————————————————————————————————————————————————

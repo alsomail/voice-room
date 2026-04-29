@@ -76,6 +76,7 @@ fun PlaceholderScreen(
         }
         Text(
             text = title,
+            modifier = Modifier.testTag("placeholder_title"),
             style = MaterialTheme.typography.titleMedium,
             color = MenaColors.OnBackgroundSecondary,
         )

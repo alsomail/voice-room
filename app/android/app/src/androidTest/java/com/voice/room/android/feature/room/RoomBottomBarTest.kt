@@ -153,8 +153,8 @@ class RoomBottomBarTest {
         composeTestRule.onNodeWithTag("btn_exit_room").performClick()
         composeTestRule.waitForIdle()
 
-        // 点确认
-        composeTestRule.onNodeWithText("确认").performClick()
+        // 点确认（Round 3 BUG-002：改用 testTag 替代 locale 相关文本）
+        composeTestRule.onNodeWithTag("exit_dialog_confirm_button").performClick()
         composeTestRule.waitForIdle()
 
         assertEquals("onLeaveRoom should be called exactly once", 1, leaveRoomCalled)
@@ -173,8 +173,8 @@ class RoomBottomBarTest {
         composeTestRule.onNodeWithTag("btn_exit_room").performClick()
         composeTestRule.waitForIdle()
 
-        // 点取消
-        composeTestRule.onNodeWithText("取消").performClick()
+        // 点取消（Round 3 BUG-002：改用 testTag 替代 locale 相关文本）
+        composeTestRule.onNodeWithTag("exit_dialog_cancel_button").performClick()
         composeTestRule.waitForIdle()
 
         assertEquals("onLeaveRoom should NOT be called on cancel", 0, leaveRoomCalled)

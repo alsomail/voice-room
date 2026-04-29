@@ -67,10 +67,22 @@ class MicSlotCardTest {
         composeTestRule.setContent {
             MicSlotCard(slot = occupiedSlot(index = 0))
         }
+        composeTestRule.waitForIdle()
+        
         composeTestRule.onNodeWithTag("mic_slot_occupied_0").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Alice").assertIsDisplayed()
-        composeTestRule.onNodeWithTag("mic_slot_muted_icon_0").assertDoesNotExist()
-        composeTestRule.onNodeWithTag("mic_slot_sound_wave").assertIsDisplayed()
+        // Round 3 BUG-002：昵称 Text 在 clickable 容器内部（未被合并），
+        // 改用 useUnmergedTree=true 查找
+        composeTestRule.onNodeWithText("Alice", useUnmergedTree = true).assertIsDisplayed()
+        composeTestRule.onNodeWithTag("mic_slot_muted_icon_0", useUnmergedTree = true).assertDoesNotExist()
+        
+        // Round 3 BUG-002：mic_slot_sound_wave 在 AnimatedVisibility 内部，
+        // 需要等待进入动画完成（最长 160ms + 额外 buffer = 500ms）
+        composeTestRule.waitUntil(timeoutMillis = 1000) {
+            composeTestRule
+                .onAllNodesWithTag("mic_slot_sound_wave", useUnmergedTree = true)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onNodeWithTag("mic_slot_sound_wave", useUnmergedTree = true).assertIsDisplayed()
     }
 
     // ── MC-03: MUTED 态 ───────────────────────────────────────────────────────
@@ -88,9 +100,11 @@ class MicSlotCardTest {
             MicSlotCard(slot = mutedSlot(index = 1))
         }
         composeTestRule.onNodeWithTag("mic_slot_occupied_1").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Bob").assertIsDisplayed()
-        composeTestRule.onNodeWithTag("mic_slot_muted_icon_1").assertIsDisplayed()
-        composeTestRule.onNodeWithTag("mic_slot_sound_wave").assertDoesNotExist()
+        // Round 3 BUG-002：昵称 / muted_icon / sound_wave 在 clickable 容器内部，
+        // 改用 useUnmergedTree=true 查找
+        composeTestRule.onNodeWithText("Bob", useUnmergedTree = true).assertIsDisplayed()
+        composeTestRule.onNodeWithTag("mic_slot_muted_icon_1", useUnmergedTree = true).assertIsDisplayed()
+        composeTestRule.onNodeWithTag("mic_slot_sound_wave", useUnmergedTree = true).assertDoesNotExist()
     }
 
     // ── MC-04: 有人麦位点击 ───────────────────────────────────────────────────
@@ -133,8 +147,9 @@ class MicSlotCardTest {
         composeTestRule.setContent {
             MicSlotCard(slot = emptySlot(index = 4))
         }
+        // Round 3 BUG-002 修复：contentDescription 来自 R.string.mic_slot_empty_desc（英文）
         composeTestRule
-            .onNodeWithContentDescription("麦位 5，空位，点击上麦")
+            .onNodeWithContentDescription("Mic seat 5, empty, tap to take seat")
             .assertExists()
     }
 
@@ -148,8 +163,9 @@ class MicSlotCardTest {
         composeTestRule.setContent {
             MicSlotCard(slot = occupiedSlot(index = 0))
         }
+        // Round 3 BUG-002 修复：contentDescription 来自 R.string.mic_slot_occupied_desc（英文）
         composeTestRule
-            .onNodeWithContentDescription("麦位 1，Alice，点击互动")
+            .onNodeWithContentDescription("Mic seat 1, Alice, tap to interact")
             .assertExists()
     }
 
@@ -168,8 +184,9 @@ class MicSlotCardTest {
                 )
             )
         }
+        // Round 3 BUG-002 修复：contentDescription 来自 R.string.mic_slot_muted_desc（英文）
         composeTestRule
-            .onNodeWithContentDescription("麦位 1，Bob，已禁麦")
+            .onNodeWithContentDescription("Mic seat 1, Bob, muted")
             .assertExists()
     }
 
@@ -207,8 +224,16 @@ class MicSlotCardTest {
             val slot = remember { slotState }
             MicSlotCard(slot = slot.value)
         }
-        // OCCUPIED 时音浪可见
-        composeTestRule.onNodeWithTag("mic_slot_sound_wave").assertIsDisplayed()
+        composeTestRule.waitForIdle()
+        
+        // Round 3 BUG-002：mic_slot_sound_wave 在 AnimatedVisibility 内部，需 useUnmergedTree
+        // OCCUPIED 时音浪可见，需等待进入动画完成
+        composeTestRule.waitUntil(timeoutMillis = 1000) {
+            composeTestRule
+                .onAllNodesWithTag("mic_slot_sound_wave", useUnmergedTree = true)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onNodeWithTag("mic_slot_sound_wave", useUnmergedTree = true).assertIsDisplayed()
 
         // 切换为 MUTED
         composeTestRule.runOnIdle {
@@ -217,7 +242,7 @@ class MicSlotCardTest {
         // AnimatedVisibility 退出动画结束后，节点不再显示
         composeTestRule.mainClock.autoAdvance = false
         composeTestRule.mainClock.advanceTimeBy(500L)
-        composeTestRule.onNodeWithTag("mic_slot_sound_wave").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("mic_slot_sound_wave", useUnmergedTree = true).assertDoesNotExist()
         composeTestRule.mainClock.autoAdvance = true
     }
 }

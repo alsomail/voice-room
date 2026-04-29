@@ -166,8 +166,9 @@ class MainScreenTest {
         composeTestRule.onNodeWithTag("tab_messages").performClick()
         composeTestRule.waitForIdle()
 
-        // 消息 Tab 应显示占位文本 (T-30023: "消息功能即将上线")
-        composeTestRule.onNodeWithText("消息功能即将上线").assertIsDisplayed()
+        // 消息 Tab 应显示占位 (Round 3 BUG-002：文本来自 R.string.messages_placeholder_title，
+        // 设备 locale 决定语言；改用 testTag 'placeholder_title' 唯一定位)。
+        composeTestRule.onNodeWithTag("placeholder_title").assertIsDisplayed()
     }
 
     // ── TB-08: 我的 Tab 显示 ProfileScreen 内容（T-30024：不再是占位"Me"）──
