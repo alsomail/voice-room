@@ -52,6 +52,9 @@
 | E-08: Google Play 真支付 | Phase 1 | 🔴 待开发 | 待拆解（依赖 E-07） |
 | E-09: 贵族体系 | Phase 1 | 🔴 待开发 | 待拆解（依赖 E-07/E-08） |
 
+**已知问题 (Known Issues)**:
+- **1 个 known UI flaky (Android)**：`RoomScreenTest.UI09_mutedMicSlot_showsMutedIcon`，代码已修复但 cold build 后 flaky，跟踪中（详见 T-30099 TDS）
+
 ---
 
 ## 设计文档索引
