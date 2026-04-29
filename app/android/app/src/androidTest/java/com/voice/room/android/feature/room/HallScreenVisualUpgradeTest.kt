@@ -271,8 +271,12 @@ class HallScreenVisualUpgradeTest {
                 }
 
             override suspend fun createRoom(
-                title: String, type: String, password: String?
+                title: String, type: String, password: String?,
+                coverUrl: String, category: String, announcement: String?
             ): Result<String> = Result.failure(NotImplementedError())
+
+            override suspend fun verifyPassword(roomId: String, password: String): Result<String> =
+                Result.failure(NotImplementedError())
         }
         val viewModel = createViewModel(blockingRepo)
 

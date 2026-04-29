@@ -10,19 +10,6 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.voice.room.android.common.AppContainer
-import com.voice.room.android.core.config.AppEnvironment
-import com.voice.room.android.core.config.InMemoryRemoteConfigService
-import com.voice.room.android.core.im.NoOpIMService
-import com.voice.room.android.core.media.NoOpMediaService
-import com.voice.room.android.core.telemetry.NoOpAnalyticsService
-import com.voice.room.android.core.telemetry.NoOpCrashReporter
-import com.voice.room.android.core.ws.FakeWebSocketClient
-import com.voice.room.android.data.auth.DebugAuthService
-import com.voice.room.android.data.gift.DebugGiftRepository
-import com.voice.room.android.data.room.DebugRoomGateway
-import com.voice.room.android.data.room.DebugRoomSyncService
-import com.voice.room.android.data.room.FakeRoomRepository
-import com.voice.room.android.data.wallet.DebugWalletRepository
 import com.voice.room.android.domain.local.ITokenManager
 import com.voice.room.android.domain.user.IUserRepository
 import com.voice.room.android.domain.user.UserProfile
@@ -77,25 +64,7 @@ class ProfileScreenTest {
     }
 
     private fun buildAppContainer(userRepository: IUserRepository): AppContainer =
-        AppContainer(
-            environment = AppEnvironment(
-                environmentName = "test",
-                apiBaseUrl = "https://test.example.com/api",
-                wsUrl = "wss://test.example.com/ws",
-                analyticsEndpoint = "https://test.example.com/analytics",
-            ),
-            analyticsService = NoOpAnalyticsService(),
-            crashReporter = NoOpCrashReporter(),
-            remoteConfigService = InMemoryRemoteConfigService(),
-            mediaService = NoOpMediaService(),
-            imService = NoOpIMService(),
-            authService = DebugAuthService(),
-            roomGateway = DebugRoomGateway(),
-            roomSyncService = DebugRoomSyncService(),
-            walletRepository = DebugWalletRepository(),
-            giftRepository = DebugGiftRepository(),
-            roomRepository = FakeRoomRepository(),
-            webSocketClient = FakeWebSocketClient(),
+        AppContainer.forUnitTest().copy(
             tokenManager = fakeTokenManager,
             userRepository = userRepository,
         )
