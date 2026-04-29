@@ -145,17 +145,52 @@ else
 fi
 
 # ---------- 等待健康 ----------
-echo "[start-local] 等待全部端点就绪（最长 180s）..."
-TARGETS=(
-  "tcp:127.0.0.1:5432"
-  "tcp:127.0.0.1:6379"
-)
-[[ $SKIP_APP   -eq 0 ]] && TARGETS+=("http-get://127.0.0.1:3000/health")
-[[ $SKIP_ADMIN -eq 0 ]] && TARGETS+=("http-get://127.0.0.1:3001/health")
-[[ $SKIP_WEB   -eq 0 ]] && TARGETS+=("http-get://127.0.0.1:5173/")
+echo "[start-local] 等待全部端点就绪..."
 
-if ! npx -y wait-on@^7 -t 180000 "${TARGETS[@]}"; then
-  echo "[start-local] ❌ wait-on 超时；日志：$LOG_DIR/" >&2
+wait_http() { # name, url, regex, timeout_sec
+  local name="$1" url="$2" rx="$3" timeout="$4"
+  local code start now
+  start=$(date +%s)
+  while :; do
+    code=$(curl -sS -o /dev/null --max-time 2 -w '%{http_code}' "$url" 2>/dev/null || true)
+    [[ "$code" =~ $rx ]] && { echo "  ↪ $name ✅ ($url HTTP $code)"; return 0; }
+    now=$(date +%s)
+    if (( now - start >= timeout )); then
+      echo "  ↪ $name ❌ 超时 ${timeout}s (最后 HTTP=$code, url=$url)" >&2
+      return 1
+    fi
+    sleep 2
+  done
+}
+
+wait_tcp() { # name, host, port, timeout_sec
+  local name="$1" host="$2" port="$3" timeout="$4"
+  local start now
+  start=$(date +%s)
+  while :; do
+    if (echo > "/dev/tcp/$host/$port") 2>/dev/null; then
+      echo "  ↪ $name ✅ ($host:$port)"
+      return 0
+    fi
+    now=$(date +%s)
+    if (( now - start >= timeout )); then
+      echo "  ↪ $name ❌ 超时 ${timeout}s（$host:$port 不通）" >&2
+      return 1
+    fi
+    sleep 1
+  done
+}
+
+rc=0
+wait_tcp  "PG"           127.0.0.1 5432 30  || rc=$?
+wait_tcp  "Redis"        127.0.0.1 6379 15  || rc=$?
+[[ $SKIP_APP   -eq 0 ]] && { wait_http "AppServer"   "http://127.0.0.1:3000/health" '^200$'        180 || rc=$?; }
+[[ $SKIP_ADMIN -eq 0 ]] && { wait_http "AdminServer" "http://127.0.0.1:3001/health" '^200$'        180 || rc=$?; }
+[[ $SKIP_WEB   -eq 0 ]] && { wait_http "Web"         "http://127.0.0.1:5173/"       '^(200|301|302)$' 240 || rc=$?; }
+
+if [[ $rc -ne 0 ]]; then
+  echo "[start-local] ❌ 部分端点未就绪；日志：$LOG_DIR/" >&2
+  echo "[start-local] 提示：再跑一次 'npm run start' 通常能闭环（cargo/vite 冷启已完成）" >&2
   exit 1
 fi
 
