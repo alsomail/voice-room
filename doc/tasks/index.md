@@ -12,6 +12,7 @@
 | 版本 | 日期 | 变更内容 |
 |------|------|---------|
 | _规则_ | — | 本表只记录**版本级摘要**（一行 ≤ 200 字符），具体 Review/审查/实跑证据请落到对应 [TDS](../tds/) 第五节【Review 意见】或对应模块审查批次 `doc/review/模块N-XXX.md`，**严禁**在本表堆叠详细审查记录。 |
+| **v2.68** | **2026-04-29** | T-30018 QA 回流（BUG-ANDROID-001 P0）：研发状态 ✅ Done → In Progress，回 TDD 修复 `MenaColors.kt` 11 处 `Color(ULong)` → `Color(Int)`（colorspace ID 误读 → ArrayIndexOutOfBoundsException）。详见 [T-30018 TDS](../tds/android/T-30018.md)。 |
 | **v2.67** | **2026-04-29** | T-0000S DoD 完成（E2E fixture token + redis-cli 容器化解锁 26/29 SKIP-KNOWN），Review Round 1 🟢 通过；fixture 三角色 token + redis-cli 优先 docker→native→unavailable 三分支 + fail-fast 校验；6 份 spec 收敛 redis-cli 路径，26 个 SKIP-KNOWN 用例全 PASS；模块 9 进度 15/17 → 16/17。详见 [T-0000S TDS](../tds/infra/T-0000S.md)。 |
 | **v2.66** | **2026-04-29** | v3 QA 战报（report-20260428-154125）反向拆出 2 个新 Task：T-0000R（WEB E2E 9-FAIL 测试侧硬化，非业务 bug，挂模块 9）+ T-0000S（fixture token 三角色自动注入 + redis-cli 容器化，解锁 26/29 SKIP-KNOWN）。详见 [T-0000R TDS](../tds/infra/T-0000R.md) / [T-0000S TDS](../tds/infra/T-0000S.md)。 |
 | **v2.64** | **2026-04-29** | T-00044 单 Task 流转完整闭环（TDD→Review×3→Dod→Done），版本号冲突修正：原 v2.56/v2.57/v2.58 重号 → v2.61/v2.62/v2.63；顶部版本对齐 v2.64。 |
