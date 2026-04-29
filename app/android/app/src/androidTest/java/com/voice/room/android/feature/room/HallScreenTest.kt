@@ -201,7 +201,8 @@ class HallScreenTest {
         }
         composeTestRule.waitForIdle()
 
-        // id-2 is a password room → lock icon visible
-        composeTestRule.onNodeWithTag("room_type_icon_password").assertIsDisplayed()
+        // Round 2 BUG-002：RoomCard 的 clickable 会 mergeDescendants，
+        // Lock 图标虽有 testTag，但被合并到父节点，需要 useUnmergedTree=true
+        composeTestRule.onNodeWithTag("room_type_icon_password", useUnmergedTree = true).assertIsDisplayed()
     }
 }

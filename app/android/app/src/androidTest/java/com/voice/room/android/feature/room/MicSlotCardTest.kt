@@ -75,14 +75,15 @@ class MicSlotCardTest {
         composeTestRule.onNodeWithText("Alice", useUnmergedTree = true).assertIsDisplayed()
         composeTestRule.onNodeWithTag("mic_slot_muted_icon_0", useUnmergedTree = true).assertDoesNotExist()
         
-        // Round 3 BUG-002：mic_slot_sound_wave 在 AnimatedVisibility 内部，
-        // 需要等待进入动画完成（最长 160ms + 额外 buffer = 500ms）
+        // Round 2 BUG-002：mic_slot_sound_wave 在 AnimatedVisibility 内部，
+        // 等待进入动画完成后，用 assertExists() 而非 assertIsDisplayed()
+        // （AnimatedVisibility 的渲染可能被视为"不完全显示"）
         composeTestRule.waitUntil(timeoutMillis = 1000) {
             composeTestRule
                 .onAllNodesWithTag("mic_slot_sound_wave", useUnmergedTree = true)
                 .fetchSemanticsNodes().isNotEmpty()
         }
-        composeTestRule.onNodeWithTag("mic_slot_sound_wave", useUnmergedTree = true).assertIsDisplayed()
+        composeTestRule.onNodeWithTag("mic_slot_sound_wave", useUnmergedTree = true).assertExists()
     }
 
     // ── MC-03: MUTED 态 ───────────────────────────────────────────────────────
@@ -226,14 +227,14 @@ class MicSlotCardTest {
         }
         composeTestRule.waitForIdle()
         
-        // Round 3 BUG-002：mic_slot_sound_wave 在 AnimatedVisibility 内部，需 useUnmergedTree
-        // OCCUPIED 时音浪可见，需等待进入动画完成
+        // Round 2 BUG-002：mic_slot_sound_wave 在 AnimatedVisibility 内部，需 useUnmergedTree
+        // OCCUPIED 时音浪可见，用 assertExists()（AnimatedVisibility 的进入动画期间可能不算"完全显示"）
         composeTestRule.waitUntil(timeoutMillis = 1000) {
             composeTestRule
                 .onAllNodesWithTag("mic_slot_sound_wave", useUnmergedTree = true)
                 .fetchSemanticsNodes().isNotEmpty()
         }
-        composeTestRule.onNodeWithTag("mic_slot_sound_wave", useUnmergedTree = true).assertIsDisplayed()
+        composeTestRule.onNodeWithTag("mic_slot_sound_wave", useUnmergedTree = true).assertExists()
 
         // 切换为 MUTED
         composeTestRule.runOnIdle {

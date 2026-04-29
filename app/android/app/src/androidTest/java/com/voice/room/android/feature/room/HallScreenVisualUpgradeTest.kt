@@ -139,8 +139,8 @@ class HallScreenVisualUpgradeTest {
         }
         composeTestRule.waitForIdle()
 
-        // At least one OnlineCountBadge visible (from RoomCards)
-        composeTestRule.onAllNodes(hasTestTag("online_count_badge"))[0]
+        // Round 2 BUG-002：OnlineCountBadge 在 RoomCard clickable 内部，需 useUnmergedTree=true
+        composeTestRule.onAllNodes(hasTestTag("online_count_badge"), useUnmergedTree = true)[0]
             .assertIsDisplayed()
     }
 
@@ -355,6 +355,7 @@ class HallScreenVisualUpgradeTest {
         }
         composeTestRule.waitForIdle()
 
-        composeTestRule.onNodeWithTag("room_type_icon_password").assertIsDisplayed()
+        // Round 2 BUG-002：RoomCard 的 clickable mergeDescendants，需 useUnmergedTree=true
+        composeTestRule.onNodeWithTag("room_type_icon_password", useUnmergedTree = true).assertIsDisplayed()
     }
 }

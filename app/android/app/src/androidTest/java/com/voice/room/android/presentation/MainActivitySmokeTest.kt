@@ -1,23 +1,29 @@
 package com.voice.room.android.presentation
 
-import androidx.test.ext.junit.rules.ActivityScenarioRule
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.espresso.Espresso.onView
-import androidx.test.espresso.assertion.ViewAssertions.matches
-import androidx.test.espresso.matcher.ViewMatchers.withId
-import androidx.test.espresso.matcher.ViewMatchers.withText
-import com.voice.room.android.R
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
+/**
+ * MainActivity Smoke Test — Round 2 BUG-002 修复
+ *
+ * MainActivity 是纯 Compose（无 XML layout），启动时默认显示 SplashScreen。
+ * 验证 MainActivity 启动后 SplashScreen 的 splash_screen testTag 可见。
+ */
 @RunWith(AndroidJUnit4::class)
 class MainActivitySmokeTest {
     @get:Rule
-    val scenarioRule = ActivityScenarioRule(MainActivity::class.java)
+    val composeTestRule = createAndroidComposeRule<MainActivity>()
 
     @Test
     fun launch_shows_auth_bootstrap_title() {
-        onView(withId(R.id.screenTitle)).check(matches(withText("Auth Bootstrap")))
+        // MainActivity → AppNavGraph(startDestination="splash") → SplashScreen
+        // 验证 SplashScreen 的 splash_screen testTag 可见
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithTag("splash_screen").assertIsDisplayed()
     }
 }
