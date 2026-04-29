@@ -25,15 +25,18 @@ object MenaColors {
     const val SYSTEM_MESSAGE_VALUE: ULong          = 0xFFF39C12uL
 
     // ── Compose Color 常量 ────────────────────────
-    val Background: Color            = Color(BACKGROUND_VALUE)
-    val Surface: Color               = Color(SURFACE_VALUE)
-    val SurfaceVariant: Color        = Color(SURFACE_VARIANT_VALUE)
-    val Primary: Color               = Color(PRIMARY_VALUE)
-    val PrimaryBright: Color         = Color(PRIMARY_BRIGHT_VALUE)
-    val OnBackground: Color          = Color(ON_BACKGROUND_VALUE)
-    val OnBackgroundSecondary: Color = Color(ON_BACKGROUND_SECONDARY_VALUE)
-    val OnBackgroundTertiary: Color  = Color(ON_BACKGROUND_TERTIARY_VALUE)
-    val Error: Color                 = Color(ERROR_VALUE)
-    val Success: Color               = Color(SUCCESS_VALUE)
-    val SystemMessage: Color         = Color(SYSTEM_MESSAGE_VALUE)
+    // 注意：使用 .toInt() 强制走 Color(color: Int) 重载，按 sRGB ARGB 解码。
+    // 直接传 ULong 会调到 Color(value: ULong)，把低 6 位当作 colorspace ID，
+    // 在 Android 13 上触发 ArrayIndexOutOfBoundsException(length=18) — BUG-ANDROID-001。
+    val Background: Color            = Color(BACKGROUND_VALUE.toInt())
+    val Surface: Color               = Color(SURFACE_VALUE.toInt())
+    val SurfaceVariant: Color        = Color(SURFACE_VARIANT_VALUE.toInt())
+    val Primary: Color               = Color(PRIMARY_VALUE.toInt())
+    val PrimaryBright: Color         = Color(PRIMARY_BRIGHT_VALUE.toInt())
+    val OnBackground: Color          = Color(ON_BACKGROUND_VALUE.toInt())
+    val OnBackgroundSecondary: Color = Color(ON_BACKGROUND_SECONDARY_VALUE.toInt())
+    val OnBackgroundTertiary: Color  = Color(ON_BACKGROUND_TERTIARY_VALUE.toInt())
+    val Error: Color                 = Color(ERROR_VALUE.toInt())
+    val Success: Color               = Color(SUCCESS_VALUE.toInt())
+    val SystemMessage: Color         = Color(SYSTEM_MESSAGE_VALUE.toInt())
 }
