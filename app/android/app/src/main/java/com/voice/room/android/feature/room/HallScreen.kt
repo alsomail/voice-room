@@ -13,7 +13,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -27,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.paging.LoadState
 import androidx.paging.compose.LazyPagingItems
 import com.voice.room.android.R
+import com.voice.room.android.core.theme.GoldFab
 import com.voice.room.android.core.theme.MenaColors
 import com.voice.room.android.core.theme.MenaTypography
 import com.voice.room.android.domain.room.RoomItem
@@ -183,15 +183,9 @@ fun HallScreen(
  */
 @Composable
 private fun CreateRoomFab(onClick: () -> Unit) {
-    FloatingActionButton(
+    GoldFab(
         onClick = onClick,
-        containerColor = MenaColors.Primary,
-        contentColor = MenaColors.OnBackground,
         modifier = Modifier.testTag("create_room_fab"),
-    ) {
-        Icon(
-            imageVector = Icons.Default.Add,
-            contentDescription = stringResource(id = R.string.hall_create_room_fab),
-        )
-    }
+        contentDescription = stringResource(id = R.string.hall_create_room_fab),
+    )
 }

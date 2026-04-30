@@ -3,6 +3,7 @@ package com.voice.room.android.data.remote.api
 import com.voice.room.android.data.remote.model.ApiResponse
 import com.voice.room.android.data.remote.model.CreateRoomRequest
 import com.voice.room.android.data.remote.model.CreateRoomResponseData
+import com.voice.room.android.data.remote.model.RoomDetailResponseData
 import com.voice.room.android.data.remote.model.RoomListResponseData
 import com.voice.room.android.data.remote.model.VerifyPasswordRequest
 import com.voice.room.android.data.remote.model.VerifyPasswordResponseData
@@ -47,6 +48,22 @@ interface RoomApiService {
     suspend fun createRoom(
         @Body request: CreateRoomRequest
     ): Response<ApiResponse<CreateRoomResponseData>>
+
+    /**
+     * 获取房间详情（BUG-ROOM-NAV 修复）
+     *
+     * GET /api/v1/rooms/{id}
+     * 需要 JWT 鉴权（由 AuthInterceptor 注入 Authorization 头）
+     *
+     * 成功返回 HTTP 200 + data: [RoomDetailResponseData]；
+     * 失败：400（非法 UUID）、404（房间不存在）
+     *
+     * @param roomId 房间 UUID（路径参数）
+     */
+    @GET("rooms/{id}")
+    suspend fun getRoomDetail(
+        @Path("id") roomId: String
+    ): Response<ApiResponse<RoomDetailResponseData>>
 
     /**
      * 验证密码房密码 (T-30038)

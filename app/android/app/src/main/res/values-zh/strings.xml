@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    简体中文字符串资源（TC-PROFILE-00005 修复：退出登录弹窗本地化）
+    设备 locale 为 zh / zh-CN / zh-rCN 时优先使用本文件。
+    未翻译条目回落至 values/strings.xml（English default）。
+-->
+<resources>
+    <!-- App -->
+    <string name="app_name">语音房间</string>
+
+    <!-- Login -->
+    <string name="login_subtitle">登录</string>
+    <string name="login_button">登录</string>
+
+    <!-- Bottom navigation -->
+    <string name="tab_rooms">房间</string>
+    <string name="tab_messages">消息</string>
+    <string name="tab_profile">我的</string>
+
+    <!-- Placeholders -->
+    <string name="messages_placeholder_title">消息功能即将上线</string>
+    <string name="messages_placeholder_subtitle">敬请期待</string>
+
+    <!-- Hall -->
+    <string name="hall_top_bar_title">语音房</string>
+    <string name="hall_retry_button">重试</string>
+    <string name="hall_empty_state">暂无房间</string>
+    <string name="hall_create_room_fab">创建房间</string>
+    <string name="hall_ranking_action">榜单</string>
+    <string name="hall_search_action">搜索</string>
+
+    <!-- Hall errors -->
+    <string name="hall_load_failed">网络异常，请重试。</string>
+    <string name="hall_room_not_found">房间不存在。</string>
+    <string name="hall_password_unknown_error">密码验证失败，请重试。</string>
+    <string name="hall_kick_cooldown_seconds">您暂时无法进入该房间，还需等待 %1$d 秒。</string>
+
+    <!-- Create room -->
+    <string name="create_room_failed">创建房间失败，请重试。</string>
+    <string name="create_room_title_empty">请输入房间名称。</string>
+    <string name="create_room_title_too_long">房间名称最多 %1$d 个字符（当前 %2$d 个）。</string>
+    <string name="create_room_password_required">密码房间必须设置密码。</string>
+
+    <!-- Profile content -->
+    <string name="profile_copy_id_action">复制 ID</string>
+    <string name="profile_balance_format">💰 %1$d 金币</string>
+    <string name="profile_settings">设置</string>
+    <string name="profile_logout">退出登录</string>
+    <string name="profile_retry">重试</string>
+    <string name="profile_load_failed">加载个人信息失败。</string>
+
+    <!-- Profile dialog（TC-PROFILE-00005 修复核心条目） -->
+    <string name="profile_logout_confirm_title">确定要退出登录？</string>
+    <string name="profile_logout_confirm_text">退出后需要重新登录才能使用。</string>
+    <string name="dialog_confirm">确定</string>
+    <string name="dialog_cancel">取消</string>
+
+    <!-- Profile toasts -->
+    <string name="profile_id_copied_toast">ID 已复制</string>
+    <string name="profile_cached_data_toast">网络不可用，显示缓存数据。</string>
+
+    <!-- Room -->
+    <string name="room_input_placeholder">说点什么…</string>
+    <string name="room_send_action">发送</string>
+    <string name="room_unmute_action">取消静音</string>
+    <string name="room_mute_action">静音</string>
+    <string name="room_gift_action">礼物</string>
+    <string name="room_emoji_action">表情</string>
+    <string name="room_emoji_coming_soon">表情功能即将上线</string>
+    <string name="room_exit_action">离开房间</string>
+    <string name="room_exit_dialog_title">离开房间</string>
+    <string name="room_exit_dialog_text">确定要离开吗？</string>
+    <string name="room_overflow_more">更多</string>
+    <string name="room_menu_ranking">榜单</string>
+
+    <!-- Ranking -->
+    <string name="hall_ranking_action_title">榜单</string>
+
+    <!-- Privacy consent -->
+    <string name="privacy_consent_title">数据收集说明</string>
+    <string name="privacy_consent_body">为持续改善您的体验，我们收集以下匿名数据：\n\n• 功能使用情况（不含手机号或个人标识）\n• 崩溃报告（帮助我们快速修复问题）\n\n所有数据均已匿名化，我们绝不上传手机号或账户信息。</string>
+    <string name="privacy_consent_btn_agree_all">全部同意</string>
+    <string name="privacy_consent_btn_crash_only">仅崩溃报告</string>
+
+    <!-- Governance -->
+    <string name="room_governance_kicked_title">您已被移出房间</string>
+    <string name="room_governance_kicked_reason_spam">发送垃圾信息</string>
+    <string name="room_governance_kicked_reason_harassment">骚扰他人</string>
+    <string name="room_governance_kicked_reason_abuse">违规行为</string>
+    <string name="room_governance_kicked_reason_default">违反规则</string>
+    <string name="room_governance_kicked_body_format">原因：%1$s\n%2$s</string>
+    <plurals name="room_governance_kicked_cooldown_minutes">
+        <item quantity="other">%d 分钟后可重新加入</item>
+    </plurals>
+    <string name="room_governance_kicked_acknowledge">我知道了</string>
+    <string name="room_governance_kick_dialog_title">踢出原因</string>
+    <string name="room_governance_kick_reason_label_harassment">骚扰</string>
+    <string name="room_governance_kick_reason_label_spam">垃圾信息</string>
+    <string name="room_governance_kick_reason_label_abuse">违规行为</string>
+    <string name="room_governance_kick_reason_label_other">其他</string>
+    <string name="room_governance_kick_custom_placeholder">请输入原因（最多 %1$d 字）</string>
+    <string name="room_governance_btn_cancel">取消</string>
+    <string name="room_governance_btn_confirm">确定</string>
+    <string name="room_governance_mute_chip_mic_format">麦克风已禁言 · %1$s</string>
+    <string name="room_governance_mute_chip_chat_format">聊天已禁言 · %1$s</string>
+
+    <!-- Audience sheet -->
+    <string name="room_audience_title_format">在线（%1$d 人）</string>
+    <string name="room_audience_section_on_mic_format">上麦中（%1$d 人）</string>
+    <string name="room_audience_section_observers_format">观众席（%1$d 人）</string>
+    <string name="room_audience_empty">暂无成员</string>
+
+    <!-- User action sheet -->
+    <string name="room_user_action_assign_admin">设为管理员</string>
+    <string name="room_user_action_revoke_admin">撤销管理员</string>
+    <string name="room_user_action_force_take_mic">邀请上麦</string>
+    <string name="room_user_action_force_leave_mic">踢下麦位</string>
+    <string name="room_user_action_mute_mic">禁麦</string>
+    <string name="room_user_action_mute_chat">禁言</string>
+    <string name="room_user_action_kick">踢出房间</string>
+    <string name="room_user_action_view_profile">查看主页</string>
+    <string name="room_user_action_report">举报</string>
+
+    <!-- Password dialog -->
+    <string name="room_password_dialog_title">请输入房间密码</string>
+    <plurals name="room_password_error_attempts">
+        <item quantity="other">密码错误，还剩 %d 次机会。</item>
+    </plurals>
+    <string name="room_password_btn_confirm">确定</string>
+    <string name="room_password_btn_cancel">取消</string>
+    <string name="password_locked_minutes">已锁定，%1$d 分钟后重试。</string>
+</resources>

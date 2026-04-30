@@ -36,14 +36,17 @@ import com.voice.room.android.feature.room.RoomListViewModel
  *
  * T-30022 升级:
  * - HallScreen 新增 onCreateRoom 回调 → 控制 CreateRoomBottomSheet 显隐
- * - 创建成功后暂无导航（TODO: 接入 RoomScreen 导航）
+ * - BUG-ROOM-NAV 修复：onNavigateToRoom 参数透传，从 AppNavGraph 注入真实导航
+ * - BUG-CREATE-ROOM-SUBMIT 修复：CreateRoomBottomSheet.onSuccess 调用 onNavigateToRoom
  *
  * T-30024 升级:
  * - 将 ProfilePlaceholder() 替换为 ProfileScreen（真实个人中心页）
  * - 新增 onLogout 参数，退出登录后由调用方执行导航到 LoginScreen
  *
- * @param appContainer 依赖容器，提供 roomRepository / userRepository 等服务
- * @param onLogout     退出登录后的导航回调（由 AppNavGraph 注入）
+ * @param appContainer      依赖容器，提供 roomRepository / userRepository 等服务
+ * @param onLogout          退出登录后的导航回调（由 AppNavGraph 注入）
+ * @param onNavigateToRanking  进入榜单页回调
+ * @param onNavigateToRoom  进入房间页回调，参数为 roomId（由 AppNavGraph 注入 outer navController 导航）
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -51,6 +54,7 @@ fun MainScreen(
     appContainer: AppContainer,
     onLogout: () -> Unit = {},
     onNavigateToRanking: () -> Unit = {},
+    onNavigateToRoom: (String) -> Unit = {},   // BUG-ROOM-NAV 修复：从 AppNavGraph 注入
 ) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -89,7 +93,8 @@ fun MainScreen(
                 val pagingItems = roomListViewModel.pagingFlow.collectAsLazyPagingItems()
                 HallScreen(
                     pagingItems = pagingItems,
-                    onNavigateToRoom = { /* TODO: 接入 RoomScreen 导航 */ },
+                    // BUG-ROOM-NAV 修复：透传 AppNavGraph 注入的外层导航回调
+                    onNavigateToRoom = onNavigateToRoom,
                     onCreateRoom = { showCreateRoom = true },
                     onNavigateToRanking = onNavigateToRanking,
                 )
@@ -121,7 +126,11 @@ fun MainScreen(
             factory = CreateRoomViewModel.Factory
         )
         CreateRoomBottomSheet(
-            onSuccess = { /* TODO: 导航到新创建的房间 */ },
+            // BUG-CREATE-ROOM-SUBMIT 修复：创建成功后关闭 BottomSheet 并导航进入新房间
+            onSuccess = { roomId ->
+                showCreateRoom = false
+                onNavigateToRoom(roomId)
+            },
             onDismiss = { showCreateRoom = false },
             viewModel = createRoomViewModel,
         )
