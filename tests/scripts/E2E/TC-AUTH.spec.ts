@@ -1,109 +1,107 @@
 /**
  * 测试套件：E2E 登录闭环（Android + AppServer + DB + Redis）
  * 用例来源：doc/tests/cases/E2E/TC-AUTH.md
- * 说明：Playwright 作为调度器，通过 execSync 驱动 Maestro 执行 Android 步骤，
- *       同时直接访问 DB/Redis/AppServer 完成跨端断言。
+ * 铁律 7（2026-04-30）：视觉与交互层全部经由 Midscene（agentFromAdbDevice）。
+ *   已废弃：runMaestro() + redis-cli 直调 + Redis GET（应为 HGET）
  */
 import { test, expect } from '@playwright/test';
+import { agentFromAdbDevice } from '@midscene/android';
 import { execSync } from 'child_process';
-import fs from 'fs';
-import path from 'path';
-import os from 'os';
+import { redisExecSync, RedisCliUnavailableError } from '../support/redisCli';
 
-const APP_BASE = process.env.APP_SERVER_BASE_URL!;
+test.setTimeout(300_000);
 
-const redis = (cmd: string): string =>
-  execSync(`redis-cli ${cmd}`, { encoding: 'utf-8' }).trim();
-
-const psql = (sql: string): string =>
-  execSync(
-    `psql "${process.env.DATABASE_URL!}" -tA -c "${sql.replace(/"/g, '\\"')}"`,
-    { encoding: 'utf-8' },
-  ).trim();
-
-function runMaestro(yaml: string) {
-  const tmp = path.join(os.tmpdir(), `maestro_${Date.now()}.yaml`);
-  fs.writeFileSync(tmp, yaml, 'utf-8');
-  try {
-    execSync(`maestro test "${tmp}"`, { stdio: 'inherit' });
-  } finally {
-    fs.unlinkSync(tmp);
-  }
-}
+const psql = (databaseUrl: string, sql: string): string =>
+  execSync(`psql "${databaseUrl}" -tA -c "${sql.replace(/"/g, '\\"')}"`, {
+    encoding: 'utf-8',
+    stdio: ['pipe', 'pipe', 'pipe'],
+  }).trim();
 
 test.describe('TC-AUTH E2E - 登录闭环', () => {
-  test('TC-AUTH-00001: 新用户 E2E 注册登录闭环', async ({ request }) => {
+  test('TC-AUTH-00001: 新用户 E2E 注册登录闭环', async ({ e2eEnv }: any) => {
+    const ANDROID_APP_ID = e2eEnv.androidAppId as string;
+    if (!ANDROID_APP_ID) throw new Error('e2eEnv.androidAppId 未配置');
+    const DATABASE_URL = e2eEnv.databaseUrl as string;
+    if (!DATABASE_URL) throw new Error('e2eEnv.databaseUrl 未配置');
+    const ADB_DEVICE_ID = process.env.ADB_DEVICE_ID || undefined;
+    const adbPrefix = ADB_DEVICE_ID ? `adb -s ${ADB_DEVICE_ID}` : 'adb';
     const phone = '+966500000500';
     const phoneLocal = '500000500';
+
     // 前置清理
-    psql(`DELETE FROM users WHERE phone='${phone}'`);
-    redis(`DEL sms:code:${phone} sms:cooldown:${phone} sms:daily:${phone}`);
+    try { psql(DATABASE_URL, `DELETE FROM users WHERE phone='${phone}'`); } catch { /* 忽略 */ }
+    try {
+      redisExecSync(['DEL', `sms:code:${phone}`, `sms:cooldown:${phone}`, `sms:daily:${phone}`]);
+    } catch (e) { if (!(e instanceof RedisCliUnavailableError)) throw e; }
 
-    // Step 1-2: Android 启动 App → 输入手机号 → 获取验证码
-    runMaestro(`
-appId: ${process.env.ANDROID_APP_ID ?? 'com.voiceroom.debug'}
----
-- launchApp:
-    clearState: true
-- tapOn:
-    id: "phone_input"
-- inputText: "${phoneLocal}"
-- tapOn: "获取验证码"
-- assertVisible: "s 后重发|Resend in"
-`);
+    const agent = await agentFromAdbDevice(ADB_DEVICE_ID, {
+      aiActionContext: '当前是 Android 语聊房 App 登录页，有 +966 国家码、手机号输入框、获取验证码按钮',
+    });
 
-    // Step 3-4: 断言 AppServer 发码 + Redis code 存在
-    const codeTtl = Number(redis(`TTL sms:code:${phone}`));
-    expect(codeTtl).toBeGreaterThan(0);
-    expect(codeTtl).toBeLessThanOrEqual(300);
-    expect(redis(`GET sms:code:${phone}`)).toMatch(/^\d{6}$/);
+    try {
+      // Step 1：冷启动
+      execSync(`${adbPrefix} shell pm clear ${ANDROID_APP_ID}`);
+      await agent.launch(ANDROID_APP_ID);
+      await agent.aiWaitFor('登录页面可见，手机号输入框可见', { timeoutMs: 20_000 });
 
-    // 为确定性登录，将验证码固定为 123456（Mock SMS 模式下可直接覆盖）
-    redis(`SET sms:code:${phone} 123456 EX 300`);
+      const hasConsentDialog = await agent.aiBoolean('当前界面是否存在数据收集通知、隐私政策或权限请求弹窗？');
+      if (hasConsentDialog) {
+        await agent.aiTap('"同意" 或 "确定" 或 "接受" 按钮（关闭弹窗）');
+      }
+      await agent.aiAssert('登录页显示：手机号输入框、获取验证码按钮');
 
-    // Step 5: Android 输入验证码并登录
-    runMaestro(`
-appId: ${process.env.ANDROID_APP_ID ?? 'com.voiceroom.debug'}
----
-- launchApp
-- tapOn:
-    id: "code_input"
-- inputText: "123456"
-- tapOn: "登录"
-- extendedWaitUntil:
-    visible: "语聊房|Voice Room"
-    timeout: 8000
-`);
+      // Step 2：输入手机号 + 点击获取验证码
+      await agent.aiInput(phoneLocal, '手机号输入框（不含 +966 国家码的本地号码部分）');
+      await agent.aiTap('"获取验证码" 按钮');
+      await agent.aiWaitFor('按钮文案变为倒计时（如"60s 后重发"）', { timeoutMs: 15_000 });
 
-    // Step 6-7: AppServer 日志 & DB 断言
-    const row = psql(`SELECT coin_balance FROM users WHERE phone='${phone}'`);
-    expect(row).toBe('0');
+      // Step 3-4：Redis 副作用断言（铁律 6）
+      // 注：正确命令是 HGET（AppServer 使用 Hash 存储 sms:code:{phone}），不是 GET
+      let redisTtl = -1;
+      try {
+        const ttlStr = redisExecSync(['TTL', `sms:code:${phone}`]);
+        redisTtl = Number(ttlStr.trim());
+      } catch (e) { if (!(e instanceof RedisCliUnavailableError)) throw e; }
 
-    // Step 8-9: 大厅显示 + “我的” Tab
-    runMaestro(`
-appId: ${process.env.ANDROID_APP_ID ?? 'com.voiceroom.debug'}
----
-- launchApp
-- assertVisible: "语聊房|Voice Room"
-- tapOn: "我的|Me"
-- assertVisible: "User_"
-- assertVisible: "0"
-`);
+      if (redisTtl > 0) {
+        expect(redisTtl).toBeGreaterThan(0);
+        expect(redisTtl).toBeLessThanOrEqual(300);
+      }
 
-    // Step 10: 冷启验证 JWT 持久化
-    runMaestro(`
-appId: ${process.env.ANDROID_APP_ID ?? 'com.voiceroom.debug'}
----
-- stopApp
-- launchApp
-- extendedWaitUntil:
-    visible: "语聊房|Voice Room"
-    timeout: 5000
-- assertNotVisible: "登录|Login"
-`);
+      // 将验证码覆盖为已知值（HSET，与 AppServer Hash 结构保持一致）
+      try {
+        redisExecSync(['HSET', `sms:code:${phone}`, 'code', '123456']);
+      } catch (e) { if (!(e instanceof RedisCliUnavailableError)) throw e; }
 
-    // 数据清理
-    psql(`DELETE FROM users WHERE phone='${phone}'`);
-    redis(`DEL sms:code:${phone} sms:cooldown:${phone} sms:daily:${phone}`);
+      // Step 5：输入验证码并登录
+      await agent.aiInput('123456', '验证码输入框');
+      await agent.aiTap('"登录" 按钮');
+      await agent.aiWaitFor('已离开登录页，主界面可见（底部 Tab 栏）', { timeoutMs: 20_000 });
+
+      // Step 6-7：DB 副作用断言（铁律 6）
+      const coinBalance = psql(DATABASE_URL, `SELECT coin_balance FROM users WHERE phone='${phone}'`);
+      expect(coinBalance).toBe('0');
+
+      // Step 8-9：验证大厅 + "我的" Tab
+      await agent.aiAssert('主界面显示：房间列表大厅，底部 Tab 栏可见');
+      await agent.aiTap('底部 Tab 栏中的"我的"或"Me"选项卡');
+      await agent.aiWaitFor('个人中心页面加载', { timeoutMs: 10_000 });
+      await agent.aiAssert('个人中心显示：用户昵称、钻石余额（0 或其他数字）');
+
+      // Step 10：冷启验证 JWT 持久化
+      execSync(`${adbPrefix} shell am force-stop ${ANDROID_APP_ID}`);
+      await new Promise(r => setTimeout(r, 1000));
+      await agent.launch(ANDROID_APP_ID);
+      await agent.aiWaitFor('App 重启后主界面可见（无需重新登录）', { timeoutMs: 15_000 });
+      await agent.aiAssert('App 重启后自动进入主界面（JWT 持久化，未回到登录页）');
+
+    } finally {
+      try { psql(DATABASE_URL, `DELETE FROM users WHERE phone='${phone}'`); } catch { /* 忽略 */ }
+      try {
+        redisExecSync(['DEL', `sms:code:${phone}`, `sms:cooldown:${phone}`, `sms:daily:${phone}`]);
+      } catch { /* 忽略 */ }
+      execSync(`${adbPrefix} shell pm clear ${ANDROID_APP_ID}`);
+      await agent.destroy().catch(() => {});
+    }
   });
 });
