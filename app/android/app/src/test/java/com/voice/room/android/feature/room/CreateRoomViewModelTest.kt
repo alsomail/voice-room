@@ -879,4 +879,138 @@ class CreateRoomViewModelTest {
                 fakeRepo.lastAnnouncement
             )
         }
+
+    // ═════════════════════════════════════════════
+    // BUG-CREATE-ROOM-SUBMIT 修复验证（T-BUG-CREATE-ROOM-SUBMIT）
+    // ═════════════════════════════════════════════
+
+    /**
+     * BUG-CREATE-ROOM-SUBMIT 核心回归测试：
+     * 调用 [CreateRoomViewModel.createRoom] 时必须：
+     *   1. 实际调用 Repository.createRoom API（调用次数 = 1，不能是 0）
+     *   2. 将 Repository 返回的 roomId 精确传递到 [CreateRoomUiState.Success.roomId]
+     *
+     * 原始 Bug：CreateRoomBottomSheet 提交按钮 onClick 未绑定到 viewModel.createRoom()，
+     * 导致 createRoom API 调用次数 = 0，房间未被创建，也无导航事件触发。
+     *
+     * 此测试同时断言调用次数 = 1 且 roomId 正确，任意一端回归均导致测试失败。
+     */
+    @Test
+    fun `BUG-CREATE-ROOM-SUBMIT createRoom calls repository exactly once and roomId flows to Success`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            val expectedRoomId = "bug-fix-room-submit-001"
+            val fakeRepo = FakeSuccessRepository(returnedRoomId = expectedRoomId)
+            val viewModel = CreateRoomViewModel(fakeRepo)
+
+            viewModel.createRoom(title = "TDD 语音房", type = "normal")
+            advanceUntilIdle()
+
+            // 1) API 必须被调用且仅调用一次（原始 Bug: 0 次）
+            assertEquals(
+                "BUG-CREATE-ROOM-SUBMIT: createRoom API 应被调用 1 次（不能是 0）",
+                1,
+                fakeRepo.createRoomCallCount
+            )
+
+            // 2) Repository 返回的 roomId 必须原样流入 Success 状态（供 UI 层导航使用）
+            val state = viewModel.uiState.value
+            assertTrue(
+                "BUG-CREATE-ROOM-SUBMIT: uiState 应为 Success，实际: $state",
+                state is CreateRoomUiState.Success
+            )
+            assertEquals(
+                "BUG-CREATE-ROOM-SUBMIT: Success.roomId 必须与 repository 返回值完全一致",
+                expectedRoomId,
+                (state as CreateRoomUiState.Success).roomId
+            )
+        }
+
+    /**
+     * BUG-CREATE-ROOM-SUBMIT 防重提交守卫：
+     * 验证 Loading 状态下第二次 createRoom 调用被幂等忽略，API 仍只调用一次，
+     * 防止双击提交绕过防抖保护导致重复创建房间。
+     */
+    @Test
+    fun `BUG-CREATE-ROOM-SUBMIT double createRoom call API only once due to Loading guard`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            val fakeBlockingRepo = object : IRoomRepository {
+                var callCount = 0
+
+                override suspend fun getRooms(page: Int, size: Int): Result<RoomsPage> =
+                    Result.success(RoomsPage(total = 0, page = 1, items = emptyList()))
+
+                override fun getRoomsPagingSource(): PagingSource<Int, RoomItem> =
+                    NullPagingSource()
+
+                override suspend fun createRoom(
+                    title: String, type: String, password: String?,
+                    coverUrl: String, category: String, announcement: String?
+                ): Result<String> {
+                    callCount++
+                    kotlinx.coroutines.awaitCancellation() // 模拟网络等待
+                }
+
+                override suspend fun verifyPassword(
+                    roomId: String, password: String
+                ): Result<String> = Result.failure(UnsupportedOperationException())
+            }
+            val viewModel = CreateRoomViewModel(fakeBlockingRepo)
+
+            // 首次提交 — 进入 Loading
+            viewModel.createRoom(title = "防重房间", type = "normal")
+            mainDispatcherRule.testDispatcher.scheduler.runCurrent()
+            assertEquals("第一次 createRoom 后应为 Loading", CreateRoomUiState.Loading, viewModel.uiState.value)
+
+            // 第二次提交 — 应被 Loading 守卫拦截
+            viewModel.createRoom(title = "防重房间", type = "normal")
+            mainDispatcherRule.testDispatcher.scheduler.runCurrent()
+
+            // API 依然只被调用了一次
+            assertEquals(
+                "BUG-CREATE-ROOM-SUBMIT: Loading 期间第二次提交不应再次调用 API",
+                1,
+                fakeBlockingRepo.callCount
+            )
+        }
+
+    /**
+     * BUG-CREATE-ROOM-SUBMIT 密码房全链路：
+     * 密码类型的 createRoom 调用 API 一次，password 字段正确传递，
+     * 并且 Success.roomId 与 repository 返回值一致（验证密码房完整提交链路）。
+     */
+    @Test
+    fun `BUG-CREATE-ROOM-SUBMIT password room createRoom calls API once with password and returns correct roomId`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            val expectedRoomId = "password-room-bug-fix-002"
+            val fakeRepo = FakeSuccessRepository(returnedRoomId = expectedRoomId)
+            val viewModel = CreateRoomViewModel(fakeRepo)
+
+            viewModel.createRoom(
+                title = "密码语音房",
+                type = "password",
+                password = "654321"
+            )
+            advanceUntilIdle()
+
+            // API 调用次数 = 1
+            assertEquals(
+                "BUG-CREATE-ROOM-SUBMIT: 密码房 createRoom API 调用次数应为 1",
+                1,
+                fakeRepo.createRoomCallCount
+            )
+            // password 字段正确传递
+            assertEquals(
+                "BUG-CREATE-ROOM-SUBMIT: 密码应原样传递给 repository",
+                "654321",
+                fakeRepo.lastPassword
+            )
+            // roomId 正确流入 Success
+            val state = viewModel.uiState.value
+            assertTrue("密码房创建应成功", state is CreateRoomUiState.Success)
+            assertEquals(
+                "BUG-CREATE-ROOM-SUBMIT: 密码房 Success.roomId 必须匹配",
+                expectedRoomId,
+                (state as CreateRoomUiState.Success).roomId
+            )
+        }
 }
