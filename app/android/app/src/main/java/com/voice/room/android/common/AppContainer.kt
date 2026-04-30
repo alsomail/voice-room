@@ -55,9 +55,13 @@ import com.voice.room.android.data.remote.api.RankingApiService
 import com.voice.room.android.data.remote.api.RoomApiService
 import com.voice.room.android.data.remote.api.UserApiService
 import com.voice.room.android.data.remote.api.WalletApiService
+import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import com.voice.room.android.data.local.TokenManager
 import com.voice.room.android.data.room.DebugRoomGateway
 import com.voice.room.android.data.room.DebugRoomSyncService
+import com.voice.room.android.data.room.IRoomSnapshotRepository
 import com.voice.room.android.data.room.RetrofitRoomRepository
+import com.voice.room.android.data.room.RetrofitRoomSnapshotRepository
 import com.voice.room.android.data.user.RetrofitUserRepository
 import com.voice.room.android.data.wallet.RetrofitWalletRepository
 import com.voice.room.android.domain.auth.IAuthService
@@ -106,8 +110,14 @@ data class AppContainer(
     val rankingRepository: IRankingRepository,
     val roomRepository: IRoomRepository,
     val webSocketClient: IWebSocketClient,
+    /** BUG-ROOM-NAV 修复：房间快照仓库（GET /rooms/{id}） */
+    val roomSnapshotRepository: IRoomSnapshotRepository,
     val tokenManager: ITokenManager,
     val userRepository: IUserRepository,
+    /** T-30002：登录认证仓库（发送验证码 + 登录） */
+    val authRepository: com.voice.room.android.domain.auth.IAuthRepository,
+    /** 401 未授权处理器（登录成功后 resetUnauthorized） */
+    val unauthorizedHandler: com.voice.room.android.core.network.UnauthorizedHandler,
     /** T-30042 */
     val kickCooldownStore: KickCooldownStore = InMemoryKickCooldownStore(),
     /** T-30043 */
@@ -138,14 +148,21 @@ data class AppContainer(
             )
 
             // ── TokenManager + Auth interceptor ────────────────
+            // BUG-JWT-PERSIST 修复：使用 DataStore Preferences 持久化 JWT Token，
+            // am force-stop 后重启 App 可恢复登录状态（原实现为内存 @Volatile，进程终止后丢失）。
             val currentUserId = AtomicReference<String?>(null)
+            val authDataStoreFile = File(appCtx.filesDir, "datastore/auth.preferences_pb")
+            val authDataStore = PreferenceDataStoreFactory.create(
+                scope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
+                produceFile = { authDataStoreFile }
+            )
             val tokenManager = object : ITokenManager {
-                @Volatile private var token: String? = null
-                override suspend fun saveToken(token: String) { this.token = token }
-                override suspend fun getToken(): String? = token
+                private val delegate = TokenManager(authDataStore)
+                override suspend fun saveToken(token: String) = delegate.saveToken(token)
+                override suspend fun getToken(): String? = delegate.getToken()
                 override suspend fun clearToken() {
-                    token = null
-                    currentUserId.set(null)
+                    delegate.clearToken()
+                    currentUserId.set(null)  // 退出登录时同步清除 Analytics userId
                 }
             }
             val unauthorizedHandler = DefaultUnauthorizedHandler(tokenManager)
@@ -169,6 +186,11 @@ data class AppContainer(
                 com.voice.room.android.data.gift.RetrofitGiftRepository(giftApiService)
             val rankingApiService = roomRetrofit.create(RankingApiService::class.java)
             val rankingRepository: IRankingRepository = RetrofitRankingRepository(rankingApiService)
+            val authApiService = roomRetrofit.create(
+                com.voice.room.android.data.remote.api.AuthApiService::class.java
+            )
+            val authRepository: com.voice.room.android.domain.auth.IAuthRepository =
+                com.voice.room.android.data.auth.RetrofitAuthRepository(authApiService)
 
             // ── WebSocket ─────────────────────────────────────
             val wsHttpClient = AppHttpClientFactory.create(
@@ -284,8 +306,11 @@ data class AppContainer(
                 rankingRepository = rankingRepository,
                 roomRepository = RetrofitRoomRepository(roomApiService),
                 webSocketClient = webSocketClient,
+                roomSnapshotRepository = RetrofitRoomSnapshotRepository(roomApiService),
                 tokenManager = tokenManager,
                 userRepository = userRepository,
+                authRepository = authRepository,
+                unauthorizedHandler = unauthorizedHandler,
                 kickCooldownStore = InMemoryKickCooldownStore(),
                 consentRepository = consentRepository,
                 eventReportClient = eventReportClient,
@@ -414,8 +439,13 @@ data class AppContainer(
                 rankingRepository = rankingRepository,
                 roomRepository = RetrofitRoomRepository(roomApiService),
                 webSocketClient = webSocketClient,
+                roomSnapshotRepository = RetrofitRoomSnapshotRepository(roomApiService),
                 tokenManager = tokenManager,
                 userRepository = userRepository,
+                authRepository = com.voice.room.android.data.auth.RetrofitAuthRepository(
+                    roomRetrofit.create(com.voice.room.android.data.remote.api.AuthApiService::class.java)
+                ),
+                unauthorizedHandler = unauthorizedHandler,
                 kickCooldownStore = InMemoryKickCooldownStore(),
                 consentRepository = consentRepository,
                 eventReportClient = eventReportClient,
