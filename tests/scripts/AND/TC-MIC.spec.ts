@@ -7,7 +7,7 @@
  *   TC-MIC-00001 — 权限申请：拒绝后 Fallback 到系统设置
  *   TC-MIC-00002 — 上麦 → 下麦 E2E（含 DB 副作用断言）
  */
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../support/fixtures';
 import { agentFromAdbDevice } from '@midscene/android';
 import { execSync } from 'child_process';
 import { redisExecSync, RedisCliUnavailableError } from '../support/redisCli';
@@ -38,12 +38,16 @@ test('TC-MIC-00001: 权限申请拒绝后 Fallback 到系统设置', async ({ e2
   } catch { /* 可能已经无权限，忽略 */ }
 
   const agent = await agentFromAdbDevice(ADB_DEVICE_ID, {
-    aiActionContext: '当前是 Android 语聊房 App，界面语言为阿拉伯语或英语',
+    aiActionContext: '当前是 Android 语聊房 App，界面语言为中文、阿拉伯语或英语',
   });
 
   try {
     // 冷启动 + 弹窗处理 + 登录
     execSync(`${adbPrefix} shell pm clear ${ANDROID_APP_ID}`);
+    // 恢复 App 语言为中文（Android 13+ app-specific locale）
+    try {
+      execSync(`${adbPrefix} shell cmd locale set-app-locales ${ANDROID_APP_ID} --locales zh-CN`, { stdio: 'pipe' });
+    } catch { /* 旧版 Android 不支持，忽略 */ }
     await agent.launch(ANDROID_APP_ID);
     await agent.aiWaitFor('界面上有可交互的按钮或输入框', { timeoutMs: 15_000 });
     const hasConsentDialog = await agent.aiBoolean('当前界面是否存在数据收集通知、隐私政策或权限请求弹窗？');
@@ -57,7 +61,7 @@ test('TC-MIC-00001: 权限申请拒绝后 Fallback 到系统设置', async ({ e2
     }
     await agent.aiWaitFor('手机号输入框可见', { timeoutMs: 10_000 });
     await agent.aiInput('500000900', '手机号输入框');
-    await agent.aiTap('"获取验证码" 按钮');
+    await agent.aiTap('"获取验证码"/"Get Code"/"احصل على الرمز" 按钮');
     await agent.aiWaitFor('按钮进入倒计时状态', { timeoutMs: 10_000 });
     try {
       redisExecSync(['HSET', `sms:code:${phone}`, 'code', '123456']);
@@ -120,12 +124,16 @@ test('TC-MIC-00002: 上麦 → RTC publish → 下麦 E2E', async ({ e2eEnv }: a
   } catch { /* 忽略 */ }
 
   const agent = await agentFromAdbDevice(ADB_DEVICE_ID, {
-    aiActionContext: '当前是 Android 语聊房 App，界面语言为阿拉伯语或英语，房间内可见主播麦和副麦',
+    aiActionContext: '当前是 Android 语聊房 App，界面语言为中文、阿拉伯语或英语，房间内可见主播麦和副麦',
   });
 
   try {
     // 冷启动 + 登录
     execSync(`${adbPrefix} shell pm clear ${ANDROID_APP_ID}`);
+    // 恢复 App 语言为中文（Android 13+ app-specific locale）
+    try {
+      execSync(`${adbPrefix} shell cmd locale set-app-locales ${ANDROID_APP_ID} --locales zh-CN`, { stdio: 'pipe' });
+    } catch { /* 旧版 Android 不支持，忽略 */ }
     await agent.launch(ANDROID_APP_ID);
     await agent.aiWaitFor('界面上有可交互的按钮或输入框', { timeoutMs: 15_000 });
     const hasConsentDialog = await agent.aiBoolean('当前界面是否存在数据收集通知、隐私政策或权限请求弹窗？');
@@ -139,7 +147,7 @@ test('TC-MIC-00002: 上麦 → RTC publish → 下麦 E2E', async ({ e2eEnv }: a
     }
     await agent.aiWaitFor('手机号输入框可见', { timeoutMs: 10_000 });
     await agent.aiInput('500000900', '手机号输入框');
-    await agent.aiTap('"获取验证码" 按钮');
+    await agent.aiTap('"获取验证码"/"Get Code"/"احصل على الرمز" 按钮');
     await agent.aiWaitFor('按钮进入倒计时状态', { timeoutMs: 10_000 });
     try {
       redisExecSync(['HSET', `sms:code:${phone}`, 'code', '123456']);

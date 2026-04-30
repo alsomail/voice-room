@@ -15,7 +15,7 @@
  *   Step7  — 视觉断言：大厅三 Tab 可见（登录成功）
  *   Step8  — force-stop 后重启，断言未跳回登录页（JWT 持久化验证）
  */
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../support/fixtures';
 import { agentFromAdbDevice } from '@midscene/android';
 import { execSync } from 'child_process';
 import { redisExecSync, RedisCliUnavailableError } from '../support/redisCli';
@@ -55,12 +55,16 @@ test('TC-AUTH-00003: Android 端注册登录全链路', async ({ e2eEnv }: any) 
   }
 
   const agent = await agentFromAdbDevice(ADB_DEVICE_ID, {
-    aiActionContext: '当前是 Android 语聊房 App，界面语言为阿拉伯语或英语',
+    aiActionContext: '当前是 Android 语聊房 App，界面语言为中文、阿拉伯语或英语',
   });
 
   try {
     // ── Step0：冷启动 + 首次同意弹窗处理 ─────────────────────────────────────
     execSync(`${adbPrefix} shell pm clear ${ANDROID_APP_ID}`);
+    // 恢复 App 语言为中文（Android 13+ app-specific locale）
+    try {
+      execSync(`${adbPrefix} shell cmd locale set-app-locales ${ANDROID_APP_ID} --locales zh-CN`, { stdio: 'pipe' });
+    } catch { /* 旧版 Android 不支持，忽略 */ }
     await agent.launch(ANDROID_APP_ID);
     // 等第一个可交互元素（弹窗或登录页均可）
     await agent.aiWaitFor('界面上有可交互的按钮或输入框（弹窗或登录页均可）', { timeoutMs: 15_000 });
@@ -75,7 +79,7 @@ test('TC-AUTH-00003: Android 端注册登录全链路', async ({ e2eEnv }: any) 
     await agent.aiInput(phoneLocal, '手机号输入框');
 
     // ── Step2：发送验证码 ────────────────────────────────────────────────────
-    await agent.aiTap('"获取验证码" 按钮');
+    await agent.aiTap('"获取验证码"/"Get Code"/"احصل على الرمز" 按钮');
     await agent.aiAssert('按钮文案变为 "60s 后重发" 或类似倒计时态');
 
     // ── Step3：Redis 副作用断言（SMS 验证码为 Hash 结构，用 HGET）──────────
@@ -91,7 +95,9 @@ test('TC-AUTH-00003: Android 端注册登录全链路', async ({ e2eEnv }: any) 
 
     // ── Step5：点击登录 ──────────────────────────────────────────────────────
     await agent.aiTap('登录 或 确认 按钮');
-    await agent.aiWaitFor('登录请求已发出，页面正在跳转', { timeoutMs: 15_000 });
+    // 自愈修复（轮次1）：原条件等待"正在跳转"是瞬态，AI 截图时 App 已到达主界面
+    // → 改为等待最终态"已在大厅/主界面"
+    await agent.aiWaitFor('已成功进入大厅主界面或房间列表页面（登录跳转完成，不再是登录页）', { timeoutMs: 20_000 });
 
     // ── Step6：DB 副作用断言 ─────────────────────────────────────────────────
     const count = psql(DATABASE_URL, `SELECT COUNT(*) FROM users WHERE phone='${phone}'`);

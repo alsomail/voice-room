@@ -6,7 +6,7 @@
  * 覆盖用例（P0）：
  *   TC-CHAT-00002 — 公屏发送 + 接收 + 自动滚动
  */
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../support/fixtures';
 import { agentFromAdbDevice } from '@midscene/android';
 import { execSync } from 'child_process';
 import { redisExecSync, RedisCliUnavailableError } from '../support/redisCli';
@@ -34,12 +34,16 @@ test('TC-CHAT-00002: 公屏发送 + 接收 + 自动滚动', async ({ e2eEnv }: a
   const ROOM_ID = e2eEnv.roomId as string | undefined;
 
   const agent = await agentFromAdbDevice(ADB_DEVICE_ID, {
-    aiActionContext: '当前是 Android 语聊房 App，界面语言为阿拉伯语或英语，房间内有公屏聊天区域',
+    aiActionContext: '当前是 Android 语聊房 App，界面语言为中文、阿拉伯语或英语，房间内有公屏聊天区域',
   });
 
   try {
     // 前置：冷启动 + 处理弹窗 + 登录
     execSync(`${adbPrefix} shell pm clear ${ANDROID_APP_ID}`);
+    // 恢复 App 语言为中文（Android 13+ app-specific locale）
+    try {
+      execSync(`${adbPrefix} shell cmd locale set-app-locales ${ANDROID_APP_ID} --locales zh-CN`, { stdio: 'pipe' });
+    } catch { /* 旧版 Android 不支持，忽略 */ }
     await agent.launch(ANDROID_APP_ID);
     await agent.aiWaitFor('界面上有可交互的按钮或输入框', { timeoutMs: 15_000 });
     const hasConsentDialog = await agent.aiBoolean('当前界面是否存在数据收集通知、隐私政策或权限请求弹窗？');
@@ -53,7 +57,7 @@ test('TC-CHAT-00002: 公屏发送 + 接收 + 自动滚动', async ({ e2eEnv }: a
     }
     await agent.aiWaitFor('手机号输入框可见', { timeoutMs: 10_000 });
     await agent.aiInput(phoneLocal, '手机号输入框');
-    await agent.aiTap('"获取验证码" 按钮');
+    await agent.aiTap('"获取验证码"/"Get Code"/"احصل على الرمز" 按钮');
     await agent.aiWaitFor('按钮进入倒计时状态', { timeoutMs: 10_000 });
     try {
       redisExecSync(['HSET', `sms:code:${phone}`, 'code', '123456']);
@@ -78,6 +82,7 @@ test('TC-CHAT-00002: 公屏发送 + 接收 + 自动滚动', async ({ e2eEnv }: a
     // Step4：发送
     await agent.aiTap('"发送" 按钮或发送图标');
 
+    // KNOWN: BUG-CHAT-WS-001 - WS 广播未完全实现，聊天消息可能不显示在公屏
     // Step5：断言消息出现在公屏
     await agent.aiWaitFor(`公屏中出现包含 "${testMsg.slice(0, 20)}" 的聊天气泡`, { timeoutMs: 10_000 });
     await agent.aiAssert(`公屏列表底部可见刚发送的消息，内容包含 "${testMsg.slice(0, 20)}"`);

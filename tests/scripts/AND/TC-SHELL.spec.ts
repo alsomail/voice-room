@@ -8,7 +8,7 @@
  *   TC-SHELL-00002 — MainScreen 底部 3 Tab + 状态保留
  *   TC-SHELL-00005 — RoomScreen 黑金升级 + 主副麦 + 弹幕 + 底栏
  */
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../support/fixtures';
 import { agentFromAdbDevice } from '@midscene/android';
 import { execSync } from 'child_process';
 import { redisExecSync, RedisCliUnavailableError } from '../support/redisCli';
@@ -38,6 +38,10 @@ test('TC-SHELL-00001: SplashScreen Logo 动画 + 跳转分流', async ({ e2eEnv 
   try {
     // Step1：无 JWT 冷启动 → 应跳到 LoginScreen
     execSync(`${adbPrefix} shell pm clear ${ANDROID_APP_ID}`);
+    // 恢复 App 语言为中文（Android 13+ app-specific locale）
+    try {
+      execSync(`${adbPrefix} shell cmd locale set-app-locales ${ANDROID_APP_ID} --locales zh-CN`, { stdio: 'pipe' });
+    } catch { /* 旧版 Android 不支持，忽略 */ }
     await agent.launch(ANDROID_APP_ID);
     await agent.aiWaitFor('界面上有可交互的按钮或输入框（弹窗或登录页均可）', { timeoutMs: 20_000 });
     const hasConsentDialog = await agent.aiBoolean('当前界面是否存在数据收集通知、隐私政策或权限请求弹窗？');
@@ -55,7 +59,7 @@ test('TC-SHELL-00001: SplashScreen Logo 动画 + 跳转分流', async ({ e2eEnv 
       if (!(e instanceof RedisCliUnavailableError)) throw e;
     }
     await agent.aiInput('500000900', '手机号输入框');
-    await agent.aiTap('"获取验证码" 按钮');
+    await agent.aiTap('"获取验证码"/"Get Code"/"احصل على الرمز" 按钮');
     await agent.aiWaitFor('按钮进入倒计时状态', { timeoutMs: 10_000 });
     try {
       redisExecSync(['HSET', `sms:code:${phone}`, 'code', '123456']);
@@ -103,6 +107,10 @@ test('TC-SHELL-00002: MainScreen 底部 3 Tab + 状态保留', async ({ e2eEnv }
   try {
     // 冷启动 + 登录
     execSync(`${adbPrefix} shell pm clear ${ANDROID_APP_ID}`);
+    // 恢复 App 语言为中文（Android 13+ app-specific locale）
+    try {
+      execSync(`${adbPrefix} shell cmd locale set-app-locales ${ANDROID_APP_ID} --locales zh-CN`, { stdio: 'pipe' });
+    } catch { /* 旧版 Android 不支持，忽略 */ }
     await agent.launch(ANDROID_APP_ID);
     await agent.aiWaitFor('界面上有可交互的按钮或输入框', { timeoutMs: 15_000 });
     const hasConsentDialog = await agent.aiBoolean('当前界面是否存在数据收集通知、隐私政策或权限请求弹窗？');
@@ -116,7 +124,7 @@ test('TC-SHELL-00002: MainScreen 底部 3 Tab + 状态保留', async ({ e2eEnv }
     }
     await agent.aiWaitFor('手机号输入框可见', { timeoutMs: 10_000 });
     await agent.aiInput('500000900', '手机号输入框');
-    await agent.aiTap('"获取验证码" 按钮');
+    await agent.aiTap('"获取验证码"/"Get Code"/"احصل على الرمز" 按钮');
     await agent.aiWaitFor('按钮进入倒计时状态', { timeoutMs: 10_000 });
     try {
       redisExecSync(['HSET', `sms:code:${phone}`, 'code', '123456']);
@@ -172,6 +180,10 @@ test('TC-SHELL-00005: RoomScreen 黑金升级 + 主副麦 + 弹幕 + 底栏', as
   try {
     // 冷启动 + 登录
     execSync(`${adbPrefix} shell pm clear ${ANDROID_APP_ID}`);
+    // 恢复 App 语言为中文（Android 13+ app-specific locale）
+    try {
+      execSync(`${adbPrefix} shell cmd locale set-app-locales ${ANDROID_APP_ID} --locales zh-CN`, { stdio: 'pipe' });
+    } catch { /* 旧版 Android 不支持，忽略 */ }
     await agent.launch(ANDROID_APP_ID);
     await agent.aiWaitFor('界面上有可交互的按钮或输入框', { timeoutMs: 15_000 });
     const hasConsentDialog = await agent.aiBoolean('当前界面是否存在数据收集通知、隐私政策或权限请求弹窗？');
@@ -185,7 +197,7 @@ test('TC-SHELL-00005: RoomScreen 黑金升级 + 主副麦 + 弹幕 + 底栏', as
     }
     await agent.aiWaitFor('手机号输入框可见', { timeoutMs: 10_000 });
     await agent.aiInput('500000900', '手机号输入框');
-    await agent.aiTap('"获取验证码" 按钮');
+    await agent.aiTap('"获取验证码"/"Get Code"/"احصل على الرمز" 按钮');
     await agent.aiWaitFor('按钮进入倒计时状态', { timeoutMs: 10_000 });
     try {
       redisExecSync(['HSET', `sms:code:${phone}`, 'code', '123456']);

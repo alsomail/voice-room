@@ -7,7 +7,7 @@
  *   TC-ANALYTICS-00003 — 隐私弹窗 + 同意模式分流
  *   TC-ANALYTICS-00004 — EventReportClient 节流队列 + WS/HTTP 通道切换
  */
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../support/fixtures';
 import { agentFromAdbDevice } from '@midscene/android';
 import { execSync } from 'child_process';
 import { redisExecSync, RedisCliUnavailableError } from '../support/redisCli';
@@ -35,6 +35,10 @@ test('TC-ANALYTICS-00003: 隐私弹窗 + 同意模式分流', async ({ e2eEnv }:
   try {
     // 前置：清除 App 数据，模拟首次启动
     execSync(`${adbPrefix} shell pm clear ${ANDROID_APP_ID}`);
+    // 恢复 App 语言为中文（Android 13+ app-specific locale）
+    try {
+      execSync(`${adbPrefix} shell cmd locale set-app-locales ${ANDROID_APP_ID} --locales zh-CN`, { stdio: 'pipe' });
+    } catch { /* 旧版 Android 不支持，忽略 */ }
     await agent.launch(ANDROID_APP_ID);
 
     // Step1：主页之前应弹出 PrivacyConsentDialog
@@ -93,6 +97,10 @@ test('TC-ANALYTICS-00003: 隐私弹窗 + 同意模式分流', async ({ e2eEnv }:
     // 恢复：清除 App 数据
     try {
       execSync(`${adbPrefix} shell pm clear ${ANDROID_APP_ID}`, { stdio: 'pipe' });
+      // 恢复 App 语言为中文（Android 13+ app-specific locale）
+      try {
+        execSync(`${adbPrefix} shell cmd locale set-app-locales ${ANDROID_APP_ID} --locales zh-CN`, { stdio: 'pipe' });
+      } catch { /* 旧版 Android 不支持，忽略 */ }
     } catch { /* 忽略 */ }
     await agent.destroy().catch(() => {});
   }
@@ -115,6 +123,10 @@ test('TC-ANALYTICS-00004: EventReportClient 节流队列验证', async ({ e2eEnv
   try {
     // 前置：清除数据，同意完整分析模式登录
     execSync(`${adbPrefix} shell pm clear ${ANDROID_APP_ID}`);
+    // 恢复 App 语言为中文（Android 13+ app-specific locale）
+    try {
+      execSync(`${adbPrefix} shell cmd locale set-app-locales ${ANDROID_APP_ID} --locales zh-CN`, { stdio: 'pipe' });
+    } catch { /* 旧版 Android 不支持，忽略 */ }
     await agent.launch(ANDROID_APP_ID);
     await agent.aiWaitFor('界面上有可交互的按钮或输入框', { timeoutMs: 15_000 });
 
@@ -137,7 +149,7 @@ test('TC-ANALYTICS-00004: EventReportClient 节流队列验证', async ({ e2eEnv
     }
     await agent.aiWaitFor('手机号输入框可见', { timeoutMs: 10_000 });
     await agent.aiInput('500000900', '手机号输入框');
-    await agent.aiTap('"获取验证码" 按钮');
+    await agent.aiTap('"获取验证码"/"Get Code"/"احصل على الرمز" 按钮');
     await agent.aiWaitFor('按钮进入倒计时状态', { timeoutMs: 10_000 });
     try {
       redisExecSync(['HSET', `sms:code:${phone}`, 'code', '123456']);

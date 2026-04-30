@@ -7,7 +7,7 @@
  *   TC-GIFT-00001 — 礼物面板 Bottom Sheet 布局 + 交互
  *   TC-GIFT-00003 — SendGift 客户端（UUID msg_id + 连送 + 超时，含 DB 副作用断言）
  */
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../support/fixtures';
 import { agentFromAdbDevice } from '@midscene/android';
 import { execSync } from 'child_process';
 import { redisExecSync, RedisCliUnavailableError } from '../support/redisCli';
@@ -24,6 +24,10 @@ const psql = (databaseUrl: string, sql: string): string =>
 
 async function loginAndEnterRoom(agent: any, adbPrefix: string, ANDROID_APP_ID: string, phone: string) {
   execSync(`${adbPrefix} shell pm clear ${ANDROID_APP_ID}`);
+  // 恢复 App 语言为中文（Android 13+ app-specific locale）
+  try {
+    execSync(`${adbPrefix} shell cmd locale set-app-locales ${ANDROID_APP_ID} --locales zh-CN`, { stdio: 'pipe' });
+  } catch { /* 旧版 Android 不支持，忽略 */ }
   await agent.launch(ANDROID_APP_ID);
   await agent.aiWaitFor('界面上有可交互的按钮或输入框', { timeoutMs: 15_000 });
   const hasConsentDialog = await agent.aiBoolean('当前界面是否存在数据收集通知、隐私政策或权限请求弹窗？');
@@ -37,7 +41,7 @@ async function loginAndEnterRoom(agent: any, adbPrefix: string, ANDROID_APP_ID: 
   }
   await agent.aiWaitFor('手机号输入框可见', { timeoutMs: 10_000 });
   await agent.aiInput('500000900', '手机号输入框');
-  await agent.aiTap('"获取验证码" 按钮');
+  await agent.aiTap('"获取验证码"/"Get Code"/"احصل على الرمز" 按钮');
   await agent.aiWaitFor('按钮进入倒计时状态', { timeoutMs: 10_000 });
   try {
     redisExecSync(['HSET', `sms:code:${phone}`, 'code', '123456']);
@@ -64,7 +68,7 @@ test('TC-GIFT-00001: 礼物面板 Bottom Sheet 布局 + 交互', async ({ e2eEnv
   const phone = '+966500000900';
 
   const agent = await agentFromAdbDevice(ADB_DEVICE_ID, {
-    aiActionContext: '当前是 Android 语聊房 App，界面语言为阿拉伯语或英语，房间内部视图',
+    aiActionContext: '当前是 Android 语聊房 App，界面语言为中文、阿拉伯语或英语，房间内部视图',
   });
 
   try {
@@ -122,7 +126,7 @@ test('TC-GIFT-00003: SendGift 客户端 UUID + 连送', async ({ e2eEnv }: any) 
   }
 
   const agent = await agentFromAdbDevice(ADB_DEVICE_ID, {
-    aiActionContext: '当前是 Android 语聊房 App，界面语言为阿拉伯语或英语，房间内部视图',
+    aiActionContext: '当前是 Android 语聊房 App，界面语言为中文、阿拉伯语或英语，房间内部视图',
   });
 
   try {

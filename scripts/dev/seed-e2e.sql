@@ -255,6 +255,21 @@ ON CONFLICT (id) DO UPDATE SET
     deleted_at   = NULL,
     updated_at   = now();
 
+-- ============================================================================
+-- gifts — E2E 礼物 seed（与 005_create_gifts.sql 保持一致，幂等）
+-- ============================================================================
+INSERT INTO gifts (code, name_en, name_ar, icon_url, price, tier, effect_level, sort_order)
+VALUES
+  ('rose_01',      'Rose',           'وردة',            '/assets/gifts/rose.png',       1,    1, 1, 10),
+  ('coffee_01',    'Arabic Coffee',  'قهوة عربية',      '/assets/gifts/coffee.png',    10,    2, 2, 20),
+  ('kaaba_01',     'Kaaba Candle',   'شمعة الكعبة',     '/assets/gifts/kaaba.png',     10,    2, 2, 21),
+  ('camel_01',     'Desert Camel',   'جمل',             '/assets/gifts/camel.png',     66,    3, 3, 30),
+  ('falcon_01',    'Golden Falcon',  'صقر ذهبي',        '/assets/gifts/falcon.png',    88,    3, 3, 31),
+  ('moon_786',     'Bismillah Moon', 'هلال بسم الله',   '/assets/gifts/moon786.png',  786,    4, 4, 40),
+  ('castle_01',    'Royal Castle',   'قصر ملكي',        '/assets/gifts/castle.png',   520,    4, 4, 41),
+  ('diamond_ring', 'Diamond Ring',   'خاتم الماس',      '/assets/gifts/diamond.png', 1314,    5, 5, 50)
+ON CONFLICT (code) DO NOTHING;
+
 COMMIT;
 
 -- 行数断言（machine-readable，wrapper 校验幂等）
