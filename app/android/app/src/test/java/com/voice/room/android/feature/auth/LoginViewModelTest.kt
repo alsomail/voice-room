@@ -840,6 +840,99 @@ class LoginViewModelTest {
             assertEquals(0, fakeUnauthorizedHandler.resetCallCount)
         }
 
+    // ═════════════════════════════════════════════
+    // BUG-LOGIN-NAV 修复验证（T-BUG-LOGIN-NAV）
+    // ═════════════════════════════════════════════
+
+    /**
+     * BUG-LOGIN-NAV 核心回归测试：
+     * 登录成功后 LoginViewModel 必须：
+     *   1. 将服务端返回的 JWT 保存到 TokenManager（DataStore 实现）
+     *   2. 发出且仅发出一个 [NavEvent.NavigateToHall] 导航事件
+     *
+     * 原始 Bug：_navEvent.emit(NavEvent.NavigateToHall) 缺失或 UI 未收集，
+     * 导致登录后停留在登录页。
+     *
+     * 此测试同时断言 token 已保存（非 null）且导航事件类型精确为 NavigateToHall，
+     * 任意一端回归均会导致此测试失败。
+     */
+    @Test
+    fun `BUG-LOGIN-NAV onLogin success saves JWT then emits exactly one NavigateToHall event`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            val fakeTokenManager = FakeTokenManager()
+            val vm = LoginViewModel(
+                authRepository = FakeAuthRepository(
+                    loginResult = Result.success(LoginResult("jwt-hall-nav-token", "uid-001", false))
+                ),
+                tokenManager = fakeTokenManager
+            )
+
+            val collectedNavEvents = mutableListOf<NavEvent>()
+            val collectJob = launch(UnconfinedTestDispatcher(testScheduler)) {
+                vm.navEvent.collect { collectedNavEvents.add(it) }
+            }
+
+            vm.onPhoneNumberChanged("501234567")
+            vm.onVerificationCodeChanged("123456")
+            vm.onLogin()
+            advanceUntilIdle()
+            collectJob.cancel()
+
+            // 1) JWT 必须已持久化
+            assertEquals(
+                "BUG-JWT-PERSIST: saveToken 应在导航前写入 jwt-hall-nav-token",
+                "jwt-hall-nav-token",
+                fakeTokenManager.savedToken
+            )
+
+            // 2) 导航事件：精确一个且类型必须是 NavigateToHall
+            assertEquals(
+                "BUG-LOGIN-NAV: 应发出且仅发出一个导航事件",
+                1,
+                collectedNavEvents.size
+            )
+            assertTrue(
+                "BUG-LOGIN-NAV: 导航事件必须是 NavEvent.NavigateToHall，实际: ${collectedNavEvents.firstOrNull()}",
+                collectedNavEvents.first() is NavEvent.NavigateToHall
+            )
+        }
+
+    /**
+     * BUG-LOGIN-NAV 反向守卫：登录失败时既不保存 token 也不发出导航事件，
+     * 防止意外导航到大厅。
+     */
+    @Test
+    fun `BUG-LOGIN-NAV onLogin API failure neither saves token nor emits nav event`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            val fakeTokenManager = FakeTokenManager()
+            val vm = LoginViewModel(
+                authRepository = FakeAuthRepository(
+                    loginResult = Result.failure(ApiException(40103, "验证码错误"))
+                ),
+                tokenManager = fakeTokenManager
+            )
+
+            val collectedNavEvents = mutableListOf<NavEvent>()
+            val collectJob = launch(UnconfinedTestDispatcher(testScheduler)) {
+                vm.navEvent.collect { collectedNavEvents.add(it) }
+            }
+
+            vm.onPhoneNumberChanged("501234567")
+            vm.onVerificationCodeChanged("000000")
+            vm.onLogin()
+            advanceUntilIdle()
+            collectJob.cancel()
+
+            assertNull(
+                "登录失败时 token 不应被保存",
+                fakeTokenManager.savedToken
+            )
+            assertTrue(
+                "登录失败时不应发出任何导航事件",
+                collectedNavEvents.isEmpty()
+            )
+        }
+
     /**
      * 端到端验证：先触发 401（handled=true），登录成功后 reset，
      * 下次 401 应当能再次触发（resetCallCount 证明调用路径完整）。
