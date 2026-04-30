@@ -233,4 +233,110 @@ class HallViewModelTest {
             assertEquals("totalItems 应反映新 total=1", 1, state.totalItems)
             assertFalse("hasMore 应根据新 total 重新计算（false）", state.hasMore)
         }
+
+    // ═════════════════════════════════════════════
+    // BUG-ROOM-NAV 修复验证（T-BUG-ROOM-NAV）
+    // ═════════════════════════════════════════════
+
+    /**
+     * BUG-ROOM-NAV 核心回归测试：
+     * 调用 [HallViewModel.enterRoom] 时必须发出 [HallEvent.NavigateToRoom]，
+     * 且事件中的 [HallEvent.NavigateToRoom.roomId] 必须与入参完全一致。
+     *
+     * 原始 Bug：MainScreen 未将 onNavigateToRoom 回调传给 HallScreen，
+     * 导致 RoomCard.onClick = { onNavigateToRoom(room.roomId) } 调用空实现，
+     * 房间卡片点击无响应，join API 调用次数 = 0。
+     *
+     * 此测试验证 enterRoom() → NavigateToRoom(roomId) 的 ViewModel 路径端到端正确，
+     * 如果 roomId 被意外替换或事件未发出，此测试将失败。
+     */
+    @Test
+    fun `BUG-ROOM-NAV enterRoom emits NavigateToRoom with exact roomId`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            val fakeRepo = FakeRoomRepository()
+            val viewModel = HallViewModel(fakeRepo)
+            advanceUntilIdle()
+
+            val collectedEvents = mutableListOf<HallEvent>()
+            val job = launch { viewModel.hallEvents.collect { collectedEvents.add(it) } }
+
+            viewModel.enterRoom("room-nav-target-abc")
+            advanceUntilIdle()
+            job.cancel()
+
+            val navEvents = collectedEvents.filterIsInstance<HallEvent.NavigateToRoom>()
+            assertEquals(
+                "BUG-ROOM-NAV: enterRoom 应发出且仅发出一个 NavigateToRoom 事件",
+                1,
+                navEvents.size
+            )
+            assertEquals(
+                "BUG-ROOM-NAV: NavigateToRoom.roomId 必须与 enterRoom() 入参完全一致",
+                "room-nav-target-abc",
+                navEvents.first().roomId
+            )
+        }
+
+    /**
+     * BUG-ROOM-NAV 补充：不同 roomId 值均能正确路由，
+     * 防止 roomId 被硬编码或截断。
+     */
+    @Test
+    fun `BUG-ROOM-NAV enterRoom propagates roomId unchanged for various room ids`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            val testCases = listOf(
+                "room-001",
+                "room-with-dashes-and-numbers-123",
+                "UPPER_CASE_ROOM",
+                "a", // 单字符最小值
+            )
+
+            testCases.forEach { expectedRoomId ->
+                val viewModel = HallViewModel(FakeRoomRepository())
+                advanceUntilIdle()
+
+                val events = mutableListOf<HallEvent>()
+                val job = launch { viewModel.hallEvents.collect { events.add(it) } }
+
+                viewModel.enterRoom(expectedRoomId)
+                advanceUntilIdle()
+                job.cancel()
+
+                val navEvent = events.filterIsInstance<HallEvent.NavigateToRoom>().firstOrNull()
+                assertNotNull(
+                    "roomId='$expectedRoomId' 应触发 NavigateToRoom 事件",
+                    navEvent
+                )
+                assertEquals(
+                    "roomId='$expectedRoomId' 应原样传递到 NavigateToRoom.roomId",
+                    expectedRoomId,
+                    navEvent!!.roomId
+                )
+            }
+        }
+
+    /**
+     * BUG-ROOM-NAV 访问令牌守卫：普通房间 enterRoom 发出的事件中 accessToken 应为 null，
+     * 防止未经密码验证的 token 被意外注入。
+     */
+    @Test
+    fun `BUG-ROOM-NAV enterRoom for normal room emits NavigateToRoom with null accessToken`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            val viewModel = HallViewModel(FakeRoomRepository())
+            advanceUntilIdle()
+
+            val events = mutableListOf<HallEvent>()
+            val job = launch { viewModel.hallEvents.collect { events.add(it) } }
+
+            viewModel.enterRoom("public-room-xyz")
+            advanceUntilIdle()
+            job.cancel()
+
+            val navEvent = events.filterIsInstance<HallEvent.NavigateToRoom>().firstOrNull()
+            assertNotNull("应发出 NavigateToRoom 事件", navEvent)
+            assertNull(
+                "BUG-ROOM-NAV: 普通房间的 accessToken 应为 null",
+                navEvent!!.accessToken
+            )
+        }
 }
