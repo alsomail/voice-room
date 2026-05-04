@@ -1,7 +1,7 @@
 package com.voice.room.android.data.remote.api
 
 import com.voice.room.android.data.remote.model.ApiResponse
-import com.voice.room.android.data.remote.model.GiftDto
+import com.voice.room.android.data.remote.model.GiftListData
 import retrofit2.Response
 import retrofit2.http.GET
 import retrofit2.http.Header
@@ -25,5 +25,5 @@ interface GiftApiService {
     @GET("gifts/list")
     suspend fun listGifts(
         @Header("Accept-Language") acceptLanguage: String = "en",
-    ): Response<ApiResponse<List<GiftDto>>>
+    ): Response<ApiResponse<GiftListData>>
 }

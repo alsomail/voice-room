@@ -3,6 +3,7 @@ package com.voice.room.android.data.gift
 import com.voice.room.android.data.remote.api.GiftApiService
 import com.voice.room.android.data.remote.model.ApiResponse
 import com.voice.room.android.data.remote.model.GiftDto
+import com.voice.room.android.data.remote.model.GiftListData
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
@@ -34,14 +35,14 @@ class RetrofitGiftRepositoryTest {
 
     /** 可配置的 Fake API，记录调用次数，支持可控延迟 */
     private class FakeGiftApiService(
-        private val responseProvider: suspend () -> Response<ApiResponse<List<GiftDto>>>,
+        private val responseProvider: suspend () -> Response<ApiResponse<GiftListData>>,
         private val delayMs: Long = 0L,
     ) : GiftApiService {
         var callCount = 0
 
         override suspend fun listGifts(
             acceptLanguage: String,
-        ): Response<ApiResponse<List<GiftDto>>> {
+        ): Response<ApiResponse<GiftListData>> {
             callCount++
             if (delayMs > 0L) delay(delayMs)
             return responseProvider()
@@ -62,15 +63,20 @@ class RetrofitGiftRepositoryTest {
 
     private fun successResponse(
         dtos: List<GiftDto> = listOf(makeGiftDto()),
-    ): Response<ApiResponse<List<GiftDto>>> =
+    ): Response<ApiResponse<GiftListData>> =
         Response.success(
-            ApiResponse(code = 0, message = "ok", data = dtos, requestId = "req-001")
+            ApiResponse(
+                code = 0,
+                message = "ok",
+                data = GiftListData(items = dtos),
+                requestId = "req-001",
+            )
         )
 
     private fun errorResponse(
         httpCode: Int,
         errorJson: String = """{"code":$httpCode,"message":"error","request_id":"req-err"}""",
-    ): Response<ApiResponse<List<GiftDto>>> =
+    ): Response<ApiResponse<GiftListData>> =
         Response.error(httpCode, errorJson.toResponseBody())
 
     // ─── Tests ────────────────────────────────────────────────────────────────
@@ -205,10 +211,15 @@ class RetrofitGiftRepositoryTest {
         val fakeApi = object : GiftApiService {
             override suspend fun listGifts(
                 acceptLanguage: String,
-            ): Response<ApiResponse<List<GiftDto>>> {
+            ): Response<ApiResponse<GiftListData>> {
                 capturedLocale = acceptLanguage
                 return Response.success(
-                    ApiResponse(code = 0, message = "ok", data = emptyList(), requestId = "1")
+                    ApiResponse(
+                        code = 0,
+                        message = "ok",
+                        data = GiftListData(items = emptyList()),
+                        requestId = "1",
+                    )
                 )
             }
         }
@@ -230,5 +241,66 @@ class RetrofitGiftRepositoryTest {
 
         assertTrue("result should be success", result.isSuccess)
         assertTrue("gift list should be empty", result.getOrThrow().isEmpty())
+    }
+
+    // --- BUG-GIFT-JSON-PARSE Round 7：真实服务端 JSON 反序列化 ---
+
+    /**
+     * 使用 `app/server/src/api/handler/gifts.rs` 真实输出的 JSON 字符串，喂给 Gson 反序列化，
+     * 断言能解析出 `data.items` 数组。修复前 `data` 被声明为 `List<GiftDto>`，对该 JSON 反序列化
+     * 会抛 `IllegalStateException: Expected BEGIN_ARRAY but was BEGIN_OBJECT`。
+     */
+    @Test
+    fun `BUG-GIFT-JSON-PARSE real server JSON deserializes into GiftListData items`() {
+        val realJson = """
+            {
+              "code": 0,
+              "message": "ok",
+              "data": {
+                "items": [
+                  {
+                    "id": "1c87d0d0-7c5d-4d8d-b5a9-000000000001",
+                    "code": "rose",
+                    "name": "Rose",
+                    "icon_url": "https://cdn.example.com/gifts/rose.png",
+                    "price": 10,
+                    "tier": 1,
+                    "effect_level": 0,
+                    "animation_url": null,
+                    "sort_order": 1
+                  },
+                  {
+                    "id": "1c87d0d0-7c5d-4d8d-b5a9-000000000002",
+                    "code": "castle",
+                    "name": "Castle",
+                    "icon_url": "https://cdn.example.com/gifts/castle.png",
+                    "price": 1000,
+                    "tier": 3,
+                    "effect_level": 3,
+                    "animation_url": "https://cdn.example.com/gifts/castle.mp4",
+                    "sort_order": 99
+                  }
+                ]
+              },
+              "request_id": "req-real-001"
+            }
+        """.trimIndent()
+
+        val type = object : com.google.gson.reflect.TypeToken<ApiResponse<GiftListData>>() {}.type
+        val parsed: ApiResponse<GiftListData> = com.google.gson.Gson().fromJson(realJson, type)
+
+        assertEquals(0, parsed.code)
+        assertNotNull("data must not be null", parsed.data)
+        val items = parsed.data!!.items
+        assertEquals("must parse 2 gift items", 2, items.size)
+        assertEquals("rose", items[0].code)
+        assertEquals(10L, items[0].price)
+        assertEquals(0, items[0].effectLevel)
+        // animation_url 为 JSON null → Kotlin nullable 字段
+        assertEquals(null, items[0].animationUrl)
+        assertEquals("castle", items[1].code)
+        assertEquals(1000L, items[1].price)
+        assertEquals(3, items[1].tier)
+        assertEquals("https://cdn.example.com/gifts/castle.mp4", items[1].animationUrl)
     }
 }

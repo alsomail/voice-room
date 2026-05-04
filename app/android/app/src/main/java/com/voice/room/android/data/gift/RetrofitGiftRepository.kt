@@ -59,8 +59,8 @@ class RetrofitGiftRepository(
             }
 
             val response = apiService.listGifts(acceptLanguage = locale)
-            val dtos = parseBody(response)
-            val gifts = dtos.map { it.toDomain() }
+            val data = parseBody(response)
+            val gifts = data.items.map { it.toDomain() }
 
             cachedGifts = gifts
             cacheTimestamp = System.currentTimeMillis()
