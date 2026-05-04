@@ -132,4 +132,33 @@ class RoomViewModelChatTest {
                 state.uiState.messages.any { it.messageId == "self-1" && it.content == "我自己发的" }
             )
         }
+
+    @Test
+    fun `BUG-CHAT-WS Round7 RoomMessage with envelope-level msg_id renders by payload msg_id`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            // Round 7 加固：服务端真实 envelope 形如
+            //   { "type":"RoomMessage", "payload":{...}, "timestamp":..., "msg_id":"env-xxx" }
+            // 顶层 msg_id 为传输信封 ID，公屏渲染必须以 payload.msg_id 为准、并据此去重。
+            viewModel.joinRoom("room-1")
+            advanceUntilIdle()
+
+            fakeWsClient.simulateMessage(
+                """{"type":"RoomMessage","payload":{"msg_id":"chat-1","user_id":"user-7","content":"hi"},"timestamp":1700000000123,"msg_id":"env-abc"}"""
+            )
+            // 同一 chat 消息因网络重发/多通道下发再次到达，envelope 信封不同但 payload.msg_id 相同
+            fakeWsClient.simulateMessage(
+                """{"type":"RoomMessage","payload":{"msg_id":"chat-1","user_id":"user-7","content":"hi"},"timestamp":1700000000999,"msg_id":"env-def"}"""
+            )
+            advanceUntilIdle()
+
+            val state = viewModel.uiState.value as RoomViewState.Success
+            val matches = state.uiState.messages.filter { it.messageId == "chat-1" }
+            assertEquals(
+                "envelope-level msg_id must NOT be used as chat dedup key; payload.msg_id wins",
+                1,
+                matches.size,
+            )
+            assertEquals("hi", matches.single().content)
+            assertEquals("Alice", matches.single().senderNickname)
+        }
 }
