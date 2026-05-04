@@ -223,6 +223,13 @@ internal fun CreateRoomContent(
         Spacer(Modifier.height(4.dp))
 
         // ── [创建] 按钮 ────────────────────────────
+        // BUG-GOVERNANCE-FORM-VALIDATE Round 6：必须在标题非空且长度合法时才允许提交，
+        // 之前仅以 !isLoading 判断会让用户误点空标题进入服务端 400 路径。
+        val trimmedTitleLength = title.trim().codePointCount(0, title.trim().length)
+        val isTitleValid = title.isNotBlank() &&
+            trimmedTitleLength in 1..CreateRoomViewModel.MAX_TITLE_LENGTH
+        val isFormValid = isTitleValid &&
+            (selectedType != "password" || password.isNotBlank())
         Button(
             onClick = {
                 onCreateClick(
@@ -231,7 +238,7 @@ internal fun CreateRoomContent(
                     if (selectedType == "password") password else null
                 )
             },
-            enabled = !isLoading,
+            enabled = !isLoading && isFormValid,
             modifier = Modifier
                 .fillMaxWidth()
                 .testTag("create_room_submit_button")
