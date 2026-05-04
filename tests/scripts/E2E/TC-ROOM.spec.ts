@@ -5,7 +5,7 @@
  *   已废弃：runMaestro()
  * 场景：Web 管理员强制关房 → Android 端收到 RoomClosed → 回大厅
  */
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../support/fixtures';
 import { PlaywrightAgent } from '@midscene/web/playwright';
 import { agentFromAdbDevice } from '@midscene/android';
 import { execSync } from 'child_process';

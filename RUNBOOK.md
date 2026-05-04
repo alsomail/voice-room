@@ -570,6 +570,44 @@ docker compose down -v                 # 核弹级：清空 PG 数据卷
 
 > ⚠️ `db:reset` 仅在 `E2E_PROFILE=local` 时被允许，防止误操作生产。
 
+### 11.6 Android 端测试账号（手机号 OTP 登录）
+
+> **适用环境**：dev / test / ci — 服务端自动使用 `MockSmsProvider`（不发真实短信），OTP 仍随机生成，存入 Redis hash。
+
+| 手机号（含国码）    | 本地号码    | 用途说明                                         |
+| ------------------- | ----------- | ------------------------------------------------ |
+| `+966500000100`     | `500000100` | E2E 新用户登录（TC-AUTH-00003），每次跑前需清 DB |
+| `+966500000200`     | `500000200` | E2E 验证码错误场景（TC-AUTH-00004）              |
+
+**⚠️ 验证码不是固定值**：`MockSmsProvider` 只是不发短信，OTP 每次随机生成，存储在 Redis hash `sms:code:<phone>` 的 `code` 字段。
+
+**真机/手动调试 — 读取当前 OTP**：
+```bash
+# 点"获取验证码"后，执行此命令拿到当前 OTP
+docker exec vr-redis redis-cli HGET "sms:code:+966500000100" code
+```
+
+**注入固定验证码**（方便反复调试）：
+```bash
+# 先删掉旧 hash，再注入 123456（5 分钟有效）
+docker exec vr-redis redis-cli DEL "sms:code:+966500000100"
+docker exec vr-redis redis-cli HSET "sms:code:+966500000100" code "123456" attempts 0
+docker exec vr-redis redis-cli EXPIRE "sms:code:+966500000100" 300
+# 注入后直接在 App 输入 123456，无需再点"获取验证码"
+```
+
+**前置操作**（E2E 每次运行前清理旧数据）：
+```bash
+# 清除 DB 记录
+docker exec vr-postgres psql -U postgres -d voiceroom \
+  -c "DELETE FROM users WHERE phone IN ('+966500000100','+966500000200');"
+# 清除 Redis 缓存
+docker exec vr-redis redis-cli DEL \
+  "sms:code:+966500000100" "sms:cooldown:+966500000100" "sms:daily:+966500000100:$(date +%Y-%m-%d)"
+```
+
+> E2E 自动化脚本在每次跑前会通过 `redis SET` 覆写 hash key 固定为 `123456`，确保确定性。生产环境使用 `TwilioSmsProvider`，Redis 注入无效。
+
 ---
 
 > 最近更新：见 `git log -- RUNBOOK.md`。如发现命令与实际不符，请提 PR 修正本文档。

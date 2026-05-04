@@ -3,6 +3,7 @@ package com.voice.room.android.feature.room
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
+import android.widget.Toast
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -84,14 +85,31 @@ fun MicPermissionHandler(
     var showSettingsDialog by remember { mutableStateOf(false) }
     // HIGH: 引入 permissionRequested 区分"首次请求"与"永久拒绝"
     var permissionRequested by remember { mutableStateOf(false) }
+    // BUG-MIC-PERMISSION-TOAST Round 6：追踪「正在等待系统权限弹窗结果」，
+    // 系统弹窗关闭后若仍未授予，需要给用户一个反馈，避免静默无响应。
+    var awaitingPermissionResult by remember { mutableStateOf(false) }
 
     // 当权限状态变为授予且有 pending index 时，透传回调（处理系统权限弹窗返回后的情况）
     LaunchedEffect(helper.isGranted) {
         if (helper.isGranted) {
+            awaitingPermissionResult = false
             pendingSlotIndex?.let { idx ->
                 onPermissionGranted(idx)
                 pendingSlotIndex = null
             }
+        }
+    }
+
+    // BUG-MIC-PERMISSION-TOAST Round 6：当用户从系统权限弹窗返回但未授予时，
+    // 通过 shouldShowRationale 的变化感知到弹窗已关闭，弹 Toast 提示，避免无反馈。
+    LaunchedEffect(awaitingPermissionResult, helper.shouldShowRationale, helper.isGranted) {
+        if (awaitingPermissionResult && !helper.isGranted && helper.shouldShowRationale) {
+            awaitingPermissionResult = false
+            Toast.makeText(
+                context,
+                "麦克风权限被拒绝，请允许后再上麦",
+                Toast.LENGTH_SHORT,
+            ).show()
         }
     }
 
@@ -112,6 +130,7 @@ fun MicPermissionHandler(
                 } else {
                     // 首次请求：直接触发系统权限弹窗
                     permissionRequested = true
+                    awaitingPermissionResult = true
                     helper.launchPermissionRequest()
                 }
             }
@@ -124,11 +143,18 @@ fun MicPermissionHandler(
         MicPermissionRationaleDialog(
             onConfirm = {
                 showRationaleDialog = false
+                awaitingPermissionResult = true
                 helper.launchPermissionRequest()
             },
             onDismiss = {
                 showRationaleDialog = false
                 pendingSlotIndex = null
+                // BUG-MIC-PERMISSION-TOAST Round 6：用户主动关闭 rationale 也给一次反馈
+                Toast.makeText(
+                    context,
+                    "已取消，可在系统设置中开启麦克风权限",
+                    Toast.LENGTH_SHORT,
+                ).show()
             },
         )
     }

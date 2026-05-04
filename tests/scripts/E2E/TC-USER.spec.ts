@@ -4,7 +4,7 @@
  * 铁律 7（2026-04-30）：视觉与交互层全部经由 Midscene（agentFromAdbDevice + PlaywrightAgent）。
  *   已废弃：runMaestro()
  */
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../support/fixtures';
 import { PlaywrightAgent } from '@midscene/web/playwright';
 import { agentFromAdbDevice } from '@midscene/android';
 import { execSync } from 'child_process';

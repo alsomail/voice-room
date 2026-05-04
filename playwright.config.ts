@@ -14,7 +14,9 @@ import * as path from 'node:path';
 export default defineConfig({
   testDir: './tests/scripts',
   // 排除 support/__tests__（单元测试由 playwright.unit.config.ts 单独跑）
-  testIgnore: ['**/support/__tests__/**'],
+  // 铁律 7（2026-04-30）：E2E 框架统一为 Midscene；显式忽略遗留 Maestro yaml
+  // 防止误调度（Playwright 默认只识别 .spec.ts，但显式声明可阻挡未来误改）。
+  testIgnore: ['**/support/__tests__/**', '**/*.yaml', '**/*.yml'],
 
   timeout: 120 * 1000,
   expect: { timeout: 15000 },
@@ -47,8 +49,11 @@ export default defineConfig({
   },
 
   projects: [
-    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
-    { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
-    { name: 'webkit', use: { ...devices['Desktop Safari'] } },
+    // Web / Admin 端 测试 —— 三个浏览器，排除 AND 目录（Android 端无需浏览器上下文）
+    { name: 'chromium', testIgnore: ['**/AND/**'], use: { ...devices['Desktop Chrome'] } },
+    { name: 'firefox',  testIgnore: ['**/AND/**'], use: { ...devices['Desktop Firefox'] } },
+    { name: 'webkit',   testIgnore: ['**/AND/**'], use: { ...devices['Desktop Safari'] } },
+    // Android Midscene 测试 —— 无浏览器，仅跟踪 AND/ 目录
+    { name: 'android',  testMatch: ['**/AND/**'] },
   ],
 });

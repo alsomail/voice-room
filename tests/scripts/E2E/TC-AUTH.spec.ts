@@ -4,7 +4,7 @@
  * 铁律 7（2026-04-30）：视觉与交互层全部经由 Midscene（agentFromAdbDevice）。
  *   已废弃：runMaestro() + redis-cli 直调 + Redis GET（应为 HGET）
  */
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../support/fixtures';
 import { agentFromAdbDevice } from '@midscene/android';
 import { execSync } from 'child_process';
 import { redisExecSync, RedisCliUnavailableError } from '../support/redisCli';
@@ -42,12 +42,14 @@ test.describe('TC-AUTH E2E - 登录闭环', () => {
       // Step 1：冷启动
       execSync(`${adbPrefix} shell pm clear ${ANDROID_APP_ID}`);
       await agent.launch(ANDROID_APP_ID);
-      await agent.aiWaitFor('登录页面可见，手机号输入框可见', { timeoutMs: 20_000 });
-
-      const hasConsentDialog = await agent.aiBoolean('当前界面是否存在数据收集通知、隐私政策或权限请求弹窗？');
-      if (hasConsentDialog) {
-        await agent.aiTap('"同意" 或 "确定" 或 "接受" 按钮（关闭弹窗）');
-      }
+      // Round-1 fix: 先等待任意按钮可见，再无条件尝试关闭同意弹窗，再等待登录页
+      await agent.aiWaitFor('界面上有可交互的按钮或输入框', { timeoutMs: 15_000 });
+      await new Promise(r => setTimeout(r, 500));
+      try {
+        await agent.aiTap('"同意" 或 "确定" 按钮（关闭数据收集隐私政策弹窗）');
+        await new Promise(r => setTimeout(r, 500));
+      } catch { /* 无弹窗则忽略 */ }
+      await agent.aiWaitFor('登录页面可见，手机号输入框可见', { timeoutMs: 15_000 });
       await agent.aiAssert('登录页显示：手机号输入框、获取验证码按钮');
 
       // Step 2：输入手机号 + 点击获取验证码

@@ -100,6 +100,140 @@
 
 ---
 
+## 六之二、写操作真实性铁律（**铁律 6 — Wiring & Side-Effect Mandatory**）
+
+> **背景**：2026-04-30 BUG-AUTH-WIRING — Android 登录页因 `AppNavGraph` 漏接 `LoginViewModel.Factory` 静默回退到 `NoOpAuthRepository`，按钮有"60s 倒计时"假象但**网络请求从未发出**，180 例 instrumentation 全过仍漏检。
+
+为防止同类静默回退缺陷再次漏网，新增以下强制约束：
+
+### 6.1 写操作类 P0 用例的副作用断言
+
+凡 `regression_level=P0` 且涉及写操作（登录、发送验证码、创建房间、加入房间、上下麦、送礼、扣费、关注、举报）的用例，**必须**在执行步骤中包含至少一条来自下列三类的副作用断言：
+
+| 类型 | 实现 | 用途 |
+|------|------|------|
+| **Server HTTP 副作用** | tail AppServer access log 5s，断言出现期望的 `METHOD path STATUS` | 证明客户端真的发出了请求且服务端处理 |
+| **DB 终态** | `psql -tA -c "SELECT ..."` 断言记录已落库 | 证明业务事务真的提交 |
+| **Redis/缓存终态** | `redis-cli GET/EXISTS/TTL` 断言键存在且符合预期 | 证明分布式态切换 |
+
+仅含 `assertVisible` UI 文案断言的写操作类 P0 用例，PR 自动 reject。
+
+### 6.2 装配契约（Wiring Contract）层强制覆盖
+
+以下场景**必须**有对应用例落在 [E2E/TC-WIRING.md](./E2E/TC-WIRING.md)，并以**真实 `MainActivity` 启动**（禁止 `composeTestRule.setContent` 隔离渲染）：
+
+- 任何在 `AppNavGraph` 注册的路由对应 ViewModel 的关键依赖（Repository / RtcPort / AnalyticsPort / TokenManager / WsClient）注入正确性。
+- 任何使用"NoOp / Preview Stub / Fake"作为兜底实现的接口（避免 DI 漏接静默回退）。
+- 跨 Screen 的核心交互链（登录 → 大厅 → 房间 → 麦位 → 送礼）首尾相接的最小可验证闭环。
+
+### 6.3 反模式黑名单（PR Review 必查）
+
+| 反模式 | 替代方案 |
+|--------|---------|
+| Maestro/E2E 脚本硬编码 `appId: com.voiceroom.debug` 等具体包名 | 使用 `${ANDROID_APP_ID}` 占位符，由 envLoader 注入 |
+| `tapOn: index: 0` 等基于节点序号的定位 | 使用 testTag (`id:`) 或稳定可见文本 |
+| 仅 `assertVisible: "VoiceRoom\|语聊房"` 判定登录成功 | 必须配合 access-log + DB 双断言 |
+| `composeTestRule.setContent { Screen(viewModel = fake) }` 用于 P0 主流程 | 该写法仅允许用于纯 UI 视觉/文案回归（P1/P2），主流程必须走真实 `MainActivity` |
+| `NoOpXxxRepository` 在 release/local flavor 仍可被链接到 | 应隔离到 `previewDebug` source set，避免运行时静默回退 |
+
+---
+
+## 六之三、E2E 框架统一铁律（**铁律 7 — Midscene-Only E2E**）
+
+> **背景**：本仓库 E2E 历史上同时存在 Maestro yaml（Android）+ Playwright spec（Web）+ 自研脚本三种形态，导致脚本碎片化、断言能力参差、AI 视觉推理（Midscene）只覆盖 Web。2026-04-30 决议：**所有 E2E 用例的视觉/交互/断言层一律收敛到 Midscene**，跨进程的副作用断言（DB / Redis / log）由 Playwright `test.step` 内调用 shell 完成。
+
+### 7.1 框架对应矩阵（强制）
+
+| 测试层 | 端 | **唯一允许的框架** | SDK | 用途 |
+|--------|----|--------------------|-----|------|
+| E2E 视觉/交互 | Web 浏览器 | **Playwright + `@midscene/web`** | `agentForPage()` | 所有 Web 端 E2E |
+| E2E 视觉/交互 | Android 真机/模拟器 | **Playwright + `@midscene/android`** | `agentFromAdbDevice()` | 所有 Android 端 E2E |
+| 跨端副作用断言 | DB / Redis / AppServer log | **Playwright `test.step` + `child_process.execSync`** | `psql` / `redis-cli` / `tail` | 配合上面两层做铁律 6 副作用断言 |
+| Compose 单元/视觉 | Android（仅 P1/P2 视觉/文案） | Compose Test (`composeTestRule.setContent`) | — | **不计入 E2E**，仅作组件级回归 |
+
+### 7.2 禁用清单（**红线**）
+
+| 框架 / 写法 | 状态 | 替代方案 |
+|------------|------|---------|
+| **Maestro yaml**（`tests/scripts/AND/*.yaml`） | ❌ **废弃**，新增用例禁止使用 | 改写为 `tests/scripts/AND/*.spec.ts`（Midscene Android Agent） |
+| Espresso / UIAutomator 直接调用 | ❌ 禁用于 E2E 层 | 同上 |
+| 在 E2E 用例中 `composeTestRule.setContent` | ❌ 禁用 | 真实 `MainActivity` + Midscene Android Agent |
+| 自研 adb shell input 拼接脚本 | ❌ 禁用 | Midscene Android Agent 的 `aiTap/aiInput/aiAssert` |
+| `tapOn: index: N` / `tapOn: text` 等 Maestro 原语 | ❌ 禁用 | `agent.aiTap('金色发光的"获取验证码"按钮')` 自然语言定位 |
+
+### 7.3 Midscene 用例的最小骨架
+
+**Web 端**（`tests/scripts/WEB/TC-XXX.spec.ts`）：
+```ts
+import { test, expect } from '@playwright/test';
+import { PlaywrightAiFixture } from '@midscene/web/playwright';
+
+test.use(PlaywrightAiFixture());
+
+test('TC-XXX-00001: ...', async ({ page, ai, aiAssert, aiTap, aiInput }) => {
+  await page.goto('/login');
+  await aiInput('+966500000900', '手机号输入框');
+  await aiTap('"获取验证码" 按钮');
+  await aiAssert('按钮文案变为倒计时 "60s 后重发"');
+  // 跨端副作用断言
+  await test.step('AppServer log 副作用', () => {
+    const log = execSync('tail -n 50 /tmp/server.log').toString();
+    expect(log).toMatch(/POST \/api\/v1\/auth\/verification-codes.*200/);
+  });
+});
+```
+
+**Android 端**（`tests/scripts/AND/TC-XXX.spec.ts`）：
+```ts
+import { test, expect } from '@playwright/test';
+import { agentFromAdbDevice } from '@midscene/android';
+
+test('TC-AUTH-00003: 新用户登录闭环', async () => {
+  const agent = await agentFromAdbDevice(process.env.ADB_DEVICE_ID, {
+    androidAdbPath: 'adb',
+  });
+  await agent.launchApp(process.env.ANDROID_APP_ID!);
+  await agent.aiInput('+966500000900', '手机号输入框');
+  await agent.aiTap('"获取验证码" 按钮');
+  await agent.aiAssert('按钮变为 "60s 后重发"');
+  // 副作用断言走 Playwright test.step + execSync（同上）
+});
+```
+
+### 7.4 依赖与 npm script 约定
+
+| 依赖 | 用途 | 安装位置 |
+|------|------|---------|
+| `@midscene/web` | Web E2E（已装 ^1.7.5） | `package.json devDependencies` |
+| `@midscene/android` | Android E2E | **待新增**（`npm i -D @midscene/android`） |
+| `appium`（可选） | Midscene Android 底层之一 | 不强制；优先走 `agentFromAdbDevice` 纯 ADB 路径 |
+
+新增 npm scripts 入口（待落盘）：
+```jsonc
+{
+  "e2e:android": "cross-env E2E_PROFILE=local playwright test tests/scripts/AND tests/scripts/E2E"
+}
+```
+
+### 7.5 迁移方针（对存量 `tests/scripts/AND/*.yaml`）
+
+1. **冻结新增**：自本铁律落盘起，不再新增任何 `.yaml` Maestro 用例；任何 PR 引入 yaml 自动 reject。
+2. **逐步重写**：现存 10 个 `tests/scripts/AND/TC-*.yaml` 逐 Task 改写为 `TC-*.spec.ts`（Midscene Android Agent），按 P0 → P1 → P2 优先级执行。
+3. **过渡期标识**：未迁移的 yaml 顶部必须有 `# DEPRECATED: 待按铁律 7 迁移到 Midscene` 注释；CI 不再调度 yaml。
+4. **测试报告**：所有 E2E 报告中"用例总数"仅统计 Midscene spec，yaml 计为"废弃存量"独立列出。
+
+### 7.6 Author Checklist 增补
+
+新增 / 修改 E2E 用例的 PR 必须再勾选：
+
+- [ ] 用例位于 `tests/scripts/{WEB,AND,E2E}/TC-*.spec.ts`，**未**新增 `.yaml`。
+- [ ] 视觉与交互**全部**通过 Midscene 的 `aiTap / aiInput / aiAssert / aiQuery` 完成，未直调 `page.click(selector)` / `adb shell input` 等底层原语。
+- [ ] 涉及写操作的 P0 用例满足铁律 6（含 access-log / DB / Redis 副作用断言）。
+- [ ] 已用 envLoader 占位符（`${ANDROID_APP_ID}` / `${APP_SERVER_BASE_URL}` 等），未硬编码 appId / URL。
+- [ ] Midscene Key 缺失时用例自动 skip 而非 fail（沿用 `midsceneReady` fixture）。
+
+---
+
 ## 七、与 TC-INFRA-E2E.md 的边界
 
 | 测试目标 | 归属文件 |

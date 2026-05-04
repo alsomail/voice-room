@@ -5,7 +5,7 @@
  *   已废弃：runMaestro()
  * 场景：Android U1 → 麦位 U2 送礼，WS 推送 + DB 事务 + Web Dashboard 统计
  */
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../support/fixtures';
 import { PlaywrightAgent } from '@midscene/web/playwright';
 import { agentFromAdbDevice } from '@midscene/android';
 import { execSync } from 'child_process';

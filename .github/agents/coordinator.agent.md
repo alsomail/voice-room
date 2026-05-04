@@ -2,7 +2,7 @@
 name: master-coordinator
 description: 顶层工作流编排器。按「研发 → Review Gate → E2E」顺序或并行调度 coordinator、review-coordinator、e2e-runner 三个子协调器，汇总整体项目推进进度，直到所有 Task 完成 Overall Gate 校验。
 tools: ["agent", "read", "edit", "search", "todo"]
-
+model: Claude Sonnet 4.6 (copilot)
 ---
 
 user-invocable: true
@@ -37,7 +37,7 @@ user-invocable: true
 
 | 条件                                                         | 激活子 Coordinator                       |
 | ------------------------------------------------------------ | ---------------------------------------- |
-| 存在「研发状态 ≠ Done」的 Task                               | → `coordinator`                          |
+| 存在「研发状态 ≠ Done」的 Task                               | → `code-coordinator`                          |
 | 存在「研发状态 = ✅ Done」且 Review Gate = `-` 的模块         | → `review-coordinator`                   |
 | 存在「Review Gate = ✅ Passed」且 QA Gate = `-` / `⏳` 的 Task | → `e2e-runner`                           |
 | 三个门禁均 `✅ Passed`                                        | → 写入 `Overall Gate = ✅ Released`，收尾 |
@@ -50,10 +50,10 @@ user-invocable: true
 
 使用 `agent` 工具按以下模板分别调用：
 
-**派发 coordinator（单 Task 研发流转）：**
+**派发 code-coordinator（单 Task 研发流转）：**
 
 ```tex
-agent: coordinator
+agent: code-coordinator
 prompt: |
 请推进 doc/tasks/index.md 中当前最高优先级、研发状态为 Todo 或 In Progress 的 Task，
 走完「Plan → TDD → Review → DoD」全流程，直到研发状态变为 Done。
@@ -90,14 +90,14 @@ prompt: |
 
 子 Coordinator 返回后，重新执行**第一步**扫描，判断：
 
-- 若 `coordinator` 返回「Task Done」→ 检查是否触发 `review-coordinator` 条件
+- 若 `code-coordinator` 返回「Task Done」→ 检查是否触发 `review-coordinator` 条件
 - 若 `review-coordinator` 返回「Review Gate Passed」→ 检查是否触发 `e2e-runner` 条件
 - 若 `e2e-runner` 返回「部分失败」→ 将失败报告路径告知 `coordinator`，让其重新调用 `tdd-guide` 修复后，再次触发 `e2e-runner`
 
-修复回调模板（E2E 失败后再次派发 coordinator）：
+修复回调模板（E2E 失败后再次派发 code-coordinator）：
 
 ```tex
-agent: coordinator
+agent: code-coordinator
 prompt: |
 E2E 测试中以下场景失败，报告路径：[tests/report-.../Report.md]
 请阅读失败诊断并调用 tdd-guide 修复对应代码，

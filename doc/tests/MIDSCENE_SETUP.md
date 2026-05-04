@@ -1,8 +1,12 @@
 # Midscene LLM 配置接入指南
 
-> 关联：[T-0000K TDS](../tds/infra/T-0000K.md) / [T-0000F 三档 env](../tds/infra/T-0000F.md) / [T-0000H envLoader](../tds/infra/T-0000H.md)
-> 适用范围：`tests/scripts/WEB/TC-*.spec.ts`（6 个 WEB 用例文件，通过 `@midscene/web/playwright` 接入 LLM 视觉理解）
-> 一句话目标：**5 分钟内让 WEB 用例真跑通；缺 Key 时自动 skip 而非红条**。
+> 关联：[T-0000K TDS](../tds/infra/T-0000K.md) / [T-0000F 三档 env](../tds/infra/T-0000F.md) / [T-0000H envLoader](../tds/infra/T-0000H.md) / 用例约定铁律 7（[_README.md §六之三](./cases/_README.md)）
+> 适用范围：**所有 E2E 用例**（铁律 7：E2E 框架统一为 Midscene）
+> - `tests/scripts/WEB/TC-*.spec.ts` —— `@midscene/web/playwright`
+> - `tests/scripts/AND/TC-*.spec.ts` —— `@midscene/android` + `agentFromAdbDevice`
+> - `tests/scripts/E2E/TC-*.spec.ts` —— 跨端联调（Web + Android + DB / Redis / log 副作用断言）
+>
+> 一句话目标：**5 分钟内让 Web/Android E2E 真跑通；缺 Key 时自动 skip 而非红条**。
 
 ---
 
@@ -54,13 +58,68 @@ MIDSCENE_MODEL_NAME=gpt-4o
 MIDSCENE_CACHE=1
 # 中转形态再加：
 # MIDSCENE_OPENAI_BASE_URL=https://relay.example.com/v1
+
+# Android E2E（铁律 7）额外字段
+ANDROID_APP_ID=com.voice.room.android.local.debug   # 与 build.gradle.kts: applicationId + .local + .debug 一致
+ADB_DEVICE_ID=                                      # 留空 = 自动选第一台已连接的真机/模拟器
 ```
 
 ```bash
-npm run e2e:local
+npm run e2e:local            # 全量（Web + Android + 跨端 E2E）
+npm run e2e:android          # 仅 Android（待落 npm script，见铁律 7 §7.4）
 ```
 
-> Key 缺失时 WEB 套件会**自动 skip**（reason: `[MIDSCENE] api key missing — skipped`），不会红条。
+> Key 缺失时 Web/Android 套件**均**自动 skip（reason: `[MIDSCENE] api key missing — skipped`），不会红条。
+
+---
+
+## 2.A Android 形态接入要点
+
+> 落实"E2E 完全使用 Midscene"铁律 7。Android E2E 走 `@midscene/android` 的 `agentFromAdbDevice`，纯 ADB 通道，不依赖 Appium。
+
+### 2.A.1 前置依赖
+
+| 依赖 | 验证命令 | 期望 |
+|------|---------|------|
+| ADB 已安装 | `adb version` | ≥ 1.0.41 |
+| 真机/模拟器 已连接 | `adb devices` | 至少 1 行 `<id>\tdevice` |
+| App 已安装 | `adb shell pm list packages \| grep ${ANDROID_APP_ID}` | 命中 |
+| `@midscene/android` | `npm ls @midscene/android` | 已装（首次需 `npm i -D @midscene/android`） |
+
+### 2.A.2 用例最小骨架
+
+```ts
+// tests/scripts/AND/TC-AUTH.spec.ts
+import { test, expect } from '@playwright/test';
+import { agentFromAdbDevice } from '@midscene/android';
+import { execSync } from 'child_process';
+
+test('TC-AUTH-00003: 新用户登录闭环', async () => {
+  const agent = await agentFromAdbDevice(process.env.ADB_DEVICE_ID, {
+    androidAdbPath: 'adb',
+  });
+  await agent.launchApp(process.env.ANDROID_APP_ID!);
+
+  await agent.aiInput('+966500000900', '手机号输入框');
+  await agent.aiTap('"获取验证码" 按钮');
+  await agent.aiAssert('按钮文案变为 "60s 后重发"');
+
+  // 副作用断言：AppServer 真的收到了请求（铁律 6）
+  await test.step('AppServer 收到 verification-codes', () => {
+    const log = execSync('tail -n 100 ~/.voiceroom/server.log').toString();
+    expect(log).toMatch(/POST \/api\/v1\/auth\/verification-codes.*200/);
+  });
+});
+```
+
+### 2.A.3 Android 端常见坑
+
+| 现象 | 排查 |
+|------|------|
+| `agentFromAdbDevice` 抛 `no devices` | `adb devices` 是否有设备；多设备需显式传 `ADB_DEVICE_ID` |
+| `aiTap` 命中错位 | 屏幕缩放 / 软键盘遮挡；先 `agent.aiKeyboardPress('back')` 收键盘再操作 |
+| `launchApp` 启动空白 | `ANDROID_APP_ID` 与 `applicationId + flavorSuffix + buildTypeSuffix` 不一致（本仓库 local+debug 是 `com.voice.room.android.local.debug`） |
+| 视觉模型回 "I cannot see images" | 中转网关不支持 vision，切回直连或换 deployment |
 
 ---
 

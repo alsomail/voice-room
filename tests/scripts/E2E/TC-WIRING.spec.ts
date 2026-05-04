@@ -18,7 +18,7 @@
  * 覆盖用例（P1）：
  *   TC-WIRING-00005 — 埋点上报真实命中 events/batch（防 AnalyticsPort NoOp）
  */
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../support/fixtures';
 import { agentFromAdbDevice } from '@midscene/android';
 import { execSync } from 'child_process';
 import { redisExecSync, RedisCliUnavailableError } from '../support/redisCli';
@@ -89,13 +89,14 @@ test('TC-WIRING-00001: 登录页持有真实 AuthRepository（防 NoOpAuthReposi
       // Step1：冷启动
       execSync(`${adbPrefix} shell pm clear ${ANDROID_APP_ID}`);
       await agent.launch(ANDROID_APP_ID);
-      await agent.aiWaitFor('Splash 动画结束后，登录页可见手机号输入框', { timeoutMs: 20_000 });
+      // 等待任意可交互界面出现（登录页或同意弹窗均可）
+      await agent.aiWaitFor('界面上有可交互的按钮或输入框（可能是登录页或隐私政策弹窗）', { timeoutMs: 20_000 });
 
-      // 处理同意弹窗
+      // 处理同意弹窗（必须在等待登录页之前完成）
       const hasConsentDialog = await agent.aiBoolean('当前界面是否存在数据收集通知、隐私政策或权限请求弹窗？');
       if (hasConsentDialog) {
         await agent.aiTap('"同意" 或 "确定" 或 "接受" 按钮（关闭弹窗）');
-        await agent.aiWaitFor('弹窗关闭', { timeoutMs: 5_000 });
+        await agent.aiWaitFor('弹窗已关闭，登录页可见（有手机号输入框）', { timeoutMs: 10_000 });
       }
 
       await agent.aiAssert('登录页显示：+966 国家码选择器、手机号输入框、"获取验证码"按钮');
@@ -264,16 +265,9 @@ test('TC-WIRING-00002: 大厅房间卡片可点击进入房间（防错装 ViewM
       // Step1：验证大厅布局
       await agent.aiAssert('大厅显示：顶部 "VoiceRoom" 标题、分类 Tab（热门/新开等）、房间卡片网格（至少一张卡片）');
 
-      // Step2：通过文本定位 "E2E Test Room"（不允许用 index: 0 定位）
-      const hasE2eRoom = await agent.aiBoolean('是否可见文本包含 "E2E Test Room" 或 "E2E" 的房间卡片？');
-
-      if (hasE2eRoom) {
-        await agent.aiTap('文本包含 "E2E Test Room" 的房间卡片');
-      } else {
-        // 降级：点击第一张普通房间卡片（通过描述而非 index 定位）
-        console.log('[TC-WIRING-00002] 未找到 E2E Test Room，降级点击大厅第一张房间卡片');
-        await agent.aiTap('大厅房间列表中的第一张房间卡片（矩形图片+标题+房主名组合）');
-      }
+      // Step2：通过文本定位房间卡片（优先 E2E Test Room，无则降级到第一张）
+      // 注意：不使用 aiBoolean 判断（容易幻觉），直接用语义描述点击
+      await agent.aiTap('大厅房间列表中的第一张房间卡片（若存在标题含"E2E Test Room"或"E2E"的卡片则优先点击，否则点击第一张卡片，通过矩形封面图+房间标题+房主名称的组合识别）');
 
       // Step3：核心副作用断言 — join 请求必须到达 AppServer
       if (APP_SERVER_BASE_URL && validToken && E2E_ROOM_ID) {
@@ -384,16 +378,17 @@ test('TC-WIRING-00003: FAB 创建房间真实落库（防 onClick 空实现）',
 
       // Step1：点击右下角 FAB
       await agent.aiTap('右下角金色"+"按钮（create_room_fab）或大厅底部"创建房间"按钮');
-      await agent.aiWaitFor('创建房间弹窗或页面打开', { timeoutMs: 10_000 });
+      // 等待创建房间表单真正出现（有房名输入框，而非大厅列表页）
+      await agent.aiWaitFor('屏幕出现新的弹窗或底部抽屉，包含房名输入框（创建房间表单，不是大厅列表）', { timeoutMs: 15_000 });
       await agent.aiAssert('创建房间表单弹出（BottomSheet 或全屏页面）');
 
       // Step2：填写房间信息
       await agent.aiInput(ROOM_TITLE, '房名输入框');
-      const hasCategorySelector = await agent.aiBoolean('是否有分类选择器或下拉框？');
+      const hasCategorySelector = await agent.aiBoolean('表单中是否有分类选择器或下拉框（是创建房间表单的一部分，非大厅顶部筛选标签）？');
       if (hasCategorySelector) {
-        await agent.aiTap('分类选择器');
-        await agent.aiWaitFor('分类下拉选项出现', { timeoutMs: 5_000 });
-        await agent.aiTap('"聊天" 或 "chat" 分类选项');
+        await agent.aiTap('表单中的分类选择控件（创建房间表单里的分类字段，不是大厅顶部的热门/新开/关注/游戏筛选Tab）');
+        await agent.aiWaitFor('出现可供选择的分类列表（聊天/语聊/游戏等选项，是表单内容而非大厅筛选栏）', { timeoutMs: 8_000 });
+        await agent.aiTap('"聊天" 或 "语聊" 或 "chat" 分类选项');
       }
       await agent.aiTap('"创建"或"提交"按钮');
 
@@ -492,9 +487,19 @@ test('TC-WIRING-00004: 上麦操作真实触达 RTC + AppServer（防 RtcPort No
       await agent.aiTap('"登录" 按钮');
       await agent.aiWaitFor('主界面可见', { timeoutMs: 20_000 });
 
-      // 进入房间
-      await agent.aiTap('大厅房间列表中的第一张房间卡片');
-      await agent.aiWaitFor('已进入房间，麦位区域可见', { timeoutMs: 15_000 });
+      // 进入房间（若大厅无房间则先创建临时测试房间）
+      const hasAnyRoom = await agent.aiBoolean('大厅房间列表中是否有至少一张房间卡片可见？');
+      if (!hasAnyRoom) {
+        console.log('[TC-WIRING-00004] 大厅无房间，先创建临时测试房间以供进入');
+        await agent.aiTap('右下角金色"+"按钮（create_room_fab）');
+        await agent.aiWaitFor('屏幕出现新的弹窗或底部抽屉，包含房名输入框', { timeoutMs: 15_000 });
+        await agent.aiInput('WIRING-SEAT-TEMP', '房名输入框');
+        await agent.aiTap('"创建"或"提交"按钮');
+        await agent.aiWaitFor('进入新房间，麦位区域可见', { timeoutMs: 20_000 });
+      } else {
+        await agent.aiTap('大厅房间列表中的第一张房间卡片');
+        await agent.aiWaitFor('已进入房间，麦位区域可见', { timeoutMs: 15_000 });
+      }
 
       // Step1：点击空麦位 3（通过视觉描述定位）
       const hasEmptySeat = await agent.aiBoolean('麦位区域是否有空麦位（显示 "+" 图标）？');
