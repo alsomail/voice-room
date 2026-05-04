@@ -22,6 +22,7 @@
     <string name="create_room_title_empty">Room title cannot be empty.</string>
     <string name="create_room_title_too_long">Room title is limited to %1$d characters (currently %2$d).</string>
     <string name="create_room_password_required">Password rooms must set a password.</string>
+    <string name="create_room_active_exists">You already have an active room. Please close it first.</string>
 
     <!-- 密码弹窗（PasswordInputDialog）— 把 seconds 转成 minutes 显示 -->
     <string name="password_locked_minutes">Locked. Try again in %1$d minutes.</string>

@@ -3,6 +3,7 @@ package com.voice.room.android.feature.room
 import androidx.paging.PagingSource
 import androidx.paging.PagingState
 import com.voice.room.android.R
+import com.voice.room.android.data.auth.ApiException
 import com.voice.room.android.domain.room.IRoomRepository
 import com.voice.room.android.domain.room.RoomItem
 import com.voice.room.android.domain.room.RoomsPage
@@ -449,6 +450,50 @@ class CreateRoomViewModelTest {
             assertTrue(text is UiText.StringResource)
             assertEquals(
                 R.string.create_room_failed,
+                (text as UiText.StringResource).resId,
+            )
+        }
+
+    @Test
+    fun `C07c api failure with 40900 ApiException emits active-exists message`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            // BUG-ROOM-CREATE-NOCLOSE Round 7：服务端 40900 表示用户已有活跃房间，
+            // ViewModel 应给出针对性 i18n 文案，而非通用 create_room_failed。
+            val fakeRepo = object : IRoomRepository {
+                override suspend fun getRooms(page: Int, size: Int) =
+                    Result.success(RoomsPage(total = 0, page = 1, items = emptyList()))
+
+                override fun getRoomsPagingSource(): PagingSource<Int, RoomItem> =
+                    NullPagingSource()
+
+                override suspend fun createRoom(
+                    title: String,
+                    type: String,
+                    password: String?,
+                    coverUrl: String,
+                    category: String,
+                    announcement: String?
+                ): Result<String> = Result.failure(
+                    ApiException(40900, "user already has an active room"),
+                )
+
+                override suspend fun verifyPassword(roomId: String, password: String): Result<String> =
+                    Result.failure(UnsupportedOperationException())
+            }
+            val viewModel = CreateRoomViewModel(fakeRepo)
+
+            viewModel.createRoom(title = "新房间", type = "normal")
+            advanceUntilIdle()
+
+            val state = viewModel.uiState.value
+            assertTrue(
+                "State should be Error on 40900, but was: $state",
+                state is CreateRoomUiState.Error,
+            )
+            val text = (state as CreateRoomUiState.Error).message
+            assertTrue(text is UiText.StringResource)
+            assertEquals(
+                R.string.create_room_active_exists,
                 (text as UiText.StringResource).resId,
             )
         }

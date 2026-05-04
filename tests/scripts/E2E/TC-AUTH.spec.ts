@@ -88,7 +88,7 @@ test.describe('TC-AUTH E2E - 登录闭环', () => {
       await agent.aiAssert('主界面显示：房间列表大厅，底部 Tab 栏可见');
       await agent.aiTap('底部 Tab 栏中的"我的"或"Me"选项卡');
       await agent.aiWaitFor('个人中心页面加载', { timeoutMs: 10_000 });
-      await agent.aiAssert('个人中心显示：用户昵称、钻石余额（0 或其他数字）');
+      await agent.aiAssert('个人中心显示：用户昵称，以及余额（钻石余额、金币余额或钱包余额等，0 或其他数字均可）');
 
       // Step 10：冷启验证 JWT 持久化
       execSync(`${adbPrefix} shell am force-stop ${ANDROID_APP_ID}`);

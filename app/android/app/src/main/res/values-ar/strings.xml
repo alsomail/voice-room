@@ -20,6 +20,7 @@
     <string name="create_room_title_empty">لا يمكن أن يكون عنوان الغرفة فارغاً.</string>
     <string name="create_room_title_too_long">يجب ألا يتجاوز عنوان الغرفة %1$d حرفاً (الحالي %2$d).</string>
     <string name="create_room_password_required">يجب تعيين كلمة مرور لغرف كلمة المرور.</string>
+    <string name="create_room_active_exists">لديك بالفعل غرفة نشطة. يرجى إغلاقها أولاً قبل إنشاء غرفة جديدة.</string>
 
     <string name="password_locked_minutes">تم القفل. حاول مرة أخرى بعد %1$d دقيقة.</string>
 

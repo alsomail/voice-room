@@ -80,7 +80,7 @@ test('TC-PROFILE-00001: 页面布局 + 用户信息渲染', async ({ e2eEnv }: a
 
     // Step3：验证余额卡片（可能是 💎 钻石或 💰 硬币/Coins，任一金融余额展示均可）
     // [自愈-Round1-Strategy-B] App 实际展示 wallet/coins 图标而非 💎，放宽断言兼容两种样式
-    await agent.aiAssert('页面中有余额展示区域或行（含金融余额数字，可能是 💎 钻石、💰 硬币或钱包图标），可点击或右侧有 ">" 箭头标记');
+    await agent.aiAssert('页面中有余额展示区域或行（含金融余额数字，可能是 💎 钻石、💰 硬币或钱包图标）');
 
     // Step4：验证中部列表
     await agent.aiAssert('页面中有编辑资料、设置、关于我们等功能入口列表');

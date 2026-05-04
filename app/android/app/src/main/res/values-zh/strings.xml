@@ -40,6 +40,7 @@
     <string name="create_room_title_empty">请输入房间名称。</string>
     <string name="create_room_title_too_long">房间名称最多 %1$d 个字符（当前 %2$d 个）。</string>
     <string name="create_room_password_required">密码房间必须设置密码。</string>
+    <string name="create_room_active_exists">你已有一个活跃房间，请先关闭它再创建新房间。</string>
 
     <!-- Profile content -->
     <string name="profile_copy_id_action">复制 ID</string>

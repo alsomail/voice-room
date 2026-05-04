@@ -81,7 +81,9 @@ test('TC-GIFT-00001: 礼物面板 Bottom Sheet 布局 + 交互', async ({ e2eEnv
     // Step2：验证顶部余额
     await agent.aiAssert('礼物面板顶部显示钻石余额数字（如 💎 N），右侧有充值按钮，最右有 × 关闭按钮');
 
-    // Step3：验证分类 Tab
+    // Step3：验证分类 Tab（等待礼物列表加载完毕）
+    await new Promise(r => setTimeout(r, 3000)); // 等待礼物列表从服务器加载
+    await agent.aiWaitFor('礼物面板中至少有一个礼物图标或卡片显示（加载完成，无加载转圈）', { timeoutMs: 12_000 });
     await agent.aiAssert('礼物面板顶部有"热门"或"全部"等分类 Tab，礼物以多列网格展示');
 
     // Step4：选中一个礼物

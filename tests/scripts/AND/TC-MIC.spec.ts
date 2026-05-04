@@ -87,9 +87,10 @@ test('TC-MIC-00001: 权限申请拒绝后 Fallback 到系统设置', async ({ e2
     await agent.aiAssert('App 内出现 SnackBar 或 Toast 提示需要麦克风权限，或有"去设置"按钮');
 
     // Step3：点击去设置（如果有）
-    const hasSettingsBtn = await agent.aiBoolean('是否有"去设置"或"Settings"按钮？');
+    await new Promise(r => setTimeout(r, 2000)); // 等待 Toast/SnackBar 完全显示
+    const hasSettingsBtn = await agent.aiBoolean('在底部 Toast 提示条或 SnackBar 中是否有"去设置"或"Settings"文字按钮（不是房间内的其他按钮）？');
     if (hasSettingsBtn) {
-      await agent.aiTap('"去设置" 或 "Settings" 按钮');
+      await agent.aiTap('Toast 或 SnackBar 中的"去设置" 或 "Settings" 按钮（位于屏幕底部提示条中）');
       await agent.aiWaitFor('跳转到系统设置页面', { timeoutMs: 10_000 });
       await agent.aiAssert('已进入系统设置页面（应用权限设置），可见麦克风权限选项');
       // 返回 App
@@ -130,6 +131,10 @@ test('TC-MIC-00002: 上麦 → RTC publish → 下麦 E2E', async ({ e2eEnv }: a
   try {
     // 冷启动 + 登录
     execSync(`${adbPrefix} shell pm clear ${ANDROID_APP_ID}`);
+    // 前置：pm clear 之后重新授予 RECORD_AUDIO 权限（pm clear 会撤销所有权限）
+    try {
+      execSync(`${adbPrefix} shell pm grant ${ANDROID_APP_ID} android.permission.RECORD_AUDIO`, { stdio: 'pipe' });
+    } catch { /* 忽略 */ }
     // 恢复 App 语言为中文（Android 13+ app-specific locale）
     try {
       execSync(`${adbPrefix} shell cmd locale set-app-locales ${ANDROID_APP_ID} --locales zh-CN`, { stdio: 'pipe' });

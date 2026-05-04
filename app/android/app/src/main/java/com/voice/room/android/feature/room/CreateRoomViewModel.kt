@@ -7,6 +7,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.voice.room.android.R
 import com.voice.room.android.VoiceRoomApplication
+import com.voice.room.android.data.auth.ApiException
 import com.voice.room.android.domain.room.IRoomRepository
 import com.voice.room.android.util.UiText
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -89,11 +90,14 @@ class CreateRoomViewModel(
                 .onSuccess { roomId ->
                     _uiState.value = CreateRoomUiState.Success(roomId)
                 }
-                .onFailure { _ ->
-                    // 缺陷 #4：i18n 文案占位（不再依赖 error.message 的中文 / 服务端原文）
-                    _uiState.value = CreateRoomUiState.Error(
-                        UiText.of(R.string.create_room_failed)
-                    )
+                .onFailure { err ->
+                    // BUG-ROOM-CREATE-NOCLOSE Round 7：服务端 40900 表示用户已有活跃房间，
+                    // 给出针对性文案，便于用户理解；其他错误兜底为通用文案。
+                    val uiText = when ((err as? ApiException)?.code) {
+                        ROOM_ACTIVE_EXISTS_CODE -> UiText.of(R.string.create_room_active_exists)
+                        else -> UiText.of(R.string.create_room_failed)
+                    }
+                    _uiState.value = CreateRoomUiState.Error(uiText)
                 }
         }
     }
@@ -222,6 +226,8 @@ class CreateRoomViewModel(
         /** UI 层共享此常量，避免两处重复定义造成漂移风险（MEDIUM-01 修复）。 */
         internal const val MAX_TITLE_LENGTH = 30
         private const val ROOM_TYPE_PASSWORD = "password"
+        /** 服务端 §1.4：用户已有活跃房间（Round 7 BUG-ROOM-CREATE-NOCLOSE 区分文案使用）。 */
+        private const val ROOM_ACTIVE_EXISTS_CODE = 40900
 
         /**
          * 生产 Factory — 通过 [VoiceRoomApplication.appContainer] 获取真实仓库。

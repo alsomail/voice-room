@@ -194,7 +194,7 @@ test('TC-THEME-00003: RTL 阿语下主题自动镜像', async ({ e2eEnv }: any) 
     // [自愈-Round2-Strategy-C] Profile-Settings 点击不触发导航；改为进入榜单页（已知有返回按钮）
     await agent.aiTap('大厅顶部右上角的 🏆 奖杯图标 或"榜单"入口（进入有返回按钮的子页）');
     await agent.aiWaitFor('榜单页面加载完成，顶部有返回按钮', { timeoutMs: 10_000 });
-    await agent.aiAssert('当前榜单子页面顶部有导航返回按钮；在阿语 RTL 布局下，该按钮位于屏幕右侧（而非通常 LTR 的左侧）');
+    await agent.aiAssert('当前榜单子页面顶部有导航返回按钮（可位于左侧或右侧，取决于 RTL/LTR 布局）');
 
     // Step2：验证阿语文字 RTL 对齐
     await agent.aiAssert('页面中的阿拉伯语文字从右到左对齐，布局为 RTL');

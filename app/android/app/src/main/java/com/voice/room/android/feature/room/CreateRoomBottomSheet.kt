@@ -30,11 +30,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import android.widget.Toast
 
 /**
  * 创建房间 ModalBottomSheet (T-30007)
@@ -61,6 +63,7 @@ fun CreateRoomBottomSheet(
     sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
 
     // BottomSheet 每次进入（Composition）时重置状态，防止上次 Success/Error 残留
     // 导致 LaunchedEffect(uiState) 在重新打开时触发旧回调（重复导航问题，HIGH-02 修复）
@@ -69,13 +72,21 @@ fun CreateRoomBottomSheet(
     }
 
     // 成功后先 reset 再触发回调，确保再次打开 BottomSheet 时不会重放旧 Success
-    // MEDIUM-03 注意：LaunchedEffect(uiState) 对"相同 Error 对象"不会重新触发（Compose 同值优化）。
-    // 如需对连续相同错误重复弹提示，应将 Error 改为 Channel / SharedFlow one-shot 事件。
+    // BUG-ROOM-CREATE-NOCLOSE Round 7：失败时也必须关闭 BottomSheet 并 Toast 提示，
+    // 否则用户只看到一行红字、不知该怎么处理；尤其是 40900「已有活跃房间」更需提示后退出。
     LaunchedEffect(uiState) {
-        if (uiState is CreateRoomUiState.Success) {
-            viewModel.resetState()
-            onSuccess((uiState as CreateRoomUiState.Success).roomId)
-            onDismiss()
+        when (val state = uiState) {
+            is CreateRoomUiState.Success -> {
+                viewModel.resetState()
+                onSuccess(state.roomId)
+                onDismiss()
+            }
+            is CreateRoomUiState.Error -> {
+                Toast.makeText(context, state.message.asString(context), Toast.LENGTH_LONG).show()
+                viewModel.resetState()
+                onDismiss()
+            }
+            else -> Unit
         }
     }
 

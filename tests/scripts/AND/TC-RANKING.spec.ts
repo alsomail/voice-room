@@ -76,7 +76,7 @@ test('TC-RANKING-00001: 双 Tab 切换 + Top3 奖牌渲染', async ({ e2eEnv }: 
 
     // Step4：切换到"财富-周"
     await agent.aiTap('"财富" 或 "Wealth" Tab');
-    await agent.aiWaitFor('Tab 切换完成，列表更新', { timeoutMs: 8_000 });
+    await agent.aiWaitFor('Tab 切换完成（列表区域已更新，可能显示数据或"暂无数据"提示）', { timeoutMs: 8_000 });
     await agent.aiTap('"周" 或 "Week" Tab');
     await agent.aiWaitFor('数据加载完成', { timeoutMs: 8_000 });
     await agent.aiAssert('"财富-周"榜单数据已加载，显示排名列表或空状态');

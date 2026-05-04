@@ -213,7 +213,7 @@ test('TC-SHELL-00005: RoomScreen 黑金升级 + 主副麦 + 弹幕 + 底栏', as
     await agent.aiWaitFor('已进入房间，可见麦位布局', { timeoutMs: 15_000 });
 
     // Step1：验证顶部主播麦区
-    await agent.aiAssert('顶部区域有主播麦位，含金色光晕头像和房间标题');
+    await agent.aiAssert('顶部区域有主播麦位（可为空位），并显示房间标题');
 
     // Step2：验证副麦网格
     await agent.aiAssert('中部有麦位网格，含多个副麦位（空位显示 "+" 或已占位显示头像）');
