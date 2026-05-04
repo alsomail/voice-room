@@ -15,6 +15,7 @@ import { test, expect } from '../support/fixtures';
 import { agentFromAdbDevice } from '@midscene/android';
 import { execSync } from 'child_process';
 import { redisExecSync, RedisCliUnavailableError } from '../support/redisCli';
+import { ensureMicOccupant, type MicOccupant } from '../support/ensureMicOccupant';
 
 test.setTimeout(300_000);
 
@@ -253,6 +254,27 @@ test('TC-GOVERNANCE-00005: 用户操作菜单 - 角色权限（房主视角）',
     aiActionContext: '当前是 Android 语聊房 App，房间内点击观众头像会弹出用户操作菜单，菜单项因角色不同而不同',
   });
 
+  // BUG-MIC-SEAT-SEED Round 6：mic_seats 是进程内状态无法 SQL seed；
+  // 这里用 USER_B token 在 WS 上预占一个麦位，确保后续"点击观众头像"用例
+  // 真的能命中"非自己的麦位用户"，而不是仅 fallback 到"无其他用户"分支。
+  const seedToken = (process.env.E2E_USER_B_TOKEN ?? '').trim() || (e2eEnv.tokens?.valid ?? '');
+  const seedRoomId = (e2eEnv.ids?.roomId as string) ?? (process.env.E2E_ROOM_ID ?? '');
+  const seedWsUrl = (e2eEnv.appWsUrl as string) ?? (process.env.APP_WS_URL ?? '');
+  let micOccupant: MicOccupant | null = null;
+  if (seedToken && seedRoomId && seedWsUrl && seedToken !== (e2eEnv.tokens?.valid ?? '')) {
+    micOccupant = await ensureMicOccupant({
+      wsUrl: seedWsUrl,
+      token: seedToken,
+      roomId: seedRoomId,
+      micIndex: 1,
+    });
+    if (micOccupant) {
+      console.log(`[TC-GOVERNANCE-00005] seeded mic occupant on slot ${micOccupant.micIndex} (user ${micOccupant.userId ?? '?'})`);
+    }
+  } else {
+    console.log('[TC-GOVERNANCE-00005] E2E_USER_B_TOKEN unavailable — running without mic-seat seed');
+  }
+
   try {
     await coldStartAndLogin(agent, adbPrefix, ANDROID_APP_ID, phone);
 
@@ -289,6 +311,9 @@ test('TC-GOVERNANCE-00005: 用户操作菜单 - 角色权限（房主视角）',
     try {
       redisExecSync(['DEL', `sms:code:${phone}`, `sms:cooldown:${phone}`]);
     } catch { /* 忽略 */ }
+    if (micOccupant) {
+      await micOccupant.dispose().catch(() => {});
+    }
     await agent.destroy().catch(() => {});
   }
 });
