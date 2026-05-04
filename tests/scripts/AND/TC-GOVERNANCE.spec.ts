@@ -302,7 +302,7 @@ test('TC-GOVERNANCE-00006: 踢人原因弹窗 - 单选 + 其他必填 + JSON 安
   const ADB_DEVICE_ID = process.env.ADB_DEVICE_ID || undefined;
   const adbPrefix = ADB_DEVICE_ID ? `adb -s ${ADB_DEVICE_ID}` : 'adb';
   const phone = '+966500000900';
-  const ROOM_TITLE = `KICK-TEST-${Date.now()}`;
+  const ROOM_TITLE = `KICKTEST${Date.now()}`;
 
   const agent = await agentFromAdbDevice(ADB_DEVICE_ID, {
     aiActionContext: '当前是 Android 语聊房 App，房主在自己创建的房间内，可以对观众执行踢人操作，触发踢人原因弹窗',
@@ -323,6 +323,10 @@ test('TC-GOVERNANCE-00006: 踢人原因弹窗 - 单选 + 其他必填 + JSON 安
     await new Promise(r => setTimeout(r, 1000)); // 等待 Compose IME 连接稳定
     execSync(`${adbPrefix} shell input text "${ROOM_TITLE}"`);
     await new Promise(r => setTimeout(r, 500));
+    // BUG-IME-HYPHEN（Round 6）：Android adb input text 对包含 '-' 的文本注入不稳定，
+    // ROOM_TITLE 已改为无连字符的 `KICKTEST${Date.now()}`；此处显式断言文本已注入，
+    // 早失败避免后续创建按钮置灰导致用例长时间空转。
+    await agent.aiAssert(`房名输入框已显示文本"${ROOM_TITLE}"（非空，且包含数字时间戳）`);
     await agent.aiTap('"创建"或"提交"按钮');
     await agent.aiWaitFor('进入房间', { timeoutMs: 15_000 });
 
