@@ -1,7 +1,7 @@
 # Voice Room 开发任务清单
 
-> **版本**: v2.73  
-> **更新日期**: 2026-05-01  
+> **版本**: v2.75  
+> **更新日期**: 2026-05-05  
 > **任务总数**: 132 个 (基建: 4 + 14, App Server: 33 + 1, Admin Server: 16 + 1, Web: 14 + 1, Android: 44 + 1, E-07 15 + E-07.5 6 + E-10 18)  
 > **当前阶段**: Phase 1 - 核心营收闭环（E-07 + E-07.5 并行）→ Phase 1.5 E-10 房间治理 → Phase 1.6 E2E 测试基建（模块 9：16/17，T-0000R In Progress）+ QA 战报驱动架构补强 + v3 战报反向拆出 WEB FAIL 修复 + SKIP-KNOWN 收口
 
@@ -12,6 +12,7 @@
 | 版本 | 日期 | 变更内容 |
 |------|------|---------|
 | _规则_ | — | 本表只记录**版本级摘要**（一行 ≤ 200 字符），具体 Review/审查/实跑证据请落到对应 [TDS](../tds/) 第五节【Review 意见】或对应模块审查批次 `doc/review/模块N-XXX.md`，**严禁**在本表堆叠详细审查记录。 |
+| **v2.75** | **2026-05-05** | BUG-CHAT-WS Round 9 真根因修复(RoomSocketRequestFactory URL /ws/room→/ws，token Header→?token=查询参数)[cf899bd]；4/4单测通过；APK重建。残余风险：服务端logging.rs WS URI含JWT待下轮脱敏。 |
 | **v2.74** | **2026-05-05** | Round 7 修复3个Bug：BUG-GIFT-JSON-PARSE(GiftDto data.items包装+真实JSON单测)[0327fae]；BUG-ROOM-CREATE-NOCLOSE(失败时Toast+dismiss)[3714302]；BUG-CHAT-WS加固单测[3c140c8]；APK 20M。 |
 | **v2.73** | **2026-05-01** | Round 6 网络地址更新(192.168.1.19) + 6个P1 Bug修复(BUG-CHAT-WS/GOVERNANCE-FORM-VALIDATE/MIC-PERMISSION-TOAST/GIFT-MIC-PERMISSION/IME-HYPHEN/MIC-SEAT-SEED)；APK已构建，供Round 6 E2E回归。 |
 | **v2.72** | **2026-04-30** | Android 4 Bug 修复（BUG-JWT-PERSIST/LOGIN-NAV/ROOM-NAV/CREATE-ROOM-SUBMIT）：DataStore 持久化 + 登录导航 + 房间卡片 + 创建房间导航全链路打通；commits `1ff6326`/`636979e`/`1f557d0`/`0d7c6e3`/`5b8682f`/`11a2c11`；Code Review ✅ APPROVE。 |
