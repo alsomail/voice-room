@@ -53,6 +53,11 @@ class RetrofitRoomRepositoryTest {
             request: com.voice.room.android.data.remote.model.VerifyPasswordRequest
         ): Response<ApiResponse<com.voice.room.android.data.remote.model.VerifyPasswordResponseData>> =
             throw UnsupportedOperationException("verifyPassword not tested in RetrofitRoomRepositoryTest")
+
+        override suspend fun getRoomDetail(
+            roomId: String
+        ): Response<ApiResponse<com.voice.room.android.data.remote.model.RoomDetailResponseData>> =
+            throw UnsupportedOperationException("getRoomDetail not tested in RetrofitRoomRepositoryTest")
     }
 
     // ─────────────────────────────────────────────
@@ -241,6 +246,8 @@ class RetrofitRoomRepositoryTest {
                 request: VerifyPasswordRequest
             ): Response<ApiResponse<VerifyPasswordResponseData>> =
                 Response.error(400, errorJson.toResponseBody())
+            override suspend fun getRoomDetail(roomId: String): Response<ApiResponse<com.voice.room.android.data.remote.model.RoomDetailResponseData>> =
+                throw UnsupportedOperationException()
         }
         val repo = RetrofitRoomRepository(service)
 
@@ -278,6 +285,8 @@ class RetrofitRoomRepositoryTest {
                 request: VerifyPasswordRequest
             ): Response<ApiResponse<VerifyPasswordResponseData>> =
                 Response.error(400, errorJson.toResponseBody())
+            override suspend fun getRoomDetail(roomId: String): Response<ApiResponse<com.voice.room.android.data.remote.model.RoomDetailResponseData>> =
+                throw UnsupportedOperationException()
         }
         val repo = RetrofitRoomRepository(service)
 
@@ -310,6 +319,8 @@ class RetrofitRoomRepositoryTest {
                 request: VerifyPasswordRequest
             ): Response<ApiResponse<VerifyPasswordResponseData>> =
                 Response.error(400, errorJson.toResponseBody())
+            override suspend fun getRoomDetail(roomId: String): Response<ApiResponse<com.voice.room.android.data.remote.model.RoomDetailResponseData>> =
+                throw UnsupportedOperationException()
         }
         val repo = RetrofitRoomRepository(service)
 

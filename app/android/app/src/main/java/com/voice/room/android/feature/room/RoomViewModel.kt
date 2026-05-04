@@ -963,6 +963,37 @@ class RoomViewModel(
                 )
             }
 
+            // BUG-CHAT-WS Round 6：服务端实际广播 type=RoomMessage（见 server/src/room/handler/chat.rs）
+            // payload: { msg_id, user_id, content }；顶层 timestamp。
+            "RoomMessage" -> {
+                val payload = json.getAsJsonObject("payload") ?: return
+                val msgId = payload.get("msg_id")?.takeIf { !it.isJsonNull }?.asString ?: return
+                if (seenMsgIds.contains(msgId)) return
+                val content = payload.get("content")?.takeIf { !it.isJsonNull }?.asString ?: return
+                seenMsgIds.add(msgId)
+
+                val senderUserId = payload.get("user_id")?.takeIf { !it.isJsonNull }?.asString
+                val timestamp = json.get("timestamp")?.takeIf { !it.isJsonNull }?.asLong ?: 0L
+
+                // 通过 audience / onMic / micSlots 查找昵称；找不到则回退到 user_id 短串
+                val nickname = senderUserId?.let { uid ->
+                    val aud = _audienceState.value
+                    aud.onMic.firstOrNull { it.id == uid }?.nickname
+                        ?: aud.audience.firstOrNull { it.id == uid }?.nickname
+                        ?: state.micSlots.firstOrNull { it.userId == uid }?.nickname
+                } ?: senderUserId ?: ""
+
+                val newMsg = ChatMessageUi(
+                    messageId = msgId,
+                    senderNickname = nickname,
+                    content = content,
+                    timestamp = timestamp,
+                )
+                _uiState.value = RoomViewState.Success(
+                    state.copy(messages = state.messages + newMsg)
+                )
+            }
+
             "RoomClosed" -> {
                 _events.trySend(RoomEvent.NavigateBack)
             }
