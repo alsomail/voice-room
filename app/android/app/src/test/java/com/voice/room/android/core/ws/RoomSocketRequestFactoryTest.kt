@@ -7,14 +7,14 @@ class RoomSocketRequestFactoryTest {
     @Test
     fun `create appends room path and injects auth headers`() {
         val request = RoomSocketRequestFactory.create(
-            baseWsUrl = "ws://192.168.1.8:3000/ws",
+            baseWsUrl = "ws://192.168.1.19:3000/ws",
             session = RoomSocketSession(
                 accessToken = "token-123",
                 joinTicket = "ticket-456"
             )
         )
 
-        assertEquals("ws://192.168.1.8:3000/ws/room", request.url)
+        assertEquals("ws://192.168.1.19:3000/ws/room", request.url)
         assertEquals("Bearer token-123", request.headers["Authorization"])
         assertEquals("ticket-456", request.headers["X-Join-Ticket"])
     }

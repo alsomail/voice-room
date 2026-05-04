@@ -18,8 +18,8 @@ class MainViewModelTest {
         val viewModel = MainViewModel(
             environment = AppEnvironment(
                 environmentName = "dev",
-                apiBaseUrl = "http://192.168.1.8:3000/api",
-                wsUrl = "ws://192.168.1.8:3000/ws",
+                apiBaseUrl = "http://192.168.1.19:3000/api",
+                wsUrl = "ws://192.168.1.19:3000/ws",
                 analyticsEndpoint = "https://analytics-dev.example.com/collect"
             ),
             analyticsService = analytics,
@@ -54,8 +54,8 @@ class MainViewModelTest {
         val viewModel = MainViewModel(
             environment = AppEnvironment(
                 environmentName = "dev",
-                apiBaseUrl = "http://192.168.1.8:3000/api",
-                wsUrl = "ws://192.168.1.8:3000/ws",
+                apiBaseUrl = "http://192.168.1.19:3000/api",
+                wsUrl = "ws://192.168.1.19:3000/ws",
                 analyticsEndpoint = "https://analytics-dev.example.com/collect"
             ),
             analyticsService = RecordingAnalyticsService(),

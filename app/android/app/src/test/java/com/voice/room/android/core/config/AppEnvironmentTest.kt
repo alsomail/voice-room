@@ -29,8 +29,8 @@ class AppEnvironmentTest {
     fun `validateForPhysicalDevice accepts LAN endpoints`() {
         val environment = AppEnvironment.fromBuildConfig(
             environmentName = "test",
-            apiBaseUrl = "http://192.168.1.8:3000/api",
-            wsUrl = "ws://192.168.1.8:3000/ws",
+            apiBaseUrl = "http://192.168.1.19:3000/api",
+            wsUrl = "ws://192.168.1.19:3000/ws",
             analyticsEndpoint = "https://analytics-dev.example.com/collect"
         )
 
