@@ -26,14 +26,12 @@ data class RoomSocketRequestSpec(
 object RoomSocketRequestFactory {
     fun create(baseWsUrl: String, session: RoomSocketSession): RoomSocketRequestSpec {
         val normalizedBaseUrl = baseWsUrl.trim().trimEnd('/')
-        val normalizedRoomPath = session.roomPath.trim().let { path ->
-            if (path.startsWith("/")) path else "/$path"
-        }
 
+        // Protocol §6.1: ws://host/ws?token=<JWT>
+        // Token is passed as a URL query parameter; no Authorization header is used.
         return RoomSocketRequestSpec(
-            url = "$normalizedBaseUrl$normalizedRoomPath",
+            url = "$normalizedBaseUrl?token=${session.accessToken}",
             headers = mapOf(
-                "Authorization" to "Bearer ${session.accessToken}",
                 "X-Join-Ticket" to session.joinTicket
             )
         )
