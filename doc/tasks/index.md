@@ -12,6 +12,7 @@
 | 版本 | 日期 | 变更内容 |
 |------|------|---------|
 | _规则_ | — | 本表只记录**版本级摘要**（一行 ≤ 200 字符），具体 Review/审查/实跑证据请落到对应 [TDS](../tds/) 第五节【Review 意见】或对应模块审查批次 `doc/review/模块N-XXX.md`，**严禁**在本表堆叠详细审查记录。 |
+| **v2.74** | **2026-05-05** | Round 7 修复3个Bug：BUG-GIFT-JSON-PARSE(GiftDto data.items包装+真实JSON单测)[0327fae]；BUG-ROOM-CREATE-NOCLOSE(失败时Toast+dismiss)[3714302]；BUG-CHAT-WS加固单测[3c140c8]；APK 20M。 |
 | **v2.73** | **2026-05-01** | Round 6 网络地址更新(192.168.1.19) + 6个P1 Bug修复(BUG-CHAT-WS/GOVERNANCE-FORM-VALIDATE/MIC-PERMISSION-TOAST/GIFT-MIC-PERMISSION/IME-HYPHEN/MIC-SEAT-SEED)；APK已构建，供Round 6 E2E回归。 |
 | **v2.72** | **2026-04-30** | Android 4 Bug 修复（BUG-JWT-PERSIST/LOGIN-NAV/ROOM-NAV/CREATE-ROOM-SUBMIT）：DataStore 持久化 + 登录导航 + 房间卡片 + 创建房间导航全链路打通；commits `1ff6326`/`636979e`/`1f557d0`/`0d7c6e3`/`5b8682f`/`11a2c11`；Code Review ✅ APPROVE。 |
 | **v2.71** | **2026-04-29** | T-30099 follow-up 修复后正式 QA 回归（[report-20260429-120907](../../tests/report-20260429-120907/SUMMARY.md)）：`:app:connectedLocalDebugAndroidTest` **180/180 PASS（100%）**，5 个熔断 Task（T-30001/30021/30023/30024/30025）全部出池；10 个回归 Task（T-30001/05/18/20/21/22/23/24/25/26）QA Gate 全数 ✅ Passed；BUG-ANDROID-002/003/004 + UI09 known flaky 全部闭环；JVM unit 675/678 持平（3 历史遗留 BuildConfigFlavor 与本轮无关）。 |
