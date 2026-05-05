@@ -14,6 +14,7 @@ model: Claude Opus 4.7
 - 协调器会给你一个特定的审查批次文档路径，例如 `doc/review/batch-room-01.md`。
 - 读取该文档获取任务 ID 列表与对应的 TDS 链接。
 - 必须使用 `read` 工具阅读相关 TDS 文档以及全局架构文档 `doc/architecture/index.md`，理解设计意图和上下游关联。
+- **🔴 协议路径绑定**：必须读取每个 Task TDS 第二节「协议路径绑定表」+ `doc/protocol/index.md` 对应章节；同时必须读取四端**真实调用入口**对应的源码（android `RoomViewModel`/Repository，web `apiClient.ts` 与 `pages/`，server `routes.rs`/`ws/connection.rs`，adminServer `routes.rs` 与 Redis publisher），用于后文 P0 必查项的 grep 比对。
 
 **2. 源码审计 (Audit Code)**
 - 不要孤立地看代码。阅读完整的被修改文件，理解 imports、依赖项和调用方。
@@ -38,6 +39,7 @@ model: Claude Opus 4.7
 ### 【审查清单 Review Checklist】
 
 **🔴 安全与架构 (CRITICAL) - 必须标记，可造成真实破坏：**
+- **🔴 协议路径不一致（P0 必查）**：grep 客户端**真实**调用入口（Android `wsClient.send` / Retrofit `@POST/@GET`；Web `apiClient.*` / WebSocket `send`；adminServer Redis `PUBLISH`）与服务端**实现**入口（Axum `Router::route` / WS 信令 `match envelope.r#type` / Redis `SUBSCRIBE` 处理）。比对范围必须覆盖 TDS「协议路径绑定表」中**每一行**。任何「客户端走 A、服务端只实现 B」「字段名/类型不一致」「错误码 server 未实现 client 已断言」「双路径写入但仅其中一条广播」的情况，立刻 P0 失败。审查日志必须列出 grep 命令与命中文件行号作为证据。
 - **架构破坏**：打破了 `doc/architecture/index.md` 定义的分层结构或跨模块调用禁忌。
 - **硬编码凭证**：源码中暴露 API Keys, 密码, Tokens。
 - **注入漏洞**：SQL 拼接（未参数化）、XSS（未转义渲染用户输入）、路径穿越（未过滤的文件路径）。

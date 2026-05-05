@@ -27,6 +27,16 @@ Server 端基于 Rust + Axum 构建。启动骨架（配置、日志、健康检
 - 📊 [Analytics 模块架构](./analytics.md) - 事件表 Schema + 分区设计（T-00022）、HTTP `POST /api/v1/events/batch` 批量接收接口、PartitionScheduler 定时分区创建 + 补偿逻辑；WebSocket `ReportEvent` 信令（T-00023）与 EventWriter 共享写入层、JWT user_id 覆盖逻辑、properties 8KB 截断机制。
 - 🏠 [Room HTTP API 架构](./room.md) - `POST /api/v1/rooms` 扩展字段（`cover_url`/`category`/`announcement`/`password`）与白名单校验（T-00025）；`PATCH /api/v1/rooms/:id` 房主更新接口；`RoomInfoUpdated` WS 广播格式（含 `has_password` 布尔）；`validator.rs` 四个验证函数设计；遗留 MEDIUM 项（`BroadcastEnvelope` 缺 `msg_id`）。
 
+## 🔌 协议入口索引 (Protocol Entry Index)
+
+> **铁律**：每个跨端 Task 的 DoD 阶段必须把 TDS「协议路径绑定表」中**本端涉及的行**反向写入此表。本表是 server 端**所有**对外协议入口的汇总，供 global-review、新人 onboarding 和重构变更影响面分析使用。
+
+| 协议类型 | 入口 / 信令 | 实现文件:函数 | protocol/ 锚点 | 关联 Task | 客户端实调用方 |
+|----------|------------|---------------|---------------|-----------|----------------|
+| WS C→S | `SendMessage` ⭐ | `app/server/src/room/handler/chat.rs::handle_send_message` | [websocket_signals.md §6.8.1](../../protocol/websocket_signals.md) | T-00047 | `app/android/app/src/main/java/com/voice/room/android/feature/room/RoomViewModel.kt::sendMessage` |
+| WS S→Room 广播 | `RoomMessage` | `app/server/src/ws/broadcaster.rs::broadcast_to_room` | [websocket_signals.md §6.8.2](../../protocol/websocket_signals.md) | T-00047 | Android `RoomViewModel` 接收 `type == "RoomMessage"` 后分发到 Chat UI |
+| HTTP REST | `POST /api/v1/chat-messages` | `app/server/src/modules/chat/controller.rs::send_chat_message_handler` | [room_api.md §3.6.1](../../protocol/room_api.md) | T-00047 | 当前无 C 端客户端调用；运营 / 后端兜底备路径 |
+
 ## 三、 当前能力全景与状态 (Capability Matrix)
 > 状态枚举：🟢 已完成 | 🟡 开发/调试中 | 🔴 待开发
 

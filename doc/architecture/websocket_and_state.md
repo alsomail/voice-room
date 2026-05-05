@@ -5,45 +5,23 @@
 Server 是房间与麦位状态的唯一权威。
 
 客户端允许：
-- 发送意图，如 `APPLY_SEAT`、`LEAVE_SEAT`、`SEND_GIFT`
-- 被动接收权威事件，如 `SEAT_UPDATED`、`ROOM_SNAPSHOT`
+- 发送意图（如"申请上麦""离麦""送礼"等业务动作；具体 `type` 值见 [`doc/protocol/websocket_signals.md`](../protocol/websocket_signals.md)，**严禁**在本架构文档硬编码）
+- 被动接收权威事件（如房间状态增量、房间快照；具体 `type` 值见 protocol/）
 
 客户端严禁：
 - 本地直接修改麦位最终状态
 - 自行推断礼物扣费是否成功
 - 未等待 ACK / Broadcast 就假定上麦成功
 
-## 8.2 信令格式建议
+## 8.2 信令格式契约位置
 
-客户端 -> 服务端：
-
-```json
-{
-  "msg_id": "01HRX9....",
-  "event": "APPLY_SEAT",
-  "ts": 1719999999999,
-  "payload": {
-    "room_id": 10001,
-    "seat_no": 3
-  }
-}
-```
-
-服务端 -> 客户端：
-
-```json
-{
-  "msg_id": "01HRXA....",
-  "event": "SEAT_UPDATED",
-  "room_id": 10001,
-  "version": 42,
-  "payload": {
-    "seat_no": 3,
-    "user_id": 9527,
-    "status": "occupied"
-  }
-}
-```
+> **🔴 唯一契约源**：WS 信令的 envelope 结构、`type` 枚举（`SendMessage` / `RoomMessage` / `SeatApply` / `SeatUpdated` 等）、字段命名、错误码、双 ID 语义（`envelope.msg_id` UUIDv4 唯一推送标识 vs `payload.msg_id` 业务行 id）等**所有字段级定义**，**唯一**事实源在 [`doc/protocol/websocket_signals.md`](../protocol/websocket_signals.md)。
+>
+> 本节**不再**重复 JSON 形态，避免出现 `event/APPLY_SEAT` 这类与 protocol/ 中 `type/SeatApply` 不一致的"建议格式"导致客户端跑偏。
+>
+> 本架构文档只描述**语义**：客户端发送意图 → 服务端校验 + 落库 + 状态机推进 → 服务端基于 `RoomStateRepository` 计算增量 → 广播 `RoomState` 增量事件 + 单播必要的响应（如错误）。**严禁**任何端基于本节 8.1 的语义关键词（如 APPLY_SEAT）硬编码字符串发送/匹配；必须以 protocol/ 中的实际 `type` 值为准。
+>
+> 跨端 Task 的 TDS 必须在第二节维护「协议路径绑定表」（见 [`doc/tds/_template.md`](../tds/_template.md)），把客户端真实调用方与服务端处理函数双向锁定到 protocol/ 锚点。
 
 ## 8.3 房间状态同步机制
 

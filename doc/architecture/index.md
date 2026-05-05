@@ -1,7 +1,23 @@
 # 系统架构文档索引
 
-> **原始文件**: `doc/ARCHITECTURE.md`（已拆分为本目录下的子文件）
+> **原始文件**: `doc/ARCHITECTURE.md`（已拆分为本目录下的子文件，原文件已废弃，待物理删除）
 > **拆分日期**: 2026-04-20
+
+---
+
+## 🔴 协议契约铁律（最高优先级，全端通用）
+
+1. **唯一契约源**：`doc/protocol/` 是 **HTTP REST + WebSocket 信令 + Redis Pub/Sub + 错误码 + 数据模型**的**唯一**事实源。本目录（`doc/architecture/`）只描述**语义/状态机/容量/时序/弱网策略**，**严禁**重复定义字段格式与 JSON 形态。
+2. **多端对账（Plan 阶段强制）**：任何跨端 Task（server / adminServer / android / web 中两端及以上涉及通信）的 TDS 第二节必须含「**协议路径绑定表**」，列明客户端**实**调用方（如 `RoomViewModel.sendMessage`）↔ 服务端**实**处理函数（如 `room/handler/chat.rs::handle_send_message`）↔ `doc/protocol/` 锚点。客户端**实际选用**的路径必须加 ⭐。绑定表为空 / 缺锚点 → Plan 退回。
+3. **路径覆盖（双路径必须共测）**：同一业务（如 chat 写消息）若同时存在 REST + WS 双写路径，必须在 TDS 显式声明**主路径**与**备用路径**，并在两条路径均加集成测试断言「广播 envelope 除 envelope.msg_id 外逐字段相等」。
+4. **Review 强校验（global-review 必查 P0）**：必须 grep 客户端真实调用入口与服务端处理函数双向对账。客户端走 A 路径 / 服务端只实现 B 路径 / 字段名不一致 / 错误码 server 未实现 client 已断言 → 一律 P0 失败。
+5. **DoD 反向索引（强制）**：DoD 阶段必须把本 Task 锁定的协议入口反向写入 `doc/arch/[端]/[模块].md` 的「🔌 协议入口索引」小节，并在 `doc/protocol/` 对应章节加上「另见对侧路径」交叉链接。
+
+> 📋 **背景**：BUG-CHAT-WS-BROADCAST（Round 14-16，2026-05-05）暴露的根因是 Server 修了 REST 广播但 Android 实走 WS `SendMessage` 信令，TDS 未要求"协议路径绑定"导致两端各写各的。本铁律即为系统性闭环。
+
+---
+
+## 📂 系统架构子文件索引
 
 本目录包含实时语聊房项目的完整系统架构规范。按主题拆分为以下子文件，便于精准检索和增量更新。
 

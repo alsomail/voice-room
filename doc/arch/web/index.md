@@ -61,6 +61,14 @@
   - `src/pages/logs/LogSearchForm.tsx` — `LogSearchForm` 组件：Ant Design Form inline 布局，操作人 ID Input + 操作类型 Select + `DatePicker.RangePicker` 时间范围 + 搜索/重置 Button
   - `src/core/network/apiClient.ts`（扩展）— `adminGetLogs(params?, signal?): Promise<AdminLogsData>`；新增类型 `AdminLogItem` / `AdminLogsData` / `AdminGetLogsParams`
 
+## 🔌 协议入口索引 (Protocol Entry Index)
+
+> **铁律**：每个跨端 Task 的 DoD 阶段必须把 TDS「协议路径绑定表」中**本端涉及的行**反向写入此表。本表是 web 端**所有**对外协议调用方的汇总，供 global-review、新人 onboarding 和重构变更影响面分析使用。
+
+| 协议类型 | 调用方法 | 客户端实调用方（文件:函数）| protocol/ 锚点 | 关联 Task | 服务端实现 |
+|----------|---------|----------------------------|---------------|-----------|------------|
+| _待 DoD 反向回填_ | _待回填_ | _待回填_ | _待回填_ | _待回填_ | _待回填_ |
+
 ## 三、 当前能力全景与状态 (Capability Matrix)
 > 状态枚举：🟢 已完成 | 🟡 开发/调试中 | 🔴 待开发
 

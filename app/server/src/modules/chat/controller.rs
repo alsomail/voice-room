@@ -92,7 +92,7 @@ pub async fn send_chat_message_handler(
 
     // ── 2. 校验 content（1..=500 chars，按 Unicode chars，与 WS 路径一致）───
     let content_len = req.content.chars().count();
-    if content_len == 0 {
+    if req.content.trim().is_empty() {
         return err_response(
             AppError::ValidationError("content is required and must not be empty".to_string()),
             rc.request_id(),
@@ -108,23 +108,27 @@ pub async fn send_chat_message_handler(
         );
     }
 
-    // ── 3. INSERT（DB 事务在此提交）───────────────────────────────────────────
+    // ── 3. 敏感词过滤（T-00047 PROTO-2：与 WS 路径 filter_content 保持等价）─
+    //     过滤后的 content 同时用于 DB 写入与广播 envelope，确保双路径一致性。
+    let filtered_content = crate::room::filter::filter_content(&req.content);
+
+    // ── 4. INSERT（DB 事务在此提交）───────────────────────────────────────────
     let message_id = match state
         .chat_repo
-        .insert_message(room_id, ctx.user_id, &req.content)
+        .insert_message(room_id, ctx.user_id, &filtered_content)
         .await
     {
         Ok(id) => id,
         Err(e) => return err_response(e, rc.request_id()),
     };
 
-    // ── 4. 广播 RoomMessage envelope（与 WS SendMessage 路径形态一致）────────
+    // ── 5. 广播 RoomMessage envelope（与 WS SendMessage 路径形态一致）────────
     let envelope = serde_json::json!({
         "type": "RoomMessage",
         "payload": {
             "msg_id": message_id.to_string(),
             "user_id": ctx.user_id.to_string(),
-            "content": req.content,
+            "content": filtered_content,
         },
         "timestamp": chrono::Utc::now().timestamp_millis(),
     });
@@ -140,7 +144,7 @@ pub async fn send_chat_message_handler(
         );
     }
 
-    // ── 5. 返回 ──────────────────────────────────────────────────────────────
+    // ── 6. 返回 ──────────────────────────────────────────────────────────────
     (
         axum::http::StatusCode::OK,
         Json(ApiResponse::ok(

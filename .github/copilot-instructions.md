@@ -30,6 +30,11 @@
 4. **配置隔离**：严禁硬编码 IP、域名或密钥，必须通过各端的环境配置体系注入。
 5. **零容忍静态检查**：代码生成后，必须执行对应的 Lint/格式化命令，确保零警告。
 6. **LLM 编码行为准则**：`doc/LLM_RULES.md` 中的所有规则必须严格遵守。
+7. **🔴 协议路径绑定（最高优先级）**：所有协议（HTTP REST + WebSocket + Redis Pub/Sub）的契约**唯一事实源**为 `doc/protocol/`；`doc/architecture/` 只描述语义/状态机，**严禁**重复定义字段。任何涉及跨端通信的 Task（server/adminServer/android/web 任一端涉及发送或接收消息）：
+   - **Plan**：TDS 第二节必须填写「**协议路径绑定表**」（C→S 触发方 + S 处理函数 + 广播/响应 + protocol/ 章节锚点），客户端实际选用路径必须加 ⭐；缺失视为 TDS 不完备，禁止流转 TDD。
+   - **TDD**：必须为绑定表中**每一行**写至少一条集成/单测；客户端调用入口（`wsClient.send` / Retrofit / fetch / `apiClient.*`）必须有 grep-able 字符串断言锁定，防止后续误回退到副路径。
+   - **Review/global-review**：必须 grep 客户端真实调用入口与服务端处理函数双向比对；客户端走 A 路径但服务端只实现 B 路径 → 直接判 P0。
+   - **DoD**：必须把绑定表反向写入 `doc/arch/[端]/[模块].md` 的「🔌 协议入口索引」小节，并在 `doc/protocol/` 对应章节互加跨端反向链接。
 
 
 ## 🗺️ 架构与规范全量检索地图 (Context Router)
@@ -40,7 +45,7 @@
 - **了解宏观业务、看竞品、查总体进度？** -> 详见 `doc/product/index.md`
 - **领任务、查依赖、看开发进度？** -> 详见 `doc/tasks/index.md`
 - **查看某个 Task 的具体技术设计方案？** -> 详见 `doc/tds/T-xxx.md`（先读 `_template.md` 了解规范）
-- **前后端通信、API 接口、WebSocket 信令格式？** -> 详见 `doc/protocol/index.md`
+- **🔴 前后端通信、HTTP API、WebSocket 信令、Redis Pub/Sub、错误码、数据模型？** -> **唯一**事实源：`doc/protocol/index.md`（任何跨端 Task 必先在这里落锚字段，再写 TDS）。`doc/architecture/` **只描述**语义/状态机，**禁止**重复定义字段格式。
 - **查阅重大架构变更和技术选型原因？** -> 详见 `doc/adr/` (架构决策记录)
 
 **多端架构与现状：**

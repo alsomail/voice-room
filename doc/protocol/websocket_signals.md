@@ -197,3 +197,113 @@ JoinRoom payload 增 `access_token?: string`（密码房必填，从 `POST /room
 - **重连续传**：`JoinRoom.last_msg_id` 必须传 envelope 顶层 `msg_id`；**不要**传 `payload.msg_id`（DB id 不在缓冲索引里，永远视作"出窗"）。
 - **历史 REST 比对 / 去重**：以 `payload.msg_id` 为准（与 `GET /rooms/:id/messages` 返回的 `items[].id` 直接对齐）。
 - **其他广播**（如 `UserJoined / GiftReceived`）目前仅有 envelope `msg_id`；`payload.msg_id` 仅在 chat 类业务消息中存在。
+
+---
+
+## 6.8 Chat 文本消息信令（T-00016 / T-00043 / T-00045 / T-00047）
+
+> **关联 Task**：T-00016（WS 广播 MVP）· T-00043（持久化 + REST 历史）· T-00045（REST 写入广播闭环）· T-00047（协议路径绑定首发，本节落锚）
+>
+> **协议路径**（**唯一事实源**）：客户端**主路径** ⭐ 走 WS `SendMessage`；REST `POST /api/v1/chat-messages`（[room_api.md §3.6](./room_api.md)）为运营 / 兜底备路径，二者产生的 `RoomMessage` envelope **形态等价**（详见 §6.8.3）。
+>
+> **客户端实现绑定（grep-able）**：Android 端**唯一**调用入口 `RoomViewModel.sendMessage` → `wsClient.sendEnvelope(type = "SendMessage", ...)`；**严禁**走 Retrofit `POST /chat-messages`。
+
+### 6.8.1 SendMessage（C→S）
+
+**方向**：客户端 → 服务端
+**服务端处理**：`app/server/src/room/handler/chat.rs::handle_send_message`
+**前置条件**：客户端必须已通过 `JoinRoom` 加入目标房间（连接 ↔ room_id 绑定）。
+
+```json
+{
+  "type": "SendMessage",
+  "msg_id": "<client-uuid-v4>",
+  "payload": {
+    "content": "<1..=500 Unicode chars，去前后空白后非空>"
+  },
+  "timestamp": 1720000000000
+}
+```
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `type` | string | ✅ | 固定 `"SendMessage"` |
+| `msg_id` | string (UUID v4) | ✅ | **客户端生成**，用于 ACK 关联 + 服务端 `processed_msg_ids` 幂等去重；同 `msg_id` 重发不会二次广播 |
+| `payload.content` | string | ✅ | 文本内容；按 Unicode `chars().count()` 计长，1–500；空串 / 全空白拒绝 |
+| `timestamp` | int64 (ms) | | 客户端时间戳，仅日志用，不参与业务 |
+
+**ACK：`SendMessageResult`（S→C，单播）**
+
+```json
+{
+  "type": "SendMessageResult",
+  "msg_id": "<原始 client-uuid-v4，回显>",
+  "code": 0,
+  "message": "ok",
+  "timestamp": 1720000000000
+}
+```
+
+**错误码**：
+
+| code | 常量 | 含义 |
+|------|------|------|
+| `0` | OK | 成功（含幂等命中） |
+| `40001` | CONTENT_TOO_LONG | content 超过 500 字符 |
+| `40002` | MISSING_PARAMS | content 缺失或空字符串 |
+| `40303` | USER_BANNED | 用户被全局封禁 |
+| `40305` | CHAT_MUTED | 用户在房间内被禁言（见 §6.6.1） |
+| `40400` | NOT_IN_ROOM / ROOM_NOT_FOUND | 当前连接未加入房间 / 房间状态不存在 |
+| `50000` | DB_PERSIST_FAILED | DB 写入失败（不广播） |
+
+### 6.8.2 RoomMessage（S→Room 广播）
+
+**方向**：服务端 → 房间内所有 WS 连接（含发送者）
+**触发源**：WS `SendMessage` 成功（§6.8.1）**或** REST `POST /api/v1/chat-messages` 成功（[room_api.md §3.6](./room_api.md)）。两条路径产生的 envelope **逐字段等价**（除 `envelope.msg_id` 各自独立 UUID v4，详见 §6.8.3 PROTO-2）。
+**广播实现**：`app/server/src/ws/broadcaster.rs::broadcast_to_room`
+
+```json
+{
+  "type": "RoomMessage",
+  "msg_id": "<server-uuid-v4，envelope 续传游标，§6.7.5>",
+  "payload": {
+    "msg_id": "<chat_messages.id，DB UUID v4，T-00043>",
+    "user_id": "<sender uuid>",
+    "content": "<filter_content() 敏感词净化后的文本>"
+  },
+  "timestamp": 1720000000000
+}
+```
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `type` | string | ✅ | 固定 `"RoomMessage"` |
+| `msg_id`（envelope） | string (UUID v4) | ✅ | 服务端 `broadcast_to_room` 注入；写入 `RoomState.recent_broadcasts` 用于 §6.7 重连续传 |
+| `payload.msg_id` | string (UUID v4) | ✅ | DB 行主键（`chat_messages.id`），永久稳定标识，与 REST 历史 `GET /rooms/:id/messages` 的 `items[].id` 对齐 |
+| `payload.user_id` | string (UUID v4) | ✅ | 发送者用户 ID |
+| `payload.content` | string | ✅ | **敏感词过滤后**的内容（与 DB 落库内容一致） |
+| `timestamp` | int64 (ms) | ✅ | 服务端广播时刻 |
+
+### 6.8.3 双路径等价契约（PROTO-2，T-00047）
+
+> **铁律**：WS `SendMessage` 与 REST `POST /api/v1/chat-messages` 写入的同一 `(room_id, user_id, content)` 必须在房间内产生**逐字段相等**的 `RoomMessage` envelope，**仅** `envelope.msg_id` 例外（两条路径各自独立 UUID v4）。
+
+| 字段 | WS 路径 | REST 路径 | 等价 |
+|------|---------|-----------|------|
+| `type` | `"RoomMessage"` | `"RoomMessage"` | ✅ |
+| `msg_id`（envelope） | server UUID v4 | server UUID v4（不同实例） | ❌（按设计不等） |
+| `payload.msg_id` | DB row id（优先）/ client msg_id（旧路径兜底） | DB row id | ✅（要求 REST 必须等待 DB 提交后才广播） |
+| `payload.user_id` | sender uuid | sender uuid（来自 JWT） | ✅ |
+| `payload.content` | `filter_content(原文)` | `filter_content(原文)` ⚠️ | ✅（**REST 路径需补齐敏感词过滤**，详见 T-00047 实现差异修复） |
+| `timestamp` | server `Utc::now().timestamp_millis()` | server `Utc::now().timestamp_millis()` | ✅（值不同，但语义/类型/单位等价） |
+
+**实施差异（T-00047 修复点）**：当前 REST 路径（T-00045 落地）**未**调用 `filter_content`、**未**走 `processed_msg_ids` 幂等、**未**做 `muted_users` 检查。T-00047 在 TDS 中明确：
+- **MUST**：REST 路径补齐 `filter_content(content)` 后再写 DB + 广播，确保 `payload.content` 与 WS 路径等价。
+- **MAY（不在 T-00047 范围）**：muted 检查 / msg_id 幂等去重在 REST 路径上由运营调用方自行约束（HTTP `Idempotency-Key` 头由后续 Task 接入）。
+
+### 6.8.4 客户端实现锁定（PROTO-1，T-00047 / T-30054）
+
+| 端 | 文件 | 调用入口 | grep-able 字符串断言 |
+|----|------|---------|---------------------|
+| Android | `app/android/app/src/main/java/com/voice/room/android/feature/room/RoomViewModel.kt::sendMessage` | `wsClient.sendEnvelope(type = "SendMessage", ...)` | 集成测试断言发送 JSON 字节序列包含 `"type":"SendMessage"` |
+| Android | 同上 | **不**得调用 Retrofit `POST /chat-messages` | mockWebServer 期望该路径 0 次调用 |

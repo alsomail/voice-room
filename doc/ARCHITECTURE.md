@@ -1,3 +1,21 @@
+# ⚠️ 本文件已废弃 — Deprecated
+
+> **本文件已于 2026-04-20 拆分到 `doc/architecture/` 子目录，并应被物理删除。**
+>
+> - 新入口：[`doc/architecture/index.md`](./architecture/index.md)
+> - 协议（HTTP / WS / Redis Pub-Sub）唯一事实源：[`doc/protocol/index.md`](./protocol/index.md)
+> - 删除方式（仓库管理员执行一次性命令即可）：
+>
+>   ```sh
+>   rm doc/ARCHITECTURE.md
+>   ```
+>
+> 在删除之前，**严禁**任何 Plan / TDD / Review / DoD 阶段引用本文件作为参考；引用本文件的 PR 视为流程红线违规直接退回。
+>
+> 历史内容仅保留以下旧章节作为归档浏览，**不再维护**。
+
+---
+
 # 1. 文档目标
 
 本文档定义实时语聊房项目的目标生产级架构，用于统一指导以下四端后续代码生成与业务开发：

@@ -869,3 +869,15 @@ if deps.mute_redis.is_mic_muted(room_id, user_id).await? {
 | 集成测试 `transfer_admin_test.rs` | TA30-01~06 + TA30-14 端到端 | 7 |
 | 集成测试 `force_mic_test.rs` | FM30-07~13 端到端 | 7 |
 | **全量测试** | 427 个全部 ✅，零回归 | 427 |
+
+---
+
+## 四十、🔌 协议入口索引（T-00047）
+
+> 字段、错误码与 JSON 形态唯一事实源在 `doc/protocol/`；本节仅反向索引 server 端实现入口。
+
+| 协议类型 | 入口 / 信令 | Server 实现文件:函数 | protocol/ 锚点 | 关联 Task | 客户端实调用方 |
+|----------|------------|----------------------|---------------|-----------|----------------|
+| WS C→S | `SendMessage` ⭐ | `app/server/src/room/handler/chat.rs::handle_send_message` | [websocket_signals.md §6.8.1](../../protocol/websocket_signals.md) | T-00047 | `app/android/app/src/main/java/com/voice/room/android/feature/room/RoomViewModel.kt::sendMessage` |
+| WS S→Room 广播 | `RoomMessage` | `app/server/src/ws/broadcaster.rs::broadcast_to_room` | [websocket_signals.md §6.8.2](../../protocol/websocket_signals.md) | T-00047 | Android `RoomViewModel` 接收 `type == "RoomMessage"` 后分发到 Chat UI |
+| HTTP REST | `POST /api/v1/chat-messages` | `app/server/src/modules/chat/controller.rs::send_chat_message_handler` | [room_api.md §3.6.1](../../protocol/room_api.md) | T-00047 | 当前无 C 端客户端调用；运营 / 后端兜底备路径 |

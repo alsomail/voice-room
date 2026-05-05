@@ -100,3 +100,7 @@ required-features = ["test-utils"]
 [[test]]
 name = "chat_persistence_test"
 required-features = ["test-utils"]
+
+[[test]]
+name = "chat_rest_broadcast_test"
+required-features = ["test-utils"]

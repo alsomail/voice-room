@@ -14,6 +14,7 @@ model: Claude Sonnet 4.6 (copilot)
 1. **扫描大盘**：读取 `doc/tasks/index.md`。寻找满足整个模块所有Task的 `研发状态 == ✅ Done` 且 `Review Gate == -` 的任务。
 2. **建档**：如果发现符合条件的任务（可按模块打包），基于 `doc/review/_template.md` 创建新的审查文件，例如 `doc/review/模块0-工程基建.md`。将任务模块链接和任务ID和TDS链接填入该文档。
 3. **主表占位**：修改 `doc/tasks/index.md`，将这些任务的 `Review Gate` 统一修改为对应的链接格式：`[⏳ In Review](../review/模块0-工程基建.md)`。
+4. **🔴 协议路径绑定汇总（强制）**：从批次内每个 Task TDS 第二节抓取「协议路径绑定表」，在批次审查文档头部新增章节 `## 🔌 协议路径绑定汇总`，把所有 Task 的绑定行合并成一张总表（HTTP / WebSocket / Redis Pub-Sub 分组），列明客户端实调用入口与服务端实现入口的双端文件路径，作为 `global-code-reviewer` P0 必查项的输入证据。任何 Task 缺失绑定表 → 不予立批，回退 Plan 阶段补齐。
 
 ### 阶段二：调度审查循环 (针对 `doc/review/*.md`)
 持续扫描 `doc/review/` 目录下状态不是 `✅ Passed` 的报告，读取文档头部的 **当前状态机**，按以下规则严格调度：
