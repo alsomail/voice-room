@@ -125,6 +125,12 @@ Server 端基于 Rust + Axum 构建。启动骨架（配置、日志、健康检
     - **错误码**：40003（参数非法）、40400（房间不存在）
     - **Rust 模块**：`src/modules/chat/` （controller/repository/dto/routes）；`ChatRepository` trait 含 `insert_message(room_id, user_id, content)` 与 `list_messages(room_id, limit, offset)` 两个接口
     - **测试覆盖**：R-1（迁移幂等）、U-1/U-2（单条插入+持久化）、U-3（倒序排序）、B-1（默认值与上限）、B-3（并发无丢失）；chat_persistence_test 集成覆盖；全量测试 640+ 通过
+  - **T-00045 REST 发文广播修复**（BUG-CHAT-WS-BROADCAST 🟢）：
+    - **背景**：客户端 REST `POST /chat-messages` 仅 INSERT 但未广播，房间内 WS 收不到消息（E2E Round 14 实证）
+    - **新增端点**：`POST /api/v1/chat-messages`（`SendChatMessageRequest { room_id, content }` → `SendChatMessageResponse { msg_id }`），JWT 必需
+    - **流程**：解析 room_id UUID → 校验 content（1..=500 chars，按 Unicode `chars().count()`）→ `chat_repo.insert_message` → 构造 `RoomMessage` envelope（与 WS SendMessage 路径完全对齐：顶层 `msg_id` UUID v4 + `payload.msg_id` = DB id + `timestamp` ms）→ `room_manager.get_room` 命中走 `ws::broadcaster::broadcast_to_room`（自动写 recent_broadcasts），未命中走 `broadcast_to_room_no_state`（兜底直接对该 room_id 内所有连接 fan-out）
+    - **错误码**：40300（content 为空 / 超 500 chars / room_id 非合法 UUID）→ 400；缺/无效 JWT → 401
+    - **测试覆盖**：`chat_rest_broadcast_test.rs` 9/9（REST-01 房间内广播、REST-02 envelope 格式、REST-03 其他房间不收、REST-04 DB 落库、REST-05 死连接容忍、REST-06 长度边界、REST-07 非法 UUID、REST-08 鉴权、REST-09 房间不在内存仍 200）
 - 🟢 **钱包模块 - Schema 与迁移**（T-00017）：`src/shared/models/wallet.rs` + `app/server/migrations/004_create_wallet.sql`
   - **数据库设计**：`users` 表新增 `diamond_balance BIGINT DEFAULT 0 CHECK(>=0)` 字段；新建 `wallet_transactions` 流水表（id, user_id, type, amount, balance_after, ref_id, reason, operator_id, created_at）
   - **约束与索引**：CHECK 约束防止余额负数；复合索引 `(user_id, created_at DESC)` 支撑流水查询；`balance_after` CHECK 约束防止非法交易记录
