@@ -12,6 +12,7 @@
 | 版本 | 日期 | 变更内容 |
 |------|------|---------|
 | _规则_ | — | 本表只记录**版本级摘要**（一行 ≤ 200 字符），具体 Review/审查/实跑证据请落到对应 [TDS](../tds/) 第五节【Review 意见】或对应模块审查批次 `doc/review/模块N-XXX.md`，**严禁**在本表堆叠详细审查记录。 |
+| **v3.00** | **2026-05-06** | [T-0000U] DoD — 历史TDS协议路径绑定表全量回填完成，P1 MISSING_BINDING_TABLE从139降至0，N/A声明140个，模块9进度19/20。 |
 | **v2.99** | **2026-05-05** | QA Gate 全量回写：所有 Done+ReviewPassed 且无专属 E2E 测试用例的 Task，QA Gate `-` → `✅ N/A`，Overall Gate `⏳ Pending` → `✅ Released`；影响约 120+ Task。 |
 | **v2.98** | **2026-05-05** | T-0000T DoD 完成 - 协议路径绑定审计脚本上线（53 tests PASS，grep -rEn ERE，P0 exit(1)，CI audit:protocol 接入）；模块 9 进度 18/20。 |
 | **v2.97** | **2026-05-05** | [T-30054] DoD — Android sendMessage WS 协议路径绑定锁定，集成测试 6/6 PASS，arch/android 协议入口索引回填 WS SendMessage ⭐ 行；T-30054 ✅ Done。 |
@@ -405,5 +406,5 @@
 | [T-20020](../tds/web/T-20020.md) | T-0000E | Dod | ✅ Done | [✅ Passed](../review/模块9-E2E测试基建.md) | ✅ N/A | ✅ Released |
 | [T-30050](../tds/android/T-30050.md) | T-0000E | Dod | ✅ Done | [✅ Passed](../review/模块9-E2E测试基建.md) | ✅ N/A | ✅ Released |
 | [T-0000T](../tds/infra/T-0000T.md) | T-0000R | Dod | ✅ Done | - | - | ⏳ Pending |
-| T-0000U | T-0000T | Plan | Todo | - | - | ⏳ Pending |
+| [T-0000U](../tds/infra/T-0000U.md) | T-0000T | Dod | ✅ Done | ✅ Passed | ✅ N/A | ✅ Released |
 | T-0000V | T-0000U | Plan | Todo | - | - | ⏳ Pending |
