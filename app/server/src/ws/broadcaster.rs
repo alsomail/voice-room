@@ -76,9 +76,42 @@ fn broadcast_to_room_inner(
         rs.recent_broadcasts.push(msg_id.clone(), json.clone());
     }
 
-    for (_, sender) in registry.get_connections_in_room(room_id) {
-        let _ = sender.send(json.clone());
+    let connections = registry.get_connections_in_room(room_id);
+    let total = connections.len();
+    tracing::info!(room_id=%room_id, total_connections=total, "broadcast: starting");
+
+    let mut ok_count = 0usize;
+    let mut fail_count = 0usize;
+    let mut stale_ids: Vec<Uuid> = Vec::new();
+
+    for (conn_id, sender) in connections {
+        match sender.send(json.clone()) {
+            Ok(_) => {
+                tracing::debug!(connection_id=%conn_id, room_id=%room_id, "broadcast: sent");
+                ok_count += 1;
+            }
+            Err(_e) => {
+                tracing::warn!(
+                    connection_id=%conn_id,
+                    room_id=%room_id,
+                    "broadcast: receiver dropped, removing stale connection"
+                );
+                stale_ids.push(conn_id);
+                fail_count += 1;
+            }
+        }
     }
+
+    for conn_id in stale_ids {
+        registry.unregister(conn_id);
+    }
+
+    tracing::info!(
+        room_id=%room_id,
+        sent=ok_count,
+        failed=fail_count,
+        "broadcast: done"
+    );
 
     msg_id
 }
@@ -370,6 +403,137 @@ mod tests {
         assert!(
             Uuid::parse_str(msg_id).is_ok(),
             "msg_id must be valid UUID when inbound is None"
+        );
+    }
+
+    /// BR-08: 正常连接广播成功，connection 仍在 registry
+    #[tokio::test]
+    async fn br08_broadcast_success_connection_stays_in_registry() {
+        let room_id = Uuid::new_v4();
+        let user_id = Uuid::new_v4();
+        let (registry, mut rx) = make_registry_with_room_conn(user_id, room_id);
+
+        let envelope = serde_json::json!({
+            "type": "RoomMessage",
+            "payload": { "content": "hello" },
+            "timestamp": 1234567890i64,
+        });
+
+        let msg_id = broadcast_to_room_inner(&*registry, room_id, None, envelope);
+        assert!(!msg_id.is_empty(), "BR-08: msg_id must not be empty");
+
+        let msg = tokio::time::timeout(
+            std::time::Duration::from_millis(100),
+            rx.recv(),
+        )
+        .await
+        .expect("should not timeout")
+        .expect("channel should be open");
+        let v: serde_json::Value = serde_json::from_str(&msg).unwrap();
+        assert_eq!(v["type"], "RoomMessage");
+
+        let conns = registry.get_connections_in_room(room_id);
+        assert_eq!(conns.len(), 1, "BR-08: connection must still be in registry after success");
+    }
+
+    /// BR-09: receiver drop 后广播，stale connection 被自动清理
+    #[tokio::test]
+    async fn br09_stale_connection_removed_after_broadcast_failure() {
+        use crate::ws::registry::ConnectionHandle;
+
+        let room_id = Uuid::new_v4();
+        let registry = Arc::new(ConnectionRegistry::new());
+        let (tx, rx) = mpsc::unbounded_channel::<String>();
+        let conn_id = Uuid::new_v4();
+        registry.register(ConnectionHandle {
+            connection_id: conn_id,
+            user_id: Uuid::new_v4(),
+            room_id: Some(room_id),
+            sender: tx,
+            last_heartbeat: Arc::new(RwLock::new(Instant::now())),
+        });
+
+        drop(rx);
+
+        let envelope = serde_json::json!({
+            "type": "RoomMessage",
+            "payload": { "content": "hello" },
+            "timestamp": 1234567890i64,
+        });
+
+        broadcast_to_room_inner(&*registry, room_id, None, envelope);
+
+        let conns = registry.get_connections_in_room(room_id);
+        assert_eq!(
+            conns.len(),
+            0,
+            "BR-09: stale connection must be removed from registry after broadcast failure"
+        );
+    }
+
+    /// BR-10: 2 正常 + 1 stale 混合广播
+    #[tokio::test]
+    async fn br10_mixed_connections_stale_removed_others_receive() {
+        use crate::ws::registry::ConnectionHandle;
+
+        let room_id = Uuid::new_v4();
+        let registry = Arc::new(ConnectionRegistry::new());
+
+        let (tx1, mut rx1) = mpsc::unbounded_channel::<String>();
+        registry.register(ConnectionHandle {
+            connection_id: Uuid::new_v4(),
+            user_id: Uuid::new_v4(),
+            room_id: Some(room_id),
+            sender: tx1,
+            last_heartbeat: Arc::new(RwLock::new(Instant::now())),
+        });
+
+        let (tx2, mut rx2) = mpsc::unbounded_channel::<String>();
+        registry.register(ConnectionHandle {
+            connection_id: Uuid::new_v4(),
+            user_id: Uuid::new_v4(),
+            room_id: Some(room_id),
+            sender: tx2,
+            last_heartbeat: Arc::new(RwLock::new(Instant::now())),
+        });
+
+        let (tx3, rx3) = mpsc::unbounded_channel::<String>();
+        registry.register(ConnectionHandle {
+            connection_id: Uuid::new_v4(),
+            user_id: Uuid::new_v4(),
+            room_id: Some(room_id),
+            sender: tx3,
+            last_heartbeat: Arc::new(RwLock::new(Instant::now())),
+        });
+        drop(rx3);
+
+        let envelope = serde_json::json!({
+            "type": "RoomMessage",
+            "payload": { "content": "broadcast" },
+            "timestamp": 1234567890i64,
+        });
+
+        broadcast_to_room_inner(&*registry, room_id, None, envelope);
+
+        let msg1 = tokio::time::timeout(std::time::Duration::from_millis(100), rx1.recv())
+            .await
+            .expect("rx1 should not timeout")
+            .expect("rx1 channel should be open");
+        let msg2 = tokio::time::timeout(std::time::Duration::from_millis(100), rx2.recv())
+            .await
+            .expect("rx2 should not timeout")
+            .expect("rx2 channel should be open");
+
+        let v1: serde_json::Value = serde_json::from_str(&msg1).unwrap();
+        let v2: serde_json::Value = serde_json::from_str(&msg2).unwrap();
+        assert_eq!(v1["type"], "RoomMessage", "BR-10: conn1 should receive RoomMessage");
+        assert_eq!(v2["type"], "RoomMessage", "BR-10: conn2 should receive RoomMessage");
+
+        let remaining = registry.get_connections_in_room(room_id);
+        assert_eq!(
+            remaining.len(),
+            2,
+            "BR-10: only 2 healthy connections should remain in registry"
         );
     }
 }
