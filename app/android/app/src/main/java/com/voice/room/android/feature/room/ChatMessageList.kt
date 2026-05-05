@@ -11,6 +11,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import android.util.Log
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -52,6 +53,8 @@ fun ChatMessageList(
 
     // 自动滚到最新消息（底部）
     LaunchedEffect(deduplicated.size) {
+        // T-30051: WS 接收链路可观测性 — 节点 5（UI 收集器）。
+        Log.d("ChatMessageList", "ui: chatMessages collected size=${deduplicated.size}")
         if (deduplicated.isNotEmpty()) {
             listState.animateScrollToItem(deduplicated.lastIndex)
         }

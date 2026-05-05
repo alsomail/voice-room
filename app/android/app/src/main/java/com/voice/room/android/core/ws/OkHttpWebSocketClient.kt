@@ -116,6 +116,9 @@ class OkHttpWebSocketClient(
         }
 
         override fun onMessage(webSocket: WebSocket, text: String) {
+            // T-30051: WS 接收链路可观测性 — 节点 1（onMessage 入口）。
+            // 仅打印 head 80 字符（PII 保护）。
+            Log.i(TAG, "ws: received text len=${text.length}, head=${text.take(80)}")
             if (text.contains("\"type\":\"pong\"")) {
                 // Pong 重置心跳计时：取消当前 pingJob，重新开始倒计时
                 startHeartbeat()

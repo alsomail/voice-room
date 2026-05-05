@@ -4,6 +4,7 @@ import androidx.annotation.VisibleForTesting
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import android.util.Log
 import com.google.gson.JsonParser
 import com.voice.room.android.core.media.IMediaService
 import com.voice.room.android.core.media.NoOpMediaService
@@ -107,6 +108,9 @@ class RoomViewModel(
 
         /** 公告弹窗间隔：24 小时（毫秒） */
         private const val ANNOUNCEMENT_INTERVAL_MS = 24 * 60 * 60 * 1000L
+
+        /** T-30051: WS 接收链路日志统一 TAG。 */
+        private const val TAG = "RoomViewModel"
     }
 
     // ─── 对外暴露的状态 ────────────────────────────────────────────────────────
@@ -877,6 +881,8 @@ class RoomViewModel(
         viewModelScope.launch {
             wsClient.state.collect { wsState ->
                 if (wsState is WebSocketState.Message) {
+                    // T-30051: WS 接收链路可观测性 — 节点 4（rvm 入口）。
+                    Log.i(TAG, "rvm: onWsMessage len=${wsState.text.length}")
                     handleWsMessage(wsState.text)
                 }
             }
@@ -890,13 +896,20 @@ class RoomViewModel(
      * 若解析失败或 type 未知则静默忽略。
      */
     private fun handleWsMessage(raw: String) {
+        // T-30051: WS 接收链路可观测性 — 节点 2（解析点）。
+        Log.d(TAG, "ws: parse start len=${raw.length}")
         val json = try {
             JsonParser.parseString(raw).asJsonObject
         } catch (e: Exception) {
+            Log.e(TAG, "ws: parse failed head=${raw.take(80)}", e)
             return
         }
 
-        val type = json.get("type")?.asString ?: return
+        val type = json.get("type")?.asString ?: run {
+            Log.w(TAG, "ws: parse ok but type missing head=${raw.take(80)}")
+            return
+        }
+        Log.d(TAG, "ws: parse ok type=$type")
 
         // P1-6: 任何带有 msg_id / msgId 的入站消息更新断线重连断点
         val inboundMsgId = json.get("msg_id")?.takeIf { !it.isJsonNull }?.asString
@@ -908,6 +921,9 @@ class RoomViewModel(
         // 非 Success 状态时忽略所有 WS 消息（joinRoom 尚未完成）
         val currentState = _uiState.value as? RoomViewState.Success ?: return
         val state = currentState.uiState
+
+        // T-30051: WS 接收链路可观测性 — 节点 3（路由分发）。
+        Log.d(TAG, "ws: dispatch type=$type roomId=${state.roomId}")
 
         when (type) {
             "UserJoined" -> {
