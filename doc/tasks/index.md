@@ -12,7 +12,7 @@
 | 版本 | 日期 | 变更内容 |
 |------|------|---------|
 | _规则_ | — | 本表只记录**版本级摘要**（一行 ≤ 200 字符），具体 Review/审查/实跑证据请落到对应 [TDS](../tds/) 第五节【Review 意见】或对应模块审查批次 `doc/review/模块N-XXX.md`，**严禁**在本表堆叠详细审查记录。 |
-| **v2.79** | **2026-05-05** | T-30051 Plan 阶段完成 - Android WS 接收链路可观测性增强（5节点 Log 日志注入），供下一轮 E2E 定位真根因。 |
+| **v2.79** | **2026-05-05** | T-30051 DoD 完成 - Android WS 接收链路可观测性增强（5节点 Log 日志注入），dex strings 校验通过（8 条命中），供下一轮 E2E 决策树定位真根因。 |
 | **v2.78** | **2026-05-05** | T-00046 WS 广播可观测性增强（BUG-CHAT-WS-BROADCAST-SILENT）：`broadcast_to_room_inner` 发送失败打 WARN + 清理 stale connection，广播前后打 INFO 统计；三分支决策树落入 TDS §六，供 Round 17 快速决策。 |
 | **v2.77** | **2026-05-05** | T-00045 修复 BUG-CHAT-WS-BROADCAST：新增 `POST /api/v1/chat-messages` Server REST 端点（INSERT + 广播闭环，与 WS SendMessage 路径对齐）；9/9 集成测试全绿；commit `beedc85`。 |
 | **v2.76** | **2026-05-05** | BUG-CHAT-WS Round 13 真正注入 connect 调用（Round 12 实证 cf899bd 为死代码，wsClient.connect 从未在生产路径被调用）；T-30017 重新激活→Done；APK 重建。 |

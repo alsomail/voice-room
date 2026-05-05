@@ -11,7 +11,7 @@
 | 远程配置 | `core/config/IRemoteConfigService.kt`、`InMemoryRemoteConfigService.kt` | 🟡 只有内存实现，尚未接入远程配置中心 |
 | HTTP | `core/network/AppHttpClientFactory.kt`、`NetworkClientConfig.kt` | 🟢 已提供 OkHttp 工厂与超时/重试配置 |
 | HTTP API | Retrofit 2.11.0 + kotlinx.serialization | 🟢 **T-30002 起**已接入，配合 OkHttp 工厂使用 |
-| WebSocket | `core/ws/WebSocketState.kt`<br>`core/ws/IWebSocketClient.kt`<br>`core/ws/OkHttpWebSocketClient.kt`<br>`core/ws/FakeWebSocketClient.kt` | 🟢 **T-30008 完成**：`WebSocketState` sealed class（Connecting/Connected/Disconnected/Error）；`IWebSocketClient` 接口（`connect/disconnect/send/state: StateFlow`）；`OkHttpWebSocketClient` 实现指数退避自动重连（1s→2s→4s…60s上限）、30s心跳保活、`SharedFlow<String>` 消息流；`FakeWebSocketClient` 供单元测试注入 |
+| WebSocket | `core/ws/WebSocketState.kt`<br>`core/ws/IWebSocketClient.kt`<br>`core/ws/OkHttpWebSocketClient.kt`<br>`core/ws/FakeWebSocketClient.kt` | 🟢 **T-30008 完成**：`WebSocketState` sealed class（Connecting/Connected/Disconnected/Error）；`IWebSocketClient` 接口（`connect/disconnect/send/state: StateFlow`）；`OkHttpWebSocketClient` 实现指数退避自动重连（1s→2s→4s…60s上限）、30s心跳保活、`SharedFlow<String>` 消息流；`FakeWebSocketClient` 供单元测试注入。<br>**T-30051 完成**：WS 接收链路 5 个关键节点注入可观测性日志（`ws: received` @ `OkHttpWebSocketClient.onMessage` / `ws: parse start\|ok\|failed` & `ws: dispatch` & `rvm: onWsMessage` @ `RoomViewModel` / `ui: chatMessages collected` @ `ChatMessageList`），仅打印 head 80 字符以保护 PII。详见 [TDS T-30051](../../tds/android/T-30051.md) §四 / §六 决策树。 |
 | Telemetry | `core/telemetry/IAnalyticsService.kt`、`NoOpAnalyticsService.kt`、`ICrashReporter.kt`、`NoOpCrashReporter.kt` | 🟡 接口隔离已完成，当前仅 `NoOp` 占位 |
 | Media | `core/media/IMediaService.kt`、`NoOpMediaService.kt` | 🟡 防腐层接口已建，RTC 尚未接入 |
 | IM | `core/im/IIMService.kt`、`NoOpIMService.kt` | 🟡 防腐层接口已建，IM 尚未接入 |
