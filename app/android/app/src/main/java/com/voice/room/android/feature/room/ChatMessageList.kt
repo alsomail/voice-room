@@ -6,10 +6,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import android.util.Log
 import androidx.compose.runtime.Composable
@@ -86,12 +89,15 @@ fun ChatMessageList(
 }
 
 /**
- * 用户消息条目：左对齐，昵称（金色 MenaColors.Primary）+ 内容（bodyMedium）
+ * 用户消息条目：左对齐，昵称（金色 MenaColors.Primary）+ 内容气泡
  *
  * T-30025: 昵称色改为 MenaColors.Primary (#D4AF37 金色)
+ * T-30052: 内容外包 Surface 气泡（圆角 + MenaColors.ChatBubble 背景 + padding），
+ *          并加 testTag("chat_bubble") 供 Midscene 视觉 AI / 测试识别。
+ *          可见性 internal 以便同模块 androidTest 直接调用。
  */
 @Composable
-private fun UserMessageItem(
+internal fun UserMessageItem(
     message: ChatMessageUi,
     modifier: Modifier = Modifier,
 ) {
@@ -104,10 +110,19 @@ private fun UserMessageItem(
                     color = MenaColors.Primary,   // T-30025: #D4AF37 金色
                 )
             }
-            Text(
-                text = message.content,
-                style = MaterialTheme.typography.bodyMedium,
-            )
+            Surface(
+                modifier = Modifier
+                    .widthIn(max = 280.dp)
+                    .testTag("chat_bubble"),
+                shape = MaterialTheme.shapes.medium,
+                color = MenaColors.ChatBubble,    // T-30052: #2A2A2A 气泡背景
+            ) {
+                Text(
+                    text = message.content,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
         }
     }
 }

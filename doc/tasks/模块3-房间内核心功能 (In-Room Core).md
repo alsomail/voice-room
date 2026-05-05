@@ -64,6 +64,6 @@
 | **T-30016** | Android | Chat | 发送消息逻辑 [TDS](../tds/android/T-30016.md) | T-00016, T-30015 | 发送 SendMessage | 1. 发送中禁用<br>2. 成功清空输入<br>3. 失败重试 | 3h | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | - | ⏳ Pending |
 | **T-30017** | Android | Chat | 接收消息逻辑 [TDS](../tds/android/T-30017.md) | T-00016, T-30014 | 监听服务端消息 | 1. 实时追加到列表<br>2. 去重（msg_id）<br>3. 自动滚动 | 3h | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | - | ⏳ Pending |
 | **T-30051** | Android | Chat | Android WS 接收链路可观测性增强（BUG-CHAT-WS-ANDROID-SILENT）[TDS](../tds/android/T-30051.md) | T-30017 | 在 WS 接收链路 5 个关键节点注入 Log 日志（onMessage/parse/dispatch/rvm/ui），不修改业务逻辑 | 1. dex strings 含至少 3 条日志字符串<br>2. FakeWS 推消息后 5 节点日志均触发<br>3. 日志不含消息正文 PII | 2h | Dod | ✅ Done | - | - | ⏳ Pending |
-| **T-30052** | Android | Chat | Android ChatMessageList 气泡样式修复（BUG-CHAT-WS-BUBBLE）[TDS](../tds/android/T-30052.md) | T-30051 | 为 UserMessageItem 包裹 Surface 容器（圆角+气泡背景色+padding），新增 MenaColors.ChatBubble 令牌，保留 5 节点日志 | 1. CB-01~03 测试通过<br>2. APK dex strings 含 "chat_bubble"<br>3. Round 19 日志字符串仍在 | 1h | Plan | In Progress | - | - | ⏳ Pending |
+| **T-30052** | Android | Chat | Android ChatMessageList 气泡样式修复（BUG-CHAT-WS-BUBBLE）[TDS](../tds/android/T-30052.md) | T-30051 | 为 UserMessageItem 包裹 Surface 容器（圆角+气泡背景色+padding），新增 MenaColors.ChatBubble 令牌，保留 5 节点日志 | 1. CB-01~03 测试通过<br>2. APK dex strings 含 "chat_bubble"<br>3. Round 19 日志字符串仍在 | 1h | Review | In Progress | - | - | ⏳ Pending |
 
 ---

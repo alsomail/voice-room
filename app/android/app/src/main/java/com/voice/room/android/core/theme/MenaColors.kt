@@ -23,6 +23,7 @@ object MenaColors {
     const val ERROR_VALUE: ULong                   = 0xFFE74C3CuL
     const val SUCCESS_VALUE: ULong                 = 0xFF2ECC71uL
     const val SYSTEM_MESSAGE_VALUE: ULong          = 0xFFF39C12uL
+    const val CHAT_BUBBLE_VALUE: ULong             = 0xFF2A2A2AuL
 
     // ── Compose Color 常量 ────────────────────────
     // 注意：使用 .toInt() 强制走 Color(color: Int) 重载，按 sRGB ARGB 解码。
@@ -39,4 +40,5 @@ object MenaColors {
     val Error: Color                 = Color(ERROR_VALUE.toInt())
     val Success: Color               = Color(SUCCESS_VALUE.toInt())
     val SystemMessage: Color         = Color(SYSTEM_MESSAGE_VALUE.toInt())
+    val ChatBubble: Color            = Color(CHAT_BUBBLE_VALUE.toInt())   // T-30052: 聊天气泡背景
 }
