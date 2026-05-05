@@ -62,10 +62,28 @@
 - **状态**：（🟢 通过 / 🔴 未通过）
 - **审查意见**：
 - **改进建议**：（仅未通过时填写）
+- **🔴 Changelog 行**：已在 `doc/tasks/index.md` changelog 表追加版本行（如：`v2.XX | YYYY-MM-DD | [T-xxx] Review Round1 — 通过/打回，原因摘要`）
 
 <!-- 如有多轮 Review，按以下格式追加：
 ### Round N
 - **状态**：
 - **审查意见**：
 - **改进建议**：
+- **🔴 Changelog 行**：已追加 `v2.XX | YYYY-MM-DD | [T-xxx] Review RoundN — ...`
 -->
+
+## 六、DoD 完成记录（由 DoD Agent 在 Review 通过后填写）
+
+### 文档同步清单
+- [ ] 更新 `doc/arch/[端]/[模块].md` 受影响子模块文档
+- [ ] 将 Task 在 `doc/tasks/index.md` 标记为已完成
+- [ ] （若有协议绑定）在 `doc/arch/[端]/[模块].md` 补写「🔌 协议入口索引」；在 `doc/protocol/` 对应章节加互向链接
+- [ ] （若大功能闭环）更新 `doc/product/index.md` 功能实现状态
+
+### 🔴 Changelog 强制更新（绝对红线）
+
+在 `doc/tasks/index.md` 顶部 changelog 表追加新版本行，格式：
+
+`v2.XX | YYYY-MM-DD | ≤200字符摘要（含 Task 标题 + DoD 完成说明）`
+
+> **各阶段（Plan / TDD / Review / DoD）每次产出 commit 后均须追加 changelog 行**；本节特指 DoD 阶段的最终行。**严禁**跳过 changelog 直接结束对话，这是强制红线，不是建议项。
