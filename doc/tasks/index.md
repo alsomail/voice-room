@@ -148,7 +148,7 @@
 | 列名 | 含义 | 初始值 |
 |------|------|--------|
 | `Review Gate 审查门禁` | 全局架构级代码审查门禁，由 `review-coordinator` 调度 `global-code-reviewer` 在完成批次审查后填写。`✅ Passed` 表示通过，`❌ Failed` / `⏳ In Review` 表示进行中。**单 Task 流转中的 `Review` 角色不维护此列**。 | `-`（未评审） |
-| `QA Gate 测试门禁` | 测试验收门禁，由 QA 在 E2E/手动测试通过后填写。`✅ Passed` / `❌ Failed` | `-`（未测试） |
+| `QA Gate 测试门禁` | 测试验收门禁，由 QA 在 E2E/手动测试通过后填写。`✅ Passed` / `❌ Failed`/ `✅ N/A`(无此项) | `-`（未测试） |
 | `Overall Gate 最终门禁` | 综合质量门禁，按下表规则自动推导 | `⏳ Pending` |
 
 **Overall Gate 推导规则**：
@@ -402,6 +402,6 @@
 | [T-10020](../tds/adminServer/T-10020.md) | T-0000E | Dod | ✅ Done | [✅ Passed](../review/模块9-E2E测试基建.md) | - | ⏳ Pending |
 | [T-20020](../tds/web/T-20020.md) | T-0000E | Dod | ✅ Done | [✅ Passed](../review/模块9-E2E测试基建.md) | - | ⏳ Pending |
 | [T-30050](../tds/android/T-30050.md) | T-0000E | Dod | ✅ Done | [✅ Passed](../review/模块9-E2E测试基建.md) | - | ⏳ Pending |
-| [T-0000T](../tds/infra/T-0000T.md) | T-0000R | Review | In Progress | - | - | ⏳ Pending |
+| [T-0000T](../tds/infra/T-0000T.md) | T-0000R | Dod | In Progress | - | - | ⏳ Pending |
 | T-0000U | T-0000T | Plan | Todo | - | - | ⏳ Pending |
 | T-0000V | T-0000U | Plan | Todo | - | - | ⏳ Pending |
