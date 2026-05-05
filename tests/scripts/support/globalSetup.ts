@@ -8,6 +8,7 @@
  *   Step 4 writeProcessEnv（worker 可读）
  *   Step 5 持久化 .e2e-runtime.json（fixture 跨进程读）
  */
+import { execSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import dotenv from 'dotenv';
@@ -15,6 +16,49 @@ import dotenv from 'dotenv';
 import { loadE2EEnv, writeProcessEnv, sanitizeEnvForRuntimeJson, MissingEnvError } from './envLoader';
 import type { E2EEnv } from './types';
 import { runShell as defaultRunShell, ShellExecError } from './runShell';
+
+const ANDROID_PKG = process.env.ANDROID_APP_ID ?? 'com.voice.room.android.local.debug';
+const ANDROID_DEVICE_ID = process.env.ANDROID_DEVICE_ID ?? '9A251FFAZ00EAJ';
+// 由 `adb shell cmd package resolve-activity --brief` 实测得到的 MainActivity 全限定名
+const MAIN_ACTIVITY = `${ANDROID_PKG}/com.voice.room.android.presentation.MainActivity`;
+
+async function androidWarmUp(): Promise<void> {
+  try {
+    execSync(`adb -s ${ANDROID_DEVICE_ID} get-state`, { stdio: 'pipe' });
+
+    const pkgList = execSync(
+      `adb -s ${ANDROID_DEVICE_ID} shell pm list packages ${ANDROID_PKG}`,
+      { stdio: 'pipe' },
+    ).toString();
+    if (!pkgList.includes(ANDROID_PKG)) {
+      console.warn(`[globalSetup] Android warm-up: ${ANDROID_PKG} not installed, skip`);
+      return;
+    }
+
+    try {
+      const dump = execSync(
+        `adb -s ${ANDROID_DEVICE_ID} shell pm dump ${ANDROID_PKG} | grep -E "stopped=|notLaunched="`,
+        { stdio: 'pipe' },
+      ).toString();
+      console.log(`[globalSetup] Android app state: ${dump.trim()}`);
+    } catch {
+      // pm dump grep 失败无所谓，继续
+    }
+
+    execSync(
+      `adb -s ${ANDROID_DEVICE_ID} shell am start --include-stopped-packages -n ${MAIN_ACTIVITY}`,
+      { stdio: 'inherit' },
+    );
+
+    await new Promise<void>((r) => setTimeout(r, 3000));
+    execSync(`adb -s ${ANDROID_DEVICE_ID} shell input keyevent KEYCODE_HOME`, { stdio: 'pipe' });
+    await new Promise<void>((r) => setTimeout(r, 1000));
+
+    console.log('[globalSetup] Android warm-up done – App is no longer in STOPPED state');
+  } catch (e) {
+    console.warn(`[globalSetup] Android warm-up failed (non-blocking): ${(e as Error).message}`);
+  }
+}
 
 export interface SetupDeps {
   /** 可注入的 shell runner（测试时使用 stub）。 */
@@ -29,6 +73,12 @@ export interface SetupDeps {
 export async function runGlobalSetup(deps: SetupDeps): Promise<void> {
   const t0 = Date.now();
   const ciTag = process.env.CI === 'true' ? '[E2E setup ci]' : '[E2E setup]';
+
+  // ── Step 0：Android App 暖机（Android 12+ STOPPED 状态下 monkey 无法启动）──
+  // 在所有测试前，对真机目标包执行 am start --include-stopped-packages，
+  // 脱离 STOPPED 状态，确保后续 Midscene agent.launch() 的 monkey 能成功。
+  // 失败为 non-blocking（warn 不 throw），不影响 Web 端测试。
+  await androidWarmUp();
 
   // 缺陷 1 修复 — CI 软门禁（与 .env.example CI_E2E_READY=0 注释语义对齐）：
   //   CI runner 默认未起 5 端依赖，preflight 必触退码 11~15。在显式开启 CI_E2E_READY=1
