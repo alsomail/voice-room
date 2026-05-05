@@ -46,6 +46,7 @@
 | 麦位网格 | `feature/room/MicSlotsGrid.kt` | T-30025 | 🟢 LazyVerticalGrid 4列（原3列），userScrollEnabled=false |
 | 弹幕消息列表 | `feature/room/ChatMessageList.kt` | T-30025 | 🟢 USER_TEXT 昵称金色（MenaColors.Primary）+ SYSTEM_NOTICE 金黄居中 |
 | 弹幕气泡容器 | `feature/room/ChatMessageList.kt` (UserMessageItem) | T-30052 | 🟢 Surface shape=medium + MenaColors.ChatBubble + widthIn(max=280.dp) + testTag("chat_bubble")，供 Midscene 视觉识别 |
+| 消息长按复制菜单 | `feature/room/ChatMessageList.kt` (UserMessageItem) | T-30053 | 🟢 `combinedClickable(onLongClick)` 触发 `DropdownMenu`，含「复制」菜单项（strings.xml 三语）；点击写入 `ClipboardManager` + Toast（Android 13+ TIRAMISU 双分支）；testTag("chat_msg_copy") + contentDescription("chat_msg_long_press_menu") 暴露自动化入口；RTL 锚点正确 |
 | 房间页主屏 | `feature/room/RoomScreen.kt` | T-30025 | 🟢 整体背景 MenaColors.Background 深色，WS/上下麦逻辑不变 |
 
 ### 房间底部操作栏升级模块（T-30026）

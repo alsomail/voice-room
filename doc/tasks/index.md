@@ -1,6 +1,6 @@
 # Voice Room 开发任务清单
 
-> **版本**: v2.86  
+> **版本**: v2.87  
 > **更新日期**: 2026-05-05  
 > **任务总数**: 139 个 (基建: 4 + 14 + 3, App Server: 33 + 1 + 2, Admin Server: 16 + 1, Web: 14 + 1, Android: 45 + 1 + 1, E-07 15 + E-07.5 6 + E-10 18)  
 > **当前阶段**: Phase 1 - 核心营收闭环（E-07 + E-07.5 并行）→ Phase 1.5 E-10 房间治理 → Phase 1.6 E2E 测试基建 → **Phase 1.7 协议治理铁律落地**（Round 16 BUG-CHAT-WS 系统性根因 → 协议路径绑定 + 历史 TDS 全量回填 + 审计脚本）
@@ -12,6 +12,7 @@
 | 版本 | 日期 | 变更内容 |
 |------|------|---------|
 | _规则_ | — | 本表只记录**版本级摘要**（一行 ≤ 200 字符），具体 Review/审查/实跑证据请落到对应 [TDS](../tds/) 第五节【Review 意见】或对应模块审查批次 `doc/review/模块N-XXX.md`，**严禁**在本表堆叠详细审查记录。 |
+| **v2.87** | **2026-05-05** | T-30053 DoD 收尾：三门禁全绿（研发✅/Review✅/QA✅），Overall Gate ✅ Released；BUG-CHAT-LONGPRESS 修复链完整闭环收官。 |
 | **v2.86** | **2026-05-05** | T-30053 QA Gate ✅ Passed — TC-CHAT-00002 Round 23 实证（report-20260505-213102，6/6 PASS，DELTA_WS=+1，DELTA_BCAST=+1，5节点全命中，aiTap→aiLongPress self-healing Round 1 通过）；BUG-CHAT-LONGPRESS 闭环。 |
 | **v2.85** | **2026-05-05** | T-30053 DoD 完成 - Android ChatMessageList UserMessageItem 长按复制菜单（DropdownMenu+ClipboardManager+Toast），LP-01~08 测试通过，无协议变更，arch/android Chat 章节已同步。 |
 | **v2.84** | **2026-05-05** | T-00047 试跑 Task 闭环：Chat WS 主路径 ⭐ + REST 备路径协议落锚，REST 补 `filter_content` 与空白校验，PROTO-2 集成测试通过；server 协议入口索引完成 DoD 回填。 |
