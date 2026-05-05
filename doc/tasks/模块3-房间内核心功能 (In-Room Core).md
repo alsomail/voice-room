@@ -60,6 +60,6 @@
 | **T-30014** | Android | Chat | 聊天列表 (Compose) [TDS](../tds/android/T-30014.md) | T-30009 | LazyColumn 聊天消息 | 1. 自动滚动到最新<br>2. 不同类型消息样式<br>3. 系统消息居中 | 5h | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | - | ⏳ Pending |
 | **T-30015** | Android | Chat | 输入框组件 [TDS](../tds/android/T-30015.md) | T-30014 | TextField + 发送按钮 | 1. 软键盘弹出布局调整<br>2. 回车发送<br>3. 空消息禁用发送 | 3h | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | - | ⏳ Pending |
 | **T-30016** | Android | Chat | 发送消息逻辑 [TDS](../tds/android/T-30016.md) | T-00016, T-30015 | 发送 SendMessage | 1. 发送中禁用<br>2. 成功清空输入<br>3. 失败重试 | 3h | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | - | ⏳ Pending |
-| **T-30017** | Android | Chat | 接收消息逻辑 [TDS](../tds/android/T-30017.md) | T-00016, T-30014 | 监听服务端消息 | 1. 实时追加到列表<br>2. 去重（msg_id）<br>3. 自动滚动 | 3h | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | - | ⏳ Pending |
+| **T-30017** | Android | Chat | 接收消息逻辑 [TDS](../tds/android/T-30017.md) | T-00016, T-30014 | 监听服务端消息 | 1. 实时追加到列表<br>2. 去重（msg_id）<br>3. 自动滚动 | 3h | TDD | In Progress | [✅ Passed](../review/模块3-房间内核心功能.md) | - | ⏳ Pending |
 
 ---
