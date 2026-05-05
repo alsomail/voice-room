@@ -23,6 +23,7 @@
 - **关键方法**：
   - `register(connection_id, handle)` / `unregister(connection_id)` — 连接生命周期管理
   - `broadcast_to_all(message)` — 全局广播，自动清除失效连接
+  - `broadcast_to_room_inner(registry, room_id, ...)`（`ws/broadcaster.rs`，T-00046）— 房间级广播：广播前后打 INFO 统计日志（`total_connections` / `sent` / `failed`），逐连接 `match send` 失败者打 WARN 并收集到 `stale_ids`，**循环外**批量 `unregister` 清理 stale connection（避免 DashMap 持锁期间二次写入），单连接失败不阻断其他连接，全程不打印消息正文（PII 保护）
   - `get_by_user_id(user_id) -> Vec<(Uuid, Sender)>` — 按用户查连接（支持多连接）
   - `get_connections_in_room(room_id) -> Vec<(Uuid, Sender)>` — 按房间查连接
   - `set_room_id(connection_id, room_id)` / `get_room_id(connection_id)` / `clear_room_id(connection_id)` — 连接-房间关联管理
