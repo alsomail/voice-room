@@ -181,6 +181,24 @@ class RoomViewModel(
 
     private var currentRoomId: String? = null
 
+    /**
+     * 正在尝试进入的房间 ID（T-30017 Round13 TC-WS-CONNECT-06）。
+     *
+     * 在 [joinRoom] 启动 coroutine 前设置，失败路径中清空。
+     * 幂等检查使用此字段判断 Connecting 状态下的重复调用。
+     * 成功完成后也保持此值（不清空），因为已成功进入房间。
+     */
+    private var joiningRoomId: String? = null
+
+    /**
+     * 已成功完成 JoinRoom envelope 的房间 ID（T-30017 Round13 TC-WS-CONNECT-06）。
+     *
+     * 仅在 sendEnvelope("JoinRoom") 发出后设置。
+     * 幂等检查使用此字段判断 Connected / Message 状态下的重复调用，
+     * 避免已成功进入的房间因失败路径清空 joiningRoomId 后被误判为"可重新进入"。
+     */
+    private var joinedRoomId: String? = null
+
     /** 当前登录用户 ID，由 [joinRoom] 传入，用于区分上麦/下麦事件是否属于自己 */
     private var currentUserId: String = ""
 
@@ -225,15 +243,25 @@ class RoomViewModel(
      * @param accessToken 密码房访问令牌（[HallViewModel.verifyPassword] 返回，普通房传 null）
      */
     fun joinRoom(roomId: String, userId: String = "", accessToken: String? = null) {
-        // T-30017 Round13 FIX-2 (完整版): 幂等保护 — 同房间且处于活跃连接状态时跳过。
-        // 覆盖 Connected（已连接）、Connecting（握手中）、Message（收到消息时的瞬态）三种状态，
-        // 防止重复调用 joinRoom() 时 double-connect。
+        // T-30017 Round13 FIX-2 (完整版): 幂等保护 — 分两层守卫：
+        //
+        // 层 1（joinedRoomId）: 已成功完成 JoinRoom envelope 且 WS 仍活跃 → 直接返回，不重复 join。
+        // 层 2（joiningRoomId）: 正在 Connecting 阶段（connect() 已调用但 Connected 尚未到达）→ 不重复 connect。
+        //
+        // 修复 TC-WS-CONNECT-06：失败路径会清空 joiningRoomId，因此超时/错误后重试
+        // 不再被层 2 拦截，connect() 可以正常再次被调用。
         val currentWsState = wsClient.state.value
-        if (currentRoomId == roomId && (
+
+        // 层 1：已成功 join 且仍连接中 → no-op
+        if (joinedRoomId == roomId && (
                     currentWsState is WebSocketState.Connected ||
-                    currentWsState is WebSocketState.Connecting ||
                     currentWsState is WebSocketState.Message
                     )) {
+            return
+        }
+
+        // 层 2：正在 connecting 同一房间 → no-op（防止 double-connect）
+        if (joiningRoomId == roomId && currentWsState is WebSocketState.Connecting) {
             return
         }
 
@@ -245,6 +273,7 @@ class RoomViewModel(
 
         currentRoomId = roomId
         currentUserId = userId
+        joiningRoomId = roomId  // T-30017 Round13 TC-WS-CONNECT-06: 标记正在 joining
         joinJob = viewModelScope.launch {
             _uiState.value = RoomViewState.Loading
             try {
@@ -273,10 +302,18 @@ class RoomViewModel(
                             }
                         }
                         if (connectedState !is WebSocketState.Connected) {
+                            // T-30017 Round13 TC-WS-CONNECT-06: 失败路径清理状态，使重试不被幂等保护拦截。
+                            // disconnect() 将 state 变为 Disconnected，joiningRoomId=null 使幂等层 2 失效。
+                            wsClient.disconnect()
+                            joiningRoomId = null
+                            currentRoomId = null
                             _uiState.value = RoomViewState.Error("WebSocket connection failed")
                             return@launch
                         }
                     } else {
+                        // 无 token：同样清理状态
+                        joiningRoomId = null
+                        currentRoomId = null
                         _uiState.value = RoomViewState.Error("No auth token")
                         return@launch
                     }
@@ -295,9 +332,16 @@ class RoomViewModel(
                 // P1-6: 重连握手时携带 last_msg_id 触发服务端重放
                 lastReceivedMsgId?.let { joinPayload["last_msg_id"] = it }
                 wsClient.sendEnvelope(type = "JoinRoom", payload = joinPayload, msgId = msgId)
+                // T-30017 Round13 TC-WS-CONNECT-06: 成功发出 JoinRoom → 记录 joinedRoomId，
+                // 供幂等层 1 使用（Connected/Message 状态时防止重复 join）
+                joinedRoomId = roomId
             } catch (e: CancellationException) {
                 throw e  // 必须 rethrow，保持协程取消语义
             } catch (e: Exception) {
+                // T-30017 Round13 TC-WS-CONNECT-06: 异常路径同样清理状态
+                wsClient.disconnect()
+                joiningRoomId = null
+                currentRoomId = null
                 _uiState.value = RoomViewState.Error(e.message ?: "Unknown error")
             }
         }
@@ -362,6 +406,9 @@ class RoomViewModel(
             // server 仅依赖连接上下文中的 room_id，payload 留空
             wsClient.sendEnvelope(type = "LeaveRoom")
         }
+        // T-30017 Round13 TC-WS-CONNECT-06: 清理 joining/joined 状态，避免 leave 后重进被拦截
+        joiningRoomId = null
+        joinedRoomId = null
         wsClient.disconnect()
     }
 

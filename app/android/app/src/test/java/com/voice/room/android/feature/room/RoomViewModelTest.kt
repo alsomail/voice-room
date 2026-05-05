@@ -13,6 +13,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -1685,6 +1686,62 @@ class RoomViewModelTest {
                 "connect() should be called exactly twice (room-001 then room-002)",
                 2,
                 fakeWsClientLocal.connectCallCount
+            )
+        }
+
+    // ─── TC-WS-CONNECT-06: WS 连接超时失败后允许重试 ───────────────────────────
+    //
+    // 问题：joinRoom 失败路径不清理状态，导致重试被幂等保护拦截。
+    // 当 WS 连接超时后，currentRoomId 仍为该房间，wsClient 状态仍为 Connecting，
+    // 幂等检查 (joiningRoomId==roomId && Connecting) 会拦截同房间的重试调用。
+    //
+    // 修复：失败路径清理 joiningRoomId/currentRoomId 并调用 wsClient.disconnect()，
+    // 使下次调用同房间 joinRoom 不再被幂等保护卡住。
+    //
+    // [RED]  当前代码：超时后 currentRoomId 仍为 "room-001"，state 仍 Connecting →
+    //        重试被幂等保护拦截 → connect() 未被调用 → 断言 FAIL。
+    // [GREEN] 修复后：失败路径清理状态 → 重试时幂等检查不命中 → connect() 再次被调用 → PASS。
+
+    @Test
+    fun `TC-WS-CONNECT-06 joinRoom should allow retry after WS connection timeout`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            // Given: FakeWebSocketClient that never auto-connects (stays in Connecting)
+            val fakeWsClientLocal = FakeWebSocketClient(autoConnect = false)
+            val fakeTokenManager = object : ITokenManager {
+                override suspend fun getToken() = "test-jwt-token"
+                override suspend fun saveToken(token: String) {}
+                override suspend fun clearToken() {}
+            }
+            val viewModelLocal = RoomViewModel(
+                wsClient = fakeWsClientLocal,
+                roomSnapshotRepository = FakeRoomSnapshotRepository(defaultSnapshot),
+                tokenManager = fakeTokenManager,
+                wsUrl = "ws://test-host:3000/ws",
+            )
+
+            // When: first joinRoom starts and times out (ViewModel has 5s timeout)
+            viewModelLocal.joinRoom("room-001")
+            advanceTimeBy(6_000L)  // exceed 5-second WS connect timeout
+            advanceUntilIdle()
+
+            // Verify: first attempt resulted in Error state
+            assertTrue(
+                "uiState should be Error after WS connection timeout, was: ${viewModelLocal.uiState.value}",
+                viewModelLocal.uiState.value is RoomViewState.Error
+            )
+
+            // Record connect call count before retry
+            val connectCountBeforeRetry = fakeWsClientLocal.connectCallCount
+
+            // When: retry the same room — must NOT be blocked by idempotency guard
+            viewModelLocal.joinRoom("room-001")
+            runCurrent()  // advance coroutine until it calls connect() and suspends
+
+            // Then: connect() should have been called again (retry was not blocked)
+            assertTrue(
+                "connect() must be called again on retry. Before=$connectCountBeforeRetry, " +
+                    "After=${fakeWsClientLocal.connectCallCount}",
+                fakeWsClientLocal.connectCallCount > connectCountBeforeRetry
             )
         }
 }
