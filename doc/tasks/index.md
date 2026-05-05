@@ -311,7 +311,7 @@
 | Task ID | 前置依赖 | 研发负责人 | 研发状态 | Review Gate 审查门禁 | QA Gate 测试门禁 | Overall Gate 最终门禁 |
 |---------|---------|-----------|---------|---------------------|-----------------|----------------------|
 | [T-20010](../tds/web/T-20010.md) | T-20007, T-10009 | Dod | ✅ Done | [✅ Passed](../review/模块5-Web管理端增强.md) | ✅ N/A | ✅ Released |
-| [T-20011](../tds/web/T-20011.md) | T-20004 | Dod | ✅ Done | [✅ Passed](../review/模块5-Web管理端增强.md) | [⚠️ SKIP-KNOWN](../../tests/report-20260429-072049/WEB/TC-ROOM/Report.md) | ⏳ Pending |
+| [T-20011](../tds/web/T-20011.md) | T-20004 | Dod | ✅ Done | [✅ Passed](../review/模块5-Web管理端增强.md) | [✅ Passed · Round1](../../tests/report-20260506-070958/WEB/TC-ROOM/Report.md) | ✅ Released |
 
 ---
 
