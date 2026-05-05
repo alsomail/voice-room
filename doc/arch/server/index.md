@@ -36,6 +36,7 @@ Server 端基于 Rust + Axum 构建。启动骨架（配置、日志、健康检
 | WS C→S | `SendMessage` ⭐ | `app/server/src/room/handler/chat.rs::handle_send_message` | [websocket_signals.md §6.8.1](../../protocol/websocket_signals.md) | T-00047 | `app/android/app/src/main/java/com/voice/room/android/feature/room/RoomViewModel.kt::sendMessage` |
 | WS S→Room 广播 | `RoomMessage` | `app/server/src/ws/broadcaster.rs::broadcast_to_room` | [websocket_signals.md §6.8.2](../../protocol/websocket_signals.md) | T-00047 | Android `RoomViewModel` 接收 `type == "RoomMessage"` 后分发到 Chat UI |
 | HTTP REST | `POST /api/v1/chat-messages` | `app/server/src/modules/chat/controller.rs::send_chat_message_handler` | [room_api.md §3.6.1](../../protocol/room_api.md) | T-00047 | 当前无 C 端客户端调用；运营 / 后端兜底备路径 |
+| 集成测试 | `chat_dual_path_equivalence` | T-00048 DUAL-1/2/3 双路径等价回归测试 | - | T-00048 | `app/server/tests/chat_dual_path_equivalence.rs` |
 
 ## 三、 当前能力全景与状态 (Capability Matrix)
 > 状态枚举：🟢 已完成 | 🟡 开发/调试中 | 🔴 待开发
