@@ -624,7 +624,7 @@ export function runGrep(pattern: string, dirs: string[], includes: string[]): Gr
   const includeArgs = includes.map((i) => `--include="${i}"`).join(' ');
   const dirArgs = dirs.join(' ');
 
-  const cmd = `grep -rn "${pattern}" ${dirArgs} ${includeArgs} 2>/dev/null || true`;
+  const cmd = `grep -rEn "${pattern}" ${dirArgs} ${includeArgs} 2>/dev/null || true`;
 
   try {
     const output = execSync(cmd, { encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 });

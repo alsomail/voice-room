@@ -992,3 +992,60 @@ describe('extractBindingSection — 非标题行关键词（line 186 分支）',
     // 不崩溃即通过（行数限制下能否解析到表格取决于行间距）
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TC-AUDIT-FIX-01: runGrep 使用 ERE（-E 标志）支持 | 交替模式 (T-0000T P2 Bug)
+// ─────────────────────────────────────────────────────────────────────────────
+describe('TC-AUDIT-FIX-01: runGrep 支持 | 交替模式（ERE，非 BRE）', () => {
+  /**
+   * 集成测试：验证 runGrep 使用 `-E` 标志，使得 grep 以 ERE 模式运行。
+   *
+   * 不加 -E 时，grep 使用 BRE（基本正则表达式），`|` 是字面字符而非交替运算符，
+   * 导致 "Router::route|pub async fn" 这类 pattern 在 Rust 源码目录中匹配 0 行。
+   * 加上 -E 后，同一 pattern 可以匹配到 ≥ 1 行。
+   *
+   * 验收条件：runGrep 对带 | 的 pattern 在真实 server 目录返回 > 0 结果。
+   */
+  test('带 | 的 pattern 应在服务端 Rust 源码中匹配到 ≥1 行（需要 -E 标志）', () => {
+    const serverSrcDir = path.join(REPO_ROOT, 'app/server/src');
+
+    // 跳过：若 server 目录不存在（CI 环境可能无 Rust 源码）
+    if (!fs.existsSync(serverSrcDir)) {
+      console.warn('跳过 TC-AUDIT-FIX-01：app/server/src 不存在');
+      return;
+    }
+
+    // 使用含 | 的交替 pattern（与 grepServerImpl 实际使用的 pattern 一致）
+    const results = runGrep(
+      'Router::route|pub async fn',
+      [serverSrcDir],
+      ['*.rs']
+    );
+
+    // 没有 -E，grep 以 BRE 运行，| 是字面字符 → 0 结果 → 此断言失败（RED）
+    // 有 -E，grep 以 ERE 运行，| 是交替运算符 → 匹配到 ≥1 行 → 断言通过（GREEN）
+    expect(results.length).toBeGreaterThan(0);
+  });
+
+  /**
+   * 单元测试：通过 jest.spyOn 捕获实际执行的命令字符串，
+   * 断言命令中包含 `-E` 标志（直接验证修复点）。
+   */
+  test('runGrep 构建的 grep 命令必须包含 -E 标志（ERE 模式）', () => {
+    const childProcess = require('node:child_process') as typeof import('node:child_process');
+    const spy = jest.spyOn(childProcess, 'execSync').mockReturnValue('');
+
+    try {
+      runGrep('foo|bar', ['/some/dir'], ['*.ts']);
+      expect(spy).toHaveBeenCalledTimes(1);
+      const calledCmd = spy.mock.calls[0][0] as string;
+      // 命令必须包含 -E（支持 ERE 交替语法），-E 可以单独或合并在标志中（如 -rEn）
+      expect(calledCmd).toMatch(/grep\s+-\w*E\w*/);
+      // 同时确保仍然有 -r（递归）和 -n（显示行号）
+      expect(calledCmd).toMatch(/grep\s+-\w*r\w*/);
+      expect(calledCmd).toMatch(/grep\s+-\w*n\w*/);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+});
