@@ -1,6 +1,6 @@
 # Voice Room 开发任务清单
 
-> **版本**: v2.90  
+> **版本**: v2.92  
 > **更新日期**: 2026-05-05  
 > **任务总数**: 139 个 (基建: 4 + 14 + 3, App Server: 33 + 1 + 2, Admin Server: 16 + 1, Web: 14 + 1, Android: 45 + 1 + 1, E-07 15 + E-07.5 6 + E-10 18)  
 > **当前阶段**: Phase 1 - 核心营收闭环（E-07 + E-07.5 并行）→ Phase 1.5 E-10 房间治理 → Phase 1.6 E2E 测试基建 → **Phase 1.7 协议治理铁律落地**（Round 16 BUG-CHAT-WS 系统性根因 → 协议路径绑定 + 历史 TDS 全量回填 + 审计脚本）
@@ -12,6 +12,8 @@
 | 版本 | 日期 | 变更内容 |
 |------|------|---------|
 | _规则_ | — | 本表只记录**版本级摘要**（一行 ≤ 200 字符），具体 Review/审查/实跑证据请落到对应 [TDS](../tds/) 第五节【Review 意见】或对应模块审查批次 `doc/review/模块N-XXX.md`，**严禁**在本表堆叠详细审查记录。 |
+| **v2.92** | **2026-05-05** | T-00048 Review Gate ✅ Passed - GlobalReview 架构审查通过（P0=0/P1=0/P2=1非阻断/P3=2）；协议路径绑定三行全 PASS（WS SendMessage ⭐ / RoomMessage 广播 / REST 备路径），DUAL-1/2/3 三用例等价性完整；P2 timestamp>0 规格偏差记录于 TDS §五，P3×2 建议可选处理；详见 [server-T-00048-chat-dual-path.md](../review/server-T-00048-chat-dual-path.md)。 |
+| **v2.91** | **2026-05-05** | T-00048 Review Gate 开批 - 批次 `server-T-00048-chat-dual-path.md` 建档，任务表状态修正为 ✅ Done，Review Gate → [⏳ In Review](../review/server-T-00048-chat-dual-path.md)；GlobalReview 独立架构审查启动。 |
 | **v2.90** | **2026-05-05** | T-00048 DoD 完成 - chat_dual_path_equivalence 集成测试归档，双路径 DUAL-1/2/3 全绿，arch/server 协议入口索引同步。 |
 | **v2.87** | **2026-05-05** | T-30053 DoD 收尾：三门禁全绿（研发✅/Review✅/QA✅），Overall Gate ✅ Released；BUG-CHAT-LONGPRESS 修复链完整闭环收官。 |
 | **v2.86** | **2026-05-05** | T-30053 QA Gate ✅ Passed — TC-CHAT-00002 Round 23 实证（report-20260505-213102，6/6 PASS，DELTA_WS=+1，DELTA_BCAST=+1，5节点全命中，aiTap→aiLongPress self-healing Round 1 通过）；BUG-CHAT-LONGPRESS 闭环。 |
