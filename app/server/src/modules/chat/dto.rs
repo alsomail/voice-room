@@ -58,6 +58,22 @@ pub struct ChatMessagesResponse {
     pub offset: u32,
 }
 
+/// `POST /api/v1/chat-messages` 请求体（T-00045）
+#[derive(Debug, Deserialize)]
+pub struct SendChatMessageRequest {
+    pub room_id: String,
+    pub content: String,
+}
+
+/// `POST /api/v1/chat-messages` 响应数据（T-00045）
+#[derive(Debug, Clone, Serialize)]
+pub struct SendChatMessageResponse {
+    pub msg_id: Uuid,
+}
+
+/// 单条聊天消息长度上限（与 WS SendMessage 一致）
+pub const MAX_CONTENT_CHARS: usize = 500;
+
 /// 规范化分页参数。
 ///
 /// - `limit = None` → `DEFAULT_LIMIT`

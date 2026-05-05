@@ -214,7 +214,7 @@ async fn rest03_other_room_does_not_receive() {
     let (_other_conn, mut other_rx) =
         register_conn(&registry, Uuid::new_v4(), Some(other_room));
 
-    let app = build_app(build_state(chat_repo, room_manager, registry));
+    let app = build_app(build_state(chat_repo, room_manager, registry.clone()));
     let jwt = make_test_jwt(user_id, "test-secret");
 
     app.oneshot(post_chat_message_request(
@@ -224,7 +224,6 @@ async fn rest03_other_room_does_not_receive() {
     .await
     .unwrap();
 
-    // 其他房间 50ms 内不应收到
     let result = tokio::time::timeout(Duration::from_millis(80), other_rx.recv()).await;
     assert!(
         result.is_err(),

@@ -20,7 +20,10 @@ use crate::{
     },
 };
 
-use super::dto::{normalize_pagination, ChatMessageItem, ChatMessagesResponse, MessagesQuery};
+use super::dto::{
+    normalize_pagination, ChatMessageItem, ChatMessagesResponse, MessagesQuery,
+    SendChatMessageRequest, SendChatMessageResponse, MAX_CONTENT_CHARS,
+};
 
 /// `GET /api/v1/rooms/:room_id/messages`
 pub async fn list_room_messages_handler(
@@ -58,4 +61,92 @@ pub async fn list_room_messages_handler(
         }
         Err(e) => err_response(e, rc.request_id()),
     }
+}
+
+/// `POST /api/v1/chat-messages` — REST 写入聊天消息并广播（T-00045 BUG-CHAT-WS-BROADCAST）。
+///
+/// 流程：
+/// 1. JWT 鉴权（`AuthContext`）
+/// 2. 解析 / 校验 `room_id`（UUID）与 `content`（1..=500 chars）
+/// 3. `chat_repo.insert_message` — DB 事务提交后才广播
+/// 4. 通过 `ws::broadcaster::broadcast_to_room` 向房间内所有 WS 连接广播 `RoomMessage` envelope
+///    （envelope-level msg_id 由广播器统一注入 UUID v4；payload.msg_id = DB row id）
+/// 5. 房间不在内存（无 `RoomState`）时降级 `broadcast_to_room_no_state`，不写 recent_broadcasts
+/// 6. 单连接 send 失败由 broadcaster 内部容忍（`let _ = sender.send(...)`），REST 不感知
+pub async fn send_chat_message_handler(
+    State(state): State<AppState>,
+    Extension(rc): Extension<RequestContext>,
+    ctx: AuthContext,
+    Json(req): Json<SendChatMessageRequest>,
+) -> axum::response::Response {
+    // ── 1. 校验 room_id ───────────────────────────────────────────────────────
+    let room_id = match uuid::Uuid::parse_str(&req.room_id) {
+        Ok(u) => u,
+        Err(_) => {
+            return err_response(
+                AppError::ValidationError(format!("invalid room id format: {:?}", req.room_id)),
+                rc.request_id(),
+            );
+        }
+    };
+
+    // ── 2. 校验 content（1..=500 chars，按 Unicode chars，与 WS 路径一致）───
+    let content_len = req.content.chars().count();
+    if content_len == 0 {
+        return err_response(
+            AppError::ValidationError("content is required and must not be empty".to_string()),
+            rc.request_id(),
+        );
+    }
+    if content_len > MAX_CONTENT_CHARS {
+        return err_response(
+            AppError::ValidationError(format!(
+                "message exceeds {} characters",
+                MAX_CONTENT_CHARS
+            )),
+            rc.request_id(),
+        );
+    }
+
+    // ── 3. INSERT（DB 事务在此提交）───────────────────────────────────────────
+    let message_id = match state
+        .chat_repo
+        .insert_message(room_id, ctx.user_id, &req.content)
+        .await
+    {
+        Ok(id) => id,
+        Err(e) => return err_response(e, rc.request_id()),
+    };
+
+    // ── 4. 广播 RoomMessage envelope（与 WS SendMessage 路径形态一致）────────
+    let envelope = serde_json::json!({
+        "type": "RoomMessage",
+        "payload": {
+            "msg_id": message_id.to_string(),
+            "user_id": ctx.user_id.to_string(),
+            "content": req.content,
+        },
+        "timestamp": chrono::Utc::now().timestamp_millis(),
+    });
+
+    if let Some(rs) = state.room_manager.get_room(room_id) {
+        crate::ws::broadcaster::broadcast_to_room(&state.ws_registry, &rs, envelope);
+    } else {
+        // 房间未 JoinRoom 注册：降级广播（不写 recent_broadcasts，无续传支持）
+        crate::ws::broadcaster::broadcast_to_room_no_state(
+            &state.ws_registry,
+            room_id,
+            envelope,
+        );
+    }
+
+    // ── 5. 返回 ──────────────────────────────────────────────────────────────
+    (
+        axum::http::StatusCode::OK,
+        Json(ApiResponse::ok(
+            SendChatMessageResponse { msg_id: message_id },
+            rc.request_id(),
+        )),
+    )
+        .into_response()
 }
