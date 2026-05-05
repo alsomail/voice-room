@@ -45,6 +45,7 @@
 | 空麦位组件 | `feature/room/EmptyMicSlot.kt` | T-30025 | 🟢 虚线圆圈 + "+" 图标，可点击触发上麦 onMicSlotClick |
 | 麦位网格 | `feature/room/MicSlotsGrid.kt` | T-30025 | 🟢 LazyVerticalGrid 4列（原3列），userScrollEnabled=false |
 | 弹幕消息列表 | `feature/room/ChatMessageList.kt` | T-30025 | 🟢 USER_TEXT 昵称金色（MenaColors.Primary）+ SYSTEM_NOTICE 金黄居中 |
+| 弹幕气泡容器 | `feature/room/ChatMessageList.kt` (UserMessageItem) | T-30052 | 🟢 Surface shape=medium + MenaColors.ChatBubble + widthIn(max=280.dp) + testTag("chat_bubble")，供 Midscene 视觉识别 |
 | 房间页主屏 | `feature/room/RoomScreen.kt` | T-30025 | 🟢 整体背景 MenaColors.Background 深色，WS/上下麦逻辑不变 |
 
 ### 房间底部操作栏升级模块（T-30026）

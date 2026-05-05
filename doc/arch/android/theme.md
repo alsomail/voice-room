@@ -77,6 +77,7 @@ app/android/app/src/main/java/com/voice/room/android/core/theme/
 | OnError | 错误色上文字 | darkColorScheme.onError |
 | OnBackground | 背景上文字 | darkColorScheme.onBackground |
 | OnSurface | 表面上文字 | darkColorScheme.onSurface |
+| ChatBubble | #2A2A2A 聊天气泡背景色（T-30052） | val ChatBubble |
 
 **共 11 个色彩令牌**，全部通过 `darkColorScheme()` 构建。
 

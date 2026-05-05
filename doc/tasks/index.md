@@ -1,6 +1,6 @@
 # Voice Room 开发任务清单
 
-> **版本**: v2.79  
+> **版本**: v2.80  
 > **更新日期**: 2026-05-05  
 > **任务总数**: 132 个 (基建: 4 + 14, App Server: 33 + 1, Admin Server: 16 + 1, Web: 14 + 1, Android: 44 + 1, E-07 15 + E-07.5 6 + E-10 18)  
 > **当前阶段**: Phase 1 - 核心营收闭环（E-07 + E-07.5 并行）→ Phase 1.5 E-10 房间治理 → Phase 1.6 E2E 测试基建（模块 9：16/17，T-0000R In Progress）+ QA 战报驱动架构补强 + v3 战报反向拆出 WEB FAIL 修复 + SKIP-KNOWN 收口
@@ -12,6 +12,7 @@
 | 版本 | 日期 | 变更内容 |
 |------|------|---------|
 | _规则_ | — | 本表只记录**版本级摘要**（一行 ≤ 200 字符），具体 Review/审查/实跑证据请落到对应 [TDS](../tds/) 第五节【Review 意见】或对应模块审查批次 `doc/review/模块N-XXX.md`，**严禁**在本表堆叠详细审查记录。 |
+| **v2.80** | **2026-05-05** | T-30052 DoD 完成 - ChatMessageList UserMessageItem 气泡样式修复（Surface+ChatBubble+testTag），dex strings 校验通过，供 E2E Round 21 验证。 |
 | **v2.79** | **2026-05-05** | T-30051 DoD 完成 - Android WS 接收链路可观测性增强（5节点 Log 日志注入），dex strings 校验通过（8 条命中），供下一轮 E2E 决策树定位真根因。 |
 | **v2.78** | **2026-05-05** | T-00046 WS 广播可观测性增强（BUG-CHAT-WS-BROADCAST-SILENT）：`broadcast_to_room_inner` 发送失败打 WARN + 清理 stale connection，广播前后打 INFO 统计；三分支决策树落入 TDS §六，供 Round 17 快速决策。 |
 | **v2.77** | **2026-05-05** | T-00045 修复 BUG-CHAT-WS-BROADCAST：新增 `POST /api/v1/chat-messages` Server REST 端点（INSERT + 广播闭环，与 WS SendMessage 路径对齐）；9/9 集成测试全绿；commit `beedc85`。 |
