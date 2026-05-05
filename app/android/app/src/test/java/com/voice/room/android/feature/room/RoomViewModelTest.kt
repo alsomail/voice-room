@@ -13,6 +13,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -1486,6 +1487,100 @@ class RoomViewModelTest {
                 "connect URL should include token as query param",
                 "ws://test-host:3000/ws?token=test-jwt-token",
                 fakeWsClientLocal.lastConnectedUrl
+            )
+        }
+
+    // ─── TC-WS-CONNECT-02: joinRoom 竞态保护 — 等待 Connected 后才发 JoinRoom ───
+    //
+    // 问题：wsClient.connect() 在真实 OkHttp 中是异步的（仅启动握手，不等待 onOpen）。
+    // 若 sendEnvelope("JoinRoom") 在 WS 仍处于 Connecting 时调用，send() 返回 false，
+    // 消息被静默丢弃。
+    //
+    // 修复：connect() 之后用 state.first { Connected || Error || Disconnected } 等待就绪。
+    //
+    // [RED]  当前代码无等待：runCurrent() 后 JoinRoom 已被 send()=false 丢弃，
+    //        simulateConnect() 后 advanceUntilIdle() 也不会补发 → 第二个断言 FAIL。
+    // [GREEN] 修复后：coroutine 在 state.first{} 处挂起；simulateConnect() 触发恢复；
+    //         JoinRoom 在 Connected 之后正常发出 → 两个断言均 PASS。
+
+    @Test
+    fun `TC-WS-CONNECT-02 joinRoom should wait for WS Connected before sending JoinRoom envelope`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            // Given: FakeWebSocketClient that stays in Connecting until simulateConnect() is called
+            val delayedWsClient = FakeWebSocketClient(autoConnect = false)
+            val fakeTokenManager = object : ITokenManager {
+                override suspend fun getToken() = "test-jwt-token"
+                override suspend fun saveToken(token: String) {}
+                override suspend fun clearToken() {}
+            }
+            val viewModelLocal = RoomViewModel(
+                wsClient = delayedWsClient,
+                roomSnapshotRepository = FakeRoomSnapshotRepository(defaultSnapshot),
+                tokenManager = fakeTokenManager,
+                wsUrl = "ws://test-host:3000/ws",
+            )
+
+            // When: joinRoom is called; WS is still Connecting (autoConnect=false)
+            viewModelLocal.joinRoom("room-001")
+            runCurrent()  // Advance the launched coroutine until it suspends at state.first{}
+
+            // Then (intermediate): JoinRoom should NOT have been sent yet
+            // (WS still in Connecting state — send() drops the message if not Connected)
+            assertTrue(
+                "JoinRoom envelope must NOT be sent while WS is still Connecting",
+                delayedWsClient.sentMessages.none { it.contains("JoinRoom") }
+            )
+
+            // When: the connection is established (simulates OkHttp onOpen callback)
+            delayedWsClient.simulateConnect()
+            advanceUntilIdle()  // Resume the suspended coroutine and run to completion
+
+            // Then: JoinRoom should be sent now that WS is Connected
+            assertTrue(
+                "JoinRoom envelope MUST be sent after WS transitions to Connected",
+                delayedWsClient.sentMessages.any { it.contains("JoinRoom") }
+            )
+        }
+
+    // ─── TC-WS-CONNECT-03: 重复 joinRoom 幂等性 — 不应 double-connect ───────────
+    //
+    // 问题：每次 joinRoom() 都调用 wsClient.connect()，没有幂等保护。
+    // 若 joinRoom 被重复调用（同房间），旧 socket 未关闭，新 socket 被创建。
+    //
+    // 修复：在 joinRoom() 入口添加守卫：若已 Connected 且 roomId 相同，直接返回。
+    //
+    // [RED]  当前代码无守卫：两次 joinRoom → connectCallCount=2 → 断言 FAIL。
+    // [GREEN] 修复后：第二次 joinRoom 命中守卫直接返回 → connectCallCount=1 → PASS。
+
+    @Test
+    fun `TC-WS-CONNECT-03 joinRoom called twice with same roomId should not double-connect`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            // Given
+            val fakeWsClientLocal = FakeWebSocketClient()
+            val fakeTokenManager = object : ITokenManager {
+                override suspend fun getToken() = "test-jwt-token"
+                override suspend fun saveToken(token: String) {}
+                override suspend fun clearToken() {}
+            }
+            val viewModelLocal = RoomViewModel(
+                wsClient = fakeWsClientLocal,
+                roomSnapshotRepository = FakeRoomSnapshotRepository(defaultSnapshot),
+                tokenManager = fakeTokenManager,
+                wsUrl = "ws://test-host:3000/ws",
+            )
+
+            // When: joinRoom called twice with the same roomId
+            viewModelLocal.joinRoom("room-001")
+            advanceUntilIdle()  // First call fully completes; WS is now Connected
+
+            viewModelLocal.joinRoom("room-001")
+            advanceUntilIdle()  // Second call — should be a no-op (already Connected)
+
+            // Then: connect() must only have been called once (idempotent)
+            assertEquals(
+                "wsClient.connect() should be called exactly once when joinRoom is called twice with same roomId",
+                1,
+                fakeWsClientLocal.connectCallCount
             )
         }
 }

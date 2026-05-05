@@ -36,8 +36,10 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import java.util.UUID
 
 /**
@@ -215,6 +217,11 @@ class RoomViewModel(
      * @param accessToken 密码房访问令牌（[HallViewModel.verifyPassword] 返回，普通房传 null）
      */
     fun joinRoom(roomId: String, userId: String = "", accessToken: String? = null) {
+        // T-30017 Round13 FIX-2: 幂等保护 — 若已连接到同一房间则跳过重复连接。
+        // 防止重复调用 joinRoom() 时 double-connect（旧 socket 未关闭 + 新 socket 被创建）。
+        if (currentRoomId == roomId && wsClient.state.value is WebSocketState.Connected) {
+            return
+        }
         currentRoomId = roomId
         currentUserId = userId
         viewModelScope.launch {
@@ -232,6 +239,22 @@ class RoomViewModel(
                             )
                         )
                         wsClient.connect(spec)
+
+                        // T-30017 Round13 FIX-1: 竞态保护 — 等待 WS 真正 Connected 后再发 JoinRoom。
+                        // connect() 在真实 OkHttp 中仅启动握手（异步），不等待 onOpen 回调。
+                        // 若立即 sendEnvelope("JoinRoom")，WS 仍在 Connecting，send() 返回 false，
+                        // 消息被静默丢弃。此处用 state.first{} 挂起，直到 Connected / Error / Disconnected。
+                        val connectedState = withTimeoutOrNull(5_000L) {
+                            wsClient.state.first {
+                                it is WebSocketState.Connected ||
+                                    it is WebSocketState.Error ||
+                                    it is WebSocketState.Disconnected
+                            }
+                        }
+                        if (connectedState !is WebSocketState.Connected) {
+                            _uiState.value = RoomViewState.Error("WebSocket connection failed")
+                            return@launch
+                        }
                     } else {
                         _uiState.value = RoomViewState.Error("No auth token")
                         return@launch

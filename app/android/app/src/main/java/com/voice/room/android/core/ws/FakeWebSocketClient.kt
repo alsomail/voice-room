@@ -13,14 +13,25 @@ import kotlinx.coroutines.flow.asStateFlow
  * 用法示例：
  * ```kotlin
  * val fake = FakeWebSocketClient()
- * fake.connect(spec)                      // Connecting → Connected
+ * fake.connect(spec)                      // Connecting → Connected（autoConnect=true 默认）
  * fake.simulateMessage("""{"type":"x"}""") // 发射 Message
  * fake.simulateDisconnect("reason")        // 发射 Disconnected
  * fake.simulateError(IOException())        // 发射 Error
  * println(fake.sentMessages)               // 检查发送的消息
+ *
+ * // TC-WS-CONNECT-02 竞态测试：延迟连接模式
+ * val delayedFake = FakeWebSocketClient(autoConnect = false)
+ * delayedFake.connect(spec)               // 仅 Connecting，不自动变 Connected
+ * delayedFake.simulateConnect()           // 手动触发 Connected（测试控制时机）
  * ```
+ *
+ * @param autoConnect 若为 true（默认），[connect] 调用后立即自动转为 [WebSocketState.Connected]；
+ *                    若为 false，[connect] 仅切换到 [WebSocketState.Connecting]，需手动调用
+ *                    [simulateConnect] 触发 Connected（用于竞态保护测试 TC-WS-CONNECT-02）。
  */
-class FakeWebSocketClient : IWebSocketClient {
+class FakeWebSocketClient(
+    private val autoConnect: Boolean = true,
+) : IWebSocketClient {
 
     private val _state = MutableStateFlow<WebSocketState>(WebSocketState.Disconnected())
     override val state: StateFlow<WebSocketState> = _state.asStateFlow()
@@ -56,7 +67,12 @@ class FakeWebSocketClient : IWebSocketClient {
         connectCallCount++
         lastConnectedUrl = spec.url
         _state.value = WebSocketState.Connecting
-        _state.value = WebSocketState.Connected
+        // autoConnect=true（默认）：模拟握手立即成功，状态自动变 Connected。
+        // autoConnect=false：仅停留在 Connecting，等待测试代码手动调用 simulateConnect()，
+        // 用于测试 TC-WS-CONNECT-02 竞态保护（ViewModel 必须等待 Connected 后才发 JoinRoom）。
+        if (autoConnect) {
+            _state.value = WebSocketState.Connected
+        }
     }
 
     /**
