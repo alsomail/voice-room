@@ -249,7 +249,7 @@
 | [T-00045](../tds/server/T-00045.md) | T-00043 | Dod | ✅ Done | [✅ Passed](../review/模块3-BUG-CHAT-WS修复链.md) | [✅ Passed · Round 22](../../tests/report-20260505-124251/AND/TC-CHAT-00002/TC-CHAT-00002_Report.md) | ⏳ Pending |
 | [T-00046](../tds/server/T-00046.md) | T-00045 | Dod | ✅ Done | [✅ Passed](../review/模块3-BUG-CHAT-WS修复链.md) | [✅ Passed · Round 22](../../tests/report-20260505-124251/AND/TC-CHAT-00002/TC-CHAT-00002_Report.md) | ⏳ Pending |
 | [T-00047](../tds/server/T-00047.md) ⭐ | T-00045, T-00046, T-30054 | Dod | ✅ Done | [✅ Passed](../tds/server/T-00047.md) | - | ✅ Passed |
-| [T-00048](../tds/server/T-00048.md) | T-00047 | TDD | In Progress | - | - | ⏳ Pending |
+| [T-00048](../tds/server/T-00048.md) | T-00047 | Review | In Progress | - | - | ⏳ Pending |
 | [T-10007](../tds/adminServer/T-10007.md) | T-10003 | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | - | ⏳ Pending |
 | [T-10008](../tds/adminServer/T-10008.md) | T-10007 | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | - | ⏳ Pending |
 | [T-10009](../tds/adminServer/T-10009.md) | T-10008 | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | - | ⏳ Pending |
