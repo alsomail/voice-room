@@ -1,6 +1,6 @@
 # Voice Room 开发任务清单
 
-> **版本**: v2.95  
+> **版本**: v2.96  
 > **更新日期**: 2026-05-05  
 > **任务总数**: 139 个 (基建: 4 + 14 + 3, App Server: 33 + 1 + 2, Admin Server: 16 + 1, Web: 14 + 1, Android: 45 + 1 + 1, E-07 15 + E-07.5 6 + E-10 18)  
 > **当前阶段**: Phase 1 - 核心营收闭环（E-07 + E-07.5 并行）→ Phase 1.5 E-10 房间治理 → Phase 1.6 E2E 测试基建 → **Phase 1.7 协议治理铁律落地**（Round 16 BUG-CHAT-WS 系统性根因 → 协议路径绑定 + 历史 TDS 全量回填 + 审计脚本）
@@ -12,6 +12,7 @@
 | 版本 | 日期 | 变更内容 |
 |------|------|---------|
 | _规则_ | — | 本表只记录**版本级摘要**（一行 ≤ 200 字符），具体 Review/审查/实跑证据请落到对应 [TDS](../tds/) 第五节【Review 意见】或对应模块审查批次 `doc/review/模块N-XXX.md`，**严禁**在本表堆叠详细审查记录。 |
+| **v2.96** | **2026-05-05** | [T-30054] Review Round1 — 🟢 通过；修正 TDS grep 模式为 PROTO-BINDING 注释锚点；T-30054 状态 Review→DoD。 |
 | **v2.95** | **2026-05-05** | [T-30054] TDD — RoomViewModel.sendMessage 注入 PROTO-BINDING 注释 + MAX_MESSAGE_LENGTH=500 防御；新增 ChatSendMessageProtocolBindingTest（6/6 PASS）；T-30054 状态 TDD→Review。 |
 | **v2.94** | **2026-05-05** | [T-30054] Plan — 创建 TDS android/T-30054.md（协议路径绑定表 + 6 个验收用例 TC-PROTO-1/2/3 + TC-BOUND-1/2/3）；T-30054 状态 Plan→TDD。 |
 | **v2.93** | **2026-05-05** | Overall Gate 全量归档：T-30053 index.md 补录（Review/QA/Overall ✅ Released）；T-00045/46/T-30051/52/T-00048 Overall Gate ✅ Released；研发 T-30054/T-0000T 启动。 |
@@ -278,7 +279,7 @@
 | [T-30051](../tds/android/T-30051.md) | T-30017 | Dod | ✅ Done | [✅ Passed](../review/模块3-BUG-CHAT-WS修复链.md) | [✅ Passed · Round 22](../../tests/report-20260505-124251/AND/TC-CHAT-00002/TC-CHAT-00002_Report.md) | ✅ Released |
 | [T-30052](../tds/android/T-30052.md) | T-30051 | Dod | ✅ Done | [✅ Passed](../review/模块3-BUG-CHAT-WS修复链.md) | [✅ Passed · Round 22](../../tests/report-20260505-124251/AND/TC-CHAT-00002/TC-CHAT-00002_Report.md) | ✅ Released |
 | [T-30053](../tds/android/T-30053.md) | T-30052 | - | ✅ Done | [✅ Passed](../review/模块3-T-30053-chat-longpress.md) | [✅ Passed · Round 23](../../tests/report-20260505-213102/AND/TC-CHAT-00002/TC-CHAT-00002_Report.md) | ✅ Released |
-| [T-30054](../tds/android/T-30054.md) | T-00047 | Review | In Progress | - | - | ⏳ Pending |
+| [T-30054](../tds/android/T-30054.md) | T-00047 | Dod | In Progress | [✅ Passed](../tds/android/T-30054.md) | - | ⏳ Pending |
 
 ---
 
