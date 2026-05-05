@@ -1,11 +1,11 @@
 # Protocol Binding Audit Report
-Generated: 2026-05-05T15:29:37.534Z
+Generated: 2026-05-05T15:34:43.624Z
 
 ## Summary
 
 | Metric | Value |
 |--------|-------|
-| TDS Files Scanned | 143 |
+| TDS Files Scanned | 144 |
 | Total Binding Rows | 9 |
 | **P0 Issues** | **2** |
 | P1 Issues | 0 |

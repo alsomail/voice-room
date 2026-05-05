@@ -15,7 +15,7 @@ Server 是房间与麦位状态的唯一权威。
 
 ## 8.2 信令格式契约位置
 
-> **🔴 唯一契约源**：WS 信令的 envelope 结构、`type` 枚举（`SendMessage` / `RoomMessage` / `SeatApply` / `SeatUpdated` 等）、字段命名、错误码、双 ID 语义（`envelope.msg_id` UUIDv4 唯一推送标识 vs `payload.msg_id` 业务行 id）等**所有字段级定义**，**唯一**事实源在 [`doc/protocol/websocket_signals.md`](../protocol/websocket_signals.md)。
+> **🔴 唯一契约源**：WS 信令的 envelope 结构、`type` 枚举（`SendMessage` / `RoomMessage` / `SeatApply` / `SeatUpdated` 等）、字段命名、错误码、双 ID 语义（`envelope.msg_id` UUIDv4 唯一推送标识 vs `payload.msg_id` 业务行 id）等**所有字段级定义**，**唯一**事实源在 [`doc/protocol/index.md`](../protocol/index.md) 及其子文件 [`doc/protocol/websocket_signals.md`](../protocol/websocket_signals.md)。
 >
 > 本节**不再**重复 JSON 形态，避免出现 `event/APPLY_SEAT` 这类与 protocol/ 中 `type/SeatApply` 不一致的"建议格式"导致客户端跑偏。
 >

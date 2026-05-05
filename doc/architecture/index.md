@@ -1,6 +1,6 @@
 # 系统架构文档索引
 
-> **原始文件**: `doc/ARCHITECTURE.md`（已拆分为本目录下的子文件，原文件已废弃，待物理删除）
+> **原始文件**: `ARCHITECTURE.md`（已于 2026-04-20 拆分为本目录下的子文件，原文件已于 2026-05-06 由 T-0000V 物理删除，详见 [ADR-0002](../adr/ADR-0002-protocol-single-source-and-binding-table.md)）
 > **拆分日期**: 2026-04-20
 
 ---
