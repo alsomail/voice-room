@@ -407,4 +407,4 @@
 | [T-30050](../tds/android/T-30050.md) | T-0000E | Dod | ✅ Done | [✅ Passed](../review/模块9-E2E测试基建.md) | ✅ N/A | ✅ Released |
 | [T-0000T](../tds/infra/T-0000T.md) | T-0000R | Dod | ✅ Done | - | - | ⏳ Pending |
 | [T-0000U](../tds/infra/T-0000U.md) | T-0000T | Dod | ✅ Done | ✅ Passed | ✅ N/A | ✅ Released |
-| [T-0000V](../tds/infra/T-0000V.md) | T-0000U | Review | In Progress | - | - | ⏳ Pending |
+| [T-0000V](../tds/infra/T-0000V.md) | T-0000U | Dod | In Progress | - | - | ⏳ Pending |
