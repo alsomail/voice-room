@@ -32,6 +32,12 @@
 
 ---
 
+## 🔧 协议治理工具
+
+- [协议路径绑定审计脚本](../arch/infra/protocol-binding-audit.md) — 自动验证 TDS 绑定表 ↔ server 实现 ↔ client 调用三角对账
+
+---
+
 ## 📝 文档变更历史
 
 - 2026-04-17: 初始版本，定义模块1认证契约 + RTC/WS 预留

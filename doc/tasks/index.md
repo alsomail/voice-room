@@ -1,6 +1,6 @@
 # Voice Room 开发任务清单
 
-> **版本**: v2.97  
+> **版本**: v2.98  
 > **更新日期**: 2026-05-05  
 > **任务总数**: 139 个 (基建: 4 + 14 + 3, App Server: 33 + 1 + 2, Admin Server: 16 + 1, Web: 14 + 1, Android: 45 + 1 + 1, E-07 15 + E-07.5 6 + E-10 18)  
 > **当前阶段**: Phase 1 - 核心营收闭环（E-07 + E-07.5 并行）→ Phase 1.5 E-10 房间治理 → Phase 1.6 E2E 测试基建 → **Phase 1.7 协议治理铁律落地**（Round 16 BUG-CHAT-WS 系统性根因 → 协议路径绑定 + 历史 TDS 全量回填 + 审计脚本）
@@ -12,6 +12,7 @@
 | 版本 | 日期 | 变更内容 |
 |------|------|---------|
 | _规则_ | — | 本表只记录**版本级摘要**（一行 ≤ 200 字符），具体 Review/审查/实跑证据请落到对应 [TDS](../tds/) 第五节【Review 意见】或对应模块审查批次 `doc/review/模块N-XXX.md`，**严禁**在本表堆叠详细审查记录。 |
+| **v2.98** | **2026-05-05** | T-0000T DoD 完成 - 协议路径绑定审计脚本上线（53 tests PASS，grep -rEn ERE，P0 exit(1)，CI audit:protocol 接入）；模块 9 进度 18/20。 |
 | **v2.97** | **2026-05-05** | [T-30054] DoD — Android sendMessage WS 协议路径绑定锁定，集成测试 6/6 PASS，arch/android 协议入口索引回填 WS SendMessage ⭐ 行；T-30054 ✅ Done。 |
 | **v2.96** | **2026-05-05** | [T-30054] Review Round1 — 🟢 通过；修正 TDS grep 模式为 PROTO-BINDING 注释锚点；T-30054 状态 Review→DoD。 |
 | **v2.95** | **2026-05-05** | [T-30054] TDD — RoomViewModel.sendMessage 注入 PROTO-BINDING 注释 + MAX_MESSAGE_LENGTH=500 防御；新增 ChatSendMessageProtocolBindingTest（6/6 PASS）；T-30054 状态 TDD→Review。 |
@@ -156,8 +157,8 @@
 | 条件 | Overall Gate |
 |------|------|
 | 研发状态非 `✅ Done`，或 `Review Gate` / `QA Gate` 任一为 `-` | `⏳ Pending` |
-| 研发状态为 `✅ Done`，且 `Review Gate` / `QA Gate` 任一为 `❌ Failed` | `❌ Failed` |
-| 研发状态为 `✅ Done`，且 `Review Gate` 与 `QA Gate` 均为 `✅ Passed` | `✅ Passed` |
+| 研发状态为 `✅ Done`，且 `Review Gate` / `QA Gate` 任一为 `❌ Failed`（或 ✅ N/A） | `❌ Failed` |
+| 研发状态为 `✅ Done`，且 `Review Gate` 与 `QA Gate` 均为 `✅ Passed`（或 ✅ N/A） | `✅ Passed` |
 
 ## 职责流转规则
 
@@ -402,6 +403,6 @@
 | [T-10020](../tds/adminServer/T-10020.md) | T-0000E | Dod | ✅ Done | [✅ Passed](../review/模块9-E2E测试基建.md) | - | ⏳ Pending |
 | [T-20020](../tds/web/T-20020.md) | T-0000E | Dod | ✅ Done | [✅ Passed](../review/模块9-E2E测试基建.md) | - | ⏳ Pending |
 | [T-30050](../tds/android/T-30050.md) | T-0000E | Dod | ✅ Done | [✅ Passed](../review/模块9-E2E测试基建.md) | - | ⏳ Pending |
-| [T-0000T](../tds/infra/T-0000T.md) | T-0000R | Dod | In Progress | - | - | ⏳ Pending |
+| [T-0000T](../tds/infra/T-0000T.md) | T-0000R | Dod | ✅ Done | - | - | ⏳ Pending |
 | T-0000U | T-0000T | Plan | Todo | - | - | ⏳ Pending |
 | T-0000V | T-0000U | Plan | Todo | - | - | ⏳ Pending |
