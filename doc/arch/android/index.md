@@ -54,6 +54,25 @@
 - 🟢 WebSocket 连接封装（T-30008）：`WebSocketState`（sealed class: Connecting/Connected/Disconnected/Error）+ `IWebSocketClient`（接口: connect/disconnect/send/state/messages）+ `OkHttpWebSocketClient`（指数退避重连 1s→60s、30s 心跳保活、`SharedFlow<String>` 消息流）+ `FakeWebSocketClient`（测试辅助），详见 [foundation.md § WebSocket](./foundation.md)
 - 🟢 房间页 UI（T-30009）：`RoomUiState`（roomId/roomName/onlineCount/micSlots/messages）+ `MicSlotUi`（index/userId/nickname/avatarUrl/isMuted/isOccupied）+ `ChatMessageUi`（messageId/senderNickname/content/timestamp）；`RoomTopBar`（房间名+在线人数+返回按钮）+ `MicSlotsGrid`（`LazyVerticalGrid` 固定 3 列，高度 240dp，`userScrollEnabled=false`，`testTag("mic_slots_grid")`）+ `MicSlotItem`（空麦/有人/静音三态，Coil AsyncImage 头像，muted icon `testTag`）+ `ChatMessageList`（`LazyColumn` + `weight(1f)` 撑满剩余高度，`LaunchedEffect` 自动滚到底）+ `BottomInputBar`（TextField + 发送按钮）
 - 🟢 房间 ViewModel（T-30010）：`RoomViewModel`（管理房间 WS 状态，`joinRoom(roomId)` / `leaveRoom()` / `sendMessage(text)`，`uiState: StateFlow<RoomViewState>` + `events: SharedFlow<RoomEvent>`，`viewModelScope` 内监听 `IWebSocketClient.messages` 解析服务端广播被动渲染）+ `RoomViewState`（sealed class：`Loading` / `Success(RoomUiState)` / `Error(message)`）+ `RoomEvent`（sealed class：`NavigateBack` / `ShowToast(message)`）；Data 层新增 `IRoomSnapshotRepository`（HTTP 获取房间初始快照）+ `RoomSnapshot`（领域模型：roomId/roomName/onlineCount/micSlots/recentMessages，DTO 与领域模型解耦）+ `RetrofitRoomSnapshotRepository`（`GET /rooms/{id}/snapshot` 实现，401 由 `AuthInterceptor` 透传）；**关键设计决策**：进入房间先 HTTP 拉取快照渲染首屏，再 WS joinRoom 追增量事件，防止 WS 连接建立前白屏；`leaveRoom()` 在 `onCleared()` 兜底，防止后退键绕过导致资源泄漏
+
+  - **Round 13 更新（wsClient.connect 真正注入）**：
+    
+    #### RoomViewModel WS 连接生命周期（Round 13 更新）
+    
+    **连接时序**：
+    1. `joinRoom(roomId)` 调用时，先通过 `tokenManager.getToken()` 获取 JWT
+    2. 构造 `RoomSocketRequestSpec`（baseWsUrl + ?token=JWT）
+    3. **调用 `wsClient.connect(spec)` 启动 WS 握手（Round 12 实证 cf899bd 为死代码，本轮真正激活）**
+    4. 等待 `wsClient.state` 变为 `Connected`（超时 5 秒）
+    5. 连接成功后发送 `JoinRoom` envelope
+    6. `leaveRoom()` 调用 `wsClient.disconnect()`
+    
+    **幂等性保护**：
+    - `joiningRoomId`：连接进行中，防止同房间重复 connect（Connecting 期间）
+    - `joinedRoomId`：连接成功后设置，允许 Connected/Message 状态幂等跳过
+    - 失败路径（超时/异常）清理两个字段，允许重试
+    
+    **切换房间**：自动 `disconnect()` 旧连接 + `cancel()` 旧 joinJob
 - 🟢 麦位组件（T-30011）：`MicSlotCard.kt`（三态麦位卡片：`MicSlotState.EMPTY` / `OCCUPIED` / `MUTED`，`AnimatedVisibility` 驱动头像与 muted icon 进出场动画，双层 semantics 架构：外层 `clickable` + 内层 `semantics { contentDescription = … }` 精确描述当前状态，CompositionLocalProvider 保证 RTL 布局一致性）+ `MicSlotsGrid.kt`（新增 `onMicSlotClick: (index: Int) -> Unit = {}` 回调参数，事件上浮至 ViewModel 层）；`MicSlotCardTest.kt`（androidTest，MC-01 ～ MC-12 共 12 个测试用例，编译通过，需实体设备或 API 31+ AVD 运行）
 - 🟢 麦克风权限请求（T-30012）：`MicPermissionHandler.kt`（权限守卫 Composable，content lambda 模式：权限已授予时直接渲染 content，否则触发请求流程；`MicPermissionHelper` 接口隔离 Accompanist，`permissionRequested` 状态防止首次请求被误判为永久拒绝）+ `MicPermissionRationaleDialog`（引导用户授权的说明对话框）+ `MicPermissionSettingsDialog`（永久拒绝后引导跳转系统设置的对话框）；`RoomScreen.kt` 新增 `onMicPermissionGranted` 参数；`RoomViewModel.kt` 新增 stub 方法；`AndroidManifest.xml` 新增 `RECORD_AUDIO` 权限声明；依赖新增 `accompanist-permissions 0.36.0`；测试：androidTest MP-01～MP-07（权限守卫交互流程）+ 单元测试 MP-08（ViewModel stub 验证）
 - 🟢 上麦/下麦逻辑（T-30013）：`core/media/IMediaService.kt`（防腐层接口：`joinChannel(roomId, userId)` / `leaveChannel()` / `startPublishAudio()` / `stopPublishAudio()` 共 4 个 suspend 方法）+ `core/media/NoOpMediaService.kt`（生产 MVP 占位实现，4 个方法均返回 `Result.success(Unit)`）+ `core/media/FakeMediaService.kt`（测试注入，记录调用次数；`joinChannelResult` / `startPublishAudioResult` / `stopPublishAudioResult` / `leaveChannelResult` 支持注入失败场景）；`RoomViewModel.kt` 完整实现上麦/下麦：`onMicPermissionGranted(slotIndex)` 发送 `TakeMic` WS 消息 → 收到 `MicTaken` 广播且 `userId == currentUserId` → `joinChannel` + `startPublishAudio`（两步均检查 `Result`，失败时 `ShowToast`，`CancellationException` 正确 re-throw）；`onMicSlotClick(slotIndex)` 三路路由：空麦位静默 / 自己的麦位 → `leaveMic` / 他人麦位静默；`leaveMic(slotIndex)` 发送 `LeaveMic` WS 消息 → 收到 `MicLeft` 广播（先读 `leavingUserId` 再更新 UI）且 `leavingUserId == currentUserId` → `stopPublishAudio` + `leaveChannel`（try-catch 静默，`CancellationException` re-throw）；`currentUserId` 字段在 `joinRoom(roomId, userId = "")` 时写入，默认空串保持向后兼容；测试：TM-01～TM-08 + TM-03B（`startPublishAudio` 失败路径），`RoomViewModelTest` 共 22 个单元测试全部通过

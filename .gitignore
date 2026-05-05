@@ -38,3 +38,7 @@ tests/report-*/
 midscene_run/
 scripts/dev/.seed-output.env
 scripts/dev/.seed.lock
+
+# Round 7 残留 E2E 脚本（勿删，历史参考）
+tests/scripts/AND/round7/
+
