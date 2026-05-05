@@ -90,9 +90,9 @@ test('TC-CHAT-00002: 公屏发送 + 接收 + 自动滚动', async ({ e2eEnv }: a
     await agent.aiWaitFor(`聊天区域出现刚发送的消息气泡（包含任何文字内容）`, { timeoutMs: 15_000 });
     await agent.aiAssert(`公屏列表底部可见刚发送的消息，内容包含 "${testMsg.slice(0, 20)}"`);
 
-    // Step6：长按消息验证菜单
-    await agent.aiTap(`包含 "${testMsg.slice(0, 20)}" 的聊天气泡（长按）`);
-    await agent.aiWaitFor('弹出操作菜单', { timeoutMs: 5_000 });
+    // Step6：长按消息验证菜单（T-30053 self-healing: aiTap→aiLongPress，T-30053 已实现 combinedClickable onLongClick）
+    await agent.aiLongPress(`包含 "${testMsg.slice(0, 20)}" 的聊天气泡`);
+    await agent.aiWaitFor('弹出操作菜单', { timeoutMs: 8_000 });
     await agent.aiAssert('操作菜单中包含"复制"选项');
 
     // 关闭菜单

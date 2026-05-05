@@ -1,0 +1,61 @@
+## TC-CHAT-00002 Android Logcat Probes — 2026-05-05 21:31~21:36
+## Device: 9A251FFAZ00EAJ (Pixel 4)
+## Filter: RoomViewModel + WsClient *:D (excluding pong heartbeat & WM-Greedy)
+## Purpose: 验证 T-30051 注入的 5 节点 WS 接收链路日志 + T-30053 长按操作
+
+05-05 21:33:04.670  1648  1648 I RoomViewModel: rvm: onWsMessage len=133
+05-05 21:33:04.670  1648  1648 D RoomViewModel: ws: parse start len=133
+05-05 21:33:04.671  1648  1648 D RoomViewModel: ws: parse ok type=EventReportAck
+05-05 21:33:04.835  1648  1648 I RoomViewModel: rvm: onWsMessage len=325
+05-05 21:33:04.835  1648  1648 D RoomViewModel: ws: parse start len=325
+05-05 21:33:04.836  1648  1648 D RoomViewModel: ws: parse ok type=JoinRoomResult
+05-05 21:33:04.836  1648  1648 D RoomViewModel: ws: dispatch type=JoinRoomResult roomId=a6c55997-7db5-57a1-a5e1-51b232625bdf
+05-05 21:33:19.826  1648  1648 I RoomViewModel: rvm: onWsMessage len=38
+05-05 21:33:19.826  1648  1648 D RoomViewModel: ws: parse start len=38
+05-05 21:33:34.875  1648  1648 I RoomViewModel: rvm: onWsMessage len=38
+05-05 21:33:34.875  1648  1648 D RoomViewModel: ws: parse start len=38
+## ★ RoomMessage broadcast — Step 4 发送 → WS 广播回到 Android 客户端
+05-05 21:33:46.682  1648  1648 I RoomViewModel: rvm: onWsMessage len=241          [节点1: onMessage]
+05-05 21:33:46.682  1648  1648 D RoomViewModel: ws: parse start len=241            [节点2: parse]
+05-05 21:33:46.683  1648  1648 D RoomViewModel: ws: parse ok type=RoomMessage      [节点3: parse_ok]
+05-05 21:33:46.683  1648  1648 D RoomViewModel: ws: dispatch type=RoomMessage roomId=a6c55997-7db5-57a1-a5e1-51b232625bdf  [节点4: dispatch]
+## ★ SendMessageResult
+05-05 21:33:46.732  1648  1648 I RoomViewModel: rvm: onWsMessage len=108
+05-05 21:33:46.732  1648  1648 D RoomViewModel: ws: parse start len=108
+05-05 21:33:46.732  1648  1648 D RoomViewModel: ws: parse ok type=SendMessageResult
+05-05 21:33:46.732  1648  1648 D RoomViewModel: ws: dispatch type=SendMessageResult roomId=a6c55997-7db5-57a1-a5e1-51b232625bdf
+## 节点5 (ui): 由 Midscene aiAssert Step5 "公屏列表底部可见刚发送的消息" PASS 隐式确认
+05-05 21:33:49.887  1648  1648 I RoomViewModel: rvm: onWsMessage len=38
+05-05 21:33:49.887  1648  1648 D RoomViewModel: ws: parse start len=38
+05-05 21:34:05.184  1648  1648 I RoomViewModel: rvm: onWsMessage len=38
+05-05 21:34:05.184  1648  1648 D RoomViewModel: ws: parse start len=38
+05-05 21:34:20.236  1648  1648 I RoomViewModel: rvm: onWsMessage len=38
+05-05 21:34:20.237  1648  1648 D RoomViewModel: ws: parse start len=38
+05-05 21:34:35.293  1648  1648 I RoomViewModel: rvm: onWsMessage len=38
+05-05 21:34:35.294  1648  1648 D RoomViewModel: ws: parse start len=38
+05-05 21:34:50.345  1648  1648 I RoomViewModel: rvm: onWsMessage len=38
+05-05 21:34:50.345  1648  1648 D RoomViewModel: ws: parse start len=38
+05-05 21:35:05.377  1648  1648 I RoomViewModel: rvm: onWsMessage len=38
+05-05 21:35:05.377  1648  1648 D RoomViewModel: ws: parse start len=38
+05-05 21:35:20.400  1648  1648 I RoomViewModel: rvm: onWsMessage len=38
+05-05 21:35:20.400  1648  1648 D RoomViewModel: ws: parse start len=38
+05-05 21:35:35.425  1648  1648 I RoomViewModel: rvm: onWsMessage len=38
+05-05 21:35:35.425  1648  1648 D RoomViewModel: ws: parse start len=38
+05-05 21:35:50.448  1648  1648 I RoomViewModel: rvm: onWsMessage len=38
+05-05 21:35:50.448  1648  1648 D RoomViewModel: ws: parse start len=38
+05-05 21:36:05.458  1648  1648 I RoomViewModel: rvm: onWsMessage len=38
+05-05 21:36:05.458  1648  1648 D RoomViewModel: ws: parse start len=38
+05-05 21:36:20.485  1648  1648 I RoomViewModel: rvm: onWsMessage len=38
+05-05 21:36:20.485  1648  1648 D RoomViewModel: ws: parse start len=38
+05-05 21:36:35.507  1648  1648 I RoomViewModel: rvm: onWsMessage len=38
+05-05 21:36:35.507  1648  1648 D RoomViewModel: ws: parse start len=38
+
+## Summary:
+## 节点1 onMessage:  ✅ 已触发 (rvm: onWsMessage len=241)
+## 节点2 parse:      ✅ 已触发 (ws: parse start len=241)
+## 节点3 parse_ok:   ✅ 已触发 (ws: parse ok type=RoomMessage)
+## 节点4 dispatch:   ✅ 已触发 (ws: dispatch type=RoomMessage)
+## 节点5 ui:         ✅ 隐式确认 (aiAssert Step5 PASS)
+## parse_failed:     0 次
+## DELTA_WS:         +1 (JoinRoomResult + 持续 pong 心跳)
+## DELTA_BCAST:      +1 (RoomMessage 收到 1 次)
