@@ -8,6 +8,8 @@ import com.google.gson.JsonParser
 import com.voice.room.android.core.media.IMediaService
 import com.voice.room.android.core.media.NoOpMediaService
 import com.voice.room.android.core.ws.IWebSocketClient
+import com.voice.room.android.core.ws.RoomSocketRequestFactory
+import com.voice.room.android.core.ws.RoomSocketSession
 import com.voice.room.android.core.ws.WebSocketState
 import com.voice.room.android.core.ws.event.GiftReceivedEvent
 import com.voice.room.android.core.ws.sendEnvelope
@@ -21,6 +23,7 @@ import com.voice.room.android.data.room.IRoomSnapshotRepository
 import com.voice.room.android.data.room.MicSlotData
 import com.voice.room.android.data.room.NoOpRoomMemberRepository
 import com.voice.room.android.data.room.RoomSnapshot
+import com.voice.room.android.domain.local.ITokenManager
 import com.voice.room.android.feature.room.effect.FullscreenAnim
 import com.voice.room.android.feature.room.effect.GiftEffectController
 import com.voice.room.android.feature.room.effect.GiftMessageUi
@@ -77,6 +80,22 @@ class RoomViewModel(
      * - 默认值：[AlwaysGrantedMicPermissionChecker]（已获得权限 / MVP 阶段）
      */
     private val micPermissionChecker: IMicPermissionChecker = AlwaysGrantedMicPermissionChecker(),
+    /**
+     * JWT Token 管理器（T-30017 BUG-CHAT-WS）
+     *
+     * - 生产环境：通过 [RoomViewModelFactory] 注入 AppContainer 中的真实实现
+     * - 单元测试：注入 Fake 实现以控制 token 返回值
+     * - 默认值：null（向后兼容现有测试，为 null 时跳过 connect 调用）
+     */
+    private val tokenManager: ITokenManager? = null,
+    /**
+     * WebSocket 基础 URL（T-30017 BUG-CHAT-WS）
+     *
+     * - 格式：`ws://host:port/ws` 或 `wss://host/ws`
+     * - 生产环境：来自 [AppEnvironment.wsUrl]
+     * - 默认值：空字符串（向后兼容现有测试，为空时跳过 connect 调用）
+     */
+    private val wsUrl: String = "",
 ) : ViewModel() {
 
     companion object {
@@ -201,6 +220,23 @@ class RoomViewModel(
         viewModelScope.launch {
             _uiState.value = RoomViewState.Loading
             try {
+                // T-30017 BUG-CHAT-WS: 在发 JoinRoom 信令之前建立 WS 连接
+                if (tokenManager != null && wsUrl.isNotBlank()) {
+                    val token = tokenManager.getToken()
+                    if (token != null) {
+                        val spec = RoomSocketRequestFactory.create(
+                            baseWsUrl = wsUrl,
+                            session = RoomSocketSession(
+                                accessToken = token,
+                                joinTicket = roomId
+                            )
+                        )
+                        wsClient.connect(spec)
+                    } else {
+                        _uiState.value = RoomViewState.Error("No auth token")
+                        return@launch
+                    }
+                }
                 val snapshot = roomSnapshotRepository.getRoomSnapshot(roomId)
                 _uiState.value = RoomViewState.Success(snapshot.toRoomUiState())
                 // T-30043: 进房后处理公告弹窗逻辑
@@ -1130,6 +1166,8 @@ class RoomViewModelFactory(
     private val kickCooldownStore: KickCooldownStore = InMemoryKickCooldownStore(),
     private val announcementSeenStore: AnnouncementSeenStore = InMemoryAnnouncementSeenStore(),
     private val micPermissionChecker: IMicPermissionChecker = AlwaysGrantedMicPermissionChecker(),
+    private val tokenManager: ITokenManager? = null,
+    private val wsUrl: String = "",
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T =
@@ -1141,6 +1179,8 @@ class RoomViewModelFactory(
             kickCooldownStore      = kickCooldownStore,
             announcementSeenStore  = announcementSeenStore,
             micPermissionChecker   = micPermissionChecker,
+            tokenManager           = tokenManager,
+            wsUrl                  = wsUrl,
         ) as T
 }
 

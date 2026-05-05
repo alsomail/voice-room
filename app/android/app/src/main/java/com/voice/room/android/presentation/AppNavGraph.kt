@@ -155,6 +155,8 @@ fun AppNavGraph(appContainer: AppContainer) {
                     roomSnapshotRepository = appContainer.roomSnapshotRepository,
                     kickCooldownStore      = appContainer.kickCooldownStore,
                     announcementSeenStore  = appContainer.announcementSeenStore,
+                    tokenManager           = appContainer.tokenManager,
+                    wsUrl                  = appContainer.environment.wsUrl,
                 )
             )
             val giftPanelViewModel: GiftPanelViewModel = viewModel(

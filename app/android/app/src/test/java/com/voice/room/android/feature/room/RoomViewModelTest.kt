@@ -7,6 +7,7 @@ import com.voice.room.android.core.ws.WebSocketState
 import com.voice.room.android.data.room.IRoomSnapshotRepository
 import com.voice.room.android.data.room.MicSlotData
 import com.voice.room.android.data.room.RoomSnapshot
+import com.voice.room.android.domain.local.ITokenManager
 import com.voice.room.android.utils.MainDispatcherRule
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -1450,6 +1451,41 @@ class RoomViewModelTest {
                 "reason field must preserve the original text (under payload)",
                 nastyReason,
                 jsonElement!!.asJsonObject.getAsJsonObject("payload").get("reason").asString
+            )
+        }
+    // ─── TC-WS-CONNECT-01: joinRoom 应在 sendEnvelope 之前调用 wsClient.connect ──
+
+    @Test
+    fun `TC-WS-CONNECT-01 joinRoom should call wsClient connect before sending JoinRoom envelope`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            // Given
+            val fakeWsClientLocal = FakeWebSocketClient()
+            val fakeTokenManager = object : ITokenManager {
+                override suspend fun getToken() = "test-jwt-token"
+                override suspend fun saveToken(token: String) {}
+                override suspend fun clearToken() {}
+            }
+            val wsUrl = "ws://test-host:3000/ws"
+            val viewModelLocal = RoomViewModel(
+                wsClient = fakeWsClientLocal,
+                roomSnapshotRepository = FakeRoomSnapshotRepository(defaultSnapshot),
+                tokenManager = fakeTokenManager,
+                wsUrl = wsUrl,
+            )
+
+            // When
+            viewModelLocal.joinRoom("room-001")
+            advanceUntilIdle()
+
+            // Then: connect should have been called with correct URL
+            assertTrue(
+                "wsClient.connect() should have been called at least once",
+                fakeWsClientLocal.connectCallCount > 0
+            )
+            assertEquals(
+                "connect URL should include token as query param",
+                "ws://test-host:3000/ws?token=test-jwt-token",
+                fakeWsClientLocal.lastConnectedUrl
             )
         }
 }

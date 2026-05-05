@@ -29,6 +29,20 @@ class FakeWebSocketClient : IWebSocketClient {
     val sentMessages = mutableListOf<String>()
 
     /**
+     * [connect] 被调用的次数（TC-WS-CONNECT-01 跟踪）。
+     *
+     * 每次 [connect] 调用均自增，测试可断言 connect 被调用了至少一次。
+     */
+    var connectCallCount = 0
+
+    /**
+     * 最近一次 [connect] 调用时传入的 URL（TC-WS-CONNECT-01 跟踪）。
+     *
+     * 对应 [RoomSocketRequestSpec.url]；测试可校验 token 被正确追加到查询参数。
+     */
+    var lastConnectedUrl: String? = null
+
+    /**
      * 注入发送异常（T-30016 SM-05 测试用）。
      *
      * 设置后，下一次 [send] 调用将抛出该异常，模拟网络发送失败场景。
@@ -39,6 +53,8 @@ class FakeWebSocketClient : IWebSocketClient {
     // ─── IWebSocketClient ─────────────────────────────────────────────────────
 
     override suspend fun connect(spec: RoomSocketRequestSpec) {
+        connectCallCount++
+        lastConnectedUrl = spec.url
         _state.value = WebSocketState.Connecting
         _state.value = WebSocketState.Connected
     }
