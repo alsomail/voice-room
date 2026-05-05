@@ -1,0 +1,54 @@
+{
+  "generatedAt": "2026-05-05T15:29:37.534Z",
+  "tdsFilesScanned": 143,
+  "bindingsFound": 9,
+  "p0Errors": [
+    {
+      "level": "P0",
+      "type": "MISSING_CLIENT_CALL",
+      "message": "Client call not found for endpoint \"SendMessage\" (expected: app/android/app/src/main/java/com/voice/room/android/feature/room/RoomViewModel.kt::sendMessage)",
+      "tdsFile": "/Users/yuanye/myWork/voice-room/doc/tds/android/T-30054.md",
+      "binding": {
+        "index": 1,
+        "protocolType": "WS C→S",
+        "endpoint": "SendMessage",
+        "clientFile": "app/android/app/src/main/java/com/voice/room/android/feature/room/RoomViewModel.kt",
+        "clientFunction": "sendMessage",
+        "serverFile": "app/server/src/room/handler/chat.rs",
+        "serverFunction": "handle_send_message",
+        "protocolAnchor": "websocket_signals.md §6.8.1",
+        "isPrimary": true,
+        "sourceTds": "/Users/yuanye/myWork/voice-room/doc/tds/android/T-30054.md"
+      },
+      "serverRef": {
+        "file": "/Users/yuanye/myWork/voice-room/app/server/src/room/handler/mod.rs",
+        "line": 18
+      }
+    },
+    {
+      "level": "P0",
+      "type": "MISSING_CLIENT_CALL",
+      "message": "Client call not found for endpoint \"SendMessage\" (expected: app/android/app/src/main/java/com/voice/room/android/feature/room/RoomViewModel.kt::sendMessage)",
+      "tdsFile": "/Users/yuanye/myWork/voice-room/doc/tds/server/T-00047.md",
+      "binding": {
+        "index": 1,
+        "protocolType": "WS C→S",
+        "endpoint": "SendMessage",
+        "clientFile": "app/android/app/src/main/java/com/voice/room/android/feature/room/RoomViewModel.kt",
+        "clientFunction": "sendMessage",
+        "serverFile": "app/server/src/room/handler/chat.rs",
+        "serverFunction": "handle_send_message",
+        "protocolAnchor": "websocket_signals.md §6.8.1",
+        "isPrimary": true,
+        "sourceTds": "/Users/yuanye/myWork/voice-room/doc/tds/server/T-00047.md"
+      },
+      "serverRef": {
+        "file": "/Users/yuanye/myWork/voice-room/app/server/src/room/handler/mod.rs",
+        "line": 18
+      }
+    }
+  ],
+  "p1Warnings": [],
+  "p2Info": [],
+  "shouldExit": true
+}
