@@ -41,6 +41,7 @@ import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.voice.room.android.R
 import com.voice.room.android.core.theme.MenaColors
 
 /**
