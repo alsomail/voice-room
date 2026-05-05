@@ -1,5 +1,12 @@
 package com.voice.room.android.feature.room
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.util.Log
+import android.widget.Toast
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,16 +18,22 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import android.util.Log
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.text.style.TextAlign
@@ -94,14 +107,24 @@ fun ChatMessageList(
  * T-30025: 昵称色改为 MenaColors.Primary (#D4AF37 金色)
  * T-30052: 内容外包 Surface 气泡（圆角 + MenaColors.ChatBubble 背景 + padding），
  *          并加 testTag("chat_bubble") 供 Midscene 视觉 AI / 测试识别。
+ * T-30053: 长按弹出 DropdownMenu 含「复制」选项，点击后写入 ClipboardManager + Toast
  *          可见性 internal 以便同模块 androidTest 直接调用。
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun UserMessageItem(
     message: ChatMessageUi,
     modifier: Modifier = Modifier,
 ) {
-    Row(modifier = modifier) {
+    val context = LocalContext.current
+    var showMenu by remember { mutableStateOf(false) }
+
+    Box(
+        modifier = modifier.combinedClickable(
+            onClick = {},
+            onLongClick = { showMenu = true },
+        ),
+    ) {
         Column {
             if (message.senderNickname != null) {
                 Text(
@@ -123,6 +146,26 @@ internal fun UserMessageItem(
                     style = MaterialTheme.typography.bodyMedium,
                 )
             }
+        }
+
+        DropdownMenu(
+            expanded = showMenu,
+            onDismissRequest = { showMenu = false },
+            modifier = Modifier.semantics { contentDescription = "chat_msg_long_press_menu" },
+        ) {
+            DropdownMenuItem(
+                text = { Text("复制") },
+                onClick = {
+                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    val clip = ClipData.newPlainText("message", message.content)
+                    clipboard.setPrimaryClip(clip)
+                    Toast.makeText(context, "已复制", Toast.LENGTH_SHORT).show()
+                    showMenu = false
+                },
+                modifier = Modifier
+                    .testTag("chat_msg_copy")
+                    .semantics { contentDescription = "chat_msg_copy" },
+            )
         }
     }
 }
