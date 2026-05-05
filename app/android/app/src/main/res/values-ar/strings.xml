@@ -88,6 +88,10 @@
     <string name="hall_ranking_action">المتصدّرون</string>
     <string name="hall_search_action">بحث</string>
 
+    <!-- ─── الوحدة 3: قائمة النسخ عند الضغط المطوّل (T-30053) ─────────────── -->
+    <string name="chat_msg_copy">نسخ</string>
+    <string name="chat_msg_copy_success">تم النسخ</string>
+
     <!-- داخل الغرفة -->
     <string name="room_input_placeholder">اكتب شيئاً…</string>
     <string name="room_send_action">إرسال</string>

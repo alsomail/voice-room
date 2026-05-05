@@ -3,6 +3,7 @@ package com.voice.room.android.feature.room
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.os.Build
 import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -33,6 +34,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
@@ -154,12 +156,15 @@ internal fun UserMessageItem(
             modifier = Modifier.semantics { contentDescription = "chat_msg_long_press_menu" },
         ) {
             DropdownMenuItem(
-                text = { Text("复制") },
+                text = { Text(stringResource(R.string.chat_msg_copy)) },
                 onClick = {
                     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                     val clip = ClipData.newPlainText("message", message.content)
                     clipboard.setPrimaryClip(clip)
-                    Toast.makeText(context, "已复制", Toast.LENGTH_SHORT).show()
+                    // Android 13+(API 33 TIRAMISU) 系统会自动显示剪贴板提示，避免双重 Toast
+                    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+                        Toast.makeText(context, context.getString(R.string.chat_msg_copy_success), Toast.LENGTH_SHORT).show()
+                    }
                     showMenu = false
                 },
                 modifier = Modifier
