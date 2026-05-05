@@ -34,7 +34,7 @@
 
 | 协议类型 | 调用方法 | 客户端实调用方（文件:函数）| protocol/ 锚点 | 关联 Task | 服务端实现 |
 |----------|---------|----------------------------|---------------|-----------|------------|
-| _待 DoD 反向回填_ | _待回填_ | _待回填_ | _待回填_ | _待回填_ | _待回填_ |
+| WS C→S `SendMessage` ⭐ | `wsClient.sendEnvelope(type="SendMessage", payload=mapOf("content" to content), msgId=uuid)` | `feature/room/RoomViewModel.kt::sendMessage` | [websocket_signals.md §6.8.1](../../protocol/websocket_signals.md#681-sendmessagecs) | T-30054 | `server/src/room/handler/chat.rs::handle_send_message` |
 | _无（纯 UI）_ | _N/A_ | `feature/room/ChatMessageList.kt:UserMessageItem` | _N/A_ | T-30053 | _无（纯 Android UI 长按复制，不动协议）_ |
 
 ## 三、 当前能力全景与状态 (Capability Matrix)
