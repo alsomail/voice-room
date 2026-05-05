@@ -1,5 +1,5 @@
 # 全局代码审查报告: 模块9 — T-0000T/V 协议审计脚本 + 架构文档清理
-> **当前状态机**：负责人 [GlobalReview] | 状态 [⏳ In Review] | 修复轮次 [1/10]
+> **当前状态机**：负责人 [-] | 状态 [✅ Passed] | 修复轮次 [1/10]
 
 ---
 
@@ -205,3 +205,94 @@ P0 根本问题：ERE 括号未转义导致客户端 grep 全部静默失败，"
 *(文档头部状态机已更新为：`负责人 [TDD] | 状态 [❌ Failed] | 修复轮次 [1/10]`)*
 
 ---
+
+### 【第 2 轮审查】
+
+**@GlobalReview 审查意见：**
+
+> 审查执行时间：2026-05-06（复审）
+> 实际运行验证命令：`npx jest scripts/audit/ --no-coverage`、`npm run audit:protocol`、`.gitignore` grep、`ci.yml` grep、T-0000V 文件存在性及悬空引用核查
+> **所有 P0/P1 缺陷经独立命令验证，已完美修复。**
+
+---
+
+#### ✅ P0 修复验证（缺陷 1）— ERE grep 括号转义
+
+```bash
+# 验证命令
+grep -n "sendEnvelope\|GET|POST|apiClient" scripts/audit/protocol-binding-audit.ts
+# 命中行号与内容
+# 701: 'wsClient\\.send|wsClient\\.sendEnvelope|wsClient\\.sendMessage|\\.sendEnvelope\\('
+# 709: '@(GET|POST|PUT|DELETE|PATCH)\\('
+# 721: 'apiClient\\.(get|post|put|delete|patch|request)\\('
+```
+
+三处模式末尾均已修正为 `\\(`（TypeScript 字符串层），ERE 模式格式合法，`npm run audit:protocol` 输出：
+```
+Found 29 client grep results
+P0 Errors:   0
+✅ Audit PASSED: No P0 issues. 0 P1 warning(s).
+```
+
+#### ✅ P1 修复验证（缺陷 2）— NA_PATTERNS 补全
+
+```bash
+grep -n "纯.*文档清理\|不涉及.*跨端" scripts/audit/protocol-binding-audit.ts
+# 75:  /N\/A.*纯.*文档清理/,
+# 76:  /N\/A.*不涉及.*跨端/,
+```
+
+T-0000V 的 `N/A — 纯文档清理任务，不涉及跨端 API/WS 路径变更` 声明现已被正确识别：
+```
+npm run audit:protocol → Missing tables: 0 / T-0000V not flagged - OK
+```
+
+#### ✅ P1 修复验证（缺陷 3）— .gitignore 追加
+
+```bash
+grep -n "protocol-audit" .gitignore
+# 43:tests/protocol-audit/report.json
+# 44:tests/protocol-audit/report.md
+```
+
+两条忽略规则已正确写入，`git status tests/protocol-audit/` 不再显示 modified 文件。
+
+#### ✅ P1 修复验证（缺陷 4）— CI Pipeline 接入
+
+```bash
+grep -n "audit:protocol\|protocol-audit" .github/workflows/ci.yml
+# 61:  protocol-audit:
+# 76:        run: npm run audit:protocol
+```
+
+独立 job `protocol-audit` 已存在，包含 checkout / setup-node / npm ci / audit:protocol 四步，PR 触发时自动运行并阻断合并。
+
+#### ✅ 单元测试全量通过
+
+```
+Tests: 53 passed, 53 total  (exit code 0)
+```
+
+包含 TC-AUDIT-FIX-01 专项用例（ERE `|` 交替模式 + `-E` 标志断言），全部绿灯。
+
+#### ✅ T-0000V 验收标准全部通过（第 2 轮复核）
+
+| 验收标准 | 验证命令 | 结果 |
+|---------|---------|------|
+| AC-01: `doc/ARCHITECTURE.md` 不存在 | `[ ! -f doc/ARCHITECTURE.md ]` | ✅ PASS |
+| AC-02: ADR-0002 存在且完整 | `ls -la doc/adr/ADR-0002*.md` | ✅ 4849 字节 |
+| AC-03: §8.2 指向 protocol/index.md | `grep` 验证 | ✅ PASS（第 1 轮已确认） |
+| AC-04: 无悬空引用 | `grep -rn "doc/ARCHITECTURE\.md" ...` | ✅ 唯一命中为批次文件自身历史记录（非源码引用），PASS |
+
+#### ⚠️ P2 遗留（缺陷 5）— 合同文档命名仍不一致（未修复，但不影响通过）
+
+- **文件**：`doc/arch/infra/protocol-binding-audit.md:27-28`
+- **现状**：仍写 `report-YYYY-MM-DD.json` / `report-YYYY-MM-DD.md`（带日期戳），实际脚本输出无日期戳
+- **commit 94e12a5** 未触及此文件，P2 未修复
+- **判定**：P2 属文档层描述性误差，不影响脚本功能与 CI 门禁运行，不触发打回
+
+---
+
+**本轮结论**: ✅ 审查通过：全部 P0（1 项）和 P1（3 项）缺陷已由 commit `94e12a5` 完美修复，53/53 单测通过，`npm run audit:protocol` P0=0，CI 门禁正确接入，T-0000V 验收标准全部满足。唯一遗留 P2（合同文档命名）为低优先级文档勘误，建议后续迭代修复。
+
+*(文档头部状态机已更新为：`负责人 [-] | 状态 [✅ Passed] | 修复轮次 [1/10]`)*
