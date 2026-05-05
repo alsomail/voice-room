@@ -39,6 +39,6 @@
 |---------|--------|------|----------|----------|----------|-------------|----------|------------|----------|---------------------|------------------|----------------------|
 | **T-30005** | Android | Room | 大厅页 UI (Compose) [TDS](../tds/android/T-30005.md) | T-00008 | LazyVerticalGrid 展示房间列表 | 1. Coil 加载房主头像<br>2. 显示在线人数<br>3. 点击导航到房间页 | 6h | Dod | ✅ Done | [✅ Passed](../review/模块2-房间大厅与列表.md) | ✅ N/A | ✅ Released |
 | **T-30006** | Android | Room | 房间列表 ViewModel [TDS](../tds/android/T-30006.md) | T-00008, T-30005 | Paging3 分页加载 | 1. 下拉刷新<br>2. 上拉自动加载<br>3. 错误重试 | 5h | Dod | ✅ Done | [✅ Passed](../review/模块2-房间大厅与列表.md) | ✅ N/A | ✅ Released |
-| **T-30007** | Android | Room | 创建房间对话框 [TDS](../tds/android/T-30007.md) | T-00007 | BottomSheet 输入房间信息 | 1. 标题输入框<br>2. 房间类型选择<br>3. 创建成功导航到房间 | 4h | Dod | ✅ Done | [✅ Passed](../review/模块2-房间大厅与列表.md) | ⏭️ SKIP-OOS (无androidTest) · [report](../../tests/report-20260429-120907/SUMMARY.md) | ⏳ Pending |
+| **T-30007** | Android | Room | 创建房间对话框 [TDS](../tds/android/T-30007.md) | T-00007 | BottomSheet 输入房间信息 | 1. 标题输入框<br>2. 房间类型选择<br>3. 创建成功导航到房间 | 4h | Dod | ✅ Done | [✅ Passed](../review/模块2-房间大厅与列表.md) | ⏭️ SKIP-OOS (无androidTest) · [report](../../tests/report-20260429-120907/SUMMARY.md) | ✅ Released |
 
 ---

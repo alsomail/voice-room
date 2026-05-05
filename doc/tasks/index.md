@@ -1,6 +1,6 @@
 # Voice Room 开发任务清单
 
-> **版本**: v2.99  
+> **版本**: v3.02  
 > **更新日期**: 2026-05-05  
 > **任务总数**: 139 个 (基建: 4 + 14 + 3, App Server: 33 + 1 + 2, Admin Server: 16 + 1, Web: 14 + 1, Android: 45 + 1 + 1, E-07 15 + E-07.5 6 + E-10 18)  
 > **当前阶段**: Phase 1 - 核心营收闭环（E-07 + E-07.5 并行）→ Phase 1.5 E-10 房间治理 → Phase 1.6 E2E 测试基建 → **Phase 1.7 协议治理铁律落地**（Round 16 BUG-CHAT-WS 系统性根因 → 协议路径绑定 + 历史 TDS 全量回填 + 审计脚本）
@@ -12,6 +12,7 @@
 | 版本 | 日期 | 变更内容 |
 |------|------|---------|
 | _规则_ | — | 本表只记录**版本级摘要**（一行 ≤ 200 字符），具体 Review/审查/实跑证据请落到对应 [TDS](../tds/) 第五节【Review 意见】或对应模块审查批次 `doc/review/模块N-XXX.md`，**严禁**在本表堆叠详细审查记录。 |
+| **v3.02** | **2026-05-06** | 收尾归档：SKIP-OOS×6 Overall Gate→✅ Released；T-0000T/V QA Gate→✅ N/A；版本头同步v3.02。 |
 | **v3.01** | **2026-05-06** | [T-0000V] DoD — ARCHITECTURE.md物理删除，ADR-0002新增协议治理铁律，§8.2明确指向protocol/index.md单一事实源，模块9进度20/20。 |
 | **v3.00** | **2026-05-06** | [T-0000U] DoD — 历史TDS协议路径绑定表全量回填完成，P1 MISSING_BINDING_TABLE从139降至0，N/A声明140个，模块9进度19/20。 |
 | **v2.99** | **2026-05-05** | QA Gate 全量回写：所有 Done+ReviewPassed 且无专属 E2E 测试用例的 Task，QA Gate `-` → `✅ N/A`，Overall Gate `⏳ Pending` → `✅ Released`；影响约 120+ Task。 |
@@ -220,9 +221,9 @@
 | [T-20001](../tds/web/T-20001.md) | T-10002 | Dod | ✅ Done | [✅ Passed](../review/模块1-用户认证系统.md) | ✅ N/A | ✅ Released |
 | [T-20002](../tds/web/T-20002.md) | T-10002, T-20001 | Dod | ✅ Done | [✅ Passed](../review/模块1-用户认证系统.md) | ✅ N/A | ✅ Released |
 | [T-30001](../tds/android/T-30001.md) | T-00002 | Dod | ✅ Done | [✅ Passed](../review/模块1-用户认证系统.md) | ✅ N/A | ✅ Released |
-| [T-30002](../tds/android/T-30002.md) | T-00003, T-30001 | Dod | ✅ Done | [✅ Passed](../review/模块1-用户认证系统.md) | ⏭️ SKIP-OOS | ⏳ Pending |
-| [T-30003](../tds/android/T-30003.md) | T-00004, T-30002 | Dod | ✅ Done | [✅ Passed](../review/模块1-用户认证系统.md) | ⏭️ SKIP-OOS | ⏳ Pending |
-| [T-30004](../tds/android/T-30004.md) | T-00005, T-30003 | Dod | ✅ Done | [✅ Passed](../review/模块1-用户认证系统.md) | ⏭️ SKIP-OOS | ⏳ Pending |
+| [T-30002](../tds/android/T-30002.md) | T-00003, T-30001 | Dod | ✅ Done | [✅ Passed](../review/模块1-用户认证系统.md) | ⏭️ SKIP-OOS | ✅ Released |
+| [T-30003](../tds/android/T-30003.md) | T-00004, T-30002 | Dod | ✅ Done | [✅ Passed](../review/模块1-用户认证系统.md) | ⏭️ SKIP-OOS | ✅ Released |
+| [T-30004](../tds/android/T-30004.md) | T-00005, T-30003 | Dod | ✅ Done | [✅ Passed](../review/模块1-用户认证系统.md) | ⏭️ SKIP-OOS | ✅ Released |
 
 #### [模块 2: 房间大厅与列表 (Room Hall)](./模块2-房间大厅与列表%20(Room%20Hall).md)
 
@@ -241,7 +242,7 @@
 | [T-20005](../tds/web/T-20005.md) | T-10005, T-20004 | Dod | ✅ Done | [✅ Passed](../review/模块2-房间大厅与列表.md) | ✅ N/A | ✅ Released |
 | [T-30005](../tds/android/T-30005.md) | T-00008 | Dod | ✅ Done | [✅ Passed](../review/模块2-房间大厅与列表.md) | ✅ N/A | ✅ Released |
 | [T-30006](../tds/android/T-30006.md) | T-00008, T-30005 | Dod | ✅ Done | [✅ Passed](../review/模块2-房间大厅与列表.md) | ✅ N/A | ✅ Released |
-| [T-30007](../tds/android/T-30007.md) | T-00007 | Dod | ✅ Done | [✅ Passed](../review/模块2-房间大厅与列表.md) | ⏭️ SKIP-OOS | ⏳ Pending |
+| [T-30007](../tds/android/T-30007.md) | T-00007 | Dod | ✅ Done | [✅ Passed](../review/模块2-房间大厅与列表.md) | ⏭️ SKIP-OOS | ✅ Released |
 
 #### [模块 3: 房间内核心功能 (In-Room Core)](./模块3-房间内核心功能%20(In-Room%20Core).md)
 
@@ -348,8 +349,8 @@
 | [T-00023](../tds/server/T-00023.md) | T-00022, T-00016 | Dod | ✅ Done | [✅ Passed](../review/模块7-埋点与观测性基建.md) | ✅ N/A | ✅ Released |
 | [T-10015](../tds/adminServer/T-10015.md) | T-00022, T-10012 | Dod | ✅ Done | [✅ Passed](../review/模块7-埋点与观测性基建.md) | ✅ N/A | ✅ Released |
 | [T-20013](../tds/web/T-20013.md) | T-10015, T-20007 | Dod | ✅ Done | [✅ Passed](../review/模块7-埋点与观测性基建.md) | ✅ N/A | ✅ Released |
-| [T-30034](../tds/android/T-30034.md) | T-0000D | Dod | ✅ Done | [✅ Passed](../review/模块7-埋点与观测性基建.md) | ⏭️ SKIP-OOS | ⏳ Pending |
-| [T-30035](../tds/android/T-30035.md) | T-30034, T-00022, T-00023, T-30002 | Dod | ✅ Done | [✅ Passed](../review/模块7-埋点与观测性基建.md) | ⏭️ SKIP-OOS | ⏳ Pending |
+| [T-30034](../tds/android/T-30034.md) | T-0000D | Dod | ✅ Done | [✅ Passed](../review/模块7-埋点与观测性基建.md) | ⏭️ SKIP-OOS | ✅ Released |
+| [T-30035](../tds/android/T-30035.md) | T-30034, T-00022, T-00023, T-30002 | Dod | ✅ Done | [✅ Passed](../review/模块7-埋点与观测性基建.md) | ⏭️ SKIP-OOS | ✅ Released |
 
 ---
 
@@ -406,6 +407,6 @@
 | [T-10020](../tds/adminServer/T-10020.md) | T-0000E | Dod | ✅ Done | [✅ Passed](../review/模块9-E2E测试基建.md) | ✅ N/A | ✅ Released |
 | [T-20020](../tds/web/T-20020.md) | T-0000E | Dod | ✅ Done | [✅ Passed](../review/模块9-E2E测试基建.md) | ✅ N/A | ✅ Released |
 | [T-30050](../tds/android/T-30050.md) | T-0000E | Dod | ✅ Done | [✅ Passed](../review/模块9-E2E测试基建.md) | ✅ N/A | ✅ Released |
-| [T-0000T](../tds/infra/T-0000T.md) | T-0000R | Dod | ✅ Done | - | - | ⏳ Pending |
+| [T-0000T](../tds/infra/T-0000T.md) | T-0000R | Dod | ✅ Done | - | ✅ N/A | ⏳ Pending |
 | [T-0000U](../tds/infra/T-0000U.md) | T-0000T | Dod | ✅ Done | ✅ Passed | ✅ N/A | ✅ Released |
-| [T-0000V](../tds/infra/T-0000V.md) | T-0000U | Dod | ✅ Done | - | - | ⏳ Pending |
+| [T-0000V](../tds/infra/T-0000V.md) | T-0000U | Dod | ✅ Done | - | ✅ N/A | ⏳ Pending |
