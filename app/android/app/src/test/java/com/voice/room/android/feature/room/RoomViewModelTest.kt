@@ -1583,6 +1583,110 @@ class RoomViewModelTest {
                 fakeWsClientLocal.connectCallCount
             )
         }
+
+    // ─── TC-WS-CONNECT-04: Connecting 期间的幂等性 ────────────────────────────
+    //
+    // 问题：旧守卫只检查 Connected 状态，Connecting 期间重复调用 joinRoom 同房间时
+    //       没有被拦截，导致 double-connect（第二个 connect() 调用被发出）。
+    //
+    // 修复：将守卫扩展到 Connecting / Message 状态，或使用 joinJob 追踪。
+    //
+    // [RED]  当前代码：第二次调用时 state=Connecting（非 Connected），守卫不拦截 →
+    //        connectCallCount=2 → 断言 FAIL。
+    // [GREEN] 修复后：守卫扩展包含 Connecting → 第二次调用直接返回 → connectCallCount=1。
+
+    @Test
+    fun `TC-WS-CONNECT-04 joinRoom called again while still connecting should not double-connect`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            // Given: FakeWebSocketClient with autoConnect=false, connect() stays at Connecting
+            val fakeWsClientLocal = FakeWebSocketClient(autoConnect = false)
+            val fakeTokenManager = object : ITokenManager {
+                override suspend fun getToken() = "test-jwt-token"
+                override suspend fun saveToken(token: String) {}
+                override suspend fun clearToken() {}
+            }
+            val viewModelLocal = RoomViewModel(
+                wsClient = fakeWsClientLocal,
+                roomSnapshotRepository = FakeRoomSnapshotRepository(defaultSnapshot),
+                tokenManager = fakeTokenManager,
+                wsUrl = "ws://test-host:3000/ws",
+            )
+
+            // When: first joinRoom starts (WS transitions to Connecting but does not complete)
+            viewModelLocal.joinRoom("room-001")
+            runCurrent()  // let the coroutine run until it suspends at state.first{}
+
+            // Sanity check: state should be Connecting (not Connected)
+            assertTrue(
+                "WS state should be Connecting after first joinRoom with autoConnect=false",
+                fakeWsClientLocal.state.value is WebSocketState.Connecting
+            )
+
+            // When: second joinRoom called while WS is still Connecting (same room)
+            viewModelLocal.joinRoom("room-001")
+            runCurrent()
+
+            // Then: connect should only have been called once (idempotent guard covers Connecting)
+            assertEquals(
+                "connect() must be called exactly once even if joinRoom is repeated during Connecting",
+                1,
+                fakeWsClientLocal.connectCallCount
+            )
+        }
+
+    // ─── TC-WS-CONNECT-05: 切换房间时应先 disconnect 旧连接 ───────────────────
+    //
+    // 问题：joinRoom("room-002") 之前没有调用 disconnect("room-001")，
+    //       导致旧 socket listener 继续回调，污染新房间状态。
+    //
+    // 修复：在 joinRoom() 入口，若房间 ID 不同，先 cancel joinJob 并调用 disconnect()。
+    //
+    // [RED]  当前代码无 disconnect 调用 → disconnectCallCount=0 → 断言 FAIL。
+    // [GREEN] 修复后：切换房间时先 disconnect → disconnectCallCount>0 → PASS。
+
+    @Test
+    fun `TC-WS-CONNECT-05 joinRoom with different roomId should disconnect previous connection`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            // Given
+            val fakeWsClientLocal = FakeWebSocketClient()
+            val fakeTokenManager = object : ITokenManager {
+                override suspend fun getToken() = "test-jwt-token"
+                override suspend fun saveToken(token: String) {}
+                override suspend fun clearToken() {}
+            }
+            val viewModelLocal = RoomViewModel(
+                wsClient = fakeWsClientLocal,
+                roomSnapshotRepository = FakeRoomSnapshotRepository(defaultSnapshot),
+                tokenManager = fakeTokenManager,
+                wsUrl = "ws://test-host:3000/ws",
+            )
+
+            // When: join room-001 first (completes fully → state=Connected)
+            viewModelLocal.joinRoom("room-001")
+            advanceUntilIdle()
+
+            assertEquals(
+                "connectCallCount should be 1 after joining room-001",
+                1,
+                fakeWsClientLocal.connectCallCount
+            )
+
+            // When: switch to room-002
+            viewModelLocal.joinRoom("room-002")
+            advanceUntilIdle()
+
+            // Then: disconnect must have been called for the old room-001 connection
+            assertTrue(
+                "disconnect() must be called when switching from room-001 to room-002",
+                fakeWsClientLocal.disconnectCallCount > 0
+            )
+            // And: connect should have been called twice (once per room)
+            assertEquals(
+                "connect() should be called exactly twice (room-001 then room-002)",
+                2,
+                fakeWsClientLocal.connectCallCount
+            )
+        }
 }
 
 // ─── Test Doubles ─────────────────────────────────────────────────────────────

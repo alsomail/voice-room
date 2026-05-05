@@ -31,6 +31,7 @@ import com.voice.room.android.feature.room.governance.Clock
 import com.voice.room.android.feature.room.governance.SelfGovernanceState
 import com.voice.room.android.feature.room.governance.SystemClock
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -183,6 +184,13 @@ class RoomViewModel(
     /** 当前登录用户 ID，由 [joinRoom] 传入，用于区分上麦/下麦事件是否属于自己 */
     private var currentUserId: String = ""
 
+    /**
+     * 当前进行中的 joinRoom 协程 Job（T-30017 Round13 TC-WS-CONNECT-04/05）。
+     *
+     * 用于切换房间时取消旧的 join 协程，防止旧房间的 WS 操作污染新房间状态。
+     */
+    private var joinJob: Job? = null
+
     /** 已处理过的消息 ID 集合，用于去重 */
     // TODO(T-30010): seenMsgIds 无界增长，长时间在线时内存持续上升。
     //                MVP 可接受；后续应改为 LRU 固定上限（如 maxSize=1000）或定期清理。
@@ -217,14 +225,27 @@ class RoomViewModel(
      * @param accessToken 密码房访问令牌（[HallViewModel.verifyPassword] 返回，普通房传 null）
      */
     fun joinRoom(roomId: String, userId: String = "", accessToken: String? = null) {
-        // T-30017 Round13 FIX-2: 幂等保护 — 若已连接到同一房间则跳过重复连接。
-        // 防止重复调用 joinRoom() 时 double-connect（旧 socket 未关闭 + 新 socket 被创建）。
-        if (currentRoomId == roomId && wsClient.state.value is WebSocketState.Connected) {
+        // T-30017 Round13 FIX-2 (完整版): 幂等保护 — 同房间且处于活跃连接状态时跳过。
+        // 覆盖 Connected（已连接）、Connecting（握手中）、Message（收到消息时的瞬态）三种状态，
+        // 防止重复调用 joinRoom() 时 double-connect。
+        val currentWsState = wsClient.state.value
+        if (currentRoomId == roomId && (
+                    currentWsState is WebSocketState.Connected ||
+                    currentWsState is WebSocketState.Connecting ||
+                    currentWsState is WebSocketState.Message
+                    )) {
             return
         }
+
+        // T-30017 Round13 FIX-3: 切换房间时先断开旧连接，防止旧 socket listener 污染新房间状态。
+        if (currentRoomId != null && currentRoomId != roomId) {
+            joinJob?.cancel()
+            wsClient.disconnect()
+        }
+
         currentRoomId = roomId
         currentUserId = userId
-        viewModelScope.launch {
+        joinJob = viewModelScope.launch {
             _uiState.value = RoomViewState.Loading
             try {
                 // T-30017 BUG-CHAT-WS: 在发 JoinRoom 信令之前建立 WS 连接

@@ -54,6 +54,13 @@ class FakeWebSocketClient(
     var lastConnectedUrl: String? = null
 
     /**
+     * [disconnect] 被调用的次数（TC-WS-CONNECT-05 跟踪）。
+     *
+     * 每次 [disconnect] 调用均自增，测试可断言旧连接在切换房间时被主动断开。
+     */
+    var disconnectCallCount = 0
+
+    /**
      * 注入发送异常（T-30016 SM-05 测试用）。
      *
      * 设置后，下一次 [send] 调用将抛出该异常，模拟网络发送失败场景。
@@ -89,6 +96,7 @@ class FakeWebSocketClient(
     }
 
     override fun disconnect() {
+        disconnectCallCount++
         _state.value = WebSocketState.Disconnected("manual")
     }
 
