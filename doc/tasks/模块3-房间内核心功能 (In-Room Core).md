@@ -63,5 +63,6 @@
 | **T-30015** | Android | Chat | 输入框组件 [TDS](../tds/android/T-30015.md) | T-30014 | TextField + 发送按钮 | 1. 软键盘弹出布局调整<br>2. 回车发送<br>3. 空消息禁用发送 | 3h | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | - | ⏳ Pending |
 | **T-30016** | Android | Chat | 发送消息逻辑 [TDS](../tds/android/T-30016.md) | T-00016, T-30015 | 发送 SendMessage | 1. 发送中禁用<br>2. 成功清空输入<br>3. 失败重试 | 3h | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | - | ⏳ Pending |
 | **T-30017** | Android | Chat | 接收消息逻辑 [TDS](../tds/android/T-30017.md) | T-00016, T-30014 | 监听服务端消息 | 1. 实时追加到列表<br>2. 去重（msg_id）<br>3. 自动滚动 | 3h | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | - | ⏳ Pending |
+| **T-30051** | Android | Chat | Android WS 接收链路可观测性增强（BUG-CHAT-WS-ANDROID-SILENT）[TDS](../tds/android/T-30051.md) | T-30017 | 在 WS 接收链路 5 个关键节点注入 Log 日志（onMessage/parse/dispatch/rvm/ui），不修改业务逻辑 | 1. dex strings 含至少 3 条日志字符串<br>2. FakeWS 推消息后 5 节点日志均触发<br>3. 日志不含消息正文 PII | 2h | Plan | In Progress | - | - | ⏳ Pending |
 
 ---
