@@ -72,6 +72,8 @@ const NA_PATTERNS: RegExp[] = [
   /N\/A.*仅.*内部.*不动协议/,
   /N\/A.*本\s*Task.*为.*基础设施/,
   /N\/A.*纯.*测试/,
+  /N\/A.*纯.*文档清理/,
+  /N\/A.*不涉及.*跨端/,
 ];
 
 /** 标准化的「无客户端」声明标识词 */
@@ -696,7 +698,7 @@ export function grepClientCalls(repoRoot: string): GrepResult[] {
   if (fs.existsSync(androidDir)) {
     results.push(
       ...runGrep(
-        'wsClient\\.send|wsClient\\.sendEnvelope|wsClient\\.sendMessage|\\.sendEnvelope(',
+        'wsClient\\.send|wsClient\\.sendEnvelope|wsClient\\.sendMessage|\\.sendEnvelope\\(',
         [androidDir],
         ['*.kt']
       )
@@ -704,7 +706,7 @@ export function grepClientCalls(repoRoot: string): GrepResult[] {
     // Retrofit HTTP 调用
     results.push(
       ...runGrep(
-        '@(GET|POST|PUT|DELETE|PATCH)(',
+        '@(GET|POST|PUT|DELETE|PATCH)\\(',
         [androidDir],
         ['*.kt']
       )
@@ -716,7 +718,7 @@ export function grepClientCalls(repoRoot: string): GrepResult[] {
   if (fs.existsSync(webDir)) {
     results.push(
       ...runGrep(
-        'apiClient\\.(get|post|put|delete|patch|request)(',
+        'apiClient\\.(get|post|put|delete|patch|request)\\(',
         [webDir],
         ['*.ts', '*.tsx']
       )

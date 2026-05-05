@@ -39,6 +39,10 @@ midscene_run/
 scripts/dev/.seed-output.env
 scripts/dev/.seed.lock
 
+# Protocol audit reports (generated, not committed)
+tests/protocol-audit/report.json
+tests/protocol-audit/report.md
+
 # Round 7 残留 E2E 脚本（勿删，历史参考）
 tests/scripts/AND/round7/
 
