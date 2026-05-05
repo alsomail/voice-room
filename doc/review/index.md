@@ -22,3 +22,4 @@
 | [模块 8 房间主权与管理员体系](./模块8-房间主权与管理员体系.md) | 模块 8 (18 任务) | ✅ Passed | - | 1/10 | 2026-04-26 通过（含 1 轮 P0×4+P1×3+P2×1 修复 / 3 子批） |
 | [模块 9 E2E 测试基建](./模块9-E2E测试基建.md) | 模块 9 (13 主任务 + 4 follow-up：T-0000N/O/P/Q) | ✅ Passed | - | 1/10 × 4 批次 | 2026-04-29 全闭环（批次 A 12 任务 / 批次 B T-0000M / 批次 C T-0000N+O `/health` & r08 perf flake / 批次 D T-0000P+Q Midscene 注入 & 端口冲突 preflight） |
 | [模块3-6-8-架构阻塞修复](./模块3-6-8-架构阻塞修复.md) | 跨模块 3/6/8 (T-00041/42/43/44) | ✅ Passed | - | 1/10 | 2026-04-29 通过（QA 战报反向拆出 6 阻塞业务侧 4 个合并复核：WS 心跳超时 / Admin 强制断连 Redis pub-sub / chat_messages 持久化与 _sqlx_app_migrations 强制契约 / Gift HTTP 复用 service；3 条 P3 观察不阻断） |
+| [模块3-BUG-CHAT-WS修复链](./模块3-BUG-CHAT-WS修复链.md) | 模块 3 Chat (T-00045/46 + T-30051/52) | ✅ Passed | - | 1/10 | 2026-05-05 通过（E2E Round 14~22 驱动：REST 广播端点 / WS 广播可观测性 / Android WS 接收链路可观测性 / UI 气泡样式；P0=0/P1=0/P2=0/P3=1 一轮过） |
