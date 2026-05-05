@@ -1,0 +1,2 @@
+# 报告输出目录
+# report.json 和 report.md 由 npm run audit:protocol 运行时生成，不入 git。

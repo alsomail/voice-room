@@ -18,7 +18,9 @@
     "e2e:prod-smoke": "cross-env E2E_PROFILE=prod playwright test --grep \"@prod-safe\"",
     "db:seed": "cross-env E2E_PROFILE=local E2E_ALLOW_WRITES=1 bash scripts/dev/seed-e2e.sh",
     "db:reset": "cross-env E2E_PROFILE=local bash scripts/dev/reset-e2e.sh",
-    "preflight": "bash scripts/dev/preflight.sh"
+    "preflight": "bash scripts/dev/preflight.sh",
+    "audit:protocol": "npx ts-node --project tsconfig.scripts.json scripts/audit/protocol-binding-audit.ts",
+    "test:audit": "jest scripts/audit/"
   },
   "repository": {
     "type": "git",
@@ -32,12 +34,17 @@
   },
   "homepage": "https://github.com/alsomail/voice-room#readme",
   "devDependencies": {
+    "@jest/globals": "^30.3.0",
     "@midscene/android": "^1.7.5",
     "@midscene/web": "^1.7.5",
     "@playwright/test": "^1.59.1",
+    "@types/jest": "^30.0.0",
     "@types/node": "^25.6.0",
     "cross-env": "^7.0.3",
     "dotenv": "^17.4.2",
+    "jest": "^30.3.0",
+    "ts-jest": "^29.4.9",
+    "ts-node": "^10.9.2",
     "typescript": "^5.6.3"
   }
 }
