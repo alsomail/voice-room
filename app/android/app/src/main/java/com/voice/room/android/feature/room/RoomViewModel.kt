@@ -111,6 +111,9 @@ class RoomViewModel(
 
         /** T-30051: WS 接收链路日志统一 TAG。 */
         private const val TAG = "RoomViewModel"
+
+        /** T-30054: 与服务端 handle_send_message chars().count() <= 500 对齐的客户端防御边界。 */
+        internal const val MAX_MESSAGE_LENGTH = 500
     }
 
     // ─── 对外暴露的状态 ────────────────────────────────────────────────────────
@@ -462,6 +465,11 @@ class RoomViewModel(
      */
     fun sendMessage(content: String) {
         if (content.isBlank()) return
+        // PROTO-BINDING: wsClient.sendEnvelope SendMessage — T-30054
+        if (content.length > MAX_MESSAGE_LENGTH) {
+            _events.trySend(RoomEvent.ShowToast("消息不能超过${MAX_MESSAGE_LENGTH}字符"))
+            return
+        }
         if (currentRoomId == null) return
         // T-30044: 禁言守卫 — 禁言中不允许发送消息
         if (_selfGovernanceState.value.isChatMuted(clock.currentTimeMillis())) {
