@@ -402,6 +402,6 @@
 | [T-10020](../tds/adminServer/T-10020.md) | T-0000E | Dod | ✅ Done | [✅ Passed](../review/模块9-E2E测试基建.md) | - | ⏳ Pending |
 | [T-20020](../tds/web/T-20020.md) | T-0000E | Dod | ✅ Done | [✅ Passed](../review/模块9-E2E测试基建.md) | - | ⏳ Pending |
 | [T-30050](../tds/android/T-30050.md) | T-0000E | Dod | ✅ Done | [✅ Passed](../review/模块9-E2E测试基建.md) | - | ⏳ Pending |
-| [T-0000T](../tds/infra/T-0000T.md) | T-0000R | TDD | In Progress | - | - | ⏳ Pending |
+| [T-0000T](../tds/infra/T-0000T.md) | T-0000R | Review | In Progress | - | - | ⏳ Pending |
 | T-0000U | T-0000T | Plan | Todo | - | - | ⏳ Pending |
 | T-0000V | T-0000U | Plan | Todo | - | - | ⏳ Pending |
