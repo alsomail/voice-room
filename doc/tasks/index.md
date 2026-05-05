@@ -1,6 +1,6 @@
 # Voice Room 开发任务清单
 
-> **版本**: v2.87  
+> **版本**: v2.88  
 > **更新日期**: 2026-05-05  
 > **任务总数**: 139 个 (基建: 4 + 14 + 3, App Server: 33 + 1 + 2, Admin Server: 16 + 1, Web: 14 + 1, Android: 45 + 1 + 1, E-07 15 + E-07.5 6 + E-10 18)  
 > **当前阶段**: Phase 1 - 核心营收闭环（E-07 + E-07.5 并行）→ Phase 1.5 E-10 房间治理 → Phase 1.6 E2E 测试基建 → **Phase 1.7 协议治理铁律落地**（Round 16 BUG-CHAT-WS 系统性根因 → 协议路径绑定 + 历史 TDS 全量回填 + 审计脚本）
@@ -12,6 +12,7 @@
 | 版本 | 日期 | 变更内容 |
 |------|------|---------|
 | _规则_ | — | 本表只记录**版本级摘要**（一行 ≤ 200 字符），具体 Review/审查/实跑证据请落到对应 [TDS](../tds/) 第五节【Review 意见】或对应模块审查批次 `doc/review/模块N-XXX.md`，**严禁**在本表堆叠详细审查记录。 |
+| **v2.88** | **2026-05-05** | T-00048 Plan 完成 - TDS 生成，协议路径绑定表落锚；T-30053 状态同步修正为 ✅ Done。 |
 | **v2.87** | **2026-05-05** | T-30053 DoD 收尾：三门禁全绿（研发✅/Review✅/QA✅），Overall Gate ✅ Released；BUG-CHAT-LONGPRESS 修复链完整闭环收官。 |
 | **v2.86** | **2026-05-05** | T-30053 QA Gate ✅ Passed — TC-CHAT-00002 Round 23 实证（report-20260505-213102，6/6 PASS，DELTA_WS=+1，DELTA_BCAST=+1，5节点全命中，aiTap→aiLongPress self-healing Round 1 通过）；BUG-CHAT-LONGPRESS 闭环。 |
 | **v2.85** | **2026-05-05** | T-30053 DoD 完成 - Android ChatMessageList UserMessageItem 长按复制菜单（DropdownMenu+ClipboardManager+Toast），LP-01~08 测试通过，无协议变更，arch/android Chat 章节已同步。 |
@@ -248,7 +249,7 @@
 | [T-00045](../tds/server/T-00045.md) | T-00043 | Dod | ✅ Done | [✅ Passed](../review/模块3-BUG-CHAT-WS修复链.md) | [✅ Passed · Round 22](../../tests/report-20260505-124251/AND/TC-CHAT-00002/TC-CHAT-00002_Report.md) | ⏳ Pending |
 | [T-00046](../tds/server/T-00046.md) | T-00045 | Dod | ✅ Done | [✅ Passed](../review/模块3-BUG-CHAT-WS修复链.md) | [✅ Passed · Round 22](../../tests/report-20260505-124251/AND/TC-CHAT-00002/TC-CHAT-00002_Report.md) | ⏳ Pending |
 | [T-00047](../tds/server/T-00047.md) ⭐ | T-00045, T-00046, T-30054 | Dod | ✅ Done | [✅ Passed](../tds/server/T-00047.md) | - | ✅ Passed |
-| T-00048 | T-00047 | Plan | Todo | - | - | ⏳ Pending |
+| [T-00048](../tds/server/T-00048.md) | T-00047 | TDD | In Progress | - | - | ⏳ Pending |
 | [T-10007](../tds/adminServer/T-10007.md) | T-10003 | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | - | ⏳ Pending |
 | [T-10008](../tds/adminServer/T-10008.md) | T-10007 | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | - | ⏳ Pending |
 | [T-10009](../tds/adminServer/T-10009.md) | T-10008 | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | - | ⏳ Pending |
@@ -271,7 +272,7 @@
 | [T-30017](../tds/android/T-30017.md) | T-00016, T-30014 | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | - | ⏳ Pending |
 | [T-30051](../tds/android/T-30051.md) | T-30017 | Dod | ✅ Done | [✅ Passed](../review/模块3-BUG-CHAT-WS修复链.md) | [✅ Passed · Round 22](../../tests/report-20260505-124251/AND/TC-CHAT-00002/TC-CHAT-00002_Report.md) | ⏳ Pending |
 | [T-30052](../tds/android/T-30052.md) | T-30051 | Dod | ✅ Done | [✅ Passed](../review/模块3-BUG-CHAT-WS修复链.md) | [✅ Passed · Round 22](../../tests/report-20260505-124251/AND/TC-CHAT-00002/TC-CHAT-00002_Report.md) | ⏳ Pending |
-| T-30053 | T-30052 | Plan | Todo | - | - | ⏳ Pending |
+| [T-30053](../tds/android/T-30053.md) | T-30052 | - | ✅ Done | - | - | ⏳ Pending |
 | T-30054 | T-00047 | Plan | Todo | - | - | ⏳ Pending |
 
 ---
