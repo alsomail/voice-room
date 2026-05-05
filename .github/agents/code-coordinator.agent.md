@@ -49,10 +49,11 @@ model: Claude Sonnet 4.6 (copilot)
      - **🔴 协议红线**：传入「协议路径绑定表」作为审查必查项，逐行对账客户端真实调用与服务端实现是否完全一致；不一致 → 直接判未通过。
    - 负责人 = `Dod` → 调用 `doc-updater`，按代码进度更新 `doc/arch/[$端]/index.md` 与子模块文档，以及 `doc/product/index.md` 的实现状态。
      - **🔴 协议红线**：必须把本 Task 的「协议路径绑定表」**反向写入** `doc/arch/[$端]/[模块].md` 的「🔌 协议入口索引」小节，并在 `doc/protocol/` 对应章节加上「另见对侧路径」交叉链接。
+     - 🔴 **门禁回写（绝对红线）**：若 doc-updater 或任何相关流水线在模块子表（`doc/tasks/模块N-*.md`）中更新了任何门禁列（Review Gate / QA Gate / Overall Gate），**必须**同步将相同状态回写到 `doc/tasks/index.md` 对应 Task 的汇总行（「模块索引」章节含三门禁列）；严禁只改子表不改 index.md。本 Coordinator 本身不得主动写门禁列，但须将此要求明确传达给 doc-updater 子代理。
 3. **处理打回循环**：若 `code-reviewer` 报告未通过，提取问题再次委派 `tdd-guide` 修复，在 `tdd-guide` ↔ `code-reviewer` 之间循环直到通过。
 4. **推进状态**：一个角色完成后，仅更新本 Task 行的「研发负责人」与「研发状态」两列。
    - 推进顺序：`Plan → TDD → Review → Dod`，状态：`Todo` / `In Progress` / `Done` / `Blocked`。
    - **不得**修改门禁三列（见上文纪律 4）。
    - **不得**在「重要变更说明」表中堆叠 Review 详情；详细审查记录请落到对应 TDS 第五节【Review 意见】，本索引仅一行简述（版本号 + Task ID + 状态流转动作）。
-5. **保存进度**：每次 `doc/tasks/index.md` 或模块文件状态更新后，执行 `git commit`（消息聚焦本 Task ID + 状态流转）。
+5. **保存进度**：`doc/tasks/`子模块更新状态之后，必须回写到`doc/tasks/index.md`的表格中，每次 `doc/tasks/index.md` 或模块文件状态更新后，执行 `git commit`（消息聚焦本 Task ID + 状态流转）。
 6. **结束条件**：目标 Task 走到「研发状态 = Done」即视为本 Coordinator 任务完成。Review Gate / QA Gate / Overall Gate 由其他流水线后续推进，不阻塞本 Agent 退出。最后给出简洁变更摘要 + 残余风险。

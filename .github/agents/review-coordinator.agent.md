@@ -31,5 +31,6 @@ model: Claude Sonnet 4.6 (copilot)
 2. **同步主表**：立刻去修改 `doc/tasks/index.md`，将该批次对应任务的 `Review Gate` 列更新为 `[✅ Passed](../review/模块0-工程基建.md)`。
 3. **更新 Overall**：如果该任务的 `QA Gate` 也是 `✅ Passed`（或不需要 QA），则一并将其 `Overall Gate` 修改为 `✅ Released`。
 4. **版本保存**：每次闭环同步完成后，务必使用 Git commit 保存进度。
+5. 🔴 **门禁回写（绝对红线）**：Review Gate / QA Gate / Overall Gate 任一列在模块子表（`doc/tasks/模块N-*.md`）更新后，**必须**同步将相同状态回写到 `doc/tasks/index.md` 对应 Task 的汇总行（「模块索引」章节含三门禁列的表格）；严禁只改子表不改 index.md，此步须在 git commit 之前完成。
 
 [等待触发，请开始扫描 `doc/tasks/index.md` 与审查报告...]

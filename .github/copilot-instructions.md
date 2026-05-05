@@ -7,10 +7,11 @@
 1. **PM 阶段 (需求拆解)**：读取 `doc/product/index.md`，将业务拆解为端到端的极小粒度任务，并更新到 `doc/tasks/index.md` 中，将负责人修改为Plan。
 2. **Plan 阶段 (方案设计)**：从 `doc/tasks/index.md` 领取任务，找到tasks/index.md中plan阶段的任务，读取或者按需修改 `doc/architecture/index.md`、`doc/protocol/index.md` 、`doc/product/index.md` 及Task对应的设计文件，并从对应端的 `doc/arch/[$端]/index.md` 顺藤摸瓜读取相关子文档，输出具体的技术实现方案与文件修改清单，参照`doc/tds/_template.md`输出到对应的`doc/tds/[$端]/T-XXX.md`，并且将`doc/tasks/index.md`负责人修改为TDD，链接为对应的tds目录，如有必要。
 3. **TDD 阶段 (测试驱动编码)**：从`doc/tasks/index.md` 领取任务，找到tasks/index.md中第一个负责人是TDD的任务，根据对应的`doc/tds/[$端]/T-XXX.md`，如果没有Review意见，则表示是新需求，先写测试用例，运行报错后，再实现业务代码，直到测试完全通过，将`doc/tasks/index.md`负责人修改为Review。如果有Review意见，且意见是未通过，则先根据Review意见修改、增加测试用例，确保覆盖所有边界场景，再修改业务代码，直到测试完全通过，将`doc/tasks/index.md`负责人修改为Review。
-4. **Review 阶段（审查实现代码）**：从`doc/tasks/index.md` 领取任务，找到tasks/index.md中第一个负责人是Review的任务，结合`doc/protocol/index.md` (通信契约)、并从对应端的 `doc/arch/[$端]/index.md` 顺藤摸瓜读取相关子文档及对应的`doc/tds/[$端]/T-XXX.md`，查看代码实现，进行代码审查，确保代码质量和规范。如果通过，修改`doc/tasks/index.md`负责人为Dod，并在TDS的【Reviewer意见】章节记录审查意见；如果未通过，修改`doc/tasks/index.md`负责人为TDD，并在TDS的【Reviewer意见】章节记录未通过的理由和改进建议。🔴 **无论通过或打回，必须立即**在 `doc/tasks/index.md` 顶部 changelog 表追加一条新版本行（格式 `v2.XX | 日期 | ≤200字符摘要，含本次 Review 判定结果`）；**严禁**只修改负责人/状态列而不写版本行。
+4. **Review 阶段（审查实现代码）**：从`doc/tasks/index.md` 领取任务，找到tasks/index.md中第一个负责人是Review的任务，结合`doc/protocol/index.md` (通信契约)、并从对应端的 `doc/arch/[$端]/index.md` 顺藤摸瓜读取相关子文档及对应的`doc/tds/[$端]/T-XXX.md`，查看代码实现，进行代码审查，确保代码质量和规范。如果通过，修改`doc/tasks/index.md`负责人为Dod，并在TDS的【Reviewer意见】章节记录审查意见；如果未通过，修改`doc/tasks/index.md`负责人为TDD，并在TDS的【Reviewer意见】章节记录未通过的理由和改进建议。🔴 **无论通过或打回，必须立即**在 `doc/tasks/index.md` 顶部 changelog 表追加一条新版本行（格式 `v2.XX | 日期 | ≤200字符摘要，含本次 Review 判定结果`）；**严禁**只修改负责人/状态列而不写版本行。🔴 **门禁回写（绝对红线）**：任何门禁列（Review Gate / QA Gate / Overall Gate）在模块子表（`doc/tasks/模块N-*.md`）更新后，**必须**同步将相同状态回写到 `doc/tasks/index.md` 对应 Task 的汇总行（「模块索引」章节含三门禁列）；严禁只改子表不改 index.md。
 5. **DoD 阶段 (状态与文档同步 - 绝对红线)**：Review 通过后，**必须主动执行**：
    - 找到对应端的文档目录（如 `doc/arch/web/`），更新具体受影响的子模块文档（如新增了路由，则更新 `router.md`；若新增了全新模块，必须同步更新 `index.md` 的索引）。
    - 在 `doc/tasks/index.md` 中将该任务状态标记为已完成。
+   - 🔴 **门禁回写（绝对红线）**：任何门禁列（Review Gate / QA Gate / Overall Gate）在模块子表（`doc/tasks/模块N-*.md`）更新后，**必须**同步将相同状态回写到 `doc/tasks/index.md` 对应 Task 的汇总行（「模块索引」章节含三门禁列）；严禁只改子表不改 index.md。
    - 🔴 **changelog 强制更新（绝对红线，不是建议项）**：在 `doc/tasks/index.md` 顶部 changelog 表追加新版本行，版本号递增，格式严格为 `v2.XX | YYYY-MM-DD | ≤200字符摘要`。**各阶段（Plan / TDD / Review / DoD）每次产出 commit 后均须执行此步**，DoD 阶段尤其不得遗漏；**严禁**跳过 changelog 直接结束对话。
    - (若大功能闭环) 更新 `doc/product/index.md` 的功能实现状态。
    - **严禁**写完代码后不更新文档就直接结束对话。
