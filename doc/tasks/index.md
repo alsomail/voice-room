@@ -452,4 +452,4 @@
 
 | Task ID | 前置依赖 | 研发负责人 | 研发状态 | Review Gate 审查门禁 | QA Gate 测试门禁 | Overall Gate 最终门禁 |
 |---------|---------|-----------|---------|---------------------|-----------------|----------------------|
-| [T-30055](../tds/android/T-30055.md) | T-00101 | Review | 🟡 In Progress | - | - | ⏳ Pending |
+| [T-30055](../tds/android/T-30055.md) | T-00101 | Dod | 🟡 In Progress | - | - | ⏳ Pending |
