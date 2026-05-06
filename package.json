@@ -20,7 +20,8 @@
     "db:reset": "cross-env E2E_PROFILE=local bash scripts/dev/reset-e2e.sh",
     "preflight": "bash scripts/dev/preflight.sh",
     "audit:protocol": "npx ts-node --project tsconfig.scripts.json scripts/audit/protocol-binding-audit.ts",
-    "test:audit": "jest scripts/audit/"
+    "test:audit": "jest scripts/audit/",
+    "audit:fields": "npx ts-node --project tsconfig.scripts.json scripts/audit/protocol-binding-audit.ts --field-level"
   },
   "repository": {
     "type": "git",

@@ -74,3 +74,6 @@ jobs:
 
       - name: Protocol Binding Audit
         run: npm run audit:protocol
+
+      - name: Field-level AST Audit (T-00106)
+        run: npm run audit:fields
