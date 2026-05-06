@@ -82,3 +82,10 @@ app_certificate = "${RTC_APP_CERTIFICATE}"
 
 触发来源: Admin REST `POST /api/admin/broadcast`
 服务端实现: `app/server/src/events/admin_event.rs::AdminEvent::BroadcastNotice`
+
+---
+
+## §8.4 协议路径绑定与双端实现
+
+**发布方实现**：[adminServer 协议入口索引](../arch/adminServer/index.md#redis-pubsub)  
+**消费方实现**：[server 协议入口索引](../arch/server/index.md#redis-pubsub)

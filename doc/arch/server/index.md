@@ -44,6 +44,14 @@ Server 端基于 Rust + Axum 构建。启动骨架（配置、日志、健康检
 | HTTP REST | `POST /api/v1/chat-messages` | `app/server/src/modules/chat/controller.rs::send_chat_message_handler` | [room_api.md §3.6.1](../../protocol/room_api.md) | T-00047 | 当前无 C 端客户端调用；运营 / 后端兜底备路径 |
 | 集成测试 | `chat_dual_path_equivalence` | T-00048 DUAL-1/2/3 双路径等价回归测试 | - | T-00048 | `app/server/tests/chat_dual_path_equivalence.rs` |
 
+### Redis Pub/Sub（admin:events 消费方）
+| # | 事件类型 | 订阅处理入口 | 发布方 | Schema |
+|---|---------|------------|--------|--------|
+| 1 | `admin:events :: BanUser` | `events/handler.rs::handle_admin_event::BanUser` | adminServer/user/service.rs | [BanUser.schema.json](../../protocol/schemas/pubsub/BanUser.schema.json) |
+| 2 | `admin:events :: UnbanUser` | `events/handler.rs::handle_admin_event::UnbanUser` | adminServer/user/service.rs | [UnbanUser.schema.json](../../protocol/schemas/pubsub/UnbanUser.schema.json) |
+| 3 | `admin:events :: CloseRoom` | `events/handler.rs::handle_admin_event::CloseRoom` | adminServer/room/service.rs | [CloseRoom.schema.json](../../protocol/schemas/pubsub/CloseRoom.schema.json) |
+| 4 | `admin:events :: BroadcastNotice` | `events/handler.rs::handle_admin_event::BroadcastNotice` | adminServer/event/notice_service.rs | [BroadcastNotice.schema.json](../../protocol/schemas/pubsub/BroadcastNotice.schema.json) |
+
 ## 三、 当前能力全景与状态 (Capability Matrix)
 > 状态枚举：🟢 已完成 | 🟡 开发/调试中 | 🔴 待开发
 
