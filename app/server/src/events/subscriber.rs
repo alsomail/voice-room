@@ -77,10 +77,10 @@ pub async fn start_admin_event_subscriber(
                                         handle_admin_event(event, registry_clone).await;
                                     }
                                     Err(e) => {
-                                        tracing::error!(
+                                        tracing::warn!(
                                             error = ?e,
                                             raw = %payload,
-                                            "Failed to parse admin event from Redis"
+                                            "Unknown or malformed admin event dropped (dead-letter)"
                                         );
                                     }
                                 }
