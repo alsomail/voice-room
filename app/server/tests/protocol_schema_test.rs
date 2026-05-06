@@ -378,7 +378,7 @@ fn ping_compat_3_pong_envelope_matches_schema() {
     let envelope = json!({
         "type": "Pong",
         "msg_id": msg_id,
-        "timestamp": 1_700_000_010i64
+        "timestamp": 1_700_000_010_000i64   // 毫秒级，~1.7×10^12，可区分 timestamp_millis 修复前后
     });
 
     assert_valid(schema_str, &envelope, "PING-COMPAT-3: Pong schema");
@@ -454,6 +454,50 @@ fn ping_2_lowercase_ping_compat_returns_pong_with_ms_timestamp() {
     assert!(
         ts > 1_000_000_000_000,
         "PING-2: legacy pong timestamp must be milliseconds (> 1_000_000_000_000), got {ts}"
+    );
+}
+
+/// PING-2B: 生产路径 — ping_pong_responses() 对 legacy ping 总是返回大写 "Pong"
+///
+/// handle_socket 的 "Ping"/"ping" arm 都调用 ping_pong_responses，而不走
+/// handle_text_message。生产路径（release 模式）只发 "Pong"（大写）；
+/// debug 模式双发 ["Pong", "pong"]，但 Pong（大写）始终在首位。
+///
+/// PROTO-BINDING: doc/protocol/schemas/ws/Pong.schema.json
+#[test]
+fn ping_2b_production_path_ping_pong_responses_returns_uppercase_pong() {
+    use voice_room_server::ws::connection::ping_pong_responses;
+
+    let responses = ping_pong_responses(Some("legacy-ping-id".to_string()));
+
+    // 无论 debug/release 模式，第一个响应都必须是大写 "Pong"
+    assert!(
+        !responses.is_empty(),
+        "PING-2B: ping_pong_responses must not be empty"
+    );
+
+    let v: Value =
+        serde_json::from_str(&responses[0]).expect("PING-2B: first response must be valid JSON");
+
+    assert_eq!(
+        v["type"], "Pong",
+        "PING-2B: production Pong must be uppercase 'Pong', got {:?}",
+        v["type"]
+    );
+
+    // msg_id 必须回显（不能为 None，schema required 字段）
+    assert_eq!(
+        v["msg_id"], "legacy-ping-id",
+        "PING-2B: msg_id must be echoed back in production Pong"
+    );
+
+    // timestamp 必须是毫秒级
+    let ts = v["timestamp"]
+        .as_i64()
+        .expect("PING-2B: timestamp must be an integer");
+    assert!(
+        ts > 1_000_000_000_000,
+        "PING-2B: production Pong timestamp must be milliseconds (> 1_000_000_000_000), got {ts}"
     );
 }
 

@@ -105,14 +105,17 @@ pub fn handle_text_message(text: &str, last_heartbeat: &Arc<RwLock<Instant>>) ->
         "Ping" => {
             // 主格式：大写 Ping 信令
             // PROTO-BINDING: doc/protocol/schemas/ws/Ping.schema.json
+            // PROTO-BINDING: doc/protocol/schemas/ws/Pong.schema.json (msg_id required)
             match last_heartbeat.write() {
                 Ok(mut guard) => *guard = Instant::now(),
                 Err(e) => tracing::error!("heartbeat lock poisoned: {e}"),
             }
 
+            // 如果客户端未提供 msg_id，服务端生成 UUID 保证 Pong.msg_id 合规
+            let pong_msg_id = msg.msg_id.unwrap_or_else(|| Uuid::new_v4().to_string());
             let pong = OutgoingMessage {
                 msg_type: "Pong".to_string(),
-                msg_id: msg.msg_id,
+                msg_id: Some(pong_msg_id),
                 payload: None,
                 timestamp: chrono::Utc::now().timestamp_millis(),
             };
@@ -134,16 +137,19 @@ pub fn handle_text_message(text: &str, last_heartbeat: &Arc<RwLock<Instant>>) ->
 /// 用于 T-00103 PING-COMPAT-2 测试。
 pub fn ping_pong_responses(msg_id: Option<String>) -> Vec<String> {
     let ts = chrono::Utc::now().timestamp_millis();
+    // PROTO-BINDING: doc/protocol/schemas/ws/Pong.schema.json (msg_id required)
+    // 如果客户端未提供 msg_id，服务端生成 UUID 保证 Pong 合规
+    let msg_id_val = msg_id.unwrap_or_else(|| Uuid::new_v4().to_string());
 
     let pong_new = OutgoingMessage {
         msg_type: "Pong".to_string(),
-        msg_id: msg_id.clone(),
+        msg_id: Some(msg_id_val.clone()),
         payload: None,
         timestamp: ts,
     };
     let pong_legacy = OutgoingMessage {
         msg_type: "pong".to_string(),
-        msg_id,
+        msg_id: Some(msg_id_val),
         payload: None,
         timestamp: ts,
     };
