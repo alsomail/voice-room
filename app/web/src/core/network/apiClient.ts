@@ -18,6 +18,42 @@
 // [L01] 从 useAuthStore 导入共享常量，消除重复定义
 import { webEnv } from '../config/env';
 import { ADMIN_TOKEN_KEY, useAuthStore } from '../../stores/useAuthStore';
+import { ZodError, type ZodType } from 'zod';
+import {
+  AdminLoginDataSchema,
+  AdminRoomsDataSchema,
+  AdminRoomDetailAdminSchema,
+  AdminStatsOverviewDataSchema,
+  AdminUsersDataSchema,
+  AdminUserDetailResponseSchema,
+  AdminAdjustBalanceResponseSchema,
+  AdminGiftItemSchema,
+  AdminGiftsDataSchema,
+  AdminUploadGiftAssetResponseSchema,
+  EventListResponseSchema,
+  EventNamesResponseSchema,
+  KickLogItemSchema,
+  MuteLogItemSchema,
+  makeGovernanceListResponseSchema,
+  AdminLogsDataSchema,
+} from '../../api/schemas/admin.schemas';
+
+/**
+ * Validates API response data against a Zod schema.
+ * - DEV: throws ZodError immediately on mismatch (fail fast)
+ * - PROD: logs console.error and returns data as-is (non-breaking)
+ */
+function validateResponse<T>(data: T, schema: ZodType): T {
+  const result = schema.safeParse(data);
+  if (!result.success) {
+    if (import.meta.env.DEV) {
+      throw new ZodError(result.error.issues);
+    } else {
+      console.error('[T-00102] Zod schema mismatch:', result.error.issues);
+    }
+  }
+  return data;
+}
 
 /** 统一响应结构（protocol.md §1.3） */
 export interface ApiResponse<T = unknown> {
@@ -126,7 +162,7 @@ export async function adminLogin(
     method: 'POST',
     body: JSON.stringify(req),
   });
-  return res.data;
+  return validateResponse(res.data, AdminLoginDataSchema);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -187,7 +223,7 @@ export async function adminGetRooms(
     ...item,
     room_id: item.room_id ?? item.id,
   }));
-  return res.data;
+  return validateResponse(res.data, AdminRoomsDataSchema);
 }
 
 /**
@@ -236,7 +272,7 @@ export async function adminGetRoomDetail(
     `/rooms/${encodeURIComponent(roomId)}`,
     { signal },
   );
-  return res.data;
+  return validateResponse(res.data, AdminRoomDetailAdminSchema);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -312,7 +348,7 @@ export async function adminGetUsers(
       ).toString()
     : '';
   const res = await adminFetch<AdminUsersData>(`/users${query}`, { signal });
-  return res.data;
+  return validateResponse(res.data, AdminUsersDataSchema);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -346,7 +382,7 @@ export async function adminGetUserDetail(
     `/users/${encodeURIComponent(userId)}`,
     { signal },
   );
-  return res.data;
+  return validateResponse(res.data, AdminUserDetailResponseSchema);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -432,7 +468,7 @@ export async function adminGetLogs(
       ).toString()
     : '';
   const res = await adminFetch<AdminLogsData>(`/logs${query}`, { signal });
-  return res.data;
+  return validateResponse(res.data, AdminLogsDataSchema);
 }
 
 /**
@@ -445,7 +481,7 @@ export async function adminGetStatsOverview(
   const res = await adminFetch<AdminStatsOverviewData>('/stats/overview', {
     signal,
   });
-  return res.data;
+  return validateResponse(res.data, AdminStatsOverviewDataSchema);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -522,7 +558,7 @@ export async function adminAdjustBalance(
       body: JSON.stringify(req),
     },
   );
-  return res.data;
+  return validateResponse(res.data, AdminAdjustBalanceResponseSchema);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -601,7 +637,7 @@ export async function adminListGifts(
       ).toString()
     : '';
   const res = await adminFetch<AdminGiftsData>(`/gifts${query}`, { signal });
-  return res.data;
+  return validateResponse(res.data, AdminGiftsDataSchema);
 }
 
 /**
@@ -616,7 +652,7 @@ export async function adminCreateGift(
     body: JSON.stringify(req),
     signal,
   });
-  return res.data;
+  return validateResponse(res.data, AdminGiftItemSchema);
 }
 
 /**
@@ -635,7 +671,7 @@ export async function adminUpdateGift(
       signal,
     },
   );
-  return res.data;
+  return validateResponse(res.data, AdminGiftItemSchema);
 }
 
 /**
@@ -688,7 +724,7 @@ export async function adminUploadGiftAsset(
 
   const body = (await response.json()) as ApiResponse<AdminUploadGiftAssetResponse>;
   if (body.code !== 0) throw new Error(body.message);
-  return body.data;
+  return validateResponse(body.data, AdminUploadGiftAssetResponseSchema);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -747,7 +783,7 @@ export async function listUserEvents(
     `/users/${encodeURIComponent(userId)}/events${query}`,
     { signal },
   );
-  return res.data;
+  return validateResponse(res.data, EventListResponseSchema);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -773,7 +809,7 @@ export async function listEventNames(
     `/events/names?days=${encodeURIComponent(String(days))}`,
     { signal },
   );
-  return res.data;
+  return validateResponse(res.data, EventNamesResponseSchema);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -920,7 +956,7 @@ export async function listKicks(
     `/governance/kicks${query}`,
     { signal },
   );
-  return res.data;
+  return validateResponse(res.data, makeGovernanceListResponseSchema(KickLogItemSchema));
 }
 
 /**
@@ -942,5 +978,5 @@ export async function listMutes(
     `/governance/mutes${query}`,
     { signal },
   );
-  return res.data;
+  return validateResponse(res.data, makeGovernanceListResponseSchema(MuteLogItemSchema));
 }

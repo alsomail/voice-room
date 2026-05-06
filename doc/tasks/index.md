@@ -418,7 +418,7 @@
 | [T-0000V](../tds/infra/T-0000V.md) | T-0000U | Dod | ✅ Done | [✅ Passed](../review/模块9-T-0000TV-protocol-audit-arch-cleanup.md) | ✅ N/A | ✅ Released |
 | [T-00100](../tds/infra/T-00100.md) ⭐ | T-0000V | Dod | ✅ Done | - | - | ⏳ Pending |
 | [T-00101](../tds/android/T-00101.md) | T-00100 | TDD | In Progress | - | - | ⏳ Pending |
-| [T-00102](../tds/web/T-00102.md) | T-00100 | TDD | In Progress | - | - | ⏳ Pending |
+| [T-00102](../tds/web/T-00102.md) | T-00100 | Review | In Progress | - | - | ⏳ Pending |
 | [T-00103](../tds/server/T-00103.md) | T-00100 | TDD | In Progress | - | - | ⏳ Pending |
 | [T-00104](../tds/infra/T-00104.md) ⭐ | T-00100, T-00101, T-00103 | Plan | Todo | - | - | ⏳ Pending |
 | [T-00105](../tds/adminServer/T-00105.md) | T-00100 | TDD | In Progress | - | - | ⏳ Pending |
