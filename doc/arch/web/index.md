@@ -73,7 +73,16 @@
 
 | 协议类型 | 调用方法 | 客户端实调用方（文件:函数）| protocol/ 锚点 | 关联 Task | 服务端实现 |
 |----------|---------|----------------------------|---------------|-----------|------------|
-| _待 DoD 反向回填_ | _待回填_ | _待回填_ | _待回填_ | _待回填_ | _待回填_ |
+| HTTP REST | GET /admin/users ⭐ | `apiClient.ts::adminGetUsers` → `AdminUsersDataSchema` | [admin_api.md](../../protocol/admin_api.md) | T-00102 | adminServer/users/controller.rs |
+| HTTP REST | POST /admin/users/:id/ban ⭐ | `apiClient.ts::adminBanUser` | [admin_api.md](../../protocol/admin_api.md) | T-00102 | adminServer/users/controller.rs |
+| HTTP REST | GET /admin/rooms ⭐ | `apiClient.ts::adminGetRooms` → `AdminRoomsDataSchema` | [admin_api.md](../../protocol/admin_api.md) | T-00102 | adminServer/rooms/controller.rs |
+| HTTP REST | GET /admin/rooms/:id | `apiClient.ts::adminGetRoomDetail` → `AdminRoomDetailAdminSchema` | [room_api.md](../../protocol/room_api.md) | T-00102 | adminServer/rooms/controller.rs |
+| HTTP REST | GET /admin/stats/overview | `apiClient.ts::adminGetStatsOverview` → `AdminStatsOverviewDataSchema` | [admin_api.md](../../protocol/admin_api.md) | T-00102 | adminServer/stats/controller.rs |
+| HTTP REST | GET /admin/gifts ⭐ | `apiClient.ts::adminListGifts` → `AdminGiftsDataSchema` | [admin_api.md](../../protocol/admin_api.md) | T-00102 | adminServer/gifts/controller.rs |
+| HTTP REST | GET /admin/governance/kicks | `apiClient.ts::listKicks` → `KicksListSchema` | [admin_api.md](../../protocol/admin_api.md) | T-00102 | adminServer/governance/controller.rs |
+| HTTP REST | GET /admin/governance/mutes | `apiClient.ts::listMutes` → `MutesListSchema` | [admin_api.md](../../protocol/admin_api.md) | T-00102 | adminServer/governance/controller.rs |
+
+> **T-00102 Zod 校验层**：所有 HTTP 响应均通过 `app/web/src/api/schemas/admin.schemas.ts` 中的 Zod schema 做运行时校验。PROTO-BINDING 锚点：`doc/protocol/schemas/http/RoomDetail.schema.json`。
 
 ## 三、 当前能力全景与状态 (Capability Matrix)
 > 状态枚举：🟢 已完成 | 🟡 开发/调试中 | 🔴 待开发

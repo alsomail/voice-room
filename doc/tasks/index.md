@@ -15,6 +15,7 @@
 | **v3.07** | **2026-05-07** | [T-00101] TDD In Progress — Android sealed class 反序列化层启动实现 |
 | **v3.07** | **2026-05-07** | [T-00103] TDD 启动 — Server schema_guard + deny_unknown_fields；状态 Plan/Todo → TDD/In Progress。 |
 | **v3.07** | **2026-05-07** | [T-00105] Plan→TDD — TDS已就绪，开始实现 admin:events 双端契约对齐（adminServer strict-typed enum + server schema_guard）。 |
+| **v3.07** | **2026-05-08** | [T-00102] DoD ✅ Done — Web Zod 运行时 schema 校验落地：18 个 HTTP endpoint Zod 验证，MicSlotSchema 对齐 PROTO-BINDING，DEV 抛错/PROD 净化日志，ZOD-1~5 共 35 测试全绿，tsc 零错误，arch/web 协议入口索引同步。 |
 | **v3.06** | **2026-05-07** | [T-00100] DoD ✅ Done — 协议三层Schema冻结完成：WS 34信令+HTTP DTO+Redis Pub/Sub schema落锚，arch四端协议入口索引同步，T-00101/102/103/105/106/108现可并行启动。 |
 | **v3.05** | **2026-05-07** | [T-00100] TDD→Review — 协议三层Schema冻结TDD完成(8/8 PROTO-FREEZE全绿)；WS 34信令+HTTP DTO+Redis Pub/Sub schema落锚；T-00100状态Plan→Review/In Progress。 |
 | **v3.04** | **2026-05-06** | Phase 1.7-extended 启动：协议字段全量冻结（WS + HTTP REST + Redis Pub/Sub 三协议层）——注册 9 个新 Task：T-00100⭐（protocol 三层 schema 冻结+ping→Ping）、T-00101（Android sealed class 干掉 27+ 野生反序列化）、T-00102（Web Zod）、T-00103（Server schema_guard+deny_unknown_fields）、T-00104⭐（Android×Server 跨语言 E2E 8 场景）、T-00105（Redis admin:events 双端契约）、T-00106（字段级 AST CI 审计）、T-00107（TDS 字段级回填）、T-00108（ping/Ping 三端）；9 份 TDS 全部创建，均 Plan→TDD 待领取。 |
@@ -418,7 +419,7 @@
 | [T-0000V](../tds/infra/T-0000V.md) | T-0000U | Dod | ✅ Done | [✅ Passed](../review/模块9-T-0000TV-protocol-audit-arch-cleanup.md) | ✅ N/A | ✅ Released |
 | [T-00100](../tds/infra/T-00100.md) ⭐ | T-0000V | Dod | ✅ Done | - | - | ⏳ Pending |
 | [T-00101](../tds/android/T-00101.md) | T-00100 | TDD | In Progress | - | - | ⏳ Pending |
-| [T-00102](../tds/web/T-00102.md) | T-00100 | Review | In Progress | - | - | ⏳ Pending |
+| [T-00102](../tds/web/T-00102.md) | T-00100 | Done | ✅ Done | - | - | ⏳ Pending |
 | [T-00103](../tds/server/T-00103.md) | T-00100 | TDD | In Progress | - | - | ⏳ Pending |
 | [T-00104](../tds/infra/T-00104.md) ⭐ | T-00100, T-00101, T-00103 | Plan | Todo | - | - | ⏳ Pending |
 | [T-00105](../tds/adminServer/T-00105.md) | T-00100 | TDD | In Progress | - | - | ⏳ Pending |
