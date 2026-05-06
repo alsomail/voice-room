@@ -12,6 +12,7 @@
 | 版本 | 日期 | 变更内容 |
 |------|------|---------|
 | _规则_ | — | 本表只记录**版本级摘要**（一行 ≤ 200 字符），具体 Review/审查/实跑证据请落到对应 [TDS](../tds/) 第五节【Review 意见】或对应模块审查批次 `doc/review/模块N-XXX.md`，**严禁**在本表堆叠详细审查记录。 |
+| **v3.10** | **2026-05-08** | [T-00108] Review Round2 🟢 通过 — 协议绑定表两行PASS，8项ping测试全绿；状态Review→Dod。 |
 | **v3.09** | **2026-05-07** | [T-00103] Review Round2 ✅ APPROVE — GUARD-1/2+DENY-1+PING-COMPAT+REGRESSION全绿；状态 Review→Dod/In Progress。 |
 | **v3.09** | **2026-05-07** | [T-00105] Review→DoD — 🟢 通过（MEDIUM×1 warn已修复），进入DoD文档同步阶段。 |
 | **v3.10** | **2026-05-07** | [T-00101] ✅ Done — WS sealed class 28信令 DoD 完成，arch/android 协议入口索引落锚，doc/protocol 交叉链接，doc/arch/android/room.md sealed class 架构描述 |
