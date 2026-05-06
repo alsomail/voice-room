@@ -17,12 +17,12 @@
 
 | 目录 | 内容 | 文件数 |
 |------|------|--------|
-| [schemas/ws/](schemas/ws/) | WebSocket 信令 JSON Schema 2020-12 | 34 个（28 核心 + 6 附加 Result 类型） |
+| [schemas/ws/](schemas/ws/) | WebSocket 信令 JSON Schema 2020-12 | 35 个（28 核心 + 6 附加 Result 类型 + GiftReceived 广播） |
 | [schemas/http/](schemas/http/) | HTTP REST DTO JSON Schema 2020-12 | RoomDetail 等 |
 | [schemas/pubsub/](schemas/pubsub/) | Redis Pub/Sub 事件 JSON Schema 2020-12 | 4 个 admin:events |
 
 ### WS Schema 速查 (ws/)
-`Ping` · `Pong` · `JoinRoom` · `JoinRoomResult` · `LeaveRoom` · `LeaveRoomResult` · `TakeMic` · `TakeMicResult` · `LeaveMic` · `LeaveMicResult` · `SendMessage` · `SendMessageResult` · `SendGift` · `SendGiftResult` · `ReportEvent` · `EventReportAck` · `KickUser` · `MuteUser` · `UnmuteUser` · `TransferAdmin` · `ForceTakeMic` · `ForceLeaveMic` · `UserJoined` · `UserLeft` · `UserKicked` · `MicTaken` · `MicLeft` · `RoomMessage` · `UserMuted`
+`Ping` · `Pong` · `JoinRoom` · `JoinRoomResult` · `LeaveRoom` · `LeaveRoomResult` · `TakeMic` · `TakeMicResult` · `LeaveMic` · `LeaveMicResult` · `SendMessage` · `SendMessageResult` · `SendGift` · `SendGiftResult` · `GiftReceived` · `ReportEvent` · `EventReportAck` · `KickUser` · `MuteUser` · `UnmuteUser` · `TransferAdmin` · `ForceTakeMic` · `ForceLeaveMic` · `UserJoined` · `UserLeft` · `UserKicked` · `MicTaken` · `MicLeft` · `RoomMessage` · `UserMuted`
 
 ### Pub/Sub Schema 速查 (pubsub/)
 `BanUser` · `UnbanUser` · `CloseRoom` · `BroadcastNotice`  — channel: `admin:events`

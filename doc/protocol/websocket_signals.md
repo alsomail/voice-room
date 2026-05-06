@@ -762,6 +762,8 @@ Result/ACK 通用格式：
 
 ### 6.8.1 GiftReceived（S→Room）
 
+> **JSON Schema**：[`schemas/ws/GiftReceived.schema.json`](schemas/ws/GiftReceived.schema.json)
+
 **触发**：SendGift 成功广播
 
 ```json

@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voiceroom.example/protocol/ws/GiftReceived",
+  "title": "GiftReceived",
+  "description": "礼物广播 (S→Room)，SendGift 成功后由 Server 广播给房间所有成员",
+  "type": "object",
+  "required": ["type", "msg_id", "payload"],
+  "additionalProperties": false,
+  "properties": {
+    "type": { "type": "string", "const": "GiftReceived" },
+    "msg_id": { "type": "string", "format": "uuid" },
+    "payload": {
+      "type": "object",
+      "required": ["gift_record_id", "sender", "receiver", "gift", "count", "total_price"],
+      "additionalProperties": false,
+      "properties": {
+        "gift_record_id": { "type": "string", "format": "uuid" },
+        "sender": {
+          "type": "object",
+          "required": ["user_id", "nickname"],
+          "additionalProperties": false,
+          "properties": {
+            "user_id":  { "type": "string", "format": "uuid" },
+            "nickname": { "type": "string", "minLength": 1 },
+            "avatar":   { "type": ["string", "null"], "format": "uri" }
+          }
+        },
+        "receiver": {
+          "type": "object",
+          "required": ["user_id", "nickname"],
+          "additionalProperties": false,
+          "properties": {
+            "user_id":  { "type": "string", "format": "uuid" },
+            "nickname": { "type": "string", "minLength": 1 },
+            "avatar":   { "type": ["string", "null"], "format": "uri" }
+          }
+        },
+        "gift": {
+          "type": "object",
+          "required": ["id", "code", "name", "icon_url", "effect_level"],
+          "additionalProperties": false,
+          "properties": {
+            "id":            { "type": "string", "format": "uuid" },
+            "code":          { "type": "string", "minLength": 1 },
+            "name":          { "type": "string", "minLength": 1 },
+            "icon_url":      { "type": "string", "format": "uri" },
+            "animation_url": { "type": ["string", "null"], "format": "uri" },
+            "effect_level":  { "type": "integer", "minimum": 1, "maximum": 10 }
+          }
+        },
+        "count":       { "type": "integer", "minimum": 1, "maximum": 9999 },
+        "total_price": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "timestamp": { "type": "integer", "minimum": 1000000000000 }
+  }
+}
