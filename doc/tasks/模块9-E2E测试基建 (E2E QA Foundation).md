@@ -71,7 +71,7 @@
 | **T-00105** | Admin Server | events | Redis Pub/Sub `admin:events` 双端契约对齐（adminServer publisher strict-typed + server consumer schema 校验）[TDS](../tds/adminServer/T-00105.md) | T-00100 | shared crate 提供共享 enum；adminServer publisher 改 strict enum；server consumer 加 jsonschema 校验；4 类事件双端往返集成测试 | 1. PUBSUB-1~4 全过<br>2. grep `r#type:` 在 adminServer 0 命中 | 8h | Plan | Todo | - | - | ⏳ Pending |
 | **T-00106** | 基建 | Infra/Protocol | 协议字段级 AST 审计（升级 T-0000T）+ CI 阻塞 [TDS](../tds/infra/T-00106.md) | T-00100, T-0000T | 解析 server `json!` 宏 / Android `@SerializedName` / Web Zod；与 schemas/ 字段集合比对；mismatch 报 P0 阻塞 PR | 1. FIELD-1~3 + CI-1 全过<br>2. T-0000T 53 tests 0 回归 | 10h | Dod | ✅ Done | - | - | ⏳ Pending |
 | **T-00107** | 基建 | Infra/Protocol | 历史 TDS 字段表全量回填（升级 T-0000U）[TDS](../tds/infra/T-00107.md) | T-00106 | 借助 T-00106 字段级审计扫描，按优先级回填字段表 schemas/ 锚点 | 1. 字段级审计 0 缺失<br>2. 批次记录入档 | 12h | Plan | Todo | - | - | ⏳ Pending |
-| **T-00108** | 基建 | Infra/Protocol | `ping`/`pong` → `Ping`/`Pong` 三端同步升级 [TDS](../tds/infra/T-00108.md) | T-00100 | server 出/入栈兼容期双向；Android 心跳改发 PascalCase；fixture 全量改；Web 检查 | 1. PING-1~3 + GREP-1 全过<br>2. 现有心跳测试 0 回归 | 4h | TDD | In Progress | - | - | ⏳ Pending |
+| **T-00108** | 基建 | Infra/Protocol | `ping`/`pong` → `Ping`/`Pong` 三端同步升级 [TDS](../tds/infra/T-00108.md) | T-00100 | server 出/入栈兼容期双向；Android 心跳改发 PascalCase；fixture 全量改；Web 检查 | 1. PING-1~3 + GREP-1 全过<br>2. 现有心跳测试 0 回归 | 4h | Review | In Progress | - | - | ⏳ Pending |
 
 **Phase 1.7-extended 汇总**：9 个 Task，预估总工时 **93 人时（≈11.6 人天）**；其中 T-00100 阻塞所有；T-00101+T-00104 串行；T-00102/T-00103/T-00105/T-00108 可并行。
 

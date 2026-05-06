@@ -12,6 +12,7 @@
 | 版本 | 日期 | 变更内容 |
 |------|------|---------|
 | _规则_ | — | 本表只记录**版本级摘要**（一行 ≤ 200 字符），具体 Review/审查/实跑证据请落到对应 [TDS](../tds/) 第五节【Review 意见】或对应模块审查批次 `doc/review/模块N-XXX.md`，**严禁**在本表堆叠详细审查记录。 |
+| **v3.10** | **2026-05-08** | [T-00108] TDD ✅ 完成 — timestamp(ms)修正+WARN告警，PING-1/2/3验收(473 tests全绿)；状态TDD→Review/In Progress。 |
 | **v3.10** | **2026-05-08** | [T-00108] TDD 启动 — ping/Ping 三端同步升级，timestamp(ms)修正+WARN告警，PING-1/2/3验收。 |
 | **v3.08** | **2026-05-07** | [T-00103] TDD ✅ 完成 — 474测试全绿，schema_guard+deny_unknown_fields落地；状态 TDD→Review/In Progress。 |
 | **v3.09** | **2026-05-07** | [T-00106] DoD ✅ Done — 字段级AST CI审计落地，T-00107已解锁 |
@@ -429,4 +430,4 @@
 | [T-00105](../tds/adminServer/T-00105.md) | T-00100 | TDD | In Progress | - | - | ⏳ Pending |
 | [T-00106](../tds/infra/T-00106.md) | T-00100, T-0000T | Dod | ✅ Done | - | - | ⏳ Pending |
 | [T-00107](../tds/infra/T-00107.md) | T-00106 | Plan | Todo | - | - | ⏳ Pending |
-| [T-00108](../tds/infra/T-00108.md) | T-00100 | TDD | In Progress | - | - | ⏳ Pending |
+| [T-00108](../tds/infra/T-00108.md) | T-00100 | Review | In Progress | - | - | ⏳ Pending |
