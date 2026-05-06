@@ -1,6 +1,6 @@
 # Voice Room 开发任务清单
 
-> **版本**: v3.08  
+> **版本**: v3.09  
 > **更新日期**: 2026-05-08  
 > **任务总数**: 148 个 (基建: 4 + 14 + 3 + 6, App Server: 33 + 1 + 2 + 1, Admin Server: 16 + 1 + 1, Web: 14 + 1 + 1, Android: 45 + 1 + 1 + 1, E-07 15 + E-07.5 6 + E-10 18)  
 > **当前阶段**: Phase 1 → … → Phase 1.7 协议治理铁律落地 → **Phase 1.7-extended 协议字段全量冻结**（WS + HTTP REST + Redis Pub/Sub 三协议层 schema 机器可读 + 字段级 CI 审计 + Android×Server 跨语言 E2E）
@@ -12,6 +12,7 @@
 | 版本 | 日期 | 变更内容 |
 |------|------|---------|
 | _规则_ | — | 本表只记录**版本级摘要**（一行 ≤ 200 字符），具体 Review/审查/实跑证据请落到对应 [TDS](../tds/) 第五节【Review 意见】或对应模块审查批次 `doc/review/模块N-XXX.md`，**严禁**在本表堆叠详细审查记录。 |
+| **v3.09** | **2026-05-07** | [T-00105] Review→DoD — 🟢 通过（MEDIUM×1 warn已修复），进入DoD文档同步阶段。 |
 | **v3.10** | **2026-05-07** | [T-00101] ✅ Done — WS sealed class 28信令 DoD 完成，arch/android 协议入口索引落锚，doc/protocol 交叉链接，doc/arch/android/room.md sealed class 架构描述 |
 | **v3.09** | **2026-05-07** | [T-00101] Review×3 ✅ APPROVE → DoD — sealed class PROTO-BINDING 全绑定，UserMuted payload-nested 修正，762 tests/0新增失败 |
 | **v3.08** | **2026-05-07** | [T-00105] TDD→Review — shared AdminEvent strict enum落地，adminServer服务层改用enum，480测试通过，0 clippy警告，PUBSUB-1/2/3/4通过。 |
@@ -430,7 +431,7 @@
 | [T-00102](../tds/web/T-00102.md) | T-00100 | Done | ✅ Done | - | - | ⏳ Pending |
 | [T-00103](../tds/server/T-00103.md) | T-00100 | Review | In Progress | - | - | ⏳ Pending |
 | [T-00104](../tds/infra/T-00104.md) ⭐ | T-00100, T-00101, T-00103 | Plan | Todo | - | - | ⏳ Pending |
-| [T-00105](../tds/adminServer/T-00105.md) | T-00100 | Review | In Progress | - | - | ⏳ Pending |
+| [T-00105](../tds/adminServer/T-00105.md) | T-00100 | Dod | In Progress | - | - | ⏳ Pending |
 | [T-00106](../tds/infra/T-00106.md) | T-00100, T-0000T | Dod | ✅ Done | - | - | ⏳ Pending |
 | [T-00107](../tds/infra/T-00107.md) | T-00106 | Plan | Todo | - | - | ⏳ Pending |
 | [T-00108](../tds/infra/T-00108.md) | T-00100 | Review | In Progress | - | - | ⏳ Pending |
