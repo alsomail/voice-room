@@ -531,15 +531,16 @@ pub async fn handle_kick(
     }
 
     // ── 14. 广播 UserLeft 给房间其他成员（走统一出口 broadcast_to_room）──────
-    // K28-03: 其他人收到 UserLeft reason=kicked_by_admin
+    // K28-03: 其他人收到 UserLeft
     // PROTO-BINDING: doc/protocol/schemas/ws/UserLeft.schema.json
+    // 最小化广播原则：reason/operator_id 不在 UserLeft.schema.json 中（additionalProperties:false）
+    // 被踢者已通过 UserKicked 点对点收到 reason；其他成员无需感知踢出原因。
     if let Some(rs) = room_state_opt.as_ref() {
         let user_left_envelope = serde_json::json!({
             "type": "UserLeft",
             "payload": {
                 "user_id": target_user_id.to_string(),
-                "reason": "kicked_by_admin",
-                "operator_id": operator_user_id.to_string(),
+                "member_count": rs.member_count(),
             },
             "timestamp": chrono::Utc::now().timestamp_millis(),
         });

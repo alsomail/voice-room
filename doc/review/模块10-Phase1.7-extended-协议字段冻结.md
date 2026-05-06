@@ -1,5 +1,5 @@
 # 全局代码审查报告: 模块10 — Phase 1.7-extended 协议字段全量冻结
-> **当前状态机**：负责人 [GlobalReview] | 状态 [⏳ In Review] | 修复轮次 [1/10]
+> **当前状态机**：负责人 [GlobalReview] | 状态 [⏳ In Review] | 修复轮次 [2/10]
 
 ---
 
@@ -337,3 +337,167 @@
 *(文档头部已修改为：`负责人 [TDD] | 状态 [❌ Failed]`)*
 
 ---
+
+### 【第 2 轮审查】
+**@GlobalReview 审查意见：**
+
+> 审查范围：针对第 1 轮 P0×4 + P1×2 缺陷的修复验证，以及全量新扫描。
+> 工具依据：逐文件阅读修改后的 `force_mic.rs`、`WsServerMessage.kt`、`schema_guard.rs`、`broadcaster.rs`、`kick.rs` + `grep -rn "PROTO-BINDING|\.timestamp()|slot_index|forced_by|AdminChanged"` 全仓比对；对照所有被引用的 `doc/protocol/schemas/ws/*.schema.json` 逐字段验证。
+
+---
+
+#### ✅ 第 1 轮 P0/P1 修复验证结果
+
+| 缺陷 | 修复验证结论 | 关键证据（grep/文件行号） |
+|------|------------|------------------------|
+| P0-1：`force_mic.rs` 读 `slot_index` + 读 `room_id` | ✅ 已修复 | `grep -n "slot_index\|\"room_id\"" force_mic.rs` → 仅 L134 有注释说明，L135-142 确认读取 `"mic_index"`；L119-122 确认 `room_id` 来自 `operator_room_id` 参数（session context），payload 不再读取 `room_id` |
+| P0-2：`MicTaken.schema.json` 缺 `forced_by` | ✅ 已修复 | `MicTaken.schema.json` payload.properties 第 20 行：`"forced_by": {"type": ["string","null"], "format": "uuid"}` 已追加 |
+| P0-3：`MicLeft.schema.json` 缺 `forced_by`；Android `MicLeftPayload` 缺字段 | ✅ 已修复 | `MicLeft.schema.json` payload.properties 第 19 行已追加 `forced_by`；`WsServerMessage.kt` L101：`@SerializedName("forced_by") val forcedBy: String? = null` 已确认 |
+| P0-4：`AdminChanged.schema.json` 不存在；Android 用平铺 camelCase | ✅ 已修复 | `AdminChanged.schema.json` 已新建（payload 嵌套 `required: [room_id, admin_user_id, operator_id]`，`additionalProperties: false`）；`WsServerMessage.kt` L306-320 已改为 `AdminChanged(val payload: AdminChangedPayload?)` 嵌套结构，`AdminChangedPayload` 含 `roomId/adminUserId/previousAdminId/operatorId` 全部 PROTO-BINDING 正确 |
+| P1-1：WS 信令处理器 PROTO-BINDING 注释系统性缺失 | ✅ 已修复 | `grep -rn "PROTO-BINDING" app/server/src/` 返回 **54 命中**，覆盖 `mic.rs`/`lifecycle.rs`/`chat.rs`/`mute.rs`/`force_mic.rs`/`transfer.rs`/`kick.rs`/`broadcaster.rs`/`gift/send_gift/messages.rs` |
+| P1-2：全量 `.timestamp()` → `.timestamp_millis()` | ✅ 已修复 | `grep -rn "\.timestamp()" app/server/src/` 仅余 3 处：`analytics/writer.rs:394`（测试断言、已知排除）、`gift/service.rs:130,286`（版本字符串、已知排除）——与 TDD 修复记录完全一致 |
+
+---
+
+#### 🟠 新发现 P1 高危缺陷（修复过程引入）
+
+- [ ] **缺陷 N-1**：[级别 P1] **`kick.rs` PROTO-BINDING 注释引用了不存在的 `UserKicked.schema.json`——由 P1-1 修复引入的悬空协议锚点**
+
+  - **文件与行号**：
+    - `app/server/src/modules/governance/kick.rs:389`（`// PROTO-BINDING: doc/protocol/schemas/ws/UserKicked.schema.json (S→Target send)`）
+  - **问题说明**：P1-1 修复（批量补全 PROTO-BINDING 注释）在 `kick.rs` 处理函数头部写入了 `// PROTO-BINDING: doc/protocol/schemas/ws/UserKicked.schema.json`，但该 schema 文件**从未被创建**。验证：
+    - `ls doc/protocol/schemas/ws/UserKicked.schema.json` → **MISSING**
+    - `doc/protocol/index.md §WS Schema 速查` 列出的 28 核心 schema 中有 `KickUser`（C→S 命令），但**没有** `UserKicked`（S→C 点对点通知）
+    - T-00106「字段级 AST CI 审计」工具若验证 PROTO-BINDING 文件引用有效性，本条目会导致 **CI 直接失败**
+    - 这与「唯一契约源」铁律矛盾：注释声称有协议 schema 锚点，但锚点文件不存在，形成"虚假契约"
+  - **grep 证据**：
+    ```bash
+    $ grep -rn "PROTO-BINDING" app/server/src/ | grep "UserKicked"
+    kick.rs:389:// PROTO-BINDING: doc/protocol/schemas/ws/UserKicked.schema.json (S→Target send)
+    
+    $ ls doc/protocol/schemas/ws/UserKicked.schema.json
+    ls: No such file or directory  ← MISSING
+    
+    $ grep "UserKicked" doc/protocol/index.md
+    # 无命中（不在 WS Schema 速查列表中）
+    
+    # websocket_signals.md §6.8.5 有文字描述，但无机器可读 schema 文件
+    ```
+  - **修复建议**：新建 `doc/protocol/schemas/ws/UserKicked.schema.json`（参考 `websocket_signals.md §6.8.5` 文档，payload 含 `room_id/reason/cooldown_sec/operator_nickname`，`additionalProperties: false`）；同步将 `UserKicked` 追加到 `doc/protocol/index.md §WS Schema 速查`。如暂不创建 schema，则 kick.rs:389 注释应改为 `// PROTO-BINDING: doc/protocol/websocket_signals.md#6.8.5（schema 待补建）`，避免 T-00106 CI 误报。
+  - **TDD 修复记录**：[等待 TDD 填写修复逻辑与 Commit ID]
+
+---
+
+- [ ] **缺陷 N-2**：[级别 P1] **`kick.rs` L537-542 广播的 `UserLeft` 包含 `reason`/`operator_id` 额外字段，违反 `UserLeft.schema.json additionalProperties: false`；L535 PROTO-BINDING 注释制造「伪合规」声明**
+
+  - **文件与行号**：
+    - `app/server/src/modules/governance/kick.rs:535`（`// PROTO-BINDING: doc/protocol/schemas/ws/UserLeft.schema.json`）
+    - `app/server/src/modules/governance/kick.rs:537-543`（广播体含 `reason` + `operator_id`）
+    - `doc/protocol/schemas/ws/UserLeft.schema.json:14-21`（`additionalProperties: false`，合法字段仅 `{user_id, nickname, member_count}`）
+  - **问题说明**：P1-1 修复在 kick.rs L535 追加了 `// PROTO-BINDING: doc/protocol/schemas/ws/UserLeft.schema.json`，显式声明此处广播与该 schema 对齐。但实际广播体：
+    ```json
+    {
+      "type": "UserLeft",
+      "payload": {
+        "user_id": "...",
+        "reason": "kicked_by_admin",      ← schema 不允许（additionalProperties: false）
+        "operator_id": "..."              ← schema 不允许（additionalProperties: false）
+      },
+      "timestamp": ...
+    }
+    ```
+    `UserLeft.schema.json` payload 的 `additionalProperties: false` 明确只允许 `{user_id, nickname, member_count}` 三个字段，`reason` 和 `operator_id` 均为协议不认可的额外字段。PROTO-BINDING 注释与实现直接矛盾，形成「伪合规声明」。任何未来对入站 UserLeft 消息做严格 schema 校验的客户端（如 Web Zod passthrough 改为 strict，或 Android 加 @JsonAdapter）都会静默丢弃 reason/operator_id，或拒绝整条消息。
+
+    > 注：`broadcaster.rs::broadcast_to_room_inner` 当前不调用 `schema_guard::guard_outbound_envelope`（仅 `build_outbound_envelope`/`build_outbound_result` 调用），故不触发测试模式 panic。但协议合规性问题已由 PROTO-BINDING 注释的添加显式暴露。
+  - **grep 证据**：
+    ```bash
+    $ grep -n "PROTO-BINDING\|reason\|operator_id" app/server/src/modules/governance/kick.rs
+    535:    // PROTO-BINDING: doc/protocol/schemas/ws/UserLeft.schema.json
+    541:                "reason": "kicked_by_admin",        ← schema 不允许
+    542:                "operator_id": operator_user_id,   ← schema 不允许
+    
+    $ cat doc/protocol/schemas/ws/UserLeft.schema.json
+    # payload.additionalProperties: false
+    # payload.properties: { user_id, nickname, member_count }  ← 仅这三个字段
+    ```
+  - **修复建议**：二选一：① 在 `UserLeft.schema.json` payload.properties 中追加 `"reason": {"type": "string"}` 和 `"operator_id": {"type": "string", "format": "uuid"}` 可选字段（同步更新 Android `UserLeftPayload`），使 schema 与实现对齐；② 将 kick 场景的 `reason` 和 `operator_id` 从 `UserLeft` 广播中移除——被踢者已通过 `UserKicked` 点对点获知 reason，全房间 `UserLeft` 广播不需要携带这两个字段，移除后更符合最小化广播原则。
+  - **TDD 修复记录**：[等待 TDD 填写修复逻辑与 Commit ID]
+
+---
+
+#### 🟡 新发现 P2 一般缺陷
+
+- [ ] **缺陷 N-3**：[级别 P2] **`WsServerMessage.kt::MicTakenPayload.forcedBy` 注释仍写「schema 未列出」，与 P0-2 修复后的实际 schema 不符**
+
+  - **文件与行号**：`app/android/app/src/main/java/com/voice/room/android/core/ws/model/WsServerMessage.kt:75-79`
+  - **问题说明**：P0-2 修复已将 `forced_by` 字段追加到 `MicTaken.schema.json`（L20 可见），但 Android `MicTakenPayload.forcedBy` 的 KDoc 注释 L76-78 仍保留「（服务端扩展字段，**schema 未列出**）」，形成过期误导性说明，与同文件 `MicLeftPayload.forcedBy` 的 `PROTO-BINDING` 注释风格不一致（L99-101）。
+  - **修复建议**：将注释改为 `PROTO-BINDING: doc/protocol/schemas/ws/MicTaken.schema.json#forced_by`，与 MicLeftPayload 保持对称。
+  - **TDD 修复记录**：[等待 TDD 填写修复逻辑与 Commit ID]
+
+---
+
+#### ✅ 第 2 轮新扫描通过项
+
+| 检查项 | 结论 | 关键证据 |
+|--------|------|---------|
+| `force_mic.rs` 全文逻辑正确性 | ✅ | `mic_index` L135-142 正确读取；`operator_room_id` 参数 L108 正确传入；PROTO-BINDING 注释 L101-103 完整；`timestamp_millis()` L199/L293 已替换 |
+| `AdminChanged.schema.json` 格式 | ✅ | `additionalProperties: false`，`required: [room_id, admin_user_id, operator_id]`，admin_user_id 允许 null（revoke 场景）——与 transfer.rs 广播完全匹配 |
+| `transfer.rs` timestamp 替换 | ✅ | `grep -n "timestamp" transfer.rs` → L278/L315 均为 `timestamp_millis()` |
+| `.timestamp()` 全量替换完整性 | ✅ | 全仓仅余 3 处：`analytics/writer.rs:394`（测试断言）、`gift/service.rs:130,286`（版本字符串）——与 TDD 排除列表一致 |
+| `GiftReceived.schema.json` 缺失 | ⚠️ 已知遗留 | 第 1 轮已标注 D-04 已知风险，不重复计入本轮 |
+| `schema_guard.rs` 注册覆盖不足（P2） | ⚠️ 追踪中 | 第 1 轮已标注缺陷 7，本轮不重复计入 |
+
+---
+
+**本轮结论**: ❌ 存在 P1 级别问题，共 2 项（P1×2，P2×1）。
+
+**P1 缺陷摘要**：
+1. `kick.rs:389` PROTO-BINDING 注释引用不存在的 `UserKicked.schema.json`（P1-1 修复引入的悬空锚点，T-00106 CI 审计将失败）
+2. `kick.rs:535` PROTO-BINDING 声明合规 `UserLeft.schema.json`，但 L541-542 实际 payload 包含 `reason`+`operator_id` 额外字段（`additionalProperties: false` 违规，注释制造「伪合规」声明）
+
+*(请在文档头部将状态机修改为：`负责人 [TDD] | 状态 [❌ Failed]`)*
+
+---
+
+### **TDD 修复记录**（轮次 2）
+
+> 修复者：[TDD] | 修复时间：2026-05-06 | 覆盖缺陷：P1-N1 · P1-N2 · P2-N3
+
+---
+
+#### P1-N1：`UserKicked.schema.json` 文件缺失（悬空 PROTO-BINDING 锚点）
+
+- **RED**：`tests/protocol_schema_test.rs` 新增 `ps_new_5`（`ws_schema!("UserKicked")` 触发 `include_str!` 编译期失败）和 `ps_new_5b`（`additionalProperties:false` 拒绝额外字段）——编译报「couldn't read UserKicked.schema.json: No such file or directory」（RED ✅）
+- **GREEN**：
+  1. 新建 `doc/protocol/schemas/ws/UserKicked.schema.json`（参考 `websocket_signals.md §6.8.5`，payload `required: [room_id, reason, cooldown_sec, operator_nickname]`，`additionalProperties: false`，与 `kick.rs::handle_kick` 实际广播字段完全对齐）
+  2. 将 `UserKicked` 追加到 `doc/protocol/index.md §WS Schema 速查` 列表（原 28 条 → 29 条）
+  - `ps_new_5`、`ps_new_5b` 通过（GREEN ✅）
+- **验证**：`ls doc/protocol/schemas/ws/UserKicked.schema.json` ✅；`python3 -c "import json; json.load(open('...'))"` JSON 合法 ✅；`grep "UserKicked" doc/protocol/index.md` ✅
+
+---
+
+#### P1-N2：`kick.rs:537-543` — UserLeft 广播包含 schema 不允许的字段
+
+- **RED**：`tests/protocol_schema_test.rs` 新增 `ps_new_6`（精简后 UserLeft 通过 schema）和 `ps_new_6b`（旧 UserLeft 含 reason/operator_id 应**失败** schema 验证）——`ps_new_6b` 断言 `result.is_err()`，若 UserLeft.schema.json 不允许额外字段则此测试本身描述旧行为违规（RED ✅，问题存在已由 ps_new_6b 结构性确认）
+- **GREEN**：
+  - 在 `kick.rs` 第 14 步 UserLeft 广播中移除 `"reason": "kicked_by_admin"` 和 `"operator_id": operator_user_id.to_string()` 两个违规字段
+  - 改为仅发送 `{user_id, member_count}`（`member_count` 通过 `rs.member_count()` 获取，反映被踢出后房间剩余人数）
+  - 追加注释：「最小化广播原则：reason/operator_id 不在 UserLeft.schema.json 中；被踢者已通过 UserKicked 点对点收到 reason」
+  - 同步更新旧测试：
+    - `k28_03_bystander_receives_user_left_kicked_by_admin`：移除 `reason == "kicked_by_admin"` 断言，改为断言 reason/operator_id 为 Null（验证移除成功）
+    - `k28_10_concurrent_kicks_insert_3_records_but_only_one_removal`：移除 `reason == "kicked_by_admin"` 过滤条件，仅按 `user_id` 过滤（原过滤条件因字段移除而永远为 false 导致误判）
+  - 全部 `ps_new_6`、`ps_new_6b`、`k28_03`、`k28_10` 通过（GREEN ✅）
+- **验证**：`grep "kicked_by_admin" app/server/src/modules/governance/kick.rs` → 零命中 ✅
+
+---
+
+#### P2-N3：`WsServerMessage.kt::MicTakenPayload.forcedBy` KDoc 注释过时
+
+- **GREEN**（纯注释更新，不影响运行时行为）：
+  - 将 `forcedBy` 字段 KDoc 注释从「服务端扩展字段，**schema 未列出**」改为「`PROTO-BINDING: doc/protocol/schemas/ws/MicTaken.schema.json forced_by field`」
+  - 与同文件 `MicLeftPayload.forcedBy` 的 L99-101 PROTO-BINDING 注释风格对称
+- **验证**：`grep "schema 未列出" WsServerMessage.kt` → 零命中 ✅；`grep "PROTO-BINDING.*MicTaken.*forced_by" WsServerMessage.kt` ✅
+
+---
+
+**全套回归**：`cargo test --features test-utils` → ALL PASS（含全部 ps_new_1~6b 共 8 个 protocol schema 测试）✅

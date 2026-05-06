@@ -690,6 +690,7 @@ fn ps_new_3_admin_changed_payload_nested_passes_schema() {
 }
 
 // ─── PS-NEW-4: AdminChanged revoke（admin_user_id=null）通过 schema 验证 ──────
+// NOTE: ps_new_4 intentionally placed before ps_new_5/ps_new_6 (round-2 fixes)
 #[test]
 fn ps_new_4_admin_changed_revoke_null_admin_passes_schema() {
     let schema_str = ws_schema!("AdminChanged");
@@ -712,4 +713,122 @@ fn ps_new_4_admin_changed_revoke_null_admin_passes_schema() {
     });
 
     assert_valid(schema_str, &envelope, "PS-NEW-4: AdminChanged revoke (admin_user_id=null)");
+}
+
+// ─── PS-NEW-5: UserKicked schema 存在且 payload 通过验证 ──────────────────────
+//
+// P1-N1 缺陷验证：kick.rs PROTO-BINDING 注释引用 UserKicked.schema.json，
+// 但该文件不存在（悬空锚点）。本测试确保：
+//   1. UserKicked.schema.json 文件存在且 JSON 合法（编译期 include_str! 失败即 RED）
+//   2. kick.rs 实际发送的 payload（room_id/reason/cooldown_sec/operator_nickname）通过验证
+#[test]
+fn ps_new_5_user_kicked_schema_exists_and_payload_valid() {
+    let schema_str = ws_schema!("UserKicked");
+    let room_id = Uuid::new_v4().to_string();
+    let msg_id = Uuid::new_v4().to_string();
+
+    // kick.rs build_outbound_envelope("UserKicked", ...) 产生的 envelope
+    let envelope = serde_json::json!({
+        "type": "UserKicked",
+        "msg_id": msg_id,
+        "payload": {
+            "room_id": room_id,
+            "reason": "违规发言",
+            "cooldown_sec": 600,
+            "operator_nickname": "管理员"
+        },
+        "timestamp": 1_700_000_000i64
+    });
+
+    assert_valid(schema_str, &envelope, "PS-NEW-5: UserKicked full payload");
+}
+
+// ─── PS-NEW-5b: UserKicked payload 不允许额外字段（additionalProperties: false）──
+#[test]
+fn ps_new_5b_user_kicked_rejects_extra_fields() {
+    let schema_str = ws_schema!("UserKicked");
+    let schema: serde_json::Value =
+        serde_json::from_str(schema_str).expect("schema must be valid JSON");
+    let validator = jsonschema::JSONSchema::compile(&schema).expect("schema must compile");
+
+    let room_id = Uuid::new_v4().to_string();
+    let msg_id = Uuid::new_v4().to_string();
+
+    // 额外字段 operator_id 不被 additionalProperties:false 允许
+    let envelope_with_extra = serde_json::json!({
+        "type": "UserKicked",
+        "msg_id": msg_id,
+        "payload": {
+            "room_id": room_id,
+            "reason": "test",
+            "cooldown_sec": 300,
+            "operator_nickname": "admin",
+            "operator_id": "extra-field-uuid"  // ← 不在 schema 中
+        },
+        "timestamp": 1_700_000_000i64
+    });
+
+    let result = validator.validate(&envelope_with_extra);
+    assert!(
+        result.is_err(),
+        "PS-NEW-5b: UserKicked with extra field operator_id must FAIL schema (additionalProperties: false)"
+    );
+}
+
+// ─── PS-NEW-6: kick 场景 UserLeft 广播不含 reason/operator_id ─────────────────
+//
+// P1-N2 缺陷验证：kick.rs L541-542 广播 UserLeft 时包含 reason/operator_id，
+// 违反 UserLeft.schema.json additionalProperties: false。
+// 修复后：kick.rs 的 UserLeft payload 仅含 user_id/nickname/member_count，
+// 本测试验证精简后的 payload 通过 schema，而含 reason/operator_id 的旧 payload 失败。
+#[test]
+fn ps_new_6_user_left_kick_scenario_without_extra_fields_valid() {
+    let schema_str = ws_schema!("UserLeft");
+    let user_id = Uuid::new_v4().to_string();
+    let msg_id = Uuid::new_v4().to_string();
+
+    // 修复后 kick.rs 应发送的 UserLeft（无 reason/operator_id）
+    let clean_envelope = serde_json::json!({
+        "type": "UserLeft",
+        "msg_id": msg_id,
+        "payload": {
+            "user_id": user_id,
+            "member_count": 3
+        },
+        "timestamp": 1_700_000_000i64
+    });
+
+    assert_valid(schema_str, &clean_envelope, "PS-NEW-6: UserLeft kick clean payload");
+}
+
+// ─── PS-NEW-6b: kick 场景旧 UserLeft（含 reason/operator_id）应失败 schema ────
+#[test]
+fn ps_new_6b_user_left_kick_old_payload_with_extra_fields_fails_schema() {
+    let schema_str = ws_schema!("UserLeft");
+    let schema: serde_json::Value =
+        serde_json::from_str(schema_str).expect("schema must be valid JSON");
+    let validator = jsonschema::JSONSchema::compile(&schema).expect("schema must compile");
+
+    let user_id = Uuid::new_v4().to_string();
+    let operator_id = Uuid::new_v4().to_string();
+    let msg_id = Uuid::new_v4().to_string();
+
+    // 修复前 kick.rs 发送的 UserLeft（含 reason + operator_id）
+    let old_envelope = serde_json::json!({
+        "type": "UserLeft",
+        "msg_id": msg_id,
+        "payload": {
+            "user_id": user_id,
+            "reason": "kicked_by_admin",    // ← schema 不允许
+            "operator_id": operator_id      // ← schema 不允许
+        },
+        "timestamp": 1_700_000_000i64
+    });
+
+    let result = validator.validate(&old_envelope);
+    assert!(
+        result.is_err(),
+        "PS-NEW-6b: UserLeft with reason+operator_id MUST FAIL schema validation \
+         (additionalProperties: false, only user_id/nickname/member_count allowed)"
+    );
 }

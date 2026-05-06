@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voiceroom.example/protocol/ws/UserKicked",
+  "title": "UserKicked",
+  "description": "被踢出通知（S→Target 点对点，不广播到房间）—— 由 KickUser 成功后点对点推送给被踢目标",
+  "type": "object",
+  "required": ["type", "payload", "timestamp"],
+  "additionalProperties": false,
+  "properties": {
+    "type": { "type": "string", "const": "UserKicked" },
+    "msg_id": { "type": "string", "format": "uuid" },
+    "payload": {
+      "type": "object",
+      "required": ["room_id", "reason", "cooldown_sec", "operator_nickname"],
+      "additionalProperties": false,
+      "properties": {
+        "room_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "被踢出的房间 ID"
+        },
+        "reason": {
+          "type": "string",
+          "description": "踢出原因（由操作者在 KickUser 请求中传入）"
+        },
+        "cooldown_sec": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "冷却时间（秒），被踢后需等待该时长才可重新加入同一房间"
+        },
+        "operator_nickname": {
+          "type": "string",
+          "description": "执行踢出操作的管理员昵称"
+        }
+      }
+    },
+    "timestamp": { "type": "integer", "description": "服务端毫秒时间戳" }
+  }
+}

@@ -279,14 +279,21 @@ async fn k28_03_bystander_receives_user_left_kicked_by_admin() {
     while let Ok(msg) = bystander_rx.try_recv() {
         let v: serde_json::Value = serde_json::from_str(&msg).unwrap();
         if v["type"] == "UserLeft" {
-            assert_eq!(
-                v["payload"]["reason"], "kicked_by_admin",
-                "K28-03: UserLeft reason should be kicked_by_admin"
-            );
+            // P1-N2 修复（轮次2）：UserLeft.schema.json additionalProperties:false 仅允许
+            // {user_id, nickname, member_count}，reason/operator_id 已从 kick 场景 payload 移除。
+            // 被踢者已通过 UserKicked 点对点获知 reason（最小化广播原则）。
             assert_eq!(
                 v["payload"]["user_id"],
                 target_id.to_string(),
                 "K28-03: UserLeft user_id should be target"
+            );
+            assert_eq!(
+                v["payload"]["reason"], serde_json::Value::Null,
+                "K28-03: UserLeft must NOT contain reason field (schema additionalProperties:false)"
+            );
+            assert_eq!(
+                v["payload"]["operator_id"], serde_json::Value::Null,
+                "K28-03: UserLeft must NOT contain operator_id field (schema additionalProperties:false)"
             );
             found_user_left = true;
         }
@@ -720,12 +727,12 @@ async fn k28_10_concurrent_kicks_insert_3_records_but_only_one_removal() {
         // 不严格断言第二次的返回码（40400 或 0 均可）
 
         // bystander 只收到一次 UserLeft（target = target_id）
+        // P1-N2 修复（轮次2）：UserLeft payload 不再含 reason 字段，仅按 user_id 过滤
         let mut user_left_count = 0;
         while let Ok(msg) = bystander_rx.try_recv() {
             let v: serde_json::Value = serde_json::from_str(&msg).unwrap();
             if v["type"] == "UserLeft"
                 && v["payload"]["user_id"] == target_id.to_string()
-                && v["payload"]["reason"] == "kicked_by_admin"
             {
                 user_left_count += 1;
             }

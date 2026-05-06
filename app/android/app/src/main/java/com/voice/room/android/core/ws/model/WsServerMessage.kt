@@ -73,7 +73,8 @@ sealed class WsServerMessage {
         val nickname: String? = null,
         val avatar: String? = null,
         /**
-         * 强制抱麦时由谁发起（服务端扩展字段，schema 未列出）
+         * 强制抱麦时由谁发起（操作者 user_id）。
+         * PROTO-BINDING: doc/protocol/schemas/ws/MicTaken.schema.json forced_by field
          * 用于 ForceTakeMic 流程中判断是否需要弹出权限请求。
          */
         @SerializedName("forced_by") val forcedBy: String? = null,
