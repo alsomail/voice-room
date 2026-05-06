@@ -1,9 +1,9 @@
 # Voice Room 开发任务清单
 
-> **版本**: v3.03  
-> **更新日期**: 2026-05-06  
-> **任务总数**: 139 个 (基建: 4 + 14 + 3, App Server: 33 + 1 + 2, Admin Server: 16 + 1, Web: 14 + 1, Android: 45 + 1 + 1, E-07 15 + E-07.5 6 + E-10 18)  
-> **当前阶段**: Phase 1 - 核心营收闭环（E-07 + E-07.5 并行）→ Phase 1.5 E-10 房间治理 → Phase 1.6 E2E 测试基建 → **Phase 1.7 协议治理铁律落地**（Round 16 BUG-CHAT-WS 系统性根因 → 协议路径绑定 + 历史 TDS 全量回填 + 审计脚本）
+> **版本**: v3.05  
+> **更新日期**: 2026-05-07  
+> **任务总数**: 148 个 (基建: 4 + 14 + 3 + 6, App Server: 33 + 1 + 2 + 1, Admin Server: 16 + 1 + 1, Web: 14 + 1 + 1, Android: 45 + 1 + 1 + 1, E-07 15 + E-07.5 6 + E-10 18)  
+> **当前阶段**: Phase 1 → … → Phase 1.7 协议治理铁律落地 → **Phase 1.7-extended 协议字段全量冻结**（WS + HTTP REST + Redis Pub/Sub 三协议层 schema 机器可读 + 字段级 CI 审计 + Android×Server 跨语言 E2E）
 
 ---
 
@@ -12,6 +12,8 @@
 | 版本 | 日期 | 变更内容 |
 |------|------|---------|
 | _规则_ | — | 本表只记录**版本级摘要**（一行 ≤ 200 字符），具体 Review/审查/实跑证据请落到对应 [TDS](../tds/) 第五节【Review 意见】或对应模块审查批次 `doc/review/模块N-XXX.md`，**严禁**在本表堆叠详细审查记录。 |
+| **v3.05** | **2026-05-07** | [T-00100] TDD→Review — 协议三层Schema冻结TDD完成(8/8 PROTO-FREEZE全绿)；WS 34信令+HTTP DTO+Redis Pub/Sub schema落锚；T-00100状态Plan→Review/In Progress。 |
+| **v3.04** | **2026-05-06** | Phase 1.7-extended 启动：协议字段全量冻结（WS + HTTP REST + Redis Pub/Sub 三协议层）——注册 9 个新 Task：T-00100⭐（protocol 三层 schema 冻结+ping→Ping）、T-00101（Android sealed class 干掉 27+ 野生反序列化）、T-00102（Web Zod）、T-00103（Server schema_guard+deny_unknown_fields）、T-00104⭐（Android×Server 跨语言 E2E 8 场景）、T-00105（Redis admin:events 双端契约）、T-00106（字段级 AST CI 审计）、T-00107（TDS 字段级回填）、T-00108（ping/Ping 三端）；9 份 TDS 全部创建，均 Plan→TDD 待领取。 |
 | **v3.03** | **2026-05-06** | T-0000T/V Review Gate ✅ Passed — GlobalReview 第1轮发现P0（ERE grep括号未转义导致客户端grep静默失败）+ 3P1，TDD修复后第2轮通过；模块9全20个Task三门禁全绿；详见 [模块9-T-0000TV-protocol-audit-arch-cleanup.md](../review/模块9-T-0000TV-protocol-audit-arch-cleanup.md)。 |
 | **v3.02** | **2026-05-06** | 收尾归档：SKIP-OOS×6 Overall Gate→✅ Released；T-0000T/V QA Gate→✅ N/A；版本头同步v3.02。 |
 | **v3.01** | **2026-05-06** | [T-0000V] DoD — ARCHITECTURE.md物理删除，ADR-0002新增协议治理铁律，§8.2明确指向protocol/index.md单一事实源，模块9进度20/20。 |
@@ -411,3 +413,12 @@
 | [T-0000T](../tds/infra/T-0000T.md) | T-0000R | Dod | ✅ Done | [✅ Passed](../review/模块9-T-0000TV-protocol-audit-arch-cleanup.md) | ✅ N/A | ✅ Released |
 | [T-0000U](../tds/infra/T-0000U.md) | T-0000T | Dod | ✅ Done | ✅ Passed | ✅ N/A | ✅ Released |
 | [T-0000V](../tds/infra/T-0000V.md) | T-0000U | Dod | ✅ Done | [✅ Passed](../review/模块9-T-0000TV-protocol-audit-arch-cleanup.md) | ✅ N/A | ✅ Released |
+| [T-00100](../tds/infra/T-00100.md) ⭐ | T-0000V | Review | In Progress | - | - | ⏳ Pending |
+| [T-00101](../tds/android/T-00101.md) | T-00100 | Plan | Todo | - | - | ⏳ Pending |
+| [T-00102](../tds/web/T-00102.md) | T-00100 | Plan | Todo | - | - | ⏳ Pending |
+| [T-00103](../tds/server/T-00103.md) | T-00100 | Plan | Todo | - | - | ⏳ Pending |
+| [T-00104](../tds/infra/T-00104.md) ⭐ | T-00100, T-00101, T-00103 | Plan | Todo | - | - | ⏳ Pending |
+| [T-00105](../tds/adminServer/T-00105.md) | T-00100 | Plan | Todo | - | - | ⏳ Pending |
+| [T-00106](../tds/infra/T-00106.md) | T-00100, T-0000T | Plan | Todo | - | - | ⏳ Pending |
+| [T-00107](../tds/infra/T-00107.md) | T-00106 | Plan | Todo | - | - | ⏳ Pending |
+| [T-00108](../tds/infra/T-00108.md) | T-00100 | Plan | Todo | - | - | ⏳ Pending |
