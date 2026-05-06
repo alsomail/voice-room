@@ -77,3 +77,6 @@ jobs:
 
       - name: Field-level AST Audit (T-00106)
         run: npm run audit:fields
+
+      - name: Audit tooling unit tests (TC-AUDIT)
+        run: npm run test:audit
