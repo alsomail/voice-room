@@ -44,6 +44,19 @@ describe('CROSS-3: TakeMic → TakeMicResult + MicTaken 广播', () => {
   let roomId: string;
 
   beforeAll(async () => {
+    // 检查广播测试是否有两个不同身份的 token
+    if (!env.adminToken || env.adminToken === env.userToken) {
+      console.warn(
+        '[CROSS-3] SKIP-KNOWN: 广播路径测试需要两个不同身份的 token\n' +
+        '  请在 tests/scripts/env/.env.local 中配置:\n' +
+        '  E2E_TOKEN_USER1=<user-jwt>\n' +
+        '  E2E_TOKEN_ADMIN=<admin-jwt>  (需与 USER1 为不同用户)\n' +
+        '  当前两个 token 相同或缺失，广播场景将走 SKIP-KNOWN 路径',
+      );
+      serverAvailable = false;
+      return;
+    }
+
     serverAvailable = await isServerReachable(env.apiUrl);
     if (!serverAvailable) return;
 

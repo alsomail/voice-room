@@ -20,6 +20,7 @@
 import { AndroidWsClient } from './helpers/ws-client';
 import { validateOrThrow } from './helpers/schema-validator';
 import { getCrossLangEnv, isServerReachable } from './helpers/fixtures';
+import { randomUUID } from 'crypto';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 常量
@@ -61,7 +62,7 @@ describe('CROSS-1: Ping/Pong 心跳往返', () => {
       return;
     }
 
-    const pingMsgId = require('crypto').randomUUID() as string;
+    const pingMsgId = randomUUID();
 
     // 发送 Ping（Android: OkHttpWebSocketClient.startHeartbeat）
     client.send({ type: 'Ping', msg_id: pingMsgId });
@@ -101,7 +102,7 @@ describe('CROSS-1: Ping/Pong 心跳往返', () => {
     for (let i = 0; i < ROUNDS; i++) {
       expect(client.isConnected()).toBe(true);
 
-      const pingMsgId = require('crypto').randomUUID() as string;
+      const pingMsgId = randomUUID();
       client.send({ type: 'Ping', msg_id: pingMsgId });
 
       const pong = await client.waitForMessage('Pong', 8000);

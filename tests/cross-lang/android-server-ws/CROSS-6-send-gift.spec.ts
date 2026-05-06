@@ -47,6 +47,19 @@ describe('CROSS-6: SendGift → SendGiftResult + GiftReceived 广播', () => {
       );
     }
 
+    // 检查广播测试是否有两个不同身份的 token
+    if (!env.adminToken || env.adminToken === env.userToken) {
+      console.warn(
+        '[CROSS-6] SKIP-KNOWN: 广播路径测试需要两个不同身份的 token\n' +
+        '  请在 tests/scripts/env/.env.local 中配置:\n' +
+        '  E2E_TOKEN_USER1=<user-jwt>\n' +
+        '  E2E_TOKEN_ADMIN=<admin-jwt>  (需与 USER1 为不同用户)\n' +
+        '  当前两个 token 相同或缺失，广播场景将走 SKIP-KNOWN 路径',
+      );
+      serverAvailable = false;
+      return;
+    }
+
     serverAvailable = await isServerReachable(env.apiUrl);
     if (!serverAvailable) return;
 
@@ -80,11 +93,9 @@ describe('CROSS-6: SendGift → SendGiftResult + GiftReceived 广播', () => {
         return;
       }
 
-      // 需要一个 receiver — 这里用 adminToken 对应的用户（如果有的话），
-      // 或者构造一个有效的 user_id（若 server 不验证则任意 uuid 可以）
-      const receiverId = env.adminToken
-        ? 'placeholder-receiver-id' // 实际应为有效 UUID，server 会校验
-        : '00000000-0000-4000-8000-000000000001';
+      // SKIP-KNOWN: 成功路径需要 receiver_id 对应的用户已加入当前测试房间
+      // 使用合法 UUID 格式，server 可能因用户不在房间返回 code≠0
+      const receiverId = '00000000-0000-4000-8000-000000000001';
       const giftId = '00000000-0000-4000-8000-000000000002'; // 测试礼物 ID
 
       // Android: GiftPanelViewModel.sendGift → wsClient.send({"type":"SendGift",...})
