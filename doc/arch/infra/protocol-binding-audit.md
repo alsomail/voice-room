@@ -70,3 +70,55 @@ npm run audit:protocol -- --dry-run
 - [TDS 模板](../../tds/_template.md) — 「🔌 协议路径绑定表」格式规范
 - [审计脚本源码](../../../scripts/audit/protocol-binding-audit.ts)
 - [测试文件](../../../scripts/audit/__tests__/protocol-binding-audit.test.ts)
+
+---
+
+## 字段级 AST 审计（T-00106）
+
+### 概述
+
+在协议路径绑定审计（T-0000T）基础上，升级到字段级 AST 比对：从三端源码提取实际使用的字段名，与 `doc/protocol/schemas/**/*.schema.json` 比对，任何 camelCase 字段报 P0 阻塞 PR。
+
+### 提取器职责
+
+| 提取器 | 文件 | 解析目标 |
+|--------|------|---------|
+| Rust AST 提取器 | `scripts/audit/lib/rust-ast-extractor.ts` | `json!({...})` 宏顶层键（手动括号平衡扫描）+ `#[serde(rename="...")]` 字段 |
+| Kotlin AST 提取器 | `scripts/audit/lib/kotlin-ast-extractor.ts` | `@SerializedName("...")` 注解 |
+| Zod 提取器 | `scripts/audit/lib/zod-extractor.ts` | `z.object({...})` 顶层字段名（含嵌套 schema 的各层字段） |
+
+### compareWithSchema 用法
+
+```typescript
+import { compareWithSchema, isCamelCase } from './lib/schema-comparator';
+
+const mismatches = compareWithSchema(extractedFields, schemaFields, 'schemas/ws.schema.json');
+const p0 = mismatches.filter(m => m.severity === 'P0');
+if (p0.length > 0) process.exit(1);
+```
+
+### P0/P1 分级规则
+
+| 级别 | 触发条件 | 说明 |
+|------|---------|------|
+| P0 | `isCamelCase(fieldName) === true` | 字段命名违反 snake_case 铁律，必然导致跨端失配 |
+| P1 | 字段在 schema 中未定义 | 可能是新增字段，但需要人工确认 |
+
+> `isCamelCase` 规则：小写字母开头 + 包含大写字母（PascalCase 不属于此类）
+
+### CI 接入
+
+`package.json` 中配置：
+```json
+"audit:fields": "npx ts-node --project tsconfig.scripts.json scripts/audit/protocol-binding-audit.ts --field-level"
+```
+
+在 `.github/workflows/ci.yml` 的 `protocol-audit` job 中：
+```yaml
+- name: Field-level AST Audit (T-00106)
+  run: npm run audit:fields
+```
+
+### 🔌 协议入口索引
+
+> N/A — 本 Task 是 CI 工具升级，不引入跨端通信。
