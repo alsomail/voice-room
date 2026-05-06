@@ -5,6 +5,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import android.util.Log
+import com.voice.room.android.core.analytics.AnalyticsPort
+import com.voice.room.android.core.analytics.impl.NoopAnalytics
 import com.voice.room.android.core.media.IMediaService
 import com.voice.room.android.core.media.NoOpMediaService
 import com.voice.room.android.core.ws.IWebSocketClient
@@ -101,6 +103,14 @@ class RoomViewModel(
      * - 默认值：空字符串（向后兼容现有测试，为空时跳过 connect 调用）
      */
     private val wsUrl: String = "",
+    /**
+     * Analytics 埋点端口（P1-2：Unknown 信令上报）
+     *
+     * - 生产环境：通过 [RoomViewModelFactory] 注入 AppContainer 中的真实实现
+     * - 单元测试：注入 Fake 实现或保留默认 [NoopAnalytics]
+     * - 默认值：[NoopAnalytics]（向后兼容现有测试）
+     */
+    private val analyticsPort: AnalyticsPort = NoopAnalytics(),
 ) : ViewModel() {
 
     companion object {
@@ -941,6 +951,7 @@ class RoomViewModel(
 
         when (msg) {
             is WsServerMessage.UserJoined -> {
+                // PROTO-BINDING: doc/protocol/schemas/ws/UserJoined.schema.json
                 _uiState.value = RoomViewState.Success(
                     state.copy(onlineCount = state.onlineCount + 1)
                 )
@@ -963,6 +974,7 @@ class RoomViewModel(
             }
 
             is WsServerMessage.UserLeft -> {
+                // PROTO-BINDING: doc/protocol/schemas/ws/UserLeft.schema.json
                 _uiState.value = RoomViewState.Success(
                     state.copy(onlineCount = (state.onlineCount - 1).coerceAtLeast(0))
                 )
@@ -976,6 +988,7 @@ class RoomViewModel(
             }
 
             is WsServerMessage.MicTaken -> {
+                // PROTO-BINDING: doc/protocol/schemas/ws/MicTaken.schema.json
                 val slotIndex = msg.payload.micIndex
                 val userId = msg.payload.userId
                 val nickname = msg.payload.nickname
@@ -1007,7 +1020,11 @@ class RoomViewModel(
 
                 // T-30044: 若是当前用户，根据是否强制抱麦决定推流策略
                 if (isSelf) {
-                    val roomId = currentRoomId ?: return
+                    val roomId = currentRoomId
+                    if (roomId == null) {
+                        Log.w(TAG, "ws: MicTaken for self but currentRoomId is null, skipping media start")
+                        return
+                    }
                     if (forcedBy != null && !micPermissionChecker.hasMicPermission()) {
                         // ForceTakeMic 且无权限 → 请求权限；拒绝则自动下麦
                         micPermissionChecker.requestMicPermission { granted ->
@@ -1027,6 +1044,7 @@ class RoomViewModel(
             }
 
             is WsServerMessage.MicLeft -> {
+                // PROTO-BINDING: doc/protocol/schemas/ws/MicLeft.schema.json
                 val slotIndex = msg.payload.micIndex
                 // 在清空前记录该槽位原有 userId，用于判断是否需要调用 mediaService
                 val leavingUserId = msg.payload.userId
@@ -1080,6 +1098,7 @@ class RoomViewModel(
             }
 
             is WsServerMessage.AdminChanged -> {
+                // PROTO-BINDING: No schema (backward-compat, flat fields)
                 // T-30039: 更新 role 字段
                 val targetUserId = msg.userId
                 val newRole = msg.role
@@ -1099,6 +1118,7 @@ class RoomViewModel(
             }
 
             is WsServerMessage.MessageReceived -> {
+                // PROTO-BINDING: N/A (legacy flat format, kept for backward-compat)
                 val msgId = msg.msgId
                 if (msgId == null) {
                     Log.w(TAG, "ws: MessageReceived missing msgId, ignoring")
@@ -1129,6 +1149,7 @@ class RoomViewModel(
             // BUG-CHAT-WS Round 6：服务端实际广播 type=RoomMessage（见 server/src/room/handler/chat.rs）
             // payload: { msg_id, user_id, content }；顶层 timestamp。
             is WsServerMessage.RoomMessage -> {
+                // PROTO-BINDING: doc/protocol/schemas/ws/RoomMessage.schema.json
                 val msgId = msg.payload.msgId
                 if (seenMsgIds.contains(msgId)) return
                 val content = msg.payload.content
@@ -1161,10 +1182,12 @@ class RoomViewModel(
             }
 
             is WsServerMessage.RoomClosed -> {
+                // PROTO-BINDING: N/A (no schema, fire-and-forget event)
                 _events.trySend(RoomEvent.NavigateBack)
             }
 
             is WsServerMessage.ServerError -> {
+                // PROTO-BINDING: N/A (no schema, error notification)
                 when (msg.code) {
                     40301 -> _events.trySend(RoomEvent.ShowToast("无权操作"))
                     // 其他错误码静默忽略（后续可按需扩展）
@@ -1172,6 +1195,7 @@ class RoomViewModel(
             }
 
             is WsServerMessage.GiftReceived -> {
+                // PROTO-BINDING: N/A (no schema, flat backward-compat)
                 val msgId = msg.msgId
                 if (msgId == null) {
                     Log.w(TAG, "ws: GiftReceived missing msgId, ignoring")
@@ -1214,6 +1238,7 @@ class RoomViewModel(
             }
 
             is WsServerMessage.UserKicked -> {
+                // PROTO-BINDING: N/A (no schema, flat backward-compat + payload compat)
                 // T-30042: 收到被踢通知，设置 kickedState（WS 服务端只推送给被踢用户）
                 // R1 P1-7: 兼容 flat 格式 + 新版 payload 嵌套格式
                 val reason = msg.payload?.reason ?: msg.reason ?: ""
@@ -1222,14 +1247,16 @@ class RoomViewModel(
             }
 
             is WsServerMessage.UserMuted -> {
+                // PROTO-BINDING: doc/protocol/schemas/ws/UserMuted.schema.json
                 // T-30042: 收到被禁麦/禁言通知，WS 服务端只推送给被禁用户
-                val muteType = msg.muteType
+                val targetUserId = msg.payload.targetUserId ?: return  // 允许此 return：无目标用户无法处理
+                val muteType = msg.payload.muteType
                 if (muteType == null) {
-                    Log.w(TAG, "ws: UserMuted missing muteType, ignoring")
+                    Log.w(TAG, "ws: UserMuted missing payload.muteType, ignoring (targetUserId=$targetUserId)")
                     return
                 }
-                val durationSec = msg.durationSec
-                val expiresAt = msg.expiresAt
+                val durationSec = msg.payload.durationSec
+                val expiresAt = msg.payload.expiresAt
                     ?: (clock.currentTimeMillis() + durationSec * 1000L)
                 // 发出 UserMuted 事件供 MuteCountdownViewModel 消费
                 if (durationSec == 0) {
@@ -1252,6 +1279,7 @@ class RoomViewModel(
             }
 
             is WsServerMessage.RoomInfoUpdated -> {
+                // PROTO-BINDING: No schema (backward-compat, flat fields)
                 // T-30043: 更新房间信息（title/announcement/category）
                 val newTitle = msg.title
                 val newAnnouncement = msg.announcement
@@ -1265,7 +1293,11 @@ class RoomViewModel(
 
                 // 若公告有变化且非空 → 重置 seen 并重新弹窗
                 if (newAnnouncement != null && newAnnouncement != state.announcement) {
-                    val roomId = currentRoomId ?: return
+                    val roomId = currentRoomId
+                    if (roomId == null) {
+                        Log.w(TAG, "ws: RoomInfoUpdated has new announcement but currentRoomId is null, skipping announcementSeenStore update")
+                        return
+                    }
                     if (newAnnouncement.isNotBlank()) {
                         _showAnnouncementIcon.value = true
                         announcementSeenStore.save(roomId, clock.currentTimeMillis())
@@ -1277,6 +1309,7 @@ class RoomViewModel(
             }
 
             // Result types — handled by GiftPanelViewModel / other consumers via WebSocketState
+            // PROTO-BINDING: See individual schema files under doc/protocol/schemas/ws/
             is WsServerMessage.Pong,
             is WsServerMessage.JoinRoomResult,
             is WsServerMessage.LeaveRoomResult,
@@ -1296,8 +1329,10 @@ class RoomViewModel(
             }
 
             is WsServerMessage.Unknown -> {
-                // T-00101: 未知信令记录日志，不抛异常
-                Log.w(TAG, "ws: unknown signal type=${msg.type} — ignoring (forward-compat)")
+                // PROTO-BINDING: N/A (unknown signal, forward-compat catchall)
+                // P1-2: 升级为 Log.e + analytics 埋点便于线上问题定位
+                Log.e(TAG, "ws: unknown signal type=${msg.type} — ignoring (forward-compat)")
+                analyticsPort.track("ws_unknown_type", mapOf("type" to msg.type))
             }
         }
     }
@@ -1368,6 +1403,7 @@ class RoomViewModelFactory(
     private val micPermissionChecker: IMicPermissionChecker = AlwaysGrantedMicPermissionChecker(),
     private val tokenManager: ITokenManager? = null,
     private val wsUrl: String = "",
+    private val analyticsPort: AnalyticsPort = NoopAnalytics(),
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T =
@@ -1381,6 +1417,7 @@ class RoomViewModelFactory(
             micPermissionChecker   = micPermissionChecker,
             tokenManager           = tokenManager,
             wsUrl                  = wsUrl,
+            analyticsPort          = analyticsPort,
         ) as T
 }
 

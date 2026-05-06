@@ -31,8 +31,8 @@ class MaxRetryExceededException(retries: Int) :
  *
  * 功能特性：
  * - **状态流广播**：所有连接状态通过 [state] StateFlow 实时推送
- * - **心跳保活**：连接成功后每 [pingIntervalMs] 毫秒发送 `{"type":"ping"}`；
- *   收到 `{"type":"pong"}` 后重置计时器
+ * - **心跳保活**：连接成功后每 [pingIntervalMs] 毫秒发送 `{"type":"Ping"}`；
+ *   收到 `{"type":"Pong"}` 后重置计时器
  * - **自动重连**：非主动断开时以指数退避（1s→2s→4s→8s→16s→32s，上限 32s）
  *   最多重试 [maxRetries] 次；超限后发出 [WebSocketState.Error]
  * - **防并发重入**：使用 [AtomicBoolean] 保证同时只有一个重连任务在进行

@@ -10,8 +10,8 @@ import com.google.gson.annotations.SerializedName
  *
  * ## 协议规范
  * - payload-nested 信令（有 schema）：UserJoined / UserLeft / MicTaken / MicLeft /
- *   RoomMessage / Pong / 所有 Result 类型
- * - 平铺字段信令（无 schema 或向后兼容）：UserMuted / AdminChanged /
+ *   RoomMessage / UserMuted / Pong / 所有 Result 类型
+ * - 平铺字段信令（无 schema 或向后兼容）：AdminChanged /
  *   RoomInfoUpdated / GiftReceived / UserKicked / MessageReceived / RoomClosed / Error
  * - 兜底：Unknown（type 未匹配任何已知信令）
  *
@@ -262,20 +262,29 @@ sealed class WsServerMessage {
     // ═══════════════════════════════════════════════════════════════════════════
 
     /**
-     * 用户被禁麦/禁言广播（向后兼容平铺格式）。
-     * 旧协议字段: muteType (camelCase), duration_sec, expires_at
-     * PROTO-BINDING: doc/protocol/schemas/ws/UserMuted.schema.json (flat backward-compat)
+     * 用户被禁麦/禁言广播（payload-nested，对齐 UserMuted.schema.json）。
+     * PROTO-BINDING: doc/protocol/schemas/ws/UserMuted.schema.json
      */
     data class UserMuted(
-        /** 禁用类型："mic" 或 "chat" */
-        @SerializedName("muteType") val muteType: String? = null,
-        @SerializedName("duration_sec") val durationSec: Int = 0,
-        @SerializedName("expires_at") val expiresAt: Long? = null,
+        // PROTO-BINDING: doc/protocol/schemas/ws/UserMuted.schema.json
+        val payload: UserMutedPayload,
         @SerializedName("msg_id") val msgId: String? = null,
+        val timestamp: Long = 0,
     ) : WsServerMessage()
 
+    data class UserMutedPayload(
+        @SerializedName("room_id") val roomId: String? = null,
+        @SerializedName("target_user_id") val targetUserId: String? = null,
+        /** 禁用类型："mic" 或 "chat"（JSON 字段名 "type"） */
+        @SerializedName("type") val muteType: String? = null,
+        @SerializedName("duration_sec") val durationSec: Int = 0,
+        @SerializedName("expires_at") val expiresAt: Long? = null,
+        @SerializedName("operator_id") val operatorId: String? = null,
+    )
+
     /**
-     * 管理员变更广播（无 schema，平铺字段，向后兼容）。
+     * 管理员变更广播（无独立 schema，平铺字段，向后兼容）。
+     * PROTO-BINDING: No schema (backward-compat, flat fields)
      */
     data class AdminChanged(
         /** 被变更的目标用户 ID（camelCase，backward-compat） */

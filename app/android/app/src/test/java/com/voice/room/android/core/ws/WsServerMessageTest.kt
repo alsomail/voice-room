@@ -206,16 +206,22 @@ class WsServerMessageTest {
     // ─── PROTO-4: UserMuted / AdminChanged / RoomInfoUpdated ─────────────────
 
     @Test
-    fun `PROTO-4-a UserMuted flat format parses muteType and durationSec`() {
-        // PROTO-BINDING: doc/protocol/schemas/ws/UserMuted.schema.json (kept as flat for backward-compat)
+    fun `PROTO-4-a UserMuted payload-nested format parses type durationSec and targetUserId`() {
+        // PROTO-BINDING: doc/protocol/schemas/ws/UserMuted.schema.json (payload-nested)
         val expiresAt = 9999999999L
+        val uid = "550e8400-e29b-41d4-a716-44665544ddaa"
         val json = """
             {
               "type": "UserMuted",
-              "muteType": "mic",
-              "duration_sec": 600,
-              "expires_at": $expiresAt,
-              "msg_id": "6ba7b810-9dad-11d1-80b4-00c04fd430cc"
+              "payload": {
+                "room_id": "550e8400-e29b-41d4-a716-446655440000",
+                "target_user_id": "$uid",
+                "type": "mic",
+                "duration_sec": 600,
+                "expires_at": $expiresAt
+              },
+              "msg_id": "6ba7b810-9dad-11d1-80b4-00c04fd430cc",
+              "timestamp": 1234567890
             }
         """.trimIndent()
 
@@ -223,9 +229,45 @@ class WsServerMessageTest {
 
         assertTrue("Should parse to UserMuted", msg is WsServerMessage.UserMuted)
         val muted = msg as WsServerMessage.UserMuted
-        assertEquals("muteType should be mic", "mic", muted.muteType)
-        assertEquals("durationSec should be 600", 600, muted.durationSec)
-        assertEquals("expiresAt should match", expiresAt, muted.expiresAt)
+        assertEquals("payload.muteType should be mic", "mic", muted.payload.muteType)
+        assertEquals("payload.durationSec should be 600", 600, muted.payload.durationSec)
+        assertEquals("payload.expiresAt should match", expiresAt, muted.payload.expiresAt)
+        assertEquals("payload.targetUserId should match uid", uid, muted.payload.targetUserId)
+        assertEquals("msg_id should match", "6ba7b810-9dad-11d1-80b4-00c04fd430cc", muted.msgId)
+    }
+
+    /**
+     * PROTO-4-a-GUARD: UserMuted 必须使用 payload-nested 格式，不得有顶层 muteType 字段。
+     */
+    @Test
+    fun `PROTO-4-a-GUARD UserMuted has no top-level muteType field - uses payload-nested`() {
+        val propNames = WsServerMessage.UserMuted::class.memberProperties.map { it.name }
+        assertFalse(
+            "UserMuted must NOT have top-level muteType (should use payload.muteType)",
+            "muteType" in propNames
+        )
+        assertFalse(
+            "UserMuted must NOT have top-level durationSec (should use payload.durationSec)",
+            "durationSec" in propNames
+        )
+        assertTrue(
+            "UserMuted must have payload property",
+            "payload" in propNames
+        )
+    }
+
+    @Test
+    fun `PROTO-4-a-b UserMuted chat type parses correctly from payload`() {
+        // PROTO-BINDING: doc/protocol/schemas/ws/UserMuted.schema.json
+        val json = """{"type":"UserMuted","payload":{"target_user_id":"user-x","type":"chat","duration_sec":0},"timestamp":1234}"""
+
+        val msg = gson.fromJson(json, WsServerMessage::class.java)
+
+        assertTrue("Should parse to UserMuted", msg is WsServerMessage.UserMuted)
+        val muted = msg as WsServerMessage.UserMuted
+        assertEquals("payload.muteType should be chat", "chat", muted.payload.muteType)
+        assertEquals("payload.durationSec should be 0", 0, muted.payload.durationSec)
+        assertNull("payload.expiresAt should be null when not set", muted.payload.expiresAt)
     }
 
     @Test

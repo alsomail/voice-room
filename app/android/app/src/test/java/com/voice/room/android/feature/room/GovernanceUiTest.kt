@@ -86,7 +86,7 @@ class GovernanceUiTest {
             // 收到禁麦 WS 事件（到期时间 = fixedNow + 10min）
             val micExpiresAt = fixedNow + 600_000L
             fakeWsClient.simulateMessage(
-                """{"type":"UserMuted","muteType":"mic","duration_sec":600,"expires_at":$micExpiresAt}"""
+                """{"type":"UserMuted","payload":{"target_user_id":"self","type":"mic","duration_sec":600,"expires_at":$micExpiresAt},"timestamp":1234}"""
             )
             advanceUntilIdle()
 
@@ -135,7 +135,7 @@ class GovernanceUiTest {
 
             // Act: 收到禁言广播
             fakeWsClient.simulateMessage(
-                """{"type":"UserMuted","muteType":"chat","duration_sec":600,"expires_at":$chatExpiresAt}"""
+                """{"type":"UserMuted","payload":{"target_user_id":"self","type":"chat","duration_sec":600,"expires_at":$chatExpiresAt},"timestamp":1234}"""
             )
             advanceUntilIdle()
 
@@ -163,7 +163,7 @@ class GovernanceUiTest {
 
             val chatExpiresAt = fixedNow + 600_000L
             fakeWsClient.simulateMessage(
-                """{"type":"UserMuted","muteType":"chat","duration_sec":600,"expires_at":$chatExpiresAt}"""
+                """{"type":"UserMuted","payload":{"target_user_id":"self","type":"chat","duration_sec":600,"expires_at":$chatExpiresAt},"timestamp":1234}"""
             )
             advanceUntilIdle()
 
@@ -193,7 +193,7 @@ class GovernanceUiTest {
 
             val chatExpiresAt = fixedNow + 1_000L  // 到期时间 = 1_001_000ms
             fakeWsClient.simulateMessage(
-                """{"type":"UserMuted","muteType":"chat","duration_sec":1,"expires_at":$chatExpiresAt}"""
+                """{"type":"UserMuted","payload":{"target_user_id":"self","type":"chat","duration_sec":1,"expires_at":$chatExpiresAt},"timestamp":1234}"""
             )
             advanceUntilIdle()
 
