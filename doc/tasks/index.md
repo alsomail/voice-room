@@ -12,6 +12,7 @@
 | 版本 | 日期 | 变更内容 |
 |------|------|---------|
 | _规则_ | — | 本表只记录**版本级摘要**（一行 ≤ 200 字符），具体 Review/审查/实跑证据请落到对应 [TDS](../tds/) 第五节【Review 意见】或对应模块审查批次 `doc/review/模块N-XXX.md`，**严禁**在本表堆叠详细审查记录。 |
+| **v3.11** | **2026-05-08** | [T-00108] DoD ✅ Done — ping/Ping三端同步升级完成，timestamp(ms)全量修正，arch/server+android协议入口索引Ping/Pong⭐落锚，conventions.md过渡期声明清除。 |
 | **v3.11** | **2026-05-08** | [T-00103] DoD ✅ Done — schema_guard+deny_unknown_fields落地，arch/server 协议入口索引同步；18测试全绿。 |
 | **v3.10** | **2026-05-07** | [T-00105] DoD ✅ Done — admin:events 双端契约对齐完成，arch双端协议入口索引补4个Pub/Sub锚点，protocol反向链接已落锚。 |
 | **v3.10** | **2026-05-08** | [T-00108] Review Round2 🟢 通过 — 协议绑定表两行PASS，8项ping测试全绿；状态Review→Dod。 |
@@ -438,4 +439,4 @@
 | [T-00105](../tds/adminServer/T-00105.md) | T-00100 | Dod | ✅ Done | - | - | ⏳ Pending |
 | [T-00106](../tds/infra/T-00106.md) | T-00100, T-0000T | Dod | ✅ Done | - | - | ⏳ Pending |
 | [T-00107](../tds/infra/T-00107.md) | T-00106 | Plan | Todo | - | - | ⏳ Pending |
-| [T-00108](../tds/infra/T-00108.md) | T-00100 | Dod | In Progress | - | - | ⏳ Pending |
+| [T-00108](../tds/infra/T-00108.md) | T-00100 | Dod | ✅ Done | - | - | ⏳ Pending |
