@@ -31,6 +31,12 @@ Server 端基于 Rust + Axum 构建。启动骨架（配置、日志、健康检
 
 > **铁律**：每个跨端 Task 的 DoD 阶段必须把 TDS「协议路径绑定表」中**本端涉及的行**反向写入此表。本表是 server 端**所有**对外协议入口的汇总，供 global-review、新人 onboarding 和重构变更影响面分析使用。
 
+### 🔌 Schema 索引
+- [Protocol Schemas](../../protocol/schemas/) — WS/HTTP/Pub/Sub 三协议层机器可读 Schema（T-00100 落锚）
+  - `schemas/ws/` — 34 个 WebSocket 信令 Schema（含 Ping/Pong/JoinRoom/SendMessage 等）
+  - `schemas/http/` — HTTP DTO Schema（含 RoomDetail.mic_slots 强类型）
+  - `schemas/pubsub/` — Redis admin:events Schema（BanUser/UnbanUser/CloseRoom/BroadcastNotice）
+
 | 协议类型 | 入口 / 信令 | 实现文件:函数 | protocol/ 锚点 | 关联 Task | 客户端实调用方 |
 |----------|------------|---------------|---------------|-----------|----------------|
 | WS C→S | `SendMessage` ⭐ | `app/server/src/room/handler/chat.rs::handle_send_message` | [websocket_signals.md §6.8.1](../../protocol/websocket_signals.md) | T-00047 | `app/android/app/src/main/java/com/voice/room/android/feature/room/RoomViewModel.kt::sendMessage` |

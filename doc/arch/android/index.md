@@ -32,6 +32,12 @@
 
 > **铁律**：每个跨端 Task 的 DoD 阶段必须把 TDS「协议路径绑定表」中**本端涉及的行**反向写入此表。本表是 android 端**所有**对外协议调用方的汇总，供 global-review、新人 onboarding 和重构变更影响面分析使用。
 
+### 🔌 Schema 索引
+- [Protocol Schemas](../../protocol/schemas/) — WS/HTTP/Pub/Sub 三协议层机器可读 Schema（T-00100 落锚）
+  - `schemas/ws/` — 34 个 WebSocket 信令 Schema（含 Ping/Pong/JoinRoom/SendMessage 等）
+  - `schemas/http/` — HTTP DTO Schema（含 RoomDetail.mic_slots 强类型）
+  - `schemas/pubsub/` — Redis admin:events Schema（BanUser/UnbanUser/CloseRoom/BroadcastNotice）
+
 | 协议类型 | 调用方法 | 客户端实调用方（文件:函数）| protocol/ 锚点 | 关联 Task | 服务端实现 |
 |----------|---------|----------------------------|---------------|-----------|------------|
 | WS C→S `SendMessage` ⭐ | `wsClient.sendEnvelope(type="SendMessage", payload=mapOf("content" to content), msgId=uuid)` | `feature/room/RoomViewModel.kt::sendMessage` | [websocket_signals.md §6.8.1](../../protocol/websocket_signals.md#681-sendmessagecs) | T-30054 | `server/src/room/handler/chat.rs::handle_send_message` |
