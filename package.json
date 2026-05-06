@@ -21,7 +21,8 @@
     "preflight": "bash scripts/dev/preflight.sh",
     "audit:protocol": "npx ts-node --project tsconfig.scripts.json scripts/audit/protocol-binding-audit.ts",
     "test:audit": "jest scripts/audit/",
-    "audit:fields": "npx ts-node --project tsconfig.scripts.json scripts/audit/protocol-binding-audit.ts --field-level"
+    "audit:fields": "npx ts-node --project tsconfig.scripts.json scripts/audit/protocol-binding-audit.ts --field-level",
+    "test:cross-lang:ws": "jest --config jest.cross-lang.config.js"
   },
   "repository": {
     "type": "git",

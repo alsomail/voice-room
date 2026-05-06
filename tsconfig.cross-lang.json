@@ -1,0 +1,19 @@
+{
+  "extends": "./tsconfig.scripts.json",
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "noEmit": true,
+    "types": ["node", "jest"]
+  },
+  "include": [
+    "scripts/**/*.ts",
+    "tests/protocol-audit/**/*.ts",
+    "tests/cross-lang/**/*.ts"
+  ]
+}
