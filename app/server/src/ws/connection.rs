@@ -39,7 +39,11 @@ use crate::stats::StatsPort;
 // ─── 信令数据结构 ─────────────────────────────────────────────────────────────
 
 /// 客户端下行消息（服务端接收）
+///
+/// `#[serde(deny_unknown_fields)]` — 拒绝含未知字段的消息，防止字段注入。
+/// PROTO-BINDING: doc/protocol/schemas/ws/Ping.schema.json (JoinRoom/LeaveMic/…对应各自 schema)
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct IncomingMessage {
     #[serde(rename = "type")]
     pub msg_type: String,
@@ -92,10 +96,61 @@ pub fn handle_text_message(text: &str, last_heartbeat: &Arc<RwLock<Instant>>) ->
 
             serde_json::to_string(&pong).ok()
         }
+        "Ping" => {
+            // 新格式大写 Ping 信令（T-00103 兼容期）
+            match last_heartbeat.write() {
+                Ok(mut guard) => *guard = Instant::now(),
+                Err(e) => tracing::error!("heartbeat lock poisoned: {e}"),
+            }
+
+            let pong = OutgoingMessage {
+                msg_type: "Pong".to_string(),
+                msg_id: msg.msg_id,
+                payload: None,
+                timestamp: chrono::Utc::now().timestamp(),
+            };
+
+            serde_json::to_string(&pong).ok()
+        }
         unknown => {
             tracing::warn!(msg_type = unknown, "unknown ws message type received");
             None
         }
+    }
+}
+
+/// 兼容期双发响应：对 Ping 信令在 dev 模式下同时返回新格式 Pong 和旧格式 pong。
+///
+/// - Release: 只返回新格式 `[Pong]`
+/// - Debug:   同时返回 `[Pong, pong]`（兼容旧版客户端）
+///
+/// 用于 T-00103 PING-COMPAT-2 测试。
+pub fn ping_pong_responses(msg_id: Option<String>) -> Vec<String> {
+    let ts = chrono::Utc::now().timestamp();
+
+    let pong_new = OutgoingMessage {
+        msg_type: "Pong".to_string(),
+        msg_id: msg_id.clone(),
+        payload: None,
+        timestamp: ts,
+    };
+    let pong_legacy = OutgoingMessage {
+        msg_type: "pong".to_string(),
+        msg_id,
+        payload: None,
+        timestamp: ts,
+    };
+
+    #[cfg(debug_assertions)]
+    {
+        vec![
+            serde_json::to_string(&pong_new).unwrap_or_default(),
+            serde_json::to_string(&pong_legacy).unwrap_or_default(),
+        ]
+    }
+    #[cfg(not(debug_assertions))]
+    {
+        vec![serde_json::to_string(&pong_new).unwrap_or_default()]
     }
 }
 

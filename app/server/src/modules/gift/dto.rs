@@ -34,7 +34,11 @@ pub struct GiftListData {
 }
 
 /// POST /api/v1/gifts/send 请求体（T-00044）
+///
+/// `#[serde(deny_unknown_fields)]` — 拒绝含未知字段的请求体，防止字段注入。
+/// PROTO-BINDING: doc/protocol/HTTP POST /api/v1/gifts/send
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SendGiftRequest {
     pub room_id: Uuid,
     pub gift_id: Uuid,

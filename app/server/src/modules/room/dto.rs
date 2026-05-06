@@ -4,7 +4,11 @@ use uuid::Uuid;
 // ─── T-00026: 密码房校验 ──────────────────────────────────────────────────────
 
 /// POST /api/v1/rooms/:id/verify-password 请求体
+///
+/// `#[serde(deny_unknown_fields)]` — 拒绝含未知字段的请求体，防止字段注入。
+/// PROTO-BINDING: doc/protocol/HTTP POST /api/v1/rooms/:id/verify-password
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct VerifyPasswordRequest {
     pub password: String,
 }
@@ -28,7 +32,11 @@ pub struct LockedData {
 }
 
 /// POST /api/v1/rooms 请求体（T-00025 扩展：新增 cover_url/category/announcement）
+///
+/// `#[serde(deny_unknown_fields)]` — 拒绝含未知字段的请求体，防止字段注入。
+/// PROTO-BINDING: doc/protocol/HTTP POST /api/v1/rooms
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CreateRoomRequest {
     pub title: String,
     pub room_type: String,
@@ -69,7 +77,11 @@ pub struct NewRoom {
 ///
 /// 至少一个字段非 None，否则 40003。
 /// `announcement: Some("")` 表示清空公告。
+///
+/// `#[serde(deny_unknown_fields)]` — 拒绝含未知字段的请求体，防止字段注入。
+/// PROTO-BINDING: doc/protocol/HTTP PATCH /api/v1/rooms/:id
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PatchRoomRequest {
     pub title: Option<String>,
     /// `Some("")` = 清空公告，`Some("text")` = 设置，`None` = 不变

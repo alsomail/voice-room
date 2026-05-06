@@ -50,7 +50,11 @@ use crate::{
 // ─── 请求/响应数据结构 ─────────────────────────────────────────────────────────
 
 /// POST /api/v1/events/batch 请求体
+///
+/// `#[serde(deny_unknown_fields)]` — 拒绝含未知字段的请求体，防止字段注入。
+/// PROTO-BINDING: doc/protocol/HTTP POST /api/v1/events/batch
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct BatchEventsRequest {
     pub events: Vec<EventInput>,
 }

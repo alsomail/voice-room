@@ -1,7 +1,11 @@
 use serde::{Deserialize, Serialize};
 
 /// POST /api/v1/auth/verification-codes
+///
+/// `#[serde(deny_unknown_fields)]` — 拒绝含未知字段的请求体，防止字段注入。
+/// PROTO-BINDING: doc/protocol/HTTP POST /api/v1/auth/verification-codes
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SendCodeRequest {
     pub phone: String,
 }
@@ -14,7 +18,11 @@ pub struct SendCodeResponse {
 }
 
 /// POST /api/v1/auth/login
+///
+/// `#[serde(deny_unknown_fields)]` — 拒绝含未知字段的请求体，防止字段注入。
+/// PROTO-BINDING: doc/protocol/HTTP POST /api/v1/auth/login
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct LoginRequest {
     pub phone: String,
     pub code: String,

@@ -59,7 +59,11 @@ pub struct ChatMessagesResponse {
 }
 
 /// `POST /api/v1/chat-messages` 请求体（T-00045）
+///
+/// `#[serde(deny_unknown_fields)]` — 拒绝含未知字段的请求体，防止字段注入。
+/// PROTO-BINDING: doc/protocol/HTTP POST /api/v1/chat-messages
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SendChatMessageRequest {
     pub room_id: String,
     pub content: String,

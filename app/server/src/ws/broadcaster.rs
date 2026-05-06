@@ -14,6 +14,7 @@ use uuid::Uuid;
 use crate::room::manager::RoomManager;
 use crate::room::state::RoomState;
 use crate::ws::registry::ConnectionRegistry;
+use crate::ws::schema_guard;
 
 /// 统一房间广播出口（P1-6）。
 ///
@@ -170,6 +171,7 @@ pub fn build_outbound_envelope(type_str: &str, payload: Value) -> (String, Strin
         "payload": payload,
         "timestamp": chrono::Utc::now().timestamp(),
     });
+    schema_guard::guard_outbound_envelope(&envelope);
     (
         serde_json::to_string(&envelope).unwrap_or_else(|_| String::new()),
         msg_id,
@@ -203,6 +205,7 @@ pub fn build_outbound_result(
         "payload": payload,
         "timestamp": chrono::Utc::now().timestamp(),
     });
+    schema_guard::guard_outbound_envelope(&envelope);
     serde_json::to_string(&envelope).unwrap_or_default()
 }
 

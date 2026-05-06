@@ -30,6 +30,8 @@ bcrypt.workspace = true
 dashmap = "6.0"
 redis = { version = "0.27", features = ["tokio-comp", "aio"] }
 futures-util = "0.3"
+# T-00103: WS 出栈 schema 校验（仅 debug_assertions 代码路径使用，但须在 [dependencies] 中）
+jsonschema = "0.18"
 
 [dev-dependencies]
 tower = "0.5"
@@ -108,3 +110,9 @@ required-features = ["test-utils"]
 [[test]]
 name = "chat_dual_path_equivalence"
 required-features = ["test-utils"]
+
+[[test]]
+name = "admin_event_roundtrip_test"
+
+[[test]]
+name = "protocol_schema_test"
