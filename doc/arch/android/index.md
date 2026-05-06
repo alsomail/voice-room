@@ -61,6 +61,29 @@
 | WS C→S `LeaveMic` | `RoomViewModel.leaveMic` | `feature/room/RoomViewModel.kt::leaveMic` | [websocket_signals.md §6.7](../../protocol/websocket_signals.md#67-leavemiccs) | T-00101 | `server/src/room/handler/mic.rs::handle_leave_mic` |
 | _无（纯 UI）_ | _N/A_ | `feature/room/ChatMessageList.kt:UserMessageItem` | _N/A_ | T-30053 | _无（纯 Android UI 长按复制，不动协议）_ |
 
+### T-00104 跨语言 E2E 入口索引（Android 侧）
+
+**说明**：以下表格是 T-00104 跨语言 WebSocket E2E 测试套中涉及的 Android 侧主调用路径映射。所有测试遵循 **PROTO-BINDING** 规约，对所有收到的 server 消息进行 JSON Schema 校验。详见 [T-00104 TDS](../../tds/infra/T-00104.md) 和 [CROSS_LANG_WS_RUNBOOK](../../tests/CROSS_LANG_WS_RUNBOOK.md)。
+
+| # | 场景 | Android 调用入口（⭐主路径） | 测试文件 | 协议锚点 |
+|---|------|--------------------------|---------|---------|
+| CROSS-1 | Ping | ⭐ `OkHttpWebSocketClient.startHeartbeat` → `{"type":"Ping",...}` | `tests/cross-lang/android-server-ws/CROSS-1-ping-pong.spec.ts` | [websocket_signals.md §6.5.1](../../protocol/websocket_signals.md#651-pingcs) |
+| CROSS-1 | Pong | ⭐ `OkHttpWebSocketClient.onMessage` → pong 检测 | `CROSS-1-ping-pong.spec.ts` | [websocket_signals.md §6.6.1](../../protocol/websocket_signals.md#661-pongsc) |
+| CROSS-2 | JoinRoom | ⭐ `RoomViewModel.joinRoom` → `{"type":"JoinRoom",...}` | `CROSS-2-join-room.spec.ts` | [websocket_signals.md §6.5.2](../../protocol/websocket_signals.md#652-joinroomcs) |
+| CROSS-2 | UserJoined（广播）| ⭐ `RoomViewModel.handleWsMessage` → `is WsServerMessage.UserJoined` | `CROSS-2-join-room.spec.ts` | [websocket_signals.md §6.7.1](../../protocol/websocket_signals.md#671-userjoinedsroom) |
+| CROSS-3 | TakeMic | ⭐ `RoomViewModel.takeMic` → `{"type":"TakeMic",...}` | `CROSS-3-take-mic.spec.ts` | [websocket_signals.md §6.5.4](../../protocol/websocket_signals.md#654-takemiccs) |
+| CROSS-3 | MicTaken（广播）| ⭐ `RoomViewModel.handleWsMessage` → `is WsServerMessage.MicTaken` | `CROSS-3-take-mic.spec.ts` | [websocket_signals.md §6.7.3](../../protocol/websocket_signals.md#673-mictakensroom) |
+| CROSS-4 | LeaveMic | ⭐ `RoomViewModel.leaveMic` → `{"type":"LeaveMic",...}` | `CROSS-4-leave-mic.spec.ts` | [websocket_signals.md §6.5.5](../../protocol/websocket_signals.md#655-leavemiccs) |
+| CROSS-4 | MicLeft（广播）| ⭐ `RoomViewModel.handleWsMessage` → `is WsServerMessage.MicLeft` | `CROSS-4-leave-mic.spec.ts` | [websocket_signals.md §6.7.4](../../protocol/websocket_signals.md#674-micleftsroom) |
+| CROSS-5 | SendMessage | ⭐ `RoomViewModel.sendMessage` → `{"type":"SendMessage",...}` | `CROSS-5-send-message.spec.ts` | [websocket_signals.md §6.5.6](../../protocol/websocket_signals.md#656-sendmessagecs) |
+| CROSS-5 | RoomMessage（广播）| ⭐ `RoomViewModel.handleWsMessage` → `is WsServerMessage.RoomMessage` | `CROSS-5-send-message.spec.ts` | [websocket_signals.md §6.7.5](../../protocol/websocket_signals.md#675-roommessagesroom) |
+| CROSS-6 | SendGift | ⭐ `GiftPanelViewModel.sendGift` → `{"type":"SendGift",...}` | `CROSS-6-send-gift.spec.ts` | [websocket_signals.md §6.5.7](../../protocol/websocket_signals.md#657-sendgiftcs) |
+| CROSS-6 | GiftReceived（广播）| ⭐ `GiftPanelViewModel.handleWsMessage` → `is WsServerMessage.GiftReceived` | `CROSS-6-send-gift.spec.ts` | [websocket_signals.md §6.8.1](../../protocol/websocket_signals.md#681-giftreceivedsroom) |
+| CROSS-7 | MuteUser | ⭐ Admin WS → `{"type":"MuteUser",...}` | `CROSS-7-mute-user.spec.ts` | [websocket_signals.md §6.5.10](../../protocol/websocket_signals.md#6510-muteusercs) |
+| CROSS-7 | UserMuted（广播）| ⭐ `RoomViewModel.handleWsMessage` → `is WsServerMessage.UserMuted` | `CROSS-7-mute-user.spec.ts` | [websocket_signals.md §6.7.6](../../protocol/websocket_signals.md#676-usermuted) |
+| CROSS-8 | KickUser | ⭐ Admin WS → `{"type":"KickUser",...}` | `CROSS-8-kick-user.spec.ts` | [websocket_signals.md §6.5.9](../../protocol/websocket_signals.md#659-kickusercs) |
+| CROSS-8 | UserLeft（广播）| ⭐ `RoomViewModel.handleWsMessage` → `is WsServerMessage.UserLeft` | `CROSS-8-kick-user.spec.ts` | [websocket_signals.md §6.7.2](../../protocol/websocket_signals.md#672-userleftsroom) |
+
 ## 三、 当前能力全景与状态 (Capability Matrix)
 > 状态枚举：🟢 已完成 | 🟡 开发/调试中 | 🔴 待开发 
 

@@ -12,7 +12,8 @@
 | 版本 | 日期 | 变更内容 |
 |------|------|---------|
 | _规则_ | — | 本表只记录**版本级摘要**（一行 ≤ 200 字符），具体 Review/审查/实跑证据请落到对应 [TDS](../tds/) 第五节【Review 意见】或对应模块审查批次 `doc/review/模块N-XXX.md`，**严禁**在本表堆叠详细审查记录。 |
-| **v3.12** | **2026-05-08** | [T-00107] DoD ✅ Done — TDS字段级回填完成，P0=0/P1=0；修复审计工具3处bug（regex/adminServer/web独立函数），154 TDS files全量合规。 |
+| **v3.12** | **2026-05-08** | [T-00104] DoD ✅ Done — 8 跨语言 E2E 场景落地（CROSS-1~8，19 测试），PROTO-BINDING 全绑定，协议差异 D-01~D-04 记录，arch/android + server 协议入口索引落锚，RUNBOOK + TDS §五六完成。 |
+| **v3.12** | **2026-05-08** | [T-00107] DoD ✅ Done — TDS 字段级回填完成，P0=0/P1=0；修复审计工具 3 处 bug（regex/adminServer/web 独立函数），154 TDS files 全量合规。 |
 | **v3.11** | **2026-05-08** | [T-00108] DoD ✅ Done — ping/Ping三端同步升级完成，timestamp(ms)全量修正，arch/server+android协议入口索引Ping/Pong⭐落锚，conventions.md过渡期声明清除。 |
 | **v3.11** | **2026-05-08** | [T-00103] DoD ✅ Done — schema_guard+deny_unknown_fields落地，arch/server 协议入口索引同步；18测试全绿。 |
 | **v3.10** | **2026-05-07** | [T-00105] DoD ✅ Done — admin:events 双端契约对齐完成，arch双端协议入口索引补4个Pub/Sub锚点，protocol反向链接已落锚。 |
@@ -436,7 +437,7 @@
 | [T-00101](../tds/android/T-00101.md) | T-00100 | Dod | ✅ Done | - | - | ⏳ Pending |
 | [T-00102](../tds/web/T-00102.md) | T-00100 | Done | ✅ Done | - | - | ⏳ Pending |
 | [T-00103](../tds/server/T-00103.md) | T-00100 | Dod | Done | - | - | ⏳ Pending |
-| [T-00104](../tds/infra/T-00104.md) ⭐ | T-00100, T-00101, T-00103 | Dod | In Progress | - | - | ⏳ Pending |
+| [T-00104](../tds/infra/T-00104.md) ⭐ | T-00100, T-00101, T-00103 | Dod | ✅ Done | - | - | ⏳ Pending |
 | [T-00105](../tds/adminServer/T-00105.md) | T-00100 | Dod | ✅ Done | - | - | ⏳ Pending |
 | [T-00106](../tds/infra/T-00106.md) | T-00100, T-0000T | Dod | ✅ Done | - | - | ⏳ Pending |
 | [T-00107](../tds/infra/T-00107.md) | T-00106 | Dod | ✅ Done | - | - | ✅ Done |

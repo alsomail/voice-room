@@ -54,6 +54,21 @@ Server 端基于 Rust + Axum 构建。启动骨架（配置、日志、健康检
 | 3 | `admin:events :: CloseRoom` | `events/handler.rs::handle_admin_event::CloseRoom` | adminServer/room/service.rs | [CloseRoom.schema.json](../../protocol/schemas/pubsub/CloseRoom.schema.json) |
 | 4 | `admin:events :: BroadcastNotice` | `events/handler.rs::handle_admin_event::BroadcastNotice` | adminServer/event/notice_service.rs | [BroadcastNotice.schema.json](../../protocol/schemas/pubsub/BroadcastNotice.schema.json) |
 
+### T-00104 跨语言 E2E 入口索引（Server 侧）
+
+**说明**：以下表格是 T-00104 跨语言 WebSocket E2E 测试套中涉及的 Server 侧处理函数映射。所有测试遵循 **PROTO-BINDING** 规约，对所有发出的和收到的消息进行 JSON Schema 校验。详见 [T-00104 TDS](../../tds/infra/T-00104.md) 和 [CROSS_LANG_WS_RUNBOOK](../../tests/CROSS_LANG_WS_RUNBOOK.md)。
+
+| # | 场景 | Server 处理函数 | 实现文件 | 测试文件 | 协议锚点 |
+|---|------|----------------|--------|---------|---------|
+| CROSS-1 | Ping/Pong | `ping_pong_responses` | `app/server/src/ws/connection.rs` | `tests/cross-lang/android-server-ws/CROSS-1-ping-pong.spec.ts` | [websocket_signals.md §6.5.1 & §6.6.1](../../protocol/websocket_signals.md#651-pingcs) |
+| CROSS-2 | JoinRoom | `handle_join_room` | `app/server/src/room/handler/lifecycle.rs` | `CROSS-2-join-room.spec.ts` | [websocket_signals.md §6.5.2](../../protocol/websocket_signals.md#652-joinroomcs) |
+| CROSS-3 | TakeMic | `handle_take_mic` | `app/server/src/room/handler/mic.rs` | `CROSS-3-take-mic.spec.ts` | [websocket_signals.md §6.5.4](../../protocol/websocket_signals.md#654-takemiccs) |
+| CROSS-4 | LeaveMic | `handle_leave_mic` | `app/server/src/room/handler/mic.rs` | `CROSS-4-leave-mic.spec.ts` | [websocket_signals.md §6.5.5](../../protocol/websocket_signals.md#655-leavemiccs) |
+| CROSS-5 | SendMessage | `handle_send_message` | `app/server/src/room/handler/chat.rs` | `CROSS-5-send-message.spec.ts` | [websocket_signals.md §6.5.6](../../protocol/websocket_signals.md#656-sendmessagecs) |
+| CROSS-6 | SendGift | `handle_send_gift` | `app/server/src/modules/gift/send_gift/handler.rs` | `CROSS-6-send-gift.spec.ts` | [websocket_signals.md §6.5.7](../../protocol/websocket_signals.md#657-sendgiftcs) |
+| CROSS-7 | MuteUser | `handle_mute` | `app/server/src/modules/governance/mute.rs` | `CROSS-7-mute-user.spec.ts` | [websocket_signals.md §6.5.10](../../protocol/websocket_signals.md#6510-muteusercs) |
+| CROSS-8 | KickUser | `handle_kick` | `app/server/src/modules/governance/kick.rs` | `CROSS-8-kick-user.spec.ts` | [websocket_signals.md §6.5.9](../../protocol/websocket_signals.md#659-kickusercs) |
+
 ### 📋 内部加固与灵活性改进
 - **T-00103: 出栈 envelope schema 自检（内部加固，无新跨端路径）**
   - WS 出栈 34 条信令通过 `schema_guard.rs` 按 type 路由到 `protocol/schemas/ws/` 逐行自检

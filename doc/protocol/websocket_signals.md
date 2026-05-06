@@ -120,6 +120,11 @@ Result/ACK 通用格式：
 | `msg_id` | string (UUID v4) | ✅ | 客户端生成，Pong 回显此 msg_id |
 | `timestamp` | int64 (ms) | ❌ | 客户端时间戳 |
 
+**另见对侧路径（T-00104 跨语言 E2E）**：
+- Android 调用入口：[doc/arch/android/index.md § T-00104](../arch/android/index.md#t-00104-跨语言-e2e-入口索引android-侧)
+- Server 处理入口：[doc/arch/server/index.md § T-00104](../arch/server/index.md#t-00104-跨语言-e2e-入口索引server-侧)
+- 测试文件：`tests/cross-lang/android-server-ws/CROSS-1-ping-pong.spec.ts`
+
 ### 6.5.2 JoinRoom（C→S）
 
 **方向**：客户端 → 服务端 | **Schema**：[schemas/ws/JoinRoom.schema.json](schemas/ws/JoinRoom.schema.json)
@@ -149,6 +154,11 @@ Result/ACK 通用格式：
 **错误码**：`40003` VALIDATION_ERROR | `40101` UNAUTHORIZED | `40104` PASSWORD_REQUIRED |
 `40105` TOKEN_EXPIRED | `40400` ROOM_NOT_FOUND | `42911` KICKED_COOLDOWN
 
+**另见对侧路径（T-00104 跨语言 E2E）**：
+- Android 调用入口：[doc/arch/android/index.md § T-00104](../arch/android/index.md#t-00104-跨语言-e2e-入口索引android-侧)
+- Server 处理入口：[doc/arch/server/index.md § T-00104](../arch/server/index.md#t-00104-跨语言-e2e-入口索引server-侧)
+- 测试文件：`tests/cross-lang/android-server-ws/CROSS-2-join-room.spec.ts`
+
 ### 6.5.3 LeaveRoom（C→S）
 
 **Schema**：[schemas/ws/LeaveRoom.schema.json](schemas/ws/LeaveRoom.schema.json)
@@ -177,6 +187,11 @@ Result/ACK 通用格式：
 **错误码**：`40002` INVALID_MIC_INDEX | `40301` ALREADY_ON_MIC | `40302` MIC_BANNED |
 `40303` SLOT_OCCUPIED | `40306` MIC_MUTED | `40400` NOT_IN_ROOM
 
+**另见对侧路径（T-00104 跨语言 E2E）**：
+- Android 调用入口：[doc/arch/android/index.md § T-00104](../arch/android/index.md#t-00104-跨语言-e2e-入口索引android-侧)
+- Server 处理入口：[doc/arch/server/index.md § T-00104](../arch/server/index.md#t-00104-跨语言-e2e-入口索引server-侧)
+- 测试文件：`tests/cross-lang/android-server-ws/CROSS-3-take-mic.spec.ts`
+
 ### 6.5.5 LeaveMic（C→S）
 
 **Schema**：[schemas/ws/LeaveMic.schema.json](schemas/ws/LeaveMic.schema.json)
@@ -186,6 +201,11 @@ Result/ACK 通用格式：
 ```
 
 **错误码**：`40304` NOT_ON_MIC | `40400` NOT_IN_ROOM
+
+**另见对侧路径（T-00104 跨语言 E2E）**：
+- Android 调用入口：[doc/arch/android/index.md § T-00104](../arch/android/index.md#t-00104-跨语言-e2e-入口索引android-侧)
+- Server 处理入口：[doc/arch/server/index.md § T-00104](../arch/server/index.md#t-00104-跨语言-e2e-入口索引server-侧)
+- 测试文件：`tests/cross-lang/android-server-ws/CROSS-4-leave-mic.spec.ts`
 
 ### 6.5.6 SendMessage（C→S）
 
@@ -211,6 +231,11 @@ Result/ACK 通用格式：
 **错误码**：`40001` CONTENT_TOO_LONG | `40002` MISSING_PARAMS | `40303` USER_BANNED |
 `40305` CHAT_MUTED | `40400` NOT_IN_ROOM | `50000` DB_PERSIST_FAILED
 
+**另见对侧路径（T-00104 跨语言 E2E）**：
+- Android 调用入口：[doc/arch/android/index.md § T-00104](../arch/android/index.md#t-00104-跨语言-e2e-入口索引android-侧)
+- Server 处理入口：[doc/arch/server/index.md § T-00104](../arch/server/index.md#t-00104-跨语言-e2e-入口索引server-侧)
+- 测试文件：`tests/cross-lang/android-server-ws/CROSS-5-send-message.spec.ts`
+
 ### 6.5.7 SendGift（C→S）
 
 **Schema**：[schemas/ws/SendGift.schema.json](schemas/ws/SendGift.schema.json)
@@ -235,6 +260,11 @@ Result/ACK 通用格式：
 
 **错误码**：`40001` INVALID_COUNT | `40002` MISSING_PARAMS | `40290` INSUFFICIENT_BALANCE |
 `40400` SENDER_NOT_IN_ROOM | `40402` GIFT_NOT_AVAILABLE | `40403` RECEIVER_UNAVAILABLE
+
+**另见对侧路径（T-00104 跨语言 E2E）**：
+- Android 调用入口：[doc/arch/android/index.md § T-00104](../arch/android/index.md#t-00104-跨语言-e2e-入口索引android-侧)
+- Server 处理入口：[doc/arch/server/index.md § T-00104](../arch/server/index.md#t-00104-跨语言-e2e-入口索引server-侧)
+- 测试文件：`tests/cross-lang/android-server-ws/CROSS-6-send-gift.spec.ts`
 
 ### 6.5.8 ReportEvent（C→S）
 
@@ -291,6 +321,11 @@ Result/ACK 通用格式：
 
 **错误码**：`40002` MISSING_PARAMS | `40301` PERMISSION_DENIED | `40302` CANNOT_TARGET_OWNER | `40400` TARGET_NOT_IN_ROOM
 
+**另见对侧路径（T-00104 跨语言 E2E）**：
+- Android 调用入口：[doc/arch/android/index.md § T-00104](../arch/android/index.md#t-00104-跨语言-e2e-入口索引android-侧)
+- Server 处理入口：[doc/arch/server/index.md § T-00104](../arch/server/index.md#t-00104-跨语言-e2e-入口索引server-侧)
+- 测试文件：`tests/cross-lang/android-server-ws/CROSS-8-kick-user.spec.ts`
+
 ### 6.5.10 MuteUser（C→S）
 
 **Schema**：[schemas/ws/MuteUser.schema.json](schemas/ws/MuteUser.schema.json)
@@ -309,6 +344,11 @@ Result/ACK 通用格式：
 | `payload.target_user_id` | string (UUID) | ✅ | 被禁言/禁麦用户 ID |
 | `payload.mute_type` | string | ✅ | `"chat"` 禁言 \| `"mic"` 禁麦 |
 | `payload.duration_sec` | integer | ✅ | 时长（秒）；0 = 解除 |
+
+**另见对侧路径（T-00104 跨语言 E2E）**：
+- Android 调用入口：[doc/arch/android/index.md § T-00104](../arch/android/index.md#t-00104-跨语言-e2e-入口索引android-侧)
+- Server 处理入口：[doc/arch/server/index.md § T-00104](../arch/server/index.md#t-00104-跨语言-e2e-入口索引server-侧)
+- 测试文件：`tests/cross-lang/android-server-ws/CROSS-7-mute-user.spec.ts`
 
 ### 6.5.11 UnmuteUser（C→S）
 
@@ -400,6 +440,11 @@ Result/ACK 通用格式：
 | `type` | string | ✅ | 固定 `"Pong"` |
 | `msg_id` | string (UUID v4) | ✅ | 回显客户端 Ping 的 msg_id |
 | `timestamp` | int64 (ms) | ✅ | 服务端时间戳 |
+
+**另见对侧路径（T-00104 跨语言 E2E）**：
+- Android 调用入口：[doc/arch/android/index.md § T-00104](../arch/android/index.md#t-00104-跨语言-e2e-入口索引android-侧)
+- Server 处理入口：[doc/arch/server/index.md § T-00104](../arch/server/index.md#t-00104-跨语言-e2e-入口索引server-侧)
+- 测试文件：`tests/cross-lang/android-server-ws/CROSS-1-ping-pong.spec.ts`
 
 ### 6.6.2 JoinRoomResult（S→C）
 
@@ -556,6 +601,11 @@ Result/ACK 通用格式：
 | `payload.nickname` | string | ✅ | 加入用户昵称 |
 | `payload.avatar` | string \| null | ✅ | 加入用户头像 URL，无头像为 null |
 
+**另见对侧路径（T-00104 跨语言 E2E）**：
+- Android 调用入口：[doc/arch/android/index.md § T-00104](../arch/android/index.md#t-00104-跨语言-e2e-入口索引android-侧)
+- Server 处理入口：[doc/arch/server/index.md § T-00104](../arch/server/index.md#t-00104-跨语言-e2e-入口索引server-侧)
+- 测试文件：`tests/cross-lang/android-server-ws/CROSS-2-join-room.spec.ts`
+
 ### 6.7.2 UserLeft（S→Room）
 
 **Schema**：[schemas/ws/UserLeft.schema.json](schemas/ws/UserLeft.schema.json)
@@ -580,6 +630,11 @@ Result/ACK 通用格式：
 | `payload.reason` | string | ❌ | `"left"` \| `"kicked_by_admin"` |
 | `payload.operator_id` | string (UUID) \| null | ❌ | 踢人操作者 ID |
 
+**另见对侧路径（T-00104 跨语言 E2E）**：
+- Android 调用入口：[doc/arch/android/index.md § T-00104](../arch/android/index.md#t-00104-跨语言-e2e-入口索引android-侧)
+- Server 处理入口：[doc/arch/server/index.md § T-00104](../arch/server/index.md#t-00104-跨语言-e2e-入口索引server-侧)
+- 测试文件：`tests/cross-lang/android-server-ws/CROSS-8-kick-user.spec.ts`
+
 ### 6.7.3 MicTaken（S→Room）
 
 **Schema**：[schemas/ws/MicTaken.schema.json](schemas/ws/MicTaken.schema.json)
@@ -601,6 +656,11 @@ Result/ACK 通用格式：
 |------|------|------|------|
 | `payload.mic_index` | integer [0-8] | ✅ | 被占用的麦位索引 |
 | `payload.user_id` | string (UUID) | ✅ | 上麦用户 ID |
+
+**另见对侧路径（T-00104 跨语言 E2E）**：
+- Android 调用入口：[doc/arch/android/index.md § T-00104](../arch/android/index.md#t-00104-跨语言-e2e-入口索引android-侧)
+- Server 处理入口：[doc/arch/server/index.md § T-00104](../arch/server/index.md#t-00104-跨语言-e2e-入口索引server-侧)
+- 测试文件：`tests/cross-lang/android-server-ws/CROSS-3-take-mic.spec.ts`
 
 ### 6.7.4 MicLeft（S→Room）
 
@@ -626,6 +686,11 @@ Result/ACK 通用格式：
 | `payload.user_id` | string (UUID) | ✅ | 下麦用户 ID |
 | `payload.forced` | boolean | ✅ | `true` = 被强制下麦（ForceLeaveMic/KickUser） |
 
+**另见对侧路径（T-00104 跨语言 E2E）**：
+- Android 调用入口：[doc/arch/android/index.md § T-00104](../arch/android/index.md#t-00104-跨语言-e2e-入口索引android-侧)
+- Server 处理入口：[doc/arch/server/index.md § T-00104](../arch/server/index.md#t-00104-跨语言-e2e-入口索引server-侧)
+- 测试文件：`tests/cross-lang/android-server-ws/CROSS-4-leave-mic.spec.ts`
+
 ### 6.7.5 RoomMessage（S→Room）
 
 **Schema**：[schemas/ws/RoomMessage.schema.json](schemas/ws/RoomMessage.schema.json)
@@ -650,6 +715,11 @@ Result/ACK 通用格式：
 | `payload.msg_id` | string (UUID v4) | ✅ | DB 行主键（`chat_messages.id`），永久标识 |
 | `payload.user_id` | string (UUID) | ✅ | 发送者用户 ID |
 | `payload.content` | string | ✅ | **敏感词过滤后**的内容 |
+
+**另见对侧路径（T-00104 跨语言 E2E）**：
+- Android 调用入口：[doc/arch/android/index.md § T-00104](../arch/android/index.md#t-00104-跨语言-e2e-入口索引android-侧)
+- Server 处理入口：[doc/arch/server/index.md § T-00104](../arch/server/index.md#t-00104-跨语言-e2e-入口索引server-侧)
+- 测试文件：`tests/cross-lang/android-server-ws/CROSS-5-send-message.spec.ts`
 
 ### 6.7.6 UserMuted（S→Room）
 
@@ -681,6 +751,11 @@ Result/ACK 通用格式：
 | `payload.expires_at` | string (ISO 8601) \| null | ❌ | 禁言到期时间 |
 | `payload.operator_id` | string (UUID) | ✅ | 操作者 ID |
 
+**另见对侧路径（T-00104 跨语言 E2E）**：
+- Android 调用入口：[doc/arch/android/index.md § T-00104](../arch/android/index.md#t-00104-跨语言-e2e-入口索引android-侧)
+- Server 处理入口：[doc/arch/server/index.md § T-00104](../arch/server/index.md#t-00104-跨语言-e2e-入口索引server-侧)
+- 测试文件：`tests/cross-lang/android-server-ws/CROSS-7-mute-user.spec.ts`
+
 ---
 
 ## 6.8 附加已实现信令
@@ -704,6 +779,11 @@ Result/ACK 通用格式：
   "timestamp": 1720000000000
 }
 ```
+
+**另见对侧路径（T-00104 跨语言 E2E）**：
+- Android 调用入口：[doc/arch/android/index.md § T-00104](../arch/android/index.md#t-00104-跨语言-e2e-入口索引android-侧)
+- Server 处理入口：[doc/arch/server/index.md § T-00104](../arch/server/index.md#t-00104-跨语言-e2e-入口索引server-侧)
+- 测试文件：`tests/cross-lang/android-server-ws/CROSS-6-send-gift.spec.ts`
 
 ### 6.8.2 AdminChanged（S→Room）
 
