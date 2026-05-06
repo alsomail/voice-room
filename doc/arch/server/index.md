@@ -39,6 +39,8 @@ Server 端基于 Rust + Axum 构建。启动骨架（配置、日志、健康检
 
 | 协议类型 | 入口 / 信令 | 实现文件:函数 | protocol/ 锚点 | 关联 Task | 客户端实调用方 |
 |----------|------------|---------------|---------------|-----------|----------------|
+| WS C→S | `Ping` ⭐ | `app/server/src/ws/connection.rs::handle_socket::Ping arm → ping_pong_responses` | [websocket_signals.md §6.2](../../protocol/websocket_signals.md#62-心跳) | T-00108 | `OkHttpWebSocketClient.startHeartbeat` |
+| WS S→C | `Pong` ⭐ | `app/server/src/ws/connection.rs::ping_pong_responses` | [websocket_signals.md §6.2](../../protocol/websocket_signals.md#62-心跳) | T-00108 | `OkHttpWebSocketClient.onMessage::text.contains("Pong")` |
 | WS C→S | `SendMessage` ⭐ | `app/server/src/room/handler/chat.rs::handle_send_message` | [websocket_signals.md §6.8.1](../../protocol/websocket_signals.md) | T-00047 | `app/android/app/src/main/java/com/voice/room/android/feature/room/RoomViewModel.kt::sendMessage` |
 | WS S→Room 广播 | `RoomMessage` | `app/server/src/ws/broadcaster.rs::broadcast_to_room` | [websocket_signals.md §6.8.2](../../protocol/websocket_signals.md) | T-00047 | Android `RoomViewModel` 接收 `type == "RoomMessage"` 后分发到 Chat UI |
 | HTTP REST | `POST /api/v1/chat-messages` | `app/server/src/modules/chat/controller.rs::send_chat_message_handler` | [room_api.md §3.6.1](../../protocol/room_api.md) | T-00047 | 当前无 C 端客户端调用；运营 / 后端兜底备路径 |
@@ -51,6 +53,13 @@ Server 端基于 Rust + Axum 构建。启动骨架（配置、日志、健康检
 | 2 | `admin:events :: UnbanUser` | `events/handler.rs::handle_admin_event::UnbanUser` | adminServer/user/service.rs | [UnbanUser.schema.json](../../protocol/schemas/pubsub/UnbanUser.schema.json) |
 | 3 | `admin:events :: CloseRoom` | `events/handler.rs::handle_admin_event::CloseRoom` | adminServer/room/service.rs | [CloseRoom.schema.json](../../protocol/schemas/pubsub/CloseRoom.schema.json) |
 | 4 | `admin:events :: BroadcastNotice` | `events/handler.rs::handle_admin_event::BroadcastNotice` | adminServer/event/notice_service.rs | [BroadcastNotice.schema.json](../../protocol/schemas/pubsub/BroadcastNotice.schema.json) |
+
+### 📋 内部加固与灵活性改进
+- **T-00103: 出栈 envelope schema 自检（内部加固，无新跨端路径）**
+  - WS 出栈 34 条信令通过 `schema_guard.rs` 按 type 路由到 `protocol/schemas/ws/` 逐行自检
+  - HTTP Request DTO 入站加 `deny_unknown_fields`，防止协议逸出
+  - 开发/测试 profile 失配 panic；生产 profile 失配 ERROR 日志
+  - 不引入新的客户端调用路径，仅强化现有所有路径的 schema 一致性
 
 ## 三、 当前能力全景与状态 (Capability Matrix)
 > 状态枚举：🟢 已完成 | 🟡 开发/调试中 | 🔴 待开发
@@ -84,6 +93,18 @@ Server 端基于 Rust + Axum 构建。启动骨架（配置、日志、健康检
   - **`ws/connection.rs`**：单连接生命周期（`tokio::select!` 双向读写；ping→pong 回传原始 `msg_id`；`last_heartbeat` 在 ping 处理时更新）
   - **关键设计**：`connection_id` 解耦 `user_id`，同一用户第二个连接注销时仅删除自身条目，不影响已有连接；`AppState` 新增 `ws_registry: Arc<ConnectionRegistry>`
   - 13 个新增测试；全量 122 passed, 0 failed
+- 🟢 **WS 出栈 envelope schema 自检** (T-00103)：`src/ws/schema_guard.rs`
+  - **schema_guard.rs**：新增 `guard_outbound_envelope(envelope: &str, is_dev: bool)` 中间层
+    - **开发/测试 profile**：Schema mismatch → panic（fail-fast 快速发现 server 端字段变更遗漏）
+    - **生产 profile**：Schema mismatch → ERROR 日志 + 埋点（降级兼容，不中断用户连接）
+    - 按信令 `type` 字段路由到对应的 [`protocol/schemas/ws/*.schema.json`](../../protocol/schemas/ws/) Schema 文件（使用 jsonschema crate dev-dep）
+    - 覆盖 34 个 WS 出栈信令（包括 Ping/Pong/JoinRoom/UserJoined/SendMessage/RoomMessage 等全量）
+  - **broadcaster.rs** 集成：`build_outbound_envelope` + `build_outbound_result` 两个出栈路径均调用 guard
+  - **HTTP Request DTO 加固**：7 个模块的 `dto.rs` Request struct 加 `#[serde(deny_unknown_fields)]`，入站拒绝未知字段（返回 400 BadRequest）
+  - **IncomingMessage 加固**：WS 入站消息 `IncomingMessage` 加 `#[serde(deny_unknown_fields)]`，拒绝协议逸出
+  - **Ping/Pong 兼容期**（T-00108 协调）：dev/test profile `handle_socket` 双发 `Pong` + `pong` 两个响应（过渡期兼容，下版本删 `pong`）；`debug_assertions` 分支保证仅 debug 构建激活
+  - **测试验证**：18 个集成测试（`protocol_schema_test.rs`）全绿；474 个库测试 + 全部集成测试零失败；`cargo clippy -- -D warnings` 零警告
+  - **关键关联**：→ `doc/protocol/schemas/ws/` 协议三层 Schema 落锚（T-00100 冻结）；←（反向链接）`doc/arch/server/index.md` §三 协议入口索引加行（见下）
 - 🟢 **Redis 事件订阅**（T-00011B）：`admin:events` Pub/Sub 频道
   - **`events/admin_event.rs`**：`AdminEvent` enum（`BanUser` / `CloseRoom` / `BroadcastNotice`）+ serde internally-tagged（`#[serde(tag = "type", rename_all = "snake_case")]`）；S01–S04 反序列化测试含未知事件类型 Err 不 panic 验证
   - **`events/handler.rs`**：`handle_admin_event(event, registry)` — ban_user：`get_by_user_id` 取所有连接 → 发封禁通知（含 `msg_id` + `timestamp`）→ 发送 `connection_close` 指令（code=4003）→ `unregister`；close_room：两阶段（先遍历广播 RoomClosed 通知，再发送 `connection_close` 指令 code=1000 并注销）确保所有成员收到关闭消息；broadcast_notice：`registry.broadcast_to_all`；E01–E11 测试覆盖三路分支 + 离线用户不 panic + i18n_key 字段 + msg_id/timestamp 验证
