@@ -425,8 +425,94 @@ class RoomViewModelTest {
             assertEquals("Should send exactly 1 message", 1, fakeWsClient.sentMessages.size)
             val sent = fakeWsClient.sentMessages[0]
             assertTrue("""Should contain "type":"LeaveMic"""", sent.contains(""""type":"LeaveMic""""))
-            // P0-1: LeaveMic 由 server 通过连接上下文推断 room/mic，无需在 payload 中携带
-            assertTrue("""Envelope must carry empty payload object""", sent.contains(""""payload":{}"""))
+            // PROTO-BINDING: doc/protocol/schemas/ws/LeaveMic.schema.json
+            // 协议要求：payload 必须携带 mic_index（整数）
+            assertTrue(
+                """LeaveMic payload must contain mic_index:0 per protocol""",
+                sent.contains(""""mic_index":0"""),
+            )
+        }
+
+    // ─── MIC-ONCLICK-2: onMicSlotClick → leaveMic → WS payload 含 mic_index ──
+
+    @Test
+    fun `MIC-ONCLICK-2 onMicSlotClick own slot - sendEnvelope called with type LeaveMic and mic_index 0`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            // Given: user-0 occupies slot-0; WS connected
+            fakeWsClient.connect(RoomSocketRequestSpec(url = "ws://test", headers = emptyMap()))
+            viewModel.joinRoom("room-1", userId = "user-0")
+            advanceUntilIdle()
+            fakeWsClient.sentMessages.clear()
+
+            // When: user clicks their own mic slot
+            viewModel.onMicSlotClick(slotIndex = 0)
+            advanceUntilIdle()
+
+            // Then: sendEnvelope must be called with both type=LeaveMic and payload.mic_index=0
+            assertEquals("Should send exactly 1 WS message", 1, fakeWsClient.sentMessages.size)
+            val sent = fakeWsClient.sentMessages[0]
+            assertTrue(
+                """Envelope must have type LeaveMic""",
+                sent.contains(""""type":"LeaveMic""""),
+            )
+            // PROTO-BINDING: doc/protocol/schemas/ws/LeaveMic.schema.json
+            assertTrue(
+                """Envelope payload must contain mic_index=0 (integer per protocol)""",
+                sent.contains(""""mic_index":0"""),
+            )
+        }
+
+    // ─── MIC-ONCLICK-3: 空麦位点击 → 不触发 leaveMic（回归测试）────────────────
+
+    @Test
+    fun `MIC-ONCLICK-3 onMicSlotClick empty slot - no LeaveMic sent (regression)`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            // Given: slot-1 is empty (userId=null) per defaultSnapshot; user-0 is logged in
+            fakeWsClient.connect(RoomSocketRequestSpec(url = "ws://test", headers = emptyMap()))
+            viewModel.joinRoom("room-1", userId = "user-0")
+            advanceUntilIdle()
+            fakeWsClient.sentMessages.clear()
+
+            // When: user clicks an empty mic slot
+            viewModel.onMicSlotClick(slotIndex = 1)
+            advanceUntilIdle()
+
+            // Then: no WS messages should be sent — empty slot uses permission flow, not leaveMic
+            assertTrue(
+                "Empty slot click must NOT send any WS message",
+                fakeWsClient.sentMessages.isEmpty(),
+            )
+        }
+
+    // ─── MIC-ONCLICK-4: 他人麦位点击 → 不触发上麦/下麦（见 TM-07）────────────
+    // TM-07 已覆盖"他人麦位 → 无 WS 消息"验证，此处不重复。
+
+    // ─── PROTO-1: LeaveMic 帧 payload 含 mic_index 字段（integer）────────────
+
+    @Test
+    fun `PROTO-1 LeaveMic envelope payload has mic_index as integer field`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            // Given: user-0 owns slot-0
+            fakeWsClient.connect(RoomSocketRequestSpec(url = "ws://test", headers = emptyMap()))
+            viewModel.joinRoom("room-1", userId = "user-0")
+            advanceUntilIdle()
+            fakeWsClient.sentMessages.clear()
+
+            // When: user leaves mic via onMicSlotClick
+            viewModel.onMicSlotClick(slotIndex = 0)
+            advanceUntilIdle()
+
+            val sent = fakeWsClient.sentMessages[0]
+            // PROTO-BINDING: doc/protocol/schemas/ws/LeaveMic.schema.json
+            // mic_index MUST be integer (e.g. 0), not a JSON string (e.g. "0")
+            assertTrue(
+                """PROTO-1: mic_index must be an integer — found "${sent}"""",
+                sent.contains(""""mic_index":0"""),
+            )
+            assertFalse(
+                """PROTO-1: mic_index must NOT be serialised as a string""",
+                sent.contains(""""mic_index":"0""""),
+            )
         }
 
     // ─── TM-05: 收到 MicLeft（自己）→ stopPublishAudio 被调用 ─────────────────

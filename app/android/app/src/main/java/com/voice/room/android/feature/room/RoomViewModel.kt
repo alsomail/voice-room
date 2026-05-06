@@ -819,12 +819,14 @@ class RoomViewModel(
 
     // ─── 私有：下麦信令发送 ────────────────────────────────────────────────────
 
-    private fun leaveMic(@Suppress("UNUSED_PARAMETER") slotIndex: Int) {
+    private fun leaveMic(slotIndex: Int) {
         if (currentRoomId == null) return
         viewModelScope.launch {
             try {
-                // server 仅依赖连接上下文，payload 为空
-                wsClient.sendEnvelope(type = "LeaveMic")
+                wsClient.sendEnvelope(
+                    type = "LeaveMic",
+                    payload = mapOf("mic_index" to slotIndex), // PROTO-BINDING: doc/protocol/schemas/ws/LeaveMic.schema.json
+                )
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -1098,21 +1100,31 @@ class RoomViewModel(
             }
 
             is WsServerMessage.AdminChanged -> {
-                // PROTO-BINDING: No schema (backward-compat, flat fields)
-                // T-30039: 更新 role 字段
-                val targetUserId = msg.userId
-                val newRole = msg.role
-                if (targetUserId == null || newRole == null) {
-                    Log.w(TAG, "ws: AdminChanged missing userId or role, ignoring")
+                // PROTO-BINDING: doc/protocol/schemas/ws/AdminChanged.schema.json
+                // admin_user_id non-null → grant admin; previousAdminId non-null → revoke (back to member)
+                val payload = msg.payload ?: run {
+                    Log.w(TAG, "ws: AdminChanged missing payload, ignoring")
+                    return
+                }
+                if (payload.adminUserId == null && payload.previousAdminId == null) {
+                    Log.w(TAG, "ws: AdminChanged both adminUserId and previousAdminId are null, ignoring")
                     return
                 }
                 val aud = _audienceState.value
                 _audienceState.value = aud.copy(
                     onMic = aud.onMic.map { m ->
-                        if (m.id == targetUserId) m.copy(role = newRole) else m
+                        when {
+                            payload.adminUserId != null && m.id == payload.adminUserId -> m.copy(role = "admin")
+                            payload.previousAdminId != null && m.id == payload.previousAdminId -> m.copy(role = "member")
+                            else -> m
+                        }
                     },
                     audience = aud.audience.map { m ->
-                        if (m.id == targetUserId) m.copy(role = newRole) else m
+                        when {
+                            payload.adminUserId != null && m.id == payload.adminUserId -> m.copy(role = "admin")
+                            payload.previousAdminId != null && m.id == payload.previousAdminId -> m.copy(role = "member")
+                            else -> m
+                        }
                     },
                 )
             }

@@ -62,6 +62,7 @@ import com.voice.room.android.feature.room.governance.UserKickedDialog
  * @param giftEvents             礼物面板一次性事件流（T-30028）
  * @param onBack                 点击返回按钮的回调
  * @param onSendMessage          点击发送按钮的回调，参数为消息文本
+ * @param onMicSlotClick         麦位点击回调（自己已占麦位 → 触发下麦，T-30055 BUG-MIC-ONCLICK 修复）
  * @param onMicPermissionGranted 麦克风权限授予后的回调，参数为麦位 index（T-30012）
  * @param onMicToggle            点击麦克风静音切换按钮的回调（T-30026）
  * @param onLeaveRoom            确认退出房间的回调（T-30026）
@@ -90,6 +91,7 @@ fun RoomScreen(
     onBack: () -> Unit = {},
     onSendMessage: (String) -> Unit = {},
     onMicPermissionGranted: (slotIndex: Int) -> Unit = {},
+    onMicSlotClick: (slotIndex: Int) -> Unit = {},
     onMicToggle: () -> Unit = {},
     onLeaveRoom: () -> Unit = {},
     onSelectGift: (String) -> Unit = {},
@@ -225,10 +227,20 @@ fun RoomScreen(
                 )
             }
 
-            MicPermissionHandler(onPermissionGranted = onMicPermissionGranted) { onMicSlotClick ->
+            MicPermissionHandler(onPermissionGranted = onMicPermissionGranted) { onPermissionRequest ->
                 MicSlotsGrid(
                     slots = uiState.micSlots,
-                    onMicSlotClick = onMicSlotClick,
+                    // T-30055 BUG-MIC-ONCLICK: 根据槽位状态路由点击事件
+                    //   · 已占用（任何人）→ 交由 ViewModel.onMicSlotClick 路由（自己=下麦，他人=no-op）
+                    //   · 空槽位         → 走麦克风权限检查流程（上麦）
+                    onMicSlotClick = { slotIndex ->
+                        val slot = uiState.micSlots.getOrNull(slotIndex)
+                        if (slot?.userId != null) {
+                            onMicSlotClick(slotIndex)
+                        } else {
+                            onPermissionRequest(slotIndex)
+                        }
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
                         .wrapContentHeight(),        // T-30025: 移除 height(240.dp) 硬编码

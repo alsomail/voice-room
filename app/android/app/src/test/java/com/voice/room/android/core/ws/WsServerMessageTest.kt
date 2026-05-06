@@ -271,13 +271,15 @@ class WsServerMessageTest {
     }
 
     @Test
-    fun `PROTO-4-b AdminChanged flat format parses userId and role`() {
-        // AdminChanged: no schema, flat top-level fields (backward-compat)
+    fun `PROTO-4-b AdminChanged payload format parses adminUserId`() {
+        // AdminChanged: nested payload with admin_user_id (PROTO-BINDING: AdminChanged.schema.json)
         val json = """
             {
               "type": "AdminChanged",
-              "userId": "user-abc",
-              "role": "admin"
+              "payload": {
+                "admin_user_id": "user-abc",
+                "operator_id": "owner-xyz"
+              }
             }
         """.trimIndent()
 
@@ -285,8 +287,8 @@ class WsServerMessageTest {
 
         assertTrue("Should parse to AdminChanged", msg is WsServerMessage.AdminChanged)
         val changed = msg as WsServerMessage.AdminChanged
-        assertEquals("userId should be user-abc", "user-abc", changed.userId)
-        assertEquals("role should be admin", "admin", changed.role)
+        assertEquals("payload.adminUserId should be user-abc", "user-abc", changed.payload?.adminUserId)
+        assertEquals("payload.operatorId should be owner-xyz", "owner-xyz", changed.payload?.operatorId)
     }
 
     @Test

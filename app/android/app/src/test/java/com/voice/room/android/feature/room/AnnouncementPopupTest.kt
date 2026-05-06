@@ -162,10 +162,10 @@ class AnnouncementPopupTest {
             )
             advanceUntilIdle()
 
-            // 发送 AdminChanged 消息
+            // 发送 AdminChanged 消息（PROTO-BINDING: AdminChanged.schema.json — admin_user_id 嵌套 payload）
             val startTime = System.currentTimeMillis()
             fakeWsClient.simulateMessage(
-                """{"type":"AdminChanged","userId":"user-2","role":"admin"}"""
+                """{"type":"AdminChanged","payload":{"admin_user_id":"user-2"}}"""
             )
             advanceUntilIdle()
             val elapsedMs = System.currentTimeMillis() - startTime
@@ -267,9 +267,9 @@ class AnnouncementPopupTest {
             )
             advanceUntilIdle()
 
-            // 发送 AdminChanged：user-admin → admin
+            // 发送 AdminChanged：user-admin → admin（PROTO-BINDING: AdminChanged.schema.json）
             fakeWsClient.simulateMessage(
-                """{"type":"AdminChanged","userId":"user-admin","role":"admin"}"""
+                """{"type":"AdminChanged","payload":{"admin_user_id":"user-admin"}}"""
             )
             advanceUntilIdle()
 
@@ -283,9 +283,9 @@ class AnnouncementPopupTest {
                 Role.fromString(adminUser!!.role),
             )
 
-            // 再次降为 member（RevokeAdmin 场景）
+            // 再次降为 member（RevokeAdmin 场景）— previous_admin_id 标记被撤销的管理员
             fakeWsClient.simulateMessage(
-                """{"type":"AdminChanged","userId":"user-admin","role":"member"}"""
+                """{"type":"AdminChanged","payload":{"previous_admin_id":"user-admin"}}"""
             )
             advanceUntilIdle()
 

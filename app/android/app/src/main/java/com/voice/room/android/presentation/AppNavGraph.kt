@@ -214,6 +214,7 @@ fun AppNavGraph(appContainer: AppContainer) {
                         },
                         onSendMessage            = { text -> roomViewModel.sendMessage(text) },
                         onMicPermissionGranted   = { slotIndex -> roomViewModel.onMicPermissionGranted(slotIndex) },
+                        onMicSlotClick           = { slotIndex -> roomViewModel.onMicSlotClick(slotIndex) },
                         onMicToggle              = { roomViewModel.toggleMicMute() },
                         onLeaveRoom              = {
                             roomViewModel.leaveRoom()

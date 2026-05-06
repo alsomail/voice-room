@@ -312,7 +312,8 @@ class AudienceViewModelTest {
             advanceUntilIdle()
 
             fakeWsClient.simulateMessage(
-                """{"type":"AdminChanged","userId":"u6","role":"admin"}"""
+                // PROTO-BINDING: doc/protocol/schemas/ws/AdminChanged.schema.json
+                """{"type":"AdminChanged","payload":{"admin_user_id":"u6"}}"""
             )
             advanceUntilIdle()
 
