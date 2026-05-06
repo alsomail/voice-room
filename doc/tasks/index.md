@@ -12,7 +12,8 @@
 | 版本 | 日期 | 变更内容 |
 |------|------|---------|
 | _规则_ | — | 本表只记录**版本级摘要**（一行 ≤ 200 字符），具体 Review/审查/实跑证据请落到对应 [TDS](../tds/) 第五节【Review 意见】或对应模块审查批次 `doc/review/模块N-XXX.md`，**严禁**在本表堆叠详细审查记录。 |
-| **v3.09** | **2026-05-07** | [T-00106] Plan→TDD — 字段级 AST CI 审计启动实现 |
+| **v3.08** | **2026-05-07** | [T-00103] TDD ✅ 完成 — 474测试全绿，schema_guard+deny_unknown_fields落地；状态 TDD→Review/In Progress。 |
+| **v3.09** | **2026-05-07** | [T-00106] TDD完成→Review — 字段级AST提取器(Rust/Kotlin/Zod)+SchemaComparator实现，9 tests全绿，53 regression 0失败 |
 | **v3.08** | **2026-05-07** | [T-00101] TDD→Review — WsServerMessage sealed class 28信令 + RoomViewModel handleWsMessage全量重写，760 tests/3预存失败 |
 | **v3.07** | **2026-05-07** | [T-00101] TDD In Progress — Android sealed class 反序列化层启动实现 |
 | **v3.07** | **2026-05-07** | [T-00103] TDD 启动 — Server schema_guard + deny_unknown_fields；状态 Plan/Todo → TDD/In Progress。 |
@@ -422,9 +423,9 @@
 | [T-00100](../tds/infra/T-00100.md) ⭐ | T-0000V | Dod | ✅ Done | - | - | ⏳ Pending |
 | [T-00101](../tds/android/T-00101.md) | T-00100 | Review | In Progress | - | - | ⏳ Pending |
 | [T-00102](../tds/web/T-00102.md) | T-00100 | Done | ✅ Done | - | - | ⏳ Pending |
-| [T-00103](../tds/server/T-00103.md) | T-00100 | TDD | In Progress | - | - | ⏳ Pending |
+| [T-00103](../tds/server/T-00103.md) | T-00100 | Review | In Progress | - | - | ⏳ Pending |
 | [T-00104](../tds/infra/T-00104.md) ⭐ | T-00100, T-00101, T-00103 | Plan | Todo | - | - | ⏳ Pending |
 | [T-00105](../tds/adminServer/T-00105.md) | T-00100 | TDD | In Progress | - | - | ⏳ Pending |
-| [T-00106](../tds/infra/T-00106.md) | T-00100, T-0000T | TDD | In Progress | - | - | ⏳ Pending |
+| [T-00106](../tds/infra/T-00106.md) | T-00100, T-0000T | Review | In Progress | - | - | ⏳ Pending |
 | [T-00107](../tds/infra/T-00107.md) | T-00106 | Plan | Todo | - | - | ⏳ Pending |
 | [T-00108](../tds/infra/T-00108.md) | T-00100 | Plan | Todo | - | - | ⏳ Pending |
