@@ -158,7 +158,7 @@ class AnnouncementPopupTest {
 
             // 模拟有一个观众
             fakeWsClient.simulateMessage(
-                """{"type":"UserJoined","userId":"user-2","nickname":"User2","role":"member"}"""
+                """{"type":"UserJoined","payload":{"user_id":"user-2","nickname":"User2","role":"member"}}"""
             )
             advanceUntilIdle()
 
@@ -263,7 +263,7 @@ class AnnouncementPopupTest {
 
             // 初始：user-admin 以 member 身份进房
             fakeWsClient.simulateMessage(
-                """{"type":"UserJoined","userId":"user-admin","nickname":"Admin","role":"member"}"""
+                """{"type":"UserJoined","payload":{"user_id":"user-admin","nickname":"Admin","role":"member"}}"""
             )
             advanceUntilIdle()
 

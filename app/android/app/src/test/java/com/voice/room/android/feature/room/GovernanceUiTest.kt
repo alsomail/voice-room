@@ -231,7 +231,7 @@ class GovernanceUiTest {
 
             // Act: 服务端广播被强制抱上麦（ForceTakeMic → MicTaken + forcedBy）
             fakeWsClient.simulateMessage(
-                """{"type":"MicTaken","slotIndex":1,"userId":"self","nickname":"SelfNick","forcedBy":"admin-1"}"""
+                """{"type":"MicTaken","payload":{"mic_index":1,"user_id":"self","nickname":"SelfNick","forced_by":"admin-1"}}"""
             )
             advanceUntilIdle()
 
@@ -286,7 +286,7 @@ class GovernanceUiTest {
 
             // Act: 服务端广播被强制抱上麦
             fakeWsClient.simulateMessage(
-                """{"type":"MicTaken","slotIndex":1,"userId":"self","nickname":"SelfNick","forcedBy":"admin-1"}"""
+                """{"type":"MicTaken","payload":{"mic_index":1,"user_id":"self","nickname":"SelfNick","forced_by":"admin-1"}}"""
             )
             advanceUntilIdle()
 
@@ -321,7 +321,7 @@ class GovernanceUiTest {
             viewModel.joinRoom("room-1", userId = "self")
             advanceUntilIdle()
             fakeWsClient.simulateMessage(
-                """{"type":"MicTaken","slotIndex":1,"userId":"self","nickname":"SelfNick"}"""
+                """{"type":"MicTaken","payload":{"mic_index":1,"user_id":"self","nickname":"SelfNick"}}"""
             )
             advanceUntilIdle()
 
@@ -337,7 +337,7 @@ class GovernanceUiTest {
 
             // Act: 服务端广播被强制踢下麦
             fakeWsClient.simulateMessage(
-                """{"type":"MicLeft","slotIndex":1,"userId":"self","forcedBy":"admin-1"}"""
+                """{"type":"MicLeft","payload":{"mic_index":1,"user_id":"self","forced":true}}"""
             )
             advanceUntilIdle()
 
@@ -384,7 +384,7 @@ class GovernanceUiTest {
 
             // 将 self 上麦
             fakeWsClient.simulateMessage(
-                """{"type":"MicTaken","slotIndex":1,"userId":"self","nickname":"SelfNick"}"""
+                """{"type":"MicTaken","payload":{"mic_index":1,"user_id":"self","nickname":"SelfNick"}}"""
             )
             advanceUntilIdle()
 
@@ -397,7 +397,7 @@ class GovernanceUiTest {
 
             // Act: 服务端广播 ForceLeaveMic
             fakeWsClient.simulateMessage(
-                """{"type":"MicLeft","slotIndex":1,"userId":"self","forcedBy":"admin-1"}"""
+                """{"type":"MicLeft","payload":{"mic_index":1,"user_id":"self","forced":true}}"""
             )
             advanceUntilIdle()
 

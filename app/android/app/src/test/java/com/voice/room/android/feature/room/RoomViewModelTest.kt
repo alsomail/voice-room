@@ -113,7 +113,7 @@ class RoomViewModelTest {
             viewModel.joinRoom("room-1")
             advanceUntilIdle()
 
-            fakeWsClient.simulateMessage("""{"type":"UserJoined","userId":"u99"}""")
+            fakeWsClient.simulateMessage("""{"type":"UserJoined","payload":{"user_id":"u99","nickname":""}}""")
             advanceUntilIdle()
 
             val state = viewModel.uiState.value as RoomViewState.Success
@@ -128,7 +128,7 @@ class RoomViewModelTest {
             viewModel.joinRoom("room-1")
             advanceUntilIdle()
 
-            fakeWsClient.simulateMessage("""{"type":"UserLeft","userId":"user-0"}""")
+            fakeWsClient.simulateMessage("""{"type":"UserLeft","payload":{"user_id":"user-0"}}""")
             advanceUntilIdle()
 
             val state = viewModel.uiState.value as RoomViewState.Success
@@ -144,7 +144,7 @@ class RoomViewModelTest {
             advanceUntilIdle()
 
             fakeWsClient.simulateMessage(
-                """{"type":"MicTaken","slotIndex":1,"userId":"new-user","nickname":"NewNick"}"""
+                """{"type":"MicTaken","payload":{"mic_index":1,"user_id":"new-user","nickname":"NewNick"}}"""
             )
             advanceUntilIdle()
 
@@ -163,7 +163,7 @@ class RoomViewModelTest {
             advanceUntilIdle()
 
             // slot-0 was occupied (user-0), MicLeft should clear it
-            fakeWsClient.simulateMessage("""{"type":"MicLeft","slotIndex":0}""")
+            fakeWsClient.simulateMessage("""{"type":"MicLeft","payload":{"mic_index":0}}""")
             advanceUntilIdle()
 
             val state = viewModel.uiState.value as RoomViewState.Success
@@ -335,7 +335,7 @@ class RoomViewModelTest {
             advanceUntilIdle()
 
             fakeWsClient.simulateMessage(
-                """{"type":"MicTaken","slotIndex":1,"userId":"me","nickname":"MyNick"}"""
+                """{"type":"MicTaken","payload":{"mic_index":1,"user_id":"me","nickname":"MyNick"}}"""
             )
             advanceUntilIdle()
 
@@ -365,7 +365,7 @@ class RoomViewModelTest {
             advanceUntilIdle()
 
             fakeWsClient.simulateMessage(
-                """{"type":"MicTaken","slotIndex":1,"userId":"me","nickname":"MyNick"}"""
+                """{"type":"MicTaken","payload":{"mic_index":1,"user_id":"me","nickname":"MyNick"}}"""
             )
             advanceUntilIdle()
 
@@ -391,7 +391,7 @@ class RoomViewModelTest {
             val job = launch { viewModel.events.collect { events.add(it) } }
 
             fakeWsClient.simulateMessage(
-                """{"type":"MicTaken","slotIndex":1,"userId":"me","nickname":"MyNick"}"""
+                """{"type":"MicTaken","payload":{"mic_index":1,"user_id":"me","nickname":"MyNick"}}"""
             )
             advanceUntilIdle()
 
@@ -438,7 +438,7 @@ class RoomViewModelTest {
             viewModel.joinRoom("room-1", userId = "user-0")
             advanceUntilIdle()
 
-            fakeWsClient.simulateMessage("""{"type":"MicLeft","slotIndex":0}""")
+            fakeWsClient.simulateMessage("""{"type":"MicLeft","payload":{"mic_index":0}}""")
             advanceUntilIdle()
 
             assertEquals(
@@ -456,7 +456,7 @@ class RoomViewModelTest {
             viewModel.joinRoom("room-1", userId = "user-0")
             advanceUntilIdle()
 
-            fakeWsClient.simulateMessage("""{"type":"MicLeft","slotIndex":0}""")
+            fakeWsClient.simulateMessage("""{"type":"MicLeft","payload":{"mic_index":0}}""")
             advanceUntilIdle()
 
             assertEquals(
@@ -504,7 +504,7 @@ class RoomViewModelTest {
             val job = launch { viewModel.events.collect { events.add(it) } }
 
             fakeWsClient.simulateMessage(
-                """{"type":"MicTaken","slotIndex":1,"userId":"me","nickname":"MyNick"}"""
+                """{"type":"MicTaken","payload":{"mic_index":1,"user_id":"me","nickname":"MyNick"}}"""
             )
             advanceUntilIdle()
 
@@ -827,7 +827,7 @@ class RoomViewModelTest {
 
             // 模拟自己上麦，令 isCurrentUserOnMic = true, isCurrentUserMuted = false
             fakeWsClient.simulateMessage(
-                """{"type":"MicTaken","slotIndex":1,"userId":"me","nickname":"MyNick"}"""
+                """{"type":"MicTaken","payload":{"mic_index":1,"user_id":"me","nickname":"MyNick"}}"""
             )
             advanceUntilIdle()
 
@@ -856,7 +856,7 @@ class RoomViewModelTest {
 
             // 上麦
             fakeWsClient.simulateMessage(
-                """{"type":"MicTaken","slotIndex":1,"userId":"me","nickname":"MyNick"}"""
+                """{"type":"MicTaken","payload":{"mic_index":1,"user_id":"me","nickname":"MyNick"}}"""
             )
             advanceUntilIdle()
 
@@ -887,7 +887,7 @@ class RoomViewModelTest {
             advanceUntilIdle()
 
             fakeWsClient.simulateMessage(
-                """{"type":"MicTaken","slotIndex":1,"userId":"me","nickname":"MyNick"}"""
+                """{"type":"MicTaken","payload":{"mic_index":1,"user_id":"me","nickname":"MyNick"}}"""
             )
             advanceUntilIdle()
 
@@ -923,7 +923,7 @@ class RoomViewModelTest {
             advanceUntilIdle()
 
             fakeWsClient.simulateMessage(
-                """{"type":"MicTaken","slotIndex":1,"userId":"me","nickname":"MyNick"}"""
+                """{"type":"MicTaken","payload":{"mic_index":1,"user_id":"me","nickname":"MyNick"}}"""
             )
             advanceUntilIdle()
 
@@ -954,7 +954,7 @@ class RoomViewModelTest {
             advanceUntilIdle()
 
             fakeWsClient.simulateMessage(
-                """{"type":"MicTaken","slotIndex":2,"userId":"me","nickname":"Me"}"""
+                """{"type":"MicTaken","payload":{"mic_index":2,"user_id":"me","nickname":"Me"}}"""
             )
             advanceUntilIdle()
 
@@ -973,7 +973,7 @@ class RoomViewModelTest {
             advanceUntilIdle()
 
             fakeWsClient.simulateMessage(
-                """{"type":"MicTaken","slotIndex":2,"userId":"me","nickname":"Me"}"""
+                """{"type":"MicTaken","payload":{"mic_index":2,"user_id":"me","nickname":"Me"}}"""
             )
             advanceUntilIdle()
 
@@ -981,7 +981,7 @@ class RoomViewModelTest {
             assertTrue("Should be on mic before MicLeft", onMic.uiState.isCurrentUserOnMic)
 
             // 再触发下麦事件
-            fakeWsClient.simulateMessage("""{"type":"MicLeft","slotIndex":2}""")
+            fakeWsClient.simulateMessage("""{"type":"MicLeft","payload":{"mic_index":2}}""")
             advanceUntilIdle()
 
             val state = viewModel.uiState.value as RoomViewState.Success

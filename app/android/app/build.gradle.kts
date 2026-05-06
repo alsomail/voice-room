@@ -262,6 +262,7 @@ dependencies {
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
     testImplementation("androidx.paging:paging-testing:3.2.1")
     testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
+    testImplementation("org.jetbrains.kotlin:kotlin-reflect:1.9.24")
 
     // Android instrumented tests
     androidTestImplementation("androidx.test.ext:junit:1.2.1")

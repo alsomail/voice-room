@@ -338,7 +338,8 @@ class OkHttpWebSocketClientTest {
 
         // Wait up to 3× the interval; ping arrives after exactly 1× interval
         val ping = withTimeout(pingIntervalMs * 4) { serverReceived.receive() }
-        assertEquals("""{"type":"ping"}""", ping)
+        val pingObj = com.google.gson.JsonParser.parseString(ping).asJsonObject
+        assertEquals("type must be Ping (uppercase)", "Ping", pingObj.get("type").asString)
 
         client.disconnect()
         delay(150)
@@ -376,7 +377,7 @@ class OkHttpWebSocketClientTest {
         // Send pong at 60% of the ping interval (before first ping fires at 100%)
         val pongAt = pingIntervalMs * 3 / 5  // = 360ms
         delay(pongAt)
-        serverWs?.send("""{"type":"pong"}""")
+        serverWs?.send("""{"type":"Pong","msg_id":"pong-1","timestamp":1234}""")
 
         // Window before original interval would have fired: ~40% of interval = 240ms
         // No ping should arrive in this window (heartbeat was reset)
@@ -397,7 +398,8 @@ class OkHttpWebSocketClientTest {
             serverReceived.receive()
         }
         assertNotNull("Ping expected after full interval elapsed since pong", delayedPing)
-        assertEquals("""{"type":"ping"}""", delayedPing)
+        val delayedPingObj = com.google.gson.JsonParser.parseString(delayedPing!!).asJsonObject
+        assertEquals("type must be Ping (uppercase)", "Ping", delayedPingObj.get("type").asString)
 
         client.disconnect()
         delay(150)

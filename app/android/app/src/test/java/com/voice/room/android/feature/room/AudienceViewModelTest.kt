@@ -86,13 +86,13 @@ class AudienceViewModelTest {
 
             // 用户先加入观众
             fakeWsClient.simulateMessage(
-                """{"type":"UserJoined","userId":"u1","nickname":"Nick1","role":"member"}"""
+                """{"type":"UserJoined","payload":{"user_id":"u1","nickname":"Nick1","role":"member"}}"""
             )
             advanceUntilIdle()
 
             // 用户上麦
             fakeWsClient.simulateMessage(
-                """{"type":"MicTaken","slotIndex":0,"userId":"u1","nickname":"Nick1"}"""
+                """{"type":"MicTaken","payload":{"mic_index":0,"user_id":"u1","nickname":"Nick1"}}"""
             )
             advanceUntilIdle()
 
@@ -116,7 +116,7 @@ class AudienceViewModelTest {
             advanceUntilIdle()
 
             fakeWsClient.simulateMessage(
-                """{"type":"UserJoined","userId":"u1","nickname":"Nick1","role":"member"}"""
+                """{"type":"UserJoined","payload":{"user_id":"u1","nickname":"Nick1","role":"member"}}"""
             )
             advanceUntilIdle()
 
@@ -142,7 +142,7 @@ class AudienceViewModelTest {
 
             // 先加入观众席
             fakeWsClient.simulateMessage(
-                """{"type":"UserJoined","userId":"u2","nickname":"Nick2","role":"member"}"""
+                """{"type":"UserJoined","payload":{"user_id":"u2","nickname":"Nick2","role":"member"}}"""
             )
             advanceUntilIdle()
 
@@ -154,7 +154,7 @@ class AudienceViewModelTest {
 
             // 上麦
             fakeWsClient.simulateMessage(
-                """{"type":"MicTaken","slotIndex":1,"userId":"u2","nickname":"Nick2"}"""
+                """{"type":"MicTaken","payload":{"mic_index":1,"user_id":"u2","nickname":"Nick2"}}"""
             )
             advanceUntilIdle()
 
@@ -223,7 +223,7 @@ class AudienceViewModelTest {
             advanceUntilIdle()
 
             fakeWsClient.simulateMessage(
-                """{"type":"UserJoined","userId":"owner1","nickname":"RoomOwner","role":"owner"}"""
+                """{"type":"UserJoined","payload":{"user_id":"owner1","nickname":"RoomOwner","role":"owner"}}"""
             )
             advanceUntilIdle()
 
@@ -247,12 +247,12 @@ class AudienceViewModelTest {
             advanceUntilIdle()
 
             fakeWsClient.simulateMessage(
-                """{"type":"UserJoined","userId":"u4","nickname":"Nick4","role":"member"}"""
+                """{"type":"UserJoined","payload":{"user_id":"u4","nickname":"Nick4","role":"member"}}"""
             )
             advanceUntilIdle()
 
             fakeWsClient.simulateMessage(
-                """{"type":"UserLeft","userId":"u4"}"""
+                """{"type":"UserLeft","payload":{"user_id":"u4"}}"""
             )
             advanceUntilIdle()
 
@@ -273,17 +273,17 @@ class AudienceViewModelTest {
 
             // 先加入 → 上麦
             fakeWsClient.simulateMessage(
-                """{"type":"UserJoined","userId":"u5","nickname":"Nick5","role":"member"}"""
+                """{"type":"UserJoined","payload":{"user_id":"u5","nickname":"Nick5","role":"member"}}"""
             )
             advanceUntilIdle()
             fakeWsClient.simulateMessage(
-                """{"type":"MicTaken","slotIndex":2,"userId":"u5","nickname":"Nick5"}"""
+                """{"type":"MicTaken","payload":{"mic_index":2,"user_id":"u5","nickname":"Nick5"}}"""
             )
             advanceUntilIdle()
 
             // 下麦
             fakeWsClient.simulateMessage(
-                """{"type":"MicLeft","slotIndex":2,"userId":"u5"}"""
+                """{"type":"MicLeft","payload":{"mic_index":2,"user_id":"u5"}}"""
             )
             advanceUntilIdle()
 
@@ -307,7 +307,7 @@ class AudienceViewModelTest {
             advanceUntilIdle()
 
             fakeWsClient.simulateMessage(
-                """{"type":"UserJoined","userId":"u6","nickname":"Nick6","role":"member"}"""
+                """{"type":"UserJoined","payload":{"user_id":"u6","nickname":"Nick6","role":"member"}}"""
             )
             advanceUntilIdle()
 

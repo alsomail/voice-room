@@ -119,7 +119,7 @@ class OkHttpWebSocketClient(
             // T-30051: WS 接收链路可观测性 — 节点 1（onMessage 入口）。
             // 仅打印 head 80 字符（PII 保护）。
             Log.i(TAG, "ws: received text len=${text.length}, head=${text.take(80)}")
-            if (text.contains("\"type\":\"pong\"")) {
+            if (text.contains("\"type\":\"Pong\"")) {
                 // Pong 重置心跳计时：取消当前 pingJob，重新开始倒计时
                 startHeartbeat()
             }
@@ -165,7 +165,7 @@ class OkHttpWebSocketClient(
             while (true) {
                 delay(pingIntervalMs)
                 if (isConnectionActive) {
-                    webSocket?.send("""{"type":"ping"}""")
+                    webSocket?.send(WsEnvelope.build("Ping"))
                 } else {
                     break
                 }

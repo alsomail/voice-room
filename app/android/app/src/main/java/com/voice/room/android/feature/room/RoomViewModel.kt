@@ -5,7 +5,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import android.util.Log
-import com.google.gson.JsonParser
 import com.voice.room.android.core.media.IMediaService
 import com.voice.room.android.core.media.NoOpMediaService
 import com.voice.room.android.core.ws.IWebSocketClient
@@ -13,6 +12,8 @@ import com.voice.room.android.core.ws.RoomSocketRequestFactory
 import com.voice.room.android.core.ws.RoomSocketSession
 import com.voice.room.android.core.ws.WebSocketState
 import com.voice.room.android.core.ws.event.GiftReceivedEvent
+import com.voice.room.android.core.ws.model.WsGsonFactory
+import com.voice.room.android.core.ws.model.WsServerMessage
 import com.voice.room.android.core.ws.sendEnvelope
 import com.voice.room.android.data.local.InMemoryKickCooldownStore
 import com.voice.room.android.data.local.KickCooldownStore
@@ -233,6 +234,12 @@ class RoomViewModel(
 
     @VisibleForTesting
     internal fun lastReceivedMsgIdForTest(): String? = lastReceivedMsgId
+
+    /**
+     * T-00101: WsServerMessage 反序列化 Gson 实例。
+     * 含 sealed class 多态适配器，通过 [WsGsonFactory.create()] 创建。
+     */
+    private val wsGson = WsGsonFactory.create()
 
     // ─── 初始化：订阅 WS 消息 ──────────────────────────────────────────────────
 
@@ -898,93 +905,88 @@ class RoomViewModel(
     }
 
     /**
-     * 解析 WS 消息 JSON，根据 type 分发到对应处理逻辑。
+     * 解析 WS 消息 JSON，根据 sealed class 子类型分发到对应处理逻辑（T-00101）。
      *
-     * 使用 Gson [JsonParser] 解析，该库已通过 retrofit converter-gson 引入。
-     * 若解析失败或 type 未知则静默忽略。
+     * 使用 [WsGsonFactory.create()] 生成的 Gson 实例，通过 WsServerMessageTypeAdapter
+     * 读取 "type" 字段后直接反序列化为对应子类。
+     *
+     * 消除了旧版 json.get("fieldName")?.asX ?: return 的静默吞错。
+     * 缺失必填字段时 Gson 将保留类型默认值；非预期 type 路由到 Unknown 分支并记录日志。
      */
     private fun handleWsMessage(raw: String) {
         // T-30051: WS 接收链路可观测性 — 节点 2（解析点）。
         Log.d(TAG, "ws: parse start len=${raw.length}")
-        val json = try {
-            JsonParser.parseString(raw).asJsonObject
+
+        val msg: WsServerMessage = try {
+            wsGson.fromJson(raw, WsServerMessage::class.java)
         } catch (e: Exception) {
             Log.e(TAG, "ws: parse failed head=${raw.take(80)}", e)
             return
         }
 
-        val type = json.get("type")?.asString ?: run {
-            Log.w(TAG, "ws: parse ok but type missing head=${raw.take(80)}")
-            return
-        }
-        Log.d(TAG, "ws: parse ok type=$type")
-
-        // P1-6: 任何带有 msg_id / msgId 的入站消息更新断线重连断点
-        val inboundMsgId = json.get("msg_id")?.takeIf { !it.isJsonNull }?.asString
-            ?: json.get("msgId")?.takeIf { !it.isJsonNull }?.asString
+        // P1-6: 任何带有 msg_id 的入站消息更新断线重连断点（在 Success guard 之前执行）
+        val inboundMsgId = wsServerMessageMsgId(msg)
         if (!inboundMsgId.isNullOrEmpty()) {
             lastReceivedMsgId = inboundMsgId
         }
+
+        Log.d(TAG, "ws: parse ok type=${msg::class.simpleName}")
 
         // 非 Success 状态时忽略所有 WS 消息（joinRoom 尚未完成）
         val currentState = _uiState.value as? RoomViewState.Success ?: return
         val state = currentState.uiState
 
         // T-30051: WS 接收链路可观测性 — 节点 3（路由分发）。
-        Log.d(TAG, "ws: dispatch type=$type roomId=${state.roomId}")
+        Log.d(TAG, "ws: dispatch type=${msg::class.simpleName} roomId=${state.roomId}")
 
-        when (type) {
-            "UserJoined" -> {
+        when (msg) {
+            is WsServerMessage.UserJoined -> {
                 _uiState.value = RoomViewState.Success(
                     state.copy(onlineCount = state.onlineCount + 1)
                 )
                 // T-30039: 将新加入的用户追加到观众席尾部
-                val userId = json.get("userId")?.asString
-                val nickname = json.get("nickname")?.asString ?: ""
-                val role = json.get("role")?.asString ?: "member"
-                val avatarUrl = json.get("avatarUrl")?.takeIf { !it.isJsonNull }?.asString
-                if (userId != null) {
-                    val newMember = RoomMember(
-                        id = userId,
-                        nickname = nickname,
-                        avatarUrl = avatarUrl,
-                        role = role,
-                    )
-                    val aud = _audienceState.value
-                    // 去重：如果已存在则不追加
-                    if (aud.onMic.none { it.id == userId } && aud.audience.none { it.id == userId }) {
-                        _audienceState.value = aud.copy(audience = aud.audience + newMember)
-                    }
+                val userId = msg.payload.userId
+                val nickname = msg.payload.nickname
+                val role = msg.payload.role ?: "member"
+                val avatarUrl = msg.payload.avatar
+                val newMember = com.voice.room.android.data.model.RoomMember(
+                    id = userId,
+                    nickname = nickname,
+                    avatarUrl = avatarUrl,
+                    role = role,
+                )
+                val aud = _audienceState.value
+                // 去重：如果已存在则不追加
+                if (aud.onMic.none { it.id == userId } && aud.audience.none { it.id == userId }) {
+                    _audienceState.value = aud.copy(audience = aud.audience + newMember)
                 }
             }
 
-            "UserLeft" -> {
+            is WsServerMessage.UserLeft -> {
                 _uiState.value = RoomViewState.Success(
                     state.copy(onlineCount = (state.onlineCount - 1).coerceAtLeast(0))
                 )
                 // T-30039: 从 onMic 或 audience 中移除该用户
-                val leftUserId = json.get("userId")?.asString
-                if (leftUserId != null) {
-                    val aud = _audienceState.value
-                    _audienceState.value = aud.copy(
-                        onMic = aud.onMic.filter { it.id != leftUserId },
-                        audience = aud.audience.filter { it.id != leftUserId },
-                    )
-                }
+                val leftUserId = msg.payload.userId
+                val aud = _audienceState.value
+                _audienceState.value = aud.copy(
+                    onMic = aud.onMic.filter { it.id != leftUserId },
+                    audience = aud.audience.filter { it.id != leftUserId },
+                )
             }
 
-            "MicTaken" -> {
-                val slotIndex = json.get("slotIndex")?.asInt ?: return
-                val userId = json.get("userId")?.asString
-                val nickname = json.get("nickname")?.asString
+            is WsServerMessage.MicTaken -> {
+                val slotIndex = msg.payload.micIndex
+                val userId = msg.payload.userId
+                val nickname = msg.payload.nickname
                 // T-30044: 检测是否为管理员强制抱上麦（forcedBy 字段存在且非 null）
-                val forcedBy = json.get("forcedBy")?.takeIf { !it.isJsonNull }?.asString
+                val forcedBy = msg.payload.forcedBy
 
                 val newSlots = state.micSlots.map { slot ->
                     if (slot.index == slotIndex) slot.copy(userId = userId, nickname = nickname)
                     else slot
                 }
-                val isSelf = userId != null && userId == currentUserId && currentUserId.isNotEmpty()
+                val isSelf = userId.isNotEmpty() && userId == currentUserId && currentUserId.isNotEmpty()
                 _uiState.value = RoomViewState.Success(
                     state.copy(
                         micSlots = newSlots,
@@ -993,17 +995,15 @@ class RoomViewModel(
                     )
                 )
                 // T-30039: 将用户从 audience 移入 onMic
-                if (userId != null) {
-                    val aud = _audienceState.value
-                    val existing = aud.audience.find { it.id == userId }
-                        ?: aud.onMic.find { it.id == userId }
-                        ?: RoomMember(id = userId, nickname = nickname ?: "")
-                    val updated = existing.copy(slot = slotIndex)
-                    _audienceState.value = aud.copy(
-                        onMic = aud.onMic.filter { it.id != userId } + updated,
-                        audience = aud.audience.filter { it.id != userId },
-                    )
-                }
+                val aud = _audienceState.value
+                val existing = aud.audience.find { it.id == userId }
+                    ?: aud.onMic.find { it.id == userId }
+                    ?: com.voice.room.android.data.model.RoomMember(id = userId, nickname = nickname ?: "")
+                val updated = existing.copy(slot = slotIndex)
+                _audienceState.value = aud.copy(
+                    onMic = aud.onMic.filter { it.id != userId } + updated,
+                    audience = aud.audience.filter { it.id != userId },
+                )
 
                 // T-30044: 若是当前用户，根据是否强制抱麦决定推流策略
                 if (isSelf) {
@@ -1012,7 +1012,7 @@ class RoomViewModel(
                         // ForceTakeMic 且无权限 → 请求权限；拒绝则自动下麦
                         micPermissionChecker.requestMicPermission { granted ->
                             if (granted) {
-                                viewModelScope.launch { startPublishingInternal(roomId, userId!!) }
+                                viewModelScope.launch { startPublishingInternal(roomId, userId) }
                             } else {
                                 // 权限被拒绝 → 自动发送 LeaveMic 信令（payload 由 server 上下文推断）
                                 if (currentRoomId == null) return@requestMicPermission
@@ -1021,18 +1021,18 @@ class RoomViewModel(
                         }
                     } else {
                         // 普通 TakeMic（用户主动）或 ForceTakeMic（权限已授予）→ 直接推流
-                        viewModelScope.launch { startPublishingInternal(roomId, userId!!) }
+                        viewModelScope.launch { startPublishingInternal(roomId, userId) }
                     }
                 }
             }
 
-            "MicLeft" -> {
-                val slotIndex = json.get("slotIndex")?.asInt ?: return
+            is WsServerMessage.MicLeft -> {
+                val slotIndex = msg.payload.micIndex
                 // 在清空前记录该槽位原有 userId，用于判断是否需要调用 mediaService
-                val leavingUserId = json.get("userId")?.asString
+                val leavingUserId = msg.payload.userId
                     ?: state.micSlots.getOrNull(slotIndex)?.userId
-                // T-30044: 检测是否为管理员强制踢下麦
-                val forcedBy = json.get("forcedBy")?.takeIf { !it.isJsonNull }?.asString
+                // T-30044: 检测是否为管理员强制踢下麦（schema: forced: Boolean）
+                val isForced = msg.payload.forced == true
 
                 val newSlots = state.micSlots.map { slot ->
                     if (slot.index == slotIndex) slot.copy(userId = null, nickname = null)
@@ -1052,7 +1052,7 @@ class RoomViewModel(
                 if (leavingUserId != null) {
                     val aud = _audienceState.value
                     val leaving = aud.onMic.find { it.id == leavingUserId }
-                        ?: RoomMember(id = leavingUserId, nickname = "")
+                        ?: com.voice.room.android.data.model.RoomMember(id = leavingUserId, nickname = "")
                     val backToAudience = leaving.copy(slot = null)
                     _audienceState.value = aud.copy(
                         onMic = aud.onMic.filter { it.id != leavingUserId },
@@ -1063,7 +1063,7 @@ class RoomViewModel(
                 // 若是当前用户下麦，停止推流并离开频道
                 if (isSelfLeaving) {
                     // T-30044: ForceLeaveMic → 发出 Toast 通知用户被强制踢下麦
-                    if (forcedBy != null) {
+                    if (isForced) {
                         _events.trySend(RoomEvent.ShowToast("你已被抱下麦"))
                     }
                     viewModelScope.launch {
@@ -1079,10 +1079,14 @@ class RoomViewModel(
                 }
             }
 
-            "AdminChanged" -> {
+            is WsServerMessage.AdminChanged -> {
                 // T-30039: 更新 role 字段
-                val targetUserId = json.get("userId")?.asString ?: return
-                val newRole = json.get("role")?.asString ?: return
+                val targetUserId = msg.userId
+                val newRole = msg.role
+                if (targetUserId == null || newRole == null) {
+                    Log.w(TAG, "ws: AdminChanged missing userId or role, ignoring")
+                    return
+                }
                 val aud = _audienceState.value
                 _audienceState.value = aud.copy(
                     onMic = aud.onMic.map { m ->
@@ -1094,14 +1098,22 @@ class RoomViewModel(
                 )
             }
 
-            "MessageReceived" -> {
-                val msgId = json.get("msgId")?.asString ?: return
+            is WsServerMessage.MessageReceived -> {
+                val msgId = msg.msgId
+                if (msgId == null) {
+                    Log.w(TAG, "ws: MessageReceived missing msgId, ignoring")
+                    return
+                }
                 if (seenMsgIds.contains(msgId)) return
                 seenMsgIds.add(msgId)
 
-                val senderNickname = json.get("senderNickname")?.asString ?: ""
-                val content = json.get("content")?.asString ?: return  // content 缺失 → 静默忽略（RM-05）
-                val timestamp = json.get("timestamp")?.asLong ?: 0L
+                val senderNickname = msg.senderNickname ?: ""
+                val content = msg.content
+                if (content == null) {
+                    Log.w(TAG, "ws: MessageReceived missing content msgId=$msgId, ignoring (RM-05)")
+                    return
+                }
+                val timestamp = msg.timestamp
 
                 val newMsg = ChatMessageUi(
                     messageId = msgId,
@@ -1116,15 +1128,18 @@ class RoomViewModel(
 
             // BUG-CHAT-WS Round 6：服务端实际广播 type=RoomMessage（见 server/src/room/handler/chat.rs）
             // payload: { msg_id, user_id, content }；顶层 timestamp。
-            "RoomMessage" -> {
-                val payload = json.getAsJsonObject("payload") ?: return
-                val msgId = payload.get("msg_id")?.takeIf { !it.isJsonNull }?.asString ?: return
+            is WsServerMessage.RoomMessage -> {
+                val msgId = msg.payload.msgId
                 if (seenMsgIds.contains(msgId)) return
-                val content = payload.get("content")?.takeIf { !it.isJsonNull }?.asString ?: return
+                val content = msg.payload.content
+                if (content == null) {
+                    Log.w(TAG, "ws: RoomMessage missing content msgId=$msgId, ignoring")
+                    return
+                }
                 seenMsgIds.add(msgId)
 
-                val senderUserId = payload.get("user_id")?.takeIf { !it.isJsonNull }?.asString
-                val timestamp = json.get("timestamp")?.takeIf { !it.isJsonNull }?.asLong ?: 0L
+                val senderUserId = msg.payload.userId
+                val timestamp = msg.timestamp
 
                 // 通过 audience / onMic / micSlots 查找昵称；找不到则回退到 user_id 短串
                 val nickname = senderUserId?.let { uid ->
@@ -1145,65 +1160,76 @@ class RoomViewModel(
                 )
             }
 
-            "RoomClosed" -> {
+            is WsServerMessage.RoomClosed -> {
                 _events.trySend(RoomEvent.NavigateBack)
             }
 
-            "Error" -> {
-                val code = json.get("code")?.asInt
-                when (code) {
+            is WsServerMessage.ServerError -> {
+                when (msg.code) {
                     40301 -> _events.trySend(RoomEvent.ShowToast("无权操作"))
                     // 其他错误码静默忽略（后续可按需扩展）
                 }
             }
 
-            "GiftReceived" -> {
-                val msgId       = json.get("msgId")?.asString ?: return
-                val recordId    = json.get("giftRecordId")?.asString ?: ""
-                val senderObj   = json.getAsJsonObject("sender") ?: return
-                val receiverObj = json.getAsJsonObject("receiver") ?: return
-                val giftObj     = json.getAsJsonObject("gift") ?: return
-
+            is WsServerMessage.GiftReceived -> {
+                val msgId = msg.msgId
+                if (msgId == null) {
+                    Log.w(TAG, "ws: GiftReceived missing msgId, ignoring")
+                    return
+                }
+                val sender   = msg.sender
+                val receiver = msg.receiver
+                val gift     = msg.gift
+                if (sender == null || receiver == null || gift == null) {
+                    Log.w(TAG, "ws: GiftReceived missing sender/receiver/gift msgId=$msgId, ignoring")
+                    return
+                }
+                val senderUserId = sender.userId
+                val receiverUserId = receiver.userId
+                val giftId = gift.id
+                if (senderUserId == null || receiverUserId == null || giftId == null) {
+                    Log.w(TAG, "ws: GiftReceived missing required nested fields, ignoring")
+                    return
+                }
                 val evt = GiftReceivedEvent(
-                    msgId           = msgId,
-                    giftRecordId    = recordId,
-                    senderUserId    = senderObj.get("userId")?.asString ?: return,
-                    senderNickname  = senderObj.get("nickname")?.asString ?: "",
-                    senderAvatar    = senderObj.get("avatar")?.takeIf { !it.isJsonNull }?.asString,
-                    receiverUserId  = receiverObj.get("userId")?.asString ?: return,
-                    receiverNickname = receiverObj.get("nickname")?.asString ?: "",
-                    receiverAvatar  = receiverObj.get("avatar")?.takeIf { !it.isJsonNull }?.asString,
-                    giftId          = giftObj.get("id")?.asString ?: return,
-                    giftCode        = giftObj.get("code")?.asString ?: "",
-                    giftName        = giftObj.get("name")?.asString ?: "",
-                    giftIconUrl     = giftObj.get("icon_url")?.asString ?: "",
-                    giftAnimationUrl = giftObj.get("animation_url")?.takeIf { !it.isJsonNull }?.asString,
-                    effectLevel     = giftObj.get("effect_level")?.asInt ?: 1,
-                    count           = json.get("count")?.asInt ?: 1,
-                    totalPrice      = json.get("totalPrice")?.asLong ?: 0L,
-                    isReplay        = json.get("isReplay")?.asBoolean ?: false,
+                    msgId            = msgId,
+                    giftRecordId     = msg.giftRecordId ?: "",
+                    senderUserId     = senderUserId,
+                    senderNickname   = sender.nickname ?: "",
+                    senderAvatar     = sender.avatar,
+                    receiverUserId   = receiverUserId,
+                    receiverNickname = receiver.nickname ?: "",
+                    receiverAvatar   = receiver.avatar,
+                    giftId           = giftId,
+                    giftCode         = gift.code ?: "",
+                    giftName         = gift.name ?: "",
+                    giftIconUrl      = gift.iconUrl ?: "",
+                    giftAnimationUrl = gift.animationUrl,
+                    effectLevel      = gift.effectLevel,
+                    count            = msg.count,
+                    totalPrice       = msg.totalPrice,
+                    isReplay         = msg.isReplay,
                 )
                 giftEffectController.onGiftReceived(evt)
             }
 
-            "UserKicked" -> {
+            is WsServerMessage.UserKicked -> {
                 // T-30042: 收到被踢通知，设置 kickedState（WS 服务端只推送给被踢用户）
-                // R1 P1-7: 服务端统一出口将业务字段移入 payload，兼容旧 flat 格式
-                val payload = json.getAsJsonObject("payload")
-                val reason = payload?.get("reason")?.asString
-                    ?: json.get("reason")?.asString
-                    ?: ""
-                val cooldownSec = payload?.get("cooldown_sec")?.asInt
-                    ?: json.get("cooldown_sec")?.asInt
-                    ?: 600
+                // R1 P1-7: 兼容 flat 格式 + 新版 payload 嵌套格式
+                val reason = msg.payload?.reason ?: msg.reason ?: ""
+                val cooldownSec = msg.payload?.cooldownSec ?: msg.cooldownSec
                 _kickedState.value = KickedState(reason = reason, cooldownSec = cooldownSec)
             }
 
-            "UserMuted" -> {
+            is WsServerMessage.UserMuted -> {
                 // T-30042: 收到被禁麦/禁言通知，WS 服务端只推送给被禁用户
-                val muteType = json.get("muteType")?.asString ?: return
-                val durationSec = json.get("duration_sec")?.asInt ?: 0
-                val expiresAt = json.get("expires_at")?.asLong
+                val muteType = msg.muteType
+                if (muteType == null) {
+                    Log.w(TAG, "ws: UserMuted missing muteType, ignoring")
+                    return
+                }
+                val durationSec = msg.durationSec
+                val expiresAt = msg.expiresAt
                     ?: (clock.currentTimeMillis() + durationSec * 1000L)
                 // 发出 UserMuted 事件供 MuteCountdownViewModel 消费
                 if (durationSec == 0) {
@@ -1225,10 +1251,10 @@ class RoomViewModel(
                 }
             }
 
-            "RoomInfoUpdated" -> {
+            is WsServerMessage.RoomInfoUpdated -> {
                 // T-30043: 更新房间信息（title/announcement/category）
-                val newTitle = json.get("title")?.takeIf { !it.isJsonNull }?.asString
-                val newAnnouncement = json.get("announcement")?.takeIf { !it.isJsonNull }?.asString
+                val newTitle = msg.title
+                val newAnnouncement = msg.announcement
 
                 // 更新 uiState 中的 roomName 和 announcement
                 val updatedState = state.copy(
@@ -1249,7 +1275,66 @@ class RoomViewModel(
                     }
                 }
             }
+
+            // Result types — handled by GiftPanelViewModel / other consumers via WebSocketState
+            is WsServerMessage.Pong,
+            is WsServerMessage.JoinRoomResult,
+            is WsServerMessage.LeaveRoomResult,
+            is WsServerMessage.TakeMicResult,
+            is WsServerMessage.LeaveMicResult,
+            is WsServerMessage.SendMessageResult,
+            is WsServerMessage.SendGiftResult,
+            is WsServerMessage.EventReportAck,
+            is WsServerMessage.KickUserResult,
+            is WsServerMessage.MuteUserResult,
+            is WsServerMessage.UnmuteUserResult,
+            is WsServerMessage.TransferAdminResult,
+            is WsServerMessage.ForceTakeMicResult,
+            is WsServerMessage.ForceLeaveMicResult -> {
+                // 由其他 ViewModel（GiftPanelViewModel 等）通过 WebSocketState.Message 消费
+                Log.d(TAG, "ws: result/ack type=${msg::class.simpleName} forwarded via state")
+            }
+
+            is WsServerMessage.Unknown -> {
+                // T-00101: 未知信令记录日志，不抛异常
+                Log.w(TAG, "ws: unknown signal type=${msg.type} — ignoring (forward-compat)")
+            }
         }
+    }
+
+    /**
+     * T-00101: 从任意 WsServerMessage 提取 msg_id 用于 P1-6 断线重连游标更新。
+     * sealed class 各子类的 msgId 字段命名和可空性不同，统一在此归一化。
+     */
+    private fun wsServerMessageMsgId(msg: WsServerMessage): String? = when (msg) {
+        is WsServerMessage.UserJoined         -> msg.msgId
+        is WsServerMessage.UserLeft           -> msg.msgId
+        is WsServerMessage.MicTaken           -> msg.msgId
+        is WsServerMessage.MicLeft            -> msg.msgId
+        is WsServerMessage.RoomMessage        -> msg.msgId
+        is WsServerMessage.Pong               -> msg.msgId
+        is WsServerMessage.UserMuted          -> msg.msgId
+        is WsServerMessage.AdminChanged       -> msg.msgId
+        is WsServerMessage.RoomInfoUpdated    -> msg.msgId
+        is WsServerMessage.GiftReceived       -> msg.msgId
+        is WsServerMessage.UserKicked         -> msg.msgId
+        is WsServerMessage.MessageReceived    -> msg.msgId
+        is WsServerMessage.JoinRoomResult     -> msg.msgId
+        is WsServerMessage.LeaveRoomResult    -> msg.msgId
+        is WsServerMessage.TakeMicResult      -> msg.msgId
+        is WsServerMessage.LeaveMicResult     -> msg.msgId
+        is WsServerMessage.SendMessageResult  -> msg.msgId
+        is WsServerMessage.SendGiftResult     -> msg.msgId
+        is WsServerMessage.EventReportAck     -> msg.msgId
+        is WsServerMessage.KickUserResult     -> msg.msgId
+        is WsServerMessage.MuteUserResult     -> msg.msgId
+        is WsServerMessage.UnmuteUserResult   -> msg.msgId
+        is WsServerMessage.TransferAdminResult  -> msg.msgId
+        is WsServerMessage.ForceTakeMicResult   -> msg.msgId
+        is WsServerMessage.ForceLeaveMicResult  -> msg.msgId
+        is WsServerMessage.RoomClosed,
+        is WsServerMessage.ServerError,
+        is WsServerMessage.Unknown            -> null
     }
 }
 
