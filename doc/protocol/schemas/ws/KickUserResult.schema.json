@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voiceroom.example/protocol/ws/KickUserResult",
+  "title": "KickUserResult",
+  "description": "踢出结果 (S→C)",
+  "type": "object",
+  "required": ["type", "msg_id", "code", "timestamp"],
+  "additionalProperties": false,
+  "properties": {
+    "type": { "type": "string", "const": "KickUserResult" },
+    "msg_id": { "type": "string", "format": "uuid" },
+    "code": { "type": "integer" },
+    "message": { "type": "string" },
+    "payload": { "type": "object", "additionalProperties": true },
+    "timestamp": { "type": "integer" }
+  }
+}

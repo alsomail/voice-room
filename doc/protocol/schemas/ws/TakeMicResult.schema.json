@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voiceroom.example/protocol/ws/TakeMicResult",
+  "title": "TakeMicResult",
+  "description": "上麦结果 (S→C)",
+  "type": "object",
+  "required": ["type", "msg_id", "code", "timestamp"],
+  "additionalProperties": false,
+  "properties": {
+    "type": { "type": "string", "const": "TakeMicResult" },
+    "msg_id": { "type": "string", "format": "uuid" },
+    "code": { "type": "integer", "description": "0=成功" },
+    "message": { "type": "string" },
+    "payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mic_index": { "type": "integer", "minimum": 0, "maximum": 8 }
+      }
+    },
+    "timestamp": { "type": "integer" }
+  }
+}

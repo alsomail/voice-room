@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voiceroom.example/protocol/ws/UnmuteUser",
+  "title": "UnmuteUser",
+  "description": "解禁用户 (C→S，需要管理员权限)",
+  "type": "object",
+  "required": ["type", "msg_id", "payload"],
+  "additionalProperties": false,
+  "properties": {
+    "type": { "type": "string", "const": "UnmuteUser" },
+    "msg_id": { "type": "string", "format": "uuid" },
+    "payload": {
+      "type": "object",
+      "required": ["target_user_id", "mute_type"],
+      "additionalProperties": false,
+      "properties": {
+        "target_user_id": { "type": "string", "format": "uuid" },
+        "mute_type": { "type": "string", "enum": ["chat", "mic"] }
+      }
+    },
+    "timestamp": { "type": "integer" }
+  }
+}

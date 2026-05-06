@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voiceroom.example/protocol/ws/ForceTakeMic",
+  "title": "ForceTakeMic",
+  "description": "强制上麦 (C→S，管理员权限，将指定用户拉至指定麦位)",
+  "type": "object",
+  "required": ["type", "msg_id", "payload"],
+  "additionalProperties": false,
+  "properties": {
+    "type": { "type": "string", "const": "ForceTakeMic" },
+    "msg_id": { "type": "string", "format": "uuid" },
+    "payload": {
+      "type": "object",
+      "required": ["target_user_id", "mic_index"],
+      "additionalProperties": false,
+      "properties": {
+        "target_user_id": { "type": "string", "format": "uuid" },
+        "mic_index": { "type": "integer", "minimum": 0, "maximum": 8 }
+      }
+    },
+    "timestamp": { "type": "integer" }
+  }
+}

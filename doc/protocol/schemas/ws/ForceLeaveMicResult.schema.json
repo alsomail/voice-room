@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voiceroom.example/protocol/ws/ForceLeaveMicResult",
+  "title": "ForceLeaveMicResult",
+  "description": "强制下麦结果 (S→C)",
+  "type": "object",
+  "required": ["type", "msg_id", "code", "timestamp"],
+  "additionalProperties": false,
+  "properties": {
+    "type": { "type": "string", "const": "ForceLeaveMicResult" },
+    "msg_id": { "type": "string", "format": "uuid" },
+    "code": { "type": "integer" },
+    "message": { "type": "string" },
+    "payload": { "type": "object", "additionalProperties": true },
+    "timestamp": { "type": "integer" }
+  }
+}

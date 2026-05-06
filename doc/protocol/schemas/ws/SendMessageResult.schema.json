@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voiceroom.example/protocol/ws/SendMessageResult",
+  "title": "SendMessageResult",
+  "description": "发消息结果 (S→C)",
+  "type": "object",
+  "required": ["type", "msg_id", "code", "timestamp"],
+  "additionalProperties": false,
+  "properties": {
+    "type": { "type": "string", "const": "SendMessageResult" },
+    "msg_id": { "type": "string", "format": "uuid", "description": "回显原始 client msg_id" },
+    "code": { "type": "integer", "description": "0=成功" },
+    "message": { "type": "string" },
+    "payload": { "type": "object", "additionalProperties": true },
+    "timestamp": { "type": "integer" }
+  }
+}

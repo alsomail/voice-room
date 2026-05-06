@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voiceroom.example/protocol/ws/MicLeft",
+  "title": "MicLeft",
+  "description": "麦位释放广播 (S→Room)",
+  "type": "object",
+  "required": ["type", "payload", "timestamp"],
+  "additionalProperties": false,
+  "properties": {
+    "type": { "type": "string", "const": "MicLeft" },
+    "payload": {
+      "type": "object",
+      "required": ["mic_index", "user_id"],
+      "additionalProperties": false,
+      "properties": {
+        "mic_index": { "type": "integer", "minimum": 0, "maximum": 8, "description": "被释放的麦位索引" },
+        "user_id": { "type": "string", "format": "uuid", "description": "释放该麦位的用户 ID" },
+        "forced": { "type": "boolean", "description": "是否强制下麦" }
+      }
+    },
+    "msg_id": { "type": "string", "format": "uuid" },
+    "timestamp": { "type": "integer" }
+  }
+}

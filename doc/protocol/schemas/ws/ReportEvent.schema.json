@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voiceroom.example/protocol/ws/ReportEvent",
+  "title": "ReportEvent",
+  "description": "埋点批量上报 (C→S)",
+  "type": "object",
+  "required": ["type", "msg_id", "payload"],
+  "additionalProperties": false,
+  "properties": {
+    "type": { "type": "string", "const": "ReportEvent" },
+    "msg_id": { "type": "string", "format": "uuid" },
+    "payload": {
+      "type": "object",
+      "required": ["events"],
+      "additionalProperties": false,
+      "properties": {
+        "events": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 100,
+          "items": {
+            "type": "object",
+            "required": ["event_type", "user_id", "device_id"],
+            "additionalProperties": true,
+            "properties": {
+              "event_type": { "type": "string" },
+              "user_id": { "type": "string", "format": "uuid" },
+              "device_id": { "type": "string" },
+              "properties": { "type": "object" },
+              "client_ts": { "type": "integer" }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": { "type": "integer" }
+  }
+}

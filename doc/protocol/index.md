@@ -1,9 +1,31 @@
 # API 协议文档索引
 
+> 🔒 **字段级冻结 (Field Freeze) — T-00100**
+> 本目录自 T-00100 任务完成后进入**字段级冻结**状态。所有 WS 信令、HTTP REST DTO 和 Redis Pub/Sub 事件的字段定义以 `schemas/` 下的 JSON Schema 2020-12 文件为唯一机器可读契约。
+> 任何字段变更（新增/改名/删除）须先修改对应 schema 文件并通过 CI 验证，再同步更新 markdown 文档和实现代码。
+
+---
+
 > **原始文件**: `doc/protocol.md`（已拆分为本目录下的子文件）
 > **版本**: v0.9
 > **拆分日期**: 2026-04-20
 > **维护约束**: 新增/修改接口时必须同步更新对应子文件；前后端联调前必须以本目录文档为唯一契约源。
+
+---
+
+## 📐 机器可读 Schema 索引 (schemas/)
+
+| 目录 | 内容 | 文件数 |
+|------|------|--------|
+| [schemas/ws/](schemas/ws/) | WebSocket 信令 JSON Schema 2020-12 | 28 个核心信令 |
+| [schemas/http/](schemas/http/) | HTTP REST DTO JSON Schema 2020-12 | RoomDetail 等 |
+| [schemas/pubsub/](schemas/pubsub/) | Redis Pub/Sub 事件 JSON Schema 2020-12 | 4 个 admin:events |
+
+### WS Schema 速查 (ws/)
+`Ping` · `Pong` · `JoinRoom` · `JoinRoomResult` · `LeaveRoom` · `LeaveRoomResult` · `TakeMic` · `TakeMicResult` · `LeaveMic` · `LeaveMicResult` · `SendMessage` · `SendMessageResult` · `SendGift` · `SendGiftResult` · `ReportEvent` · `EventReportAck` · `KickUser` · `MuteUser` · `UnmuteUser` · `TransferAdmin` · `ForceTakeMic` · `ForceLeaveMic` · `UserJoined` · `UserLeft` · `MicTaken` · `MicLeft` · `RoomMessage` · `UserMuted`
+
+### Pub/Sub Schema 速查 (pubsub/)
+`BanUser` · `UnbanUser` · `CloseRoom` · `BroadcastNotice`  — channel: `admin:events`
 
 ---
 

@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voiceroom.example/protocol/ws/EventReportAck",
+  "title": "EventReportAck",
+  "description": "埋点 ACK (S→C)",
+  "type": "object",
+  "required": ["type", "msg_id", "code", "payload", "timestamp"],
+  "additionalProperties": false,
+  "properties": {
+    "type": { "type": "string", "const": "EventReportAck" },
+    "msg_id": { "type": "string", "format": "uuid" },
+    "code": { "type": "integer" },
+    "payload": {
+      "type": "object",
+      "required": ["received", "rejected_indices"],
+      "additionalProperties": false,
+      "properties": {
+        "received": { "type": "integer", "minimum": 0 },
+        "rejected_indices": { "type": "array", "items": { "type": "integer" } }
+      }
+    },
+    "timestamp": { "type": "integer" }
+  }
+}

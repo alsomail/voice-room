@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voiceroom.example/protocol/ws/UserLeft",
+  "title": "UserLeft",
+  "description": "用户离开房间广播 (S→Room)",
+  "type": "object",
+  "required": ["type", "payload", "timestamp"],
+  "additionalProperties": false,
+  "properties": {
+    "type": { "type": "string", "const": "UserLeft" },
+    "payload": {
+      "type": "object",
+      "required": ["user_id"],
+      "additionalProperties": false,
+      "properties": {
+        "user_id": { "type": "string", "format": "uuid" },
+        "nickname": { "type": "string" },
+        "member_count": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "msg_id": { "type": "string", "format": "uuid" },
+    "timestamp": { "type": "integer" }
+  }
+}

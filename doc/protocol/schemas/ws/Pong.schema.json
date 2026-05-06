@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voiceroom.example/protocol/ws/Pong",
+  "title": "Pong",
+  "description": "服务端心跳应答 (S→C)",
+  "type": "object",
+  "required": ["type", "msg_id", "timestamp"],
+  "additionalProperties": false,
+  "properties": {
+    "type": { "type": "string", "const": "Pong" },
+    "msg_id": { "type": "string", "format": "uuid", "description": "回显 Ping 的 msg_id" },
+    "timestamp": { "type": "integer", "description": "服务端时间戳(ms)" }
+  }
+}

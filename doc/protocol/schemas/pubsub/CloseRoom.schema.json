@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voiceroom.example/protocol/pubsub/CloseRoom",
+  "title": "CloseRoom",
+  "description": "Redis Pub/Sub: 强制关闭房间事件，channel=admin:events",
+  "type": "object",
+  "required": ["type", "payload", "admin_id", "ts"],
+  "additionalProperties": false,
+  "properties": {
+    "type": { "type": "string", "const": "close_room" },
+    "payload": {
+      "type": "object",
+      "required": ["room_id"],
+      "additionalProperties": false,
+      "properties": {
+        "room_id": { "type": "string", "format": "uuid", "description": "被关闭的房间 ID" }
+      }
+    },
+    "admin_id": { "type": "string", "format": "uuid", "description": "执行操作的管理员 ID" },
+    "ts": { "type": "integer", "description": "事件时间戳(ms)" }
+  }
+}

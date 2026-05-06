@@ -148,11 +148,35 @@
       "nickname": "string",
       "avatar": "string | null"
     },
-    "mic_slots": [],
+    "mic_slots": [
+      {
+        "mic_index": 0,
+        "user_id": "550e8400-e29b-41d4-a716-446655440000",
+        "locked": false,
+        "muted": false
+      },
+      {
+        "mic_index": 1,
+        "user_id": null,
+        "locked": false,
+        "muted": false
+      }
+    ],
     "created_at": "RFC3339"
   }
 }
 ```
+
+**`mic_slots` 字段说明（强类型定义）**：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `mic_index` | `integer` (0-8) | 麦位索引，固定 9 位 |
+| `user_id` | `string(uuid) \| null` | 当前占用者 ID，`null` 表示空麦位 |
+| `locked` | `boolean` | 是否被管理员锁定（锁定后无法上麦） |
+| `muted` | `boolean` | 麦位是否静音 |
+
+机器可读 Schema: [schemas/http/RoomDetail.schema.json](schemas/http/RoomDetail.schema.json)
 
 **错误码**：
 | HTTP | code | 说明 |

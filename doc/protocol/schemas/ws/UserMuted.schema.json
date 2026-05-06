@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voiceroom.example/protocol/ws/UserMuted",
+  "title": "UserMuted",
+  "description": "用户被禁言/解禁广播 (S→Room)",
+  "type": "object",
+  "required": ["type", "payload", "timestamp"],
+  "additionalProperties": false,
+  "properties": {
+    "type": { "type": "string", "const": "UserMuted" },
+    "payload": {
+      "type": "object",
+      "required": ["room_id", "target_user_id", "type", "duration_sec"],
+      "additionalProperties": false,
+      "properties": {
+        "room_id": { "type": "string", "format": "uuid" },
+        "target_user_id": { "type": "string", "format": "uuid" },
+        "type": { "type": "string", "enum": ["chat", "mic"], "description": "禁言类型" },
+        "duration_sec": { "type": ["integer", "null"], "minimum": 0, "description": "禁言时长秒数，null=永久" },
+        "expires_at": { "type": ["integer", "null"], "description": "过期时间戳(ms)，null=永久" },
+        "operator_id": { "type": "string", "format": "uuid" }
+      }
+    },
+    "msg_id": { "type": "string", "format": "uuid" },
+    "timestamp": { "type": "integer" }
+  }
+}

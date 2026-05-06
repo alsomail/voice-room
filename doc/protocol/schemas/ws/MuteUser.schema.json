@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voiceroom.example/protocol/ws/MuteUser",
+  "title": "MuteUser",
+  "description": "禁言用户 (C→S，需要管理员权限)",
+  "type": "object",
+  "required": ["type", "msg_id", "payload"],
+  "additionalProperties": false,
+  "properties": {
+    "type": { "type": "string", "const": "MuteUser" },
+    "msg_id": { "type": "string", "format": "uuid" },
+    "payload": {
+      "type": "object",
+      "required": ["target_user_id", "mute_type"],
+      "additionalProperties": false,
+      "properties": {
+        "target_user_id": { "type": "string", "format": "uuid" },
+        "mute_type": { "type": "string", "enum": ["chat", "mic"], "description": "chat=文字禁言, mic=麦克风禁言" },
+        "duration_sec": { "type": ["integer", "null"], "minimum": 1, "description": "禁言时长，null=永久" }
+      }
+    },
+    "timestamp": { "type": "integer" }
+  }
+}

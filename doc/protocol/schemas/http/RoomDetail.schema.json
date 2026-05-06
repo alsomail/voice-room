@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voiceroom.example/protocol/http/RoomDetail",
+  "title": "RoomDetail",
+  "description": "GET /api/rooms/:id 响应体中的房间详情对象",
+  "type": "object",
+  "required": ["room_id", "title", "owner_id", "category", "has_password", "member_count", "mic_slots", "created_at"],
+  "additionalProperties": false,
+  "properties": {
+    "room_id": { "type": "string", "format": "uuid" },
+    "title": { "type": "string", "minLength": 1, "maxLength": 100 },
+    "announcement": { "type": ["string", "null"], "maxLength": 500 },
+    "owner_id": { "type": "string", "format": "uuid" },
+    "category": { "type": "string" },
+    "cover_url": { "type": ["string", "null"], "format": "uri" },
+    "has_password": { "type": "boolean" },
+    "member_count": { "type": "integer", "minimum": 0 },
+    "mic_slots": {
+      "type": "array",
+      "description": "麦位状态列表，索引 0-8",
+      "minItems": 9,
+      "maxItems": 9,
+      "items": {
+        "type": "object",
+        "required": ["mic_index", "locked", "muted"],
+        "additionalProperties": false,
+        "properties": {
+          "mic_index": { "type": "integer", "minimum": 0, "maximum": 8, "description": "麦位索引 0-8" },
+          "user_id": { "type": ["string", "null"], "format": "uuid", "description": "当前占用者，null=空麦位" },
+          "locked": { "type": "boolean", "description": "是否锁定（管理员关闭）" },
+          "muted": { "type": "boolean", "description": "是否静音" }
+        }
+      }
+    },
+    "created_at": { "type": "string", "format": "date-time" }
+  }
+}

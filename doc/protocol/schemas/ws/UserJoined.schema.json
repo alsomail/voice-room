@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voiceroom.example/protocol/ws/UserJoined",
+  "title": "UserJoined",
+  "description": "用户加入房间广播 (S→Room)",
+  "type": "object",
+  "required": ["type", "payload", "timestamp"],
+  "additionalProperties": false,
+  "properties": {
+    "type": { "type": "string", "const": "UserJoined" },
+    "payload": {
+      "type": "object",
+      "required": ["user_id", "nickname", "avatar"],
+      "additionalProperties": false,
+      "properties": {
+        "user_id": { "type": "string", "format": "uuid" },
+        "nickname": { "type": "string" },
+        "avatar": { "type": "string", "format": "uri" },
+        "member_count": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "msg_id": { "type": "string", "format": "uuid" },
+    "timestamp": { "type": "integer" }
+  }
+}

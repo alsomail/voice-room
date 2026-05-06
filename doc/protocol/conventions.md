@@ -109,3 +109,75 @@
 | 发送验证码 | 冷却期幂等 | 60 秒冷却期内重复请求返回 `42901`；冷却期后重新发送新验证码 |
 | 登录 | 可重试+自动注册 | 手机号不存在时自动创建用户；同一验证码有效期内可多次尝试（不超过 5 次） |
 | 获取用户信息 | 只读幂等 | GET 请求，天然幂等 |
+
+---
+
+## §4 字段命名铁律 — snake_case 强制
+
+> **强制规定**（不得例外）
+
+所有协议字段（WS 信令 payload、HTTP 请求/响应 body、Redis Pub/Sub 消息）**必须使用 `snake_case`** 命名。
+
+| 规范示例 | 禁止写法 |
+|---------|---------|
+| `user_id` | `userId`, `UserID` |
+| `mic_index` | `micIndex`, `MicIndex` |
+| `room_id` | `roomId`, `RoomID` |
+| `created_at` | `createdAt`, `CreateAt` |
+| `has_password` | `hasPassword`, `HasPwd` |
+
+- `type` 字段的枚举值使用 **PascalCase**（如 `"JoinRoom"`, `"MicTaken"`）——这是信令类型标识符，不是字段名，不受本条约束。
+- Redis Pub/Sub 事件的 `type` 值使用 **snake_case**（如 `"ban_user"`, `"close_room"`），与服务端 serde 标签对齐。
+- 违反命名约定的字段不得合并入主干，CI audit 脚本会自动检测。
+
+---
+
+## §5 WS payload 嵌套铁律
+
+> **强制规定**
+
+所有 WebSocket 信令的业务字段**必须嵌套在顶层 `payload` 对象内**，不得直接暴露在 envelope 根层级。
+
+**合法 envelope 结构（§5 规定）：**
+```json
+{
+  "type": "TakeMic",
+  "msg_id": "uuid-v4",
+  "timestamp": 1700000000000,
+  "payload": {
+    "mic_index": 2
+  }
+}
+```
+
+**禁止的扁平化结构：**
+```json
+{
+  "type": "TakeMic",
+  "mic_index": 2
+}
+```
+
+- `type`、`msg_id`、`timestamp` 是 envelope 保留字段，允许在根层级。
+- 所有其他字段**必须**放入 `payload`。
+- 对应 JSON Schema 使用 `"additionalProperties": false` 强制此约定。
+
+---
+
+## §6 envelope 双 ID 铁律
+
+> **强制规定**
+
+所有 C→S 信令**必须**携带 `msg_id`（客户端生成的 UUID v4）。服务端 S→C 应答**必须**回显相同的 `msg_id` 并附带服务端 `timestamp`（Unix 毫秒）。
+
+**双 ID 规则：**
+
+| 字段 | 位置 | 格式 | 说明 |
+|------|------|------|------|
+| `msg_id` | envelope 根层级 | UUID v4 字符串 | 客户端生成，用于请求/应答关联与幂等去重 |
+| `timestamp` | envelope 根层级 | int64 Unix ms | 服务端生成时间戳，S→C 消息必须携带 |
+
+- C→S 信令：`msg_id` 必填，`timestamp` 可选。
+- S→C 应答：`msg_id` 回显原始请求，`timestamp` 必填。
+- S→Room 广播：由服务端分配全局唯一 `msg_id`，`timestamp` 必填。
+- 重连补发场景中，客户端通过 `last_msg_id` 游标拉取遗漏消息。

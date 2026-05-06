@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voiceroom.example/protocol/ws/SendGift",
+  "title": "SendGift",
+  "description": "发送礼物 (C→S)",
+  "type": "object",
+  "required": ["type", "msg_id", "payload"],
+  "additionalProperties": false,
+  "properties": {
+    "type": { "type": "string", "const": "SendGift" },
+    "msg_id": { "type": "string", "format": "uuid" },
+    "payload": {
+      "type": "object",
+      "required": ["room_id", "gift_id", "receiver_id", "count"],
+      "additionalProperties": false,
+      "properties": {
+        "room_id": { "type": "string", "format": "uuid" },
+        "gift_id": { "type": "string", "format": "uuid" },
+        "receiver_id": { "type": "string", "format": "uuid" },
+        "count": { "type": "integer", "minimum": 1, "maximum": 9999 }
+      }
+    },
+    "timestamp": { "type": "integer" }
+  }
+}

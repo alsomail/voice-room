@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voiceroom.example/protocol/ws/Ping",
+  "title": "Ping",
+  "description": "客户端心跳探活信令 (C→S)",
+  "type": "object",
+  "required": ["type", "msg_id"],
+  "additionalProperties": false,
+  "properties": {
+    "type": { "type": "string", "const": "Ping" },
+    "msg_id": { "type": "string", "format": "uuid", "description": "客户端生成 UUID v4" },
+    "payload": { "type": "object", "additionalProperties": true },
+    "timestamp": { "type": "integer", "description": "客户端时间戳(ms)" }
+  }
+}

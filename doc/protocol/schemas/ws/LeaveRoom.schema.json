@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voiceroom.example/protocol/ws/LeaveRoom",
+  "title": "LeaveRoom",
+  "description": "离开房间 (C→S)",
+  "type": "object",
+  "required": ["type", "msg_id"],
+  "additionalProperties": false,
+  "properties": {
+    "type": { "type": "string", "const": "LeaveRoom" },
+    "msg_id": { "type": "string", "format": "uuid" },
+    "payload": { "type": "object", "additionalProperties": true },
+    "timestamp": { "type": "integer" }
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voiceroom.example/protocol/ws/JoinRoomResult",
+  "title": "JoinRoomResult",
+  "description": "加入房间结果 (S→C)",
+  "type": "object",
+  "required": ["type", "msg_id", "code", "timestamp"],
+  "additionalProperties": false,
+  "properties": {
+    "type": { "type": "string", "const": "JoinRoomResult" },
+    "msg_id": { "type": "string", "format": "uuid" },
+    "code": { "type": "integer", "description": "0=成功" },
+    "message": { "type": "string" },
+    "payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "room": {
+          "type": "object",
+          "required": ["room_id", "title", "owner_id", "member_count", "mic_slots"],
+          "additionalProperties": false,
+          "properties": {
+            "room_id": { "type": "string", "format": "uuid" },
+            "title": { "type": "string" },
+            "owner_id": { "type": "string", "format": "uuid" },
+            "member_count": { "type": "integer", "minimum": 0 },
+            "mic_slots": {
+              "type": "array",
+              "items": { "type": ["string", "null"] },
+              "minItems": 9,
+              "maxItems": 9
+            }
+          }
+        },
+        "mic_slot": { "type": ["integer", "null"] },
+        "remaining_sec": { "type": "integer", "description": "KICKED_COOLDOWN 时有效" }
+      }
+    },
+    "timestamp": { "type": "integer" }
+  }
+}

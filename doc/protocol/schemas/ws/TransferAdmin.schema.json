@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voiceroom.example/protocol/ws/TransferAdmin",
+  "title": "TransferAdmin",
+  "description": "转移管理员权限 (C→S，仅房主可用)",
+  "type": "object",
+  "required": ["type", "msg_id", "payload"],
+  "additionalProperties": false,
+  "properties": {
+    "type": { "type": "string", "const": "TransferAdmin" },
+    "msg_id": { "type": "string", "format": "uuid" },
+    "payload": {
+      "type": "object",
+      "required": ["target_user_id"],
+      "additionalProperties": false,
+      "properties": {
+        "target_user_id": { "type": ["string", "null"], "format": "uuid", "description": "新管理员 ID，null=收回权限" }
+      }
+    },
+    "timestamp": { "type": "integer" }
+  }
+}

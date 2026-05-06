@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voiceroom.example/protocol/ws/RoomMessage",
+  "title": "RoomMessage",
+  "description": "房间文本消息广播 (S→Room)",
+  "type": "object",
+  "required": ["type", "payload", "timestamp"],
+  "additionalProperties": false,
+  "properties": {
+    "type": { "type": "string", "const": "RoomMessage" },
+    "payload": {
+      "type": "object",
+      "required": ["msg_id", "user_id", "content"],
+      "additionalProperties": false,
+      "properties": {
+        "msg_id": { "type": "string", "format": "uuid", "description": "消息唯一 ID" },
+        "user_id": { "type": "string", "format": "uuid" },
+        "nickname": { "type": "string" },
+        "avatar": { "type": "string", "format": "uri" },
+        "content": { "type": "string", "minLength": 1, "maxLength": 500 }
+      }
+    },
+    "msg_id": { "type": "string", "format": "uuid" },
+    "timestamp": { "type": "integer" }
+  }
+}

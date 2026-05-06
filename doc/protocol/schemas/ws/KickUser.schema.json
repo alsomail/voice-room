@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voiceroom.example/protocol/ws/KickUser",
+  "title": "KickUser",
+  "description": "踢出用户 (C→S，需要管理员权限)",
+  "type": "object",
+  "required": ["type", "msg_id", "payload"],
+  "additionalProperties": false,
+  "properties": {
+    "type": { "type": "string", "const": "KickUser" },
+    "msg_id": { "type": "string", "format": "uuid" },
+    "payload": {
+      "type": "object",
+      "required": ["target_user_id"],
+      "additionalProperties": false,
+      "properties": {
+        "target_user_id": { "type": "string", "format": "uuid", "description": "被踢用户 ID" },
+        "duration_sec": { "type": ["integer", "null"], "minimum": 0, "description": "禁止重新加入时长 (秒)，null=永久" }
+      }
+    },
+    "timestamp": { "type": "integer" }
+  }
+}

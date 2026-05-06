@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voiceroom.example/protocol/ws/LeaveMic",
+  "title": "LeaveMic",
+  "description": "下麦请求 (C→S)",
+  "type": "object",
+  "required": ["type", "msg_id"],
+  "additionalProperties": false,
+  "properties": {
+    "type": { "type": "string", "const": "LeaveMic" },
+    "msg_id": { "type": "string", "format": "uuid" },
+    "payload": { "type": "object", "additionalProperties": true },
+    "timestamp": { "type": "integer" }
+  }
+}

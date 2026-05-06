@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voiceroom.example/protocol/ws/MicTaken",
+  "title": "MicTaken",
+  "description": "麦位被占用广播 (S→Room)",
+  "type": "object",
+  "required": ["type", "payload", "timestamp"],
+  "additionalProperties": false,
+  "properties": {
+    "type": { "type": "string", "const": "MicTaken" },
+    "payload": {
+      "type": "object",
+      "required": ["mic_index", "user_id"],
+      "additionalProperties": false,
+      "properties": {
+        "mic_index": { "type": "integer", "minimum": 0, "maximum": 8, "description": "被占用的麦位索引" },
+        "user_id": { "type": "string", "format": "uuid", "description": "占用该麦位的用户 ID" },
+        "nickname": { "type": "string" },
+        "avatar": { "type": "string", "format": "uri" }
+      }
+    },
+    "msg_id": { "type": "string", "format": "uuid" },
+    "timestamp": { "type": "integer" }
+  }
+}

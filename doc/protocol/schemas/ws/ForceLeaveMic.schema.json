@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voiceroom.example/protocol/ws/ForceLeaveMic",
+  "title": "ForceLeaveMic",
+  "description": "强制下麦 (C→S，管理员权限，将指定用户强制移出麦位)",
+  "type": "object",
+  "required": ["type", "msg_id", "payload"],
+  "additionalProperties": false,
+  "properties": {
+    "type": { "type": "string", "const": "ForceLeaveMic" },
+    "msg_id": { "type": "string", "format": "uuid" },
+    "payload": {
+      "type": "object",
+      "required": ["target_user_id"],
+      "additionalProperties": false,
+      "properties": {
+        "target_user_id": { "type": "string", "format": "uuid" },
+        "mic_index": { "type": ["integer", "null"], "minimum": 0, "maximum": 8, "description": "不填则自动查找当前麦位" }
+      }
+    },
+    "timestamp": { "type": "integer" }
+  }
+}

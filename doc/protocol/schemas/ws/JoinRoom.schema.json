@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voiceroom.example/protocol/ws/JoinRoom",
+  "title": "JoinRoom",
+  "description": "加入房间 (C→S)",
+  "type": "object",
+  "required": ["type", "msg_id"],
+  "additionalProperties": false,
+  "properties": {
+    "type": { "type": "string", "const": "JoinRoom" },
+    "msg_id": { "type": "string", "format": "uuid" },
+    "payload": {
+      "type": "object",
+      "required": ["room_id"],
+      "additionalProperties": false,
+      "properties": {
+        "room_id": { "type": "string", "format": "uuid", "description": "目标房间 ID" },
+        "access_token": { "type": ["string", "null"], "description": "密码房必填" },
+        "last_msg_id": { "type": ["string", "null"], "description": "重连续传游标" }
+      }
+    },
+    "timestamp": { "type": "integer" }
+  }
+}
