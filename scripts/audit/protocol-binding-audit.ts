@@ -659,17 +659,20 @@ export function parseGrepOutput(output: string): GrepResult[] {
  * 执行 server 端 grep（路由注册 + WS 信令分发）
  */
 export function grepServerImpl(repoRoot: string): GrepResult[] {
-  const serverDirs = [path.join(repoRoot, 'app/server/src')];
+  const serverDirs = [
+    path.join(repoRoot, 'app/server/src'),
+    path.join(repoRoot, 'app/adminServer/src'),
+  ];
   // 过滤到实际存在的目录
   const existingDirs = serverDirs.filter((d) => fs.existsSync(d));
   if (existingDirs.length === 0) return [];
 
   const results: GrepResult[] = [];
 
-  // Router::route 注册（HTTP 路由）
+  // Router::route 注册（HTTP 路由）及所有公开函数（pub fn / pub async fn）
   results.push(
     ...runGrep(
-      'Router::route|\\.route(|pub async fn|pub fn',
+      'Router::route|\\.route\\(|pub async fn|pub fn',
       existingDirs,
       ['*.rs']
     )
@@ -713,7 +716,7 @@ export function grepClientCalls(repoRoot: string): GrepResult[] {
     );
   }
 
-  // Web apiClient 调用
+  // Web apiClient 调用（方法调用风格）
   const webDir = path.join(repoRoot, 'app/web/src');
   if (fs.existsSync(webDir)) {
     results.push(
@@ -721,6 +724,26 @@ export function grepClientCalls(repoRoot: string): GrepResult[] {
         'apiClient\\.(get|post|put|delete|patch|request)\\(',
         [webDir],
         ['*.ts', '*.tsx']
+      )
+    );
+    // 独立导出的 admin API 函数（如 adminGetUsers、adminBanUser）
+    results.push(
+      ...runGrep(
+        'export (async )?function admin',
+        [webDir],
+        ['*.ts', '*.tsx']
+      )
+    );
+  }
+
+  // adminServer Rust pub/sub 发布端（作为协议 client 侧）
+  const adminServerDir = path.join(repoRoot, 'app/adminServer/src');
+  if (fs.existsSync(adminServerDir)) {
+    results.push(
+      ...runGrep(
+        'pub async fn|pub fn',
+        [adminServerDir],
+        ['*.rs']
       )
     );
   }
