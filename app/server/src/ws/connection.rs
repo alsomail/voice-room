@@ -500,7 +500,52 @@ pub async fn handle_socket(
                                         .await,
                                     )
                                 }
-                                // 其他类型（ping 等）走纯函数路径
+                                // ── PING-COMPAT: TDS §一.3 — dev 双发，release 单发 ──────
+                                // "Ping" / "ping" 由 ping_pong_responses 处理，接入真实链路
+                                // 不走 handle_text_message fallback（后者只能单发）
+                                "Ping" => {
+                                    // 主格式：更新心跳，双发 Pong + pong（debug）/ 单发 Pong（release）
+                                    match last_heartbeat.write() {
+                                        Ok(mut guard) => *guard = Instant::now(),
+                                        Err(e) => {
+                                            tracing::error!("heartbeat lock poisoned: {e}")
+                                        }
+                                    }
+                                    for resp in ping_pong_responses(incoming.msg_id.clone()) {
+                                        if !registry.send_to(connection_id, &resp) {
+                                            tracing::warn!(
+                                                %connection_id,
+                                                "failed to send Pong response"
+                                            );
+                                        }
+                                    }
+                                    None // responses already dispatched via registry
+                                }
+                                "ping" => {
+                                    // [DEPRECATED] 旧格式 ping，兼容期保留，下一主版本移除
+                                    tracing::warn!(
+                                        msg_type = "ping",
+                                        "DEPRECATED: received lowercase 'ping', \
+                                         use 'Ping' (PascalCase). \
+                                         Will be removed in next major version."
+                                    );
+                                    match last_heartbeat.write() {
+                                        Ok(mut guard) => *guard = Instant::now(),
+                                        Err(e) => {
+                                            tracing::error!("heartbeat lock poisoned: {e}")
+                                        }
+                                    }
+                                    for resp in ping_pong_responses(incoming.msg_id.clone()) {
+                                        if !registry.send_to(connection_id, &resp) {
+                                            tracing::warn!(
+                                                %connection_id,
+                                                "failed to send pong response"
+                                            );
+                                        }
+                                    }
+                                    None // responses already dispatched via registry
+                                }
+                                // 其他未知类型
                                 _ => handle_text_message(text_str, &last_heartbeat),
                             }
                         } else {

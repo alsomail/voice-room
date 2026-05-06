@@ -30,11 +30,11 @@ bcrypt.workspace = true
 dashmap = "6.0"
 redis = { version = "0.27", features = ["tokio-comp", "aio"] }
 futures-util = "0.3"
-# T-00103: WS 出栈 schema 校验（仅 debug_assertions 代码路径使用，但须在 [dependencies] 中）
-jsonschema = "0.18"
 
 [dev-dependencies]
 tower = "0.5"
+# T-00103: WS 出栈 schema 校验（仅 #[cfg(test)] 代码路径使用，dev-dep 足够）
+jsonschema = "0.18"
 # T-00041: 启用 tokio test-util 以使用 `tokio::time::pause/advance` + `start_paused`，
 # 在 heartbeat_task 真实 select! / interval 路径上做时间快进单测。
 tokio = { workspace = true, features = ["test-util"] }

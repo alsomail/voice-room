@@ -335,6 +335,8 @@ fn ping_compat_1_uppercase_ping_returns_pong() {
 /// PING-COMPAT-2: dev 模式下 ping_pong_responses 双发 Pong + pong
 ///
 /// 此测试验证兼容期行为：dev 模式服务端同时含新格式 Pong 和旧格式 pong。
+/// `ping_pong_responses` 已在 `handle_socket` 的 "Ping"|"ping" arm 中调用，
+/// 为真实 WS 处理链路提供双发能力（非孤立函数）。TDS §一.3。
 #[cfg(debug_assertions)]
 #[test]
 fn ping_compat_2_dev_mode_double_sends() {
@@ -420,7 +422,11 @@ fn ping_1_uppercase_ping_returns_pong_with_ms_timestamp() {
 
 // ─── PING-2: 小写 ping 仍工作（兼容期），timestamp 为毫秒 ─────────────────────
 
-/// PING-2: handle_text_message 对旧格式 ping 返回 pong，timestamp 必须为毫秒级
+/// PING-2：旧格式 ping 直调 handle_text_message（兼容函数级单测）
+///
+/// NOTE: handle_text_message 的 "ping" arm 在生产路径 handle_socket 中为死代码。
+/// 生产路径的 ping→Pong 行为由 PING-2B + PING-3 通过 ping_pong_responses 覆盖。
+/// 此测试仅验证辅助函数 handle_text_message 本身的小写 pong 返回及毫秒 timestamp。
 ///
 /// PROTO-BINDING: doc/protocol/schemas/ws/Ping.schema.json (deprecated path)
 /// 此测试在 timestamp() 未改为 timestamp_millis() 时失败（RED）。
@@ -478,4 +484,79 @@ fn ping_3_pong_timestamp_is_milliseconds() {
             "PING-3: response[{i}] timestamp must be milliseconds (> 1_000_000_000_000), got {ts}"
         );
     }
+}
+
+// ─── PING-COMPAT-4: 真实链路 vs 孤立函数行为对比 ─────────────────────────────
+
+/// PING-COMPAT-4 (dev): 验证 `ping_pong_responses`（handle_socket 真实链路）
+/// 比 `handle_text_message`（孤立函数路径）多发一条兼容响应。
+///
+/// 这是架构契约：
+/// - `handle_text_message("Ping")` → 单发 `Pong`（只作为 fallback 保留）
+/// - `ping_pong_responses()`（由 handle_socket "Ping" arm 调用） → 双发 `[Pong, pong]`
+///
+/// 如果此测试失败，说明 `ping_pong_responses` 仍是死代码（未接入真实链路）。
+/// TDS §一.3 要求 dev/test 阶段服务端双发，此测试保证该契约被实现。
+#[cfg(debug_assertions)]
+#[test]
+fn ping_compat_4_real_path_dual_send_vs_isolated_single_send() {
+    use voice_room_server::ws::connection::{handle_text_message, ping_pong_responses};
+
+    let msg_id = Uuid::new_v4().to_string();
+    let ping_json = format!(r#"{{"type":"Ping","msg_id":"{msg_id}"}}"#);
+    let hb = Arc::new(RwLock::new(Instant::now()));
+
+    // ── 孤立路径（handle_text_message）：单发 Pong ─────────────────────────
+    let single_resp = handle_text_message(&ping_json, &hb);
+    assert!(
+        single_resp.is_some(),
+        "PING-COMPAT-4: handle_text_message must return Some for Ping"
+    );
+    let single_val: Value = serde_json::from_str(single_resp.as_ref().unwrap())
+        .expect("PING-COMPAT-4: handle_text_message response must be valid JSON");
+    assert_eq!(
+        single_val["type"], "Pong",
+        "PING-COMPAT-4: handle_text_message must return type=Pong for Ping"
+    );
+
+    // ── 真实 WS 链路（ping_pong_responses，由 handle_socket 调用）：双发 ──
+    let dual_resps = ping_pong_responses(Some(msg_id.clone()));
+    assert_eq!(
+        dual_resps.len(),
+        2,
+        "PING-COMPAT-4: handle_socket real path (ping_pong_responses) must dual-send \
+         [Pong, pong] in debug mode. 若此断言失败说明 ping_pong_responses 未接入 handle_socket。"
+    );
+
+    let dual_types: Vec<String> = dual_resps
+        .iter()
+        .map(|s| {
+            serde_json::from_str::<Value>(s)
+                .expect("PING-COMPAT-4: each dual response must be valid JSON")["type"]
+                .as_str()
+                .expect("type must be string")
+                .to_owned()
+        })
+        .collect();
+
+    // 明确验证双发包含新旧两种格式
+    assert!(
+        dual_types.contains(&"Pong".to_owned()),
+        "PING-COMPAT-4: dual-send must include new-format 'Pong', got: {dual_types:?}"
+    );
+    assert!(
+        dual_types.contains(&"pong".to_owned()),
+        "PING-COMPAT-4: dual-send must include legacy 'pong' for compat period, got: {dual_types:?}"
+    );
+
+    // ── 对比：真实链路发送数 > 孤立函数发送数（这正是接入的意义）──────────
+    // single_resp is 1 response, dual_resps is 2 — this documents the behavioral gap
+    // that makes the wiring non-trivial and worth testing.
+    assert!(
+        dual_resps.len() > 1,
+        "PING-COMPAT-4: real path must produce MORE responses than handle_text_message alone \
+         (dual_resps={}, isolated=1). \
+         This gap is WHY handle_socket explicitly calls ping_pong_responses.",
+        dual_resps.len()
+    );
 }

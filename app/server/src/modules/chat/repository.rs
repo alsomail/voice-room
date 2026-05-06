@@ -279,7 +279,7 @@ mod fake_impl {
             let users = self.users.read().unwrap();
             let mut filtered: Vec<&Row> = rows.iter().filter(|r| r.room_id == room_id).collect();
             // DESC by seq（等价 created_at DESC, id DESC 的 deterministic 投影）
-            filtered.sort_by(|a, b| b.seq.cmp(&a.seq));
+            filtered.sort_by_key(|r| std::cmp::Reverse(r.seq));
             let total = filtered.len() as i64;
             let items: Vec<ChatHistoryRow> = filtered
                 .into_iter()

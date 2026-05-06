@@ -213,12 +213,12 @@ impl FakeRoomPasswordRedis {
         let guard = self.data.lock().unwrap();
         guard
             .values()
-            .filter(|e| e.expires_at.map_or(true, |exp| Instant::now() < exp))
+            .filter(|e| e.expires_at.is_none_or(|exp| Instant::now() < exp))
             .count()
     }
 
     fn is_expired(entry: &FakeEntry) -> bool {
-        entry.expires_at.map_or(false, |exp| Instant::now() >= exp)
+        entry.expires_at.is_some_and(|exp| Instant::now() >= exp)
     }
 }
 
