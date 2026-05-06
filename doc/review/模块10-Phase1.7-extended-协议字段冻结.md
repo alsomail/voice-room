@@ -1,5 +1,5 @@
 # 全局代码审查报告: 模块10 — Phase 1.7-extended 协议字段全量冻结
-> **当前状态机**：负责人 [GlobalReview] | 状态 [⏳ In Review] | 修复轮次 [2/10]
+> **当前状态机**：负责人 [-] | 状态 [✅ Passed] | 修复轮次 [2/10]
 
 ---
 
@@ -501,3 +501,97 @@
 ---
 
 **全套回归**：`cargo test --features test-utils` → ALL PASS（含全部 ps_new_1~6b 共 8 个 protocol schema 测试）✅
+
+---
+
+### 【第 3 轮审查】
+**@GlobalReview 审查意见：**
+
+> 审查范围：验证第 2 轮 P1-N1 / P1-N2 / P2-N3 三项修复；扫描修复代码新引入问题；全局协议一致性最终验证（index.md 完整性、schema_guard.rs 注册数量合理性、新增/修改 schema 格式）。
+> 工具依据：
+> - `grep -n "PROTO-BINDING|reason|operator_id|UserKicked|UserLeft|kicked_by_admin" kick.rs`
+> - `grep -n "forced_by|PROTO-BINDING|MicTaken|schema 未列出|forcedBy" WsServerMessage.kt`
+> - `grep -n "AdminChanged|UserKicked|ForceTakeMicResult|..." doc/protocol/index.md`
+> - `ls doc/protocol/schemas/ws/ | wc -l`（实际文件数）
+> - 逐行阅读 `UserKicked.schema.json`、`AdminChanged.schema.json`、`MicTaken.schema.json`、`MicLeft.schema.json`、`UserLeft.schema.json`、`schema_guard.rs`
+
+---
+
+#### ✅ 第 2 轮 P1/P2 修复验证结果
+
+| 缺陷 | 验证结论 | 关键证据（grep 命令 + 文件行号） |
+|------|----------|-------------------------------|
+| **P1-N1**：`UserKicked.schema.json` 不存在（悬空锚点） | ✅ **已修复** | `ls doc/protocol/schemas/ws/UserKicked.schema.json` → 存在；格式正确（JSON Schema 2020-12，envelope + payload 双层 `additionalProperties: false`）；`required: [room_id, reason, cooldown_sec, operator_nickname]` 与 `kick.rs::build_outbound_envelope L521-526` 完全对齐；`grep "UserKicked" doc/protocol/index.md` → L25 命中（已追加到 WS Schema 速查） |
+| **P1-N2**：`kick.rs:537-543` UserLeft 包含违规字段 `reason`/`operator_id` | ✅ **已修复** | `grep -n "reason\|operator_id" kick.rs` → UserLeft 广播体（L539-546）仅剩 `user_id` + `member_count`；`kicked_by_admin` 全文零命中；PROTO-BINDING 注释 L535-537 已追加「最小化广播原则」说明；`timestamp_millis()` L545 正确 |
+| **P2-N3**：`WsServerMessage.kt::MicTakenPayload.forcedBy` KDoc「schema 未列出」注释过时 | ✅ **已修复** | `grep "schema 未列出" WsServerMessage.kt` → 零命中；`WsServerMessage.kt:77` 已更新为 `* PROTO-BINDING: doc/protocol/schemas/ws/MicTaken.schema.json forced_by field`；与同文件 `MicLeftPayload.forcedBy L100` 的注释风格完全对称 |
+
+---
+
+#### 🔍 修复代码新扫描结果
+
+**`UserKicked.schema.json` 字段深度验证：**
+
+```bash
+# grep 证据 1：schema 文件格式合规性
+$ cat doc/protocol/schemas/ws/UserKicked.schema.json
+# → $schema: "json-schema.org/draft/2020-12/schema" ✓
+# → envelope: additionalProperties: false ✓
+# → payload.required: [room_id, reason, cooldown_sec, operator_nickname] ✓
+# → payload.additionalProperties: false ✓
+# → timestamp 字段描述"服务端毫秒时间戳"与 timestamp_millis() 一致 ✓
+
+# grep 证据 2：kick.rs 实际 UserKicked 广播字段对齐
+$ grep -n "room_id\|reason\|cooldown_sec\|operator_nickname" kick.rs
+521:            "room_id": room_id.to_string(),
+522:            "reason": reason,
+523:            "cooldown_sec": KICK_COOLDOWN_SECS,
+524:            "operator_nickname": operator_nickname,
+# → 与 schema required 四字段完全对齐 ✓（build_outbound_envelope L519 注入 msg_id 在 envelope 顶层）
+```
+
+**修复未引入新 P0/P1 问题**：kick.rs 改动仅移除了两个违规字段，无逻辑变更；`WsServerMessage.kt` 改动为纯注释；`UserKicked.schema.json` 为全新创建，字段与实现对齐。
+
+---
+
+#### 🟡 全局协议一致性最终验证（P2 级别问题，不阻塞放行）
+
+- [ ] **新发现 P2-R3-1**：[级别 P2] **`doc/protocol/index.md §机器可读 Schema 索引` 文件数计数陈旧（仍标注"34 个"），且 `AdminChanged` 未追加到 WS Schema 速查列表**
+
+  - **文件与行号**：`doc/protocol/index.md:20`（`34 个（28 核心 + 6 附加 Result 类型）`）；`doc/protocol/index.md:25`（WS Schema 速查列出 29 条，无 `AdminChanged`）
+  - **问题说明**：
+    - `ls doc/protocol/schemas/ws/ | wc -l` → **36 个文件**（包含 P0-4 修复创建的 `AdminChanged.schema.json` + P1-N1 修复创建的 `UserKicked.schema.json`，共超出原声明 2 个）
+    - WS Schema 速查（L25）共 29 条，正确包含 `UserKicked`（P1-N1 修复已追加），但**缺少 `AdminChanged`**——P0-4 TDD 修复创建了该文件但未同步更新 index.md
+    - 正确计数应为：**29 核心 + 6 附加 Result 类型 = 35 个**（注：`GiftReceived.schema.json` 已知缺失 D-04，不计入）
+    - `grep -n "AdminChanged" doc/protocol/index.md` → 零命中（仅在本批次文档绑定表中有引用，protocol/index.md 本身无记录）
+  - **影响范围**：纯文档一致性问题；`AdminChanged.schema.json` 文件本身格式正确，`schema_guard.rs` 未注册该类型（未注册则跳过，不 panic）；T-00106 AST CI 审计若扫描 index.md 计数会误报差异
+  - **修复建议**：① 将 `AdminChanged` 追加到 `doc/protocol/index.md` L25 WS Schema 速查列表；② 将 L20 计数从 `34 个（28 核心 + 6 附加 Result 类型）` 更新为 `35 个（29 核心 + 6 附加 Result 类型）`
+  - **TDD 修复记录**：[纯文档更新，可随下一批次一并处理]
+
+---
+
+#### ✅ 持续追踪项（第 1 轮 P2 缺陷 7，未变化）
+
+| 检查项 | 状态 | 说明 |
+|--------|------|------|
+| `schema_guard.rs` 注册 12 条 vs TDS 声称 34 条 | ⚠️ 持续追踪（P2） | 第 1 轮已标注缺陷 7，TDD 标记「P2 留待下轮」；当前 12 条注册完全覆盖核心广播路径（MicTaken/MicLeft/UserJoined/UserLeft/RoomMessage + 5 个 Result + Pong），`UserKicked`/`AdminChanged` 等点对点信令未注册但实际走 `broadcaster::build_outbound_envelope`（未调用 guard）为有意设计；TDS 声称 34 条为文档前瞻描述，实际 12 条为合理的渐进覆盖策略——差距属**已知合理限制** |
+| `GiftReceived.schema.json` 缺失 | ⚠️ 已知遗留（D-04） | 第 1 轮已标注，不属本批次范围 |
+
+---
+
+#### ✅ 全局协议一致性通过项
+
+| 检查项 | 结论 | 关键证据 |
+|--------|------|---------|
+| `MicTaken.schema.json` `forced_by` 追加格式 | ✅ 合规 | `"forced_by": {"type": ["string","null"], "format": "uuid"}` L20，`additionalProperties:false` 保留，现有必填字段未变化 |
+| `MicLeft.schema.json` `forced_by` 追加格式 | ✅ 合规 | `"forced_by": {"type": ["string","null"], "format": "uuid"}` L19，与 MicTaken 对称 |
+| `UserLeft.schema.json` 完整性 | ✅ 合规 | 仅 `{user_id, nickname, member_count}`，`additionalProperties:false`，kick.rs 修复后已严格遵守 |
+| `AdminChanged.schema.json` 格式 | ✅ 合规 | payload `required: [room_id, admin_user_id, operator_id]`，`additionalProperties:false`，与 `transfer.rs` 广播完全对齐 |
+| `UserKicked.schema.json` 格式 | ✅ 合规 | 新建文件 JSON Schema 2020-12 合法，字段与 `kick.rs::handle_kick` 广播对齐（room_id/reason/cooldown_sec/operator_nickname 四字段完全匹配） |
+| `schema_guard.rs` 12 条注册均对应真实文件 | ✅ 合规 | 全部 12 个 `ws_schema_str!()` 宏展开的文件均存在于 `doc/protocol/schemas/ws/`，无悬空引用 |
+| `kick.rs` PROTO-BINDING 四条注释均指向有效文件 | ✅ 合规 | L388-391：`KickUser.schema.json` / `UserKicked.schema.json`（已创建）/ `UserLeft.schema.json` / `KickUserResult.schema.json` 均存在 |
+
+---
+
+**本轮结论**: ✅ 审查通过：第 2 轮 P1-N1 / P1-N2 / P2-N3 三项修复均已验证到位，修复过程未引入新 P0/P1 问题。发现 1 条新 P2（`doc/protocol/index.md` 计数陈旧 + `AdminChanged` 未追加到 WS Schema 速查），不阻塞放行，可随下一批次文档整理一并处理。
+
+*(请在文档头部将状态机修改为：`负责人 [-] | 状态 [✅ Passed]`)*
