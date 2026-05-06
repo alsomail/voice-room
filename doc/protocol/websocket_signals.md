@@ -829,3 +829,9 @@ Result/ACK 通用格式：
 | 40404 | MIC_NOT_FOUND（ForceLeaveMic 目标不在麦） |
 | 42910 | PASSWORD_LOCKED（5 次错误锁定 30min） |
 | 42911 | KICKED_COOLDOWN（10min 冷却中） |
+
+---
+
+## 🔗 另见对侧路径
+
+> **Android 客户端实现**：见 [`doc/arch/android/room.md`](../arch/android/room.md) 中的 WS 消息反序列化层章节（T-00101 sealed class 层落锚）；协议入口索引详见 [`doc/arch/android/index.md`](../arch/android/index.md#-协议入口索引protocol-entry-index)（28 个信令锚点）。
