@@ -104,9 +104,18 @@ WS Frame (JSON, snake_case + payload-nested)
    当前文件 ~1410 行，已超过推荐 1000 行阈值。  
    **后续处理**：建议独立 Task 拆出 `WsMessageHandler` 类专责信令分发。
 
+## 🔌 协议入口索引
+
+| 方向 | 协议类型 | 入口/信令名 | 客户端调用方 | 服务端处理函数 | Payload 字段 | protocol/ 锚点 |
+|------|---------|-----------|------------|--------------|------------|---|
+| C→S | WS | `LeaveMic` ⭐ | `RoomViewModel.leaveMic(slotIndex)` | `app/server/src/room/handler/mic.rs::handle_leave_mic` | `payload.mic_index`（可选，integer） | [websocket_signals.md §6.5.5](../../protocol/websocket_signals.md) |
+
+> 另见: [doc/protocol/websocket_signals.md §6.5.5 LeaveMic](../../protocol/websocket_signals.md) —— 跨链接回指本文档
+
 ## 相关文档
 
 - 协议定义：[doc/protocol/websocket_signals.md](../../protocol/websocket_signals.md)
 - Schema 参考：[doc/protocol/schemas/ws/](../../protocol/schemas/ws/)
 - Android 架构总索引：[index.md](./index.md)
 - TDS 完整报告：[doc/tds/android/T-00101.md](../../tds/android/T-00101.md)
+- T-30055 修复报告：[doc/tds/android/T-30055.md](../../tds/android/T-30055.md)

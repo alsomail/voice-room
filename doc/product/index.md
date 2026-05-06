@@ -1,7 +1,7 @@
 # Voice Room 产品文档总索引
 
-> **版本**: v3.15  
-> **更新日期**: 2026-04-29  
+> **版本**: v3.16  
+> **更新日期**: 2026-05-09  
 > **负责人**: PM Agent  
 > **目标市场**: MENA (Middle East & North Africa) 中东北非
 
@@ -67,6 +67,7 @@
 ---
 
 **文档变更历史**:
+- **2026-05-09: v3.16，T-30055 DoD ✅ Done — Android RoomScreen/AppNavGraph LeaveMic 下麦调用链修复**：BUG-MIC-ONCLICK 修复完成，点击已占麦位图标能正确触发下麦 WS LeaveMic 信令；协议入口索引落锚于 doc/arch/android/room.md §「🔌 协议入口索引」表格（LeaveMic ⭐ 行），doc/protocol/websocket_signals.md §6.5.5 新增交叉链接回指 android/room.md；payload 字段 mic_index 正式声明为可选 integer 用于调试/日志追踪（服务端不读取）；门禁全绿（Review Gate ✅ Passed + QA Gate ✅ Passed + Overall Gate ✅ Released）；E-04 麦位管理实现状态持续更新；doc/tasks/index.md v3.13 → v3.14 + 变更记录同步。
 - **2026-04-27: v3.14，T-0000M Round 1 GlobalReview 修复完成（batch-02）**：[模块9-E2E测试基建 批次 B Round 1](../review/模块9-E2E测试基建.md) 暴露 2 P1 + 4 P2 缺陷，全部修复 — P1.1 收敛 14 处 server 集成测试遗留 sqlx::migrate! 直连默认表调用到 common helper（wallet_api_test 6 + ranking_test 5 + gift_list_test 2 + governance_real_repos_test 1）；P1.2 立 follow-up Task **T-0000N**（AppServer/AdminServer 暴露统一 /health 端点）+ **T-0000O**（ranking_test::r08 perf flake known-issue），T-0000M DoD #1 措辞修正为「双服务进程冷启动均完成 migrate 且 _sqlx_app_migrations=9 / _sqlx_admin_migrations=4（5 端 wait-on 全绿依赖 T-0000N）」符合事实承诺；P2.3 helper 透传 Migration::no_tx 分支（含单元测试 8/8 PASS）；P2.4 migration_isolation_test 顶部注释修正（仅 superuser DATABASE_URL 可跑）；P2.5 SchemaGuard RAII 保证 panic 路径 DROP SCHEMA CASCADE；P2.6 N-2 自动化测试沉淀（superuser GRANT USAGE 但不 GRANT CREATE → 受限连接跑 helper → err.to_string() 含表名）；模块 9 进度由「13/13 ✅」回写为「13/13 ✅ + 2 follow-up（T-0000N/O 待办）」更诚实；doc/tasks/index.md v2.51 → v2.52；T-0000M TDS §3.2 E-1/E-2 标注「依赖 T-0000N，本 Task 不阻塞」 + §4「关键决策与坑点」指向 T-0000N/O + §4.1 新增「Round 1 修复说明」章节列出全部修复摘要与回归结果。
 - **2026-04-27: 🎉 v3.13，T-0000M DoD 完成，Phase 1.6 E2E 测试基建全部闭环（13/13 ✅ Done）**：voice_room_shared::migrate::run_migrations_with_table helper 上架、AppServer `_sqlx_app_migrations` / AdminServer `_sqlx_admin_migrations` 自定义表隔离、validate_table_name 白名单 + FNV-1a advisory lock、sqlx 0.8.6 原生 VersionMissing/VersionChecksumMismatch 检测语义复刻、自管迁移登记表 SQL（B 方案保底实现，Phase 2 升级 sqlx-cli + MIGRATE_ON_START）；doc/arch/server/index.md 添加 T-0000M 引用、doc/arch/adminServer/index.md 补充数据库与迁移行、doc/architecture/index.md 关联文档新增 T-0000M TDS + ADR-0001 链接；doc/tasks/模块9-E2E测试基建 (E2E QA Foundation).md 第 47 行 T-0000M：研发状态 ⏳ In Progress → ✅ Done、M4 里程碑标记 ✅ Done；doc/tasks/index.md 版本更新 v2.50 → v2.51、新增 v2.51 变更记录；doc/product/index.md 版本更新 v3.12 → v3.13、Phase 1.6 E2E 测试基建进度 12/12 → 13/13、M4 双服务共库迁移全部完成；**🎉 模块 9 全部 13 个 Task 全部闭环完成**（M1 本地 E2E + M2 多环境对称 + M3 DX 文档 + M4 双服务共库迁移 4 大里程碑全部 ✅）。
 - **2026-06-04: 🎉 v3.12，T-0000L DoD 完成，Phase 1.6 E2E 测试基建全部闭环（12/12 ✅ Done）**：E2E 启动 SOP（E2E_RUNBOOK.md）八章完整交付（§1 前置依赖 5 项 + §2 冷启动 5 步严格编号 git clone/env/docker/3 终端/preflight+e2e:local + §3 一键命令矩阵 6 条 + 防幻觉清单 + §4 preflight 5 端 × 7 行排查表 + baseURL 双 key fallback + §5 staging/prod-safe 凭据流程 + Windows 双引号警示 + 安全红线 3 条 + §6 CI Secrets 6 行 + §7 FAQ 8 条 + §8 锚点表 6 行 T-0000E/F/H/I/J/K），新人 git clone → npm run e2e:local 首条 smoke 全绿 ≤ 5 分钟单文档闭环；doc/arch/infra/index.md 能力矩阵新增 T-0000L 条目（8 章覆盖前置/冷启动/命令矩阵/preflight 5 端/staging/CI/FAQ/锚点，与 T-0000I/J/K 锚定）；doc/tests/index.md 链接 RUNBOOK 去占位；**M3 文档与一键命令闭环里程碑 ✅ 完成 3/3**（T-0000I ✅ + T-0000J ✅ + T-0000K ✅ + T-0000L ✅）；**模块 9 全部 12 个 Task 完成** ✅（M1 本地 E2E 跑通 + M2 多环境对称 + M3 DX 闭环全部到位）；**Phase 1.6 E2E 测试基建产品线完全收口 ✅**；所有后续功能模块（E-08/E-09/E-11...）可直接启用本测试体系进行跨端验证，模块 10+ 可此为基线推进更复杂的 E2E 场景编排。

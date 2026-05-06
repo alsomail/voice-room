@@ -1,7 +1,7 @@
 # Voice Room 开发任务清单
 
-> **版本**: v3.13  
-> **更新日期**: 2026-05-07  
+> **版本**: v3.14  
+> **更新日期**: 2026-05-09  
 > **任务总数**: 149 个 (基建: 4 + 14 + 3 + 6, App Server: 33 + 1 + 2 + 1, Admin Server: 16 + 1 + 1, Web: 14 + 1 + 1, Android: 45 + 1 + 1 + 1 + 1, E-07 15 + E-07.5 6 + E-10 18)  
 > **当前阶段**: Phase 1 → … → Phase 1.7 协议治理铁律落地 → **Phase 1.7-extended 协议字段全量冻结**（WS + HTTP REST + Redis Pub/Sub 三协议层 schema 机器可读 + 字段级 CI 审计 + Android×Server 跨语言 E2E）
 
@@ -11,6 +11,7 @@
 
 | 版本 | 日期 | 变更内容 |
 |------|------|---------|
+| **v3.14** | **2026-05-09** | [T-30055 DoD ✅ Done] — Android RoomScreen/AppNavGraph LeaveMic 下麦调用链修复完成，协议入口索引落锚于 arch/android/room.md，protocol 交叉链接补齐，Payload 字段 mic_index 正式声明为可选 integer；门禁全绿（Research ✅ + QA ✅ + Overall ✅ Released）；doc/arch/android/room.md + doc/protocol/websocket_signals.md 已同步交叉链接。 |
 | _规则_ | — | 本表只记录**版本级摘要**（一行 ≤ 200 字符），具体 Review/审查/实跑证据请落到对应 [TDS](../tds/) 第五节【Review 意见】或对应模块审查批次 `doc/review/模块N-XXX.md`，**严禁**在本表堆叠详细审查记录。 |
 | **v3.13** | **2026-05-07** | [BUG-MIC-ONCLICK / T-30055] Plan 启动 — Android RoomScreen/AppNavGraph 缺少 `onMicSlotClick` 回调传递，点击自己已占麦位图标无法触发下麦，WS `LeaveMic` 帧从未发出；诊断来源：TC-MIC-00002/TC-MIC-00004 E2E 实证 + 代码静态分析。 |
 | **v3.12** | **2026-05-08** | [T-00104] DoD ✅ Done — 8 跨语言 E2E 场景落地（CROSS-1~8，19 测试），PROTO-BINDING 全绑定，协议差异 D-01~D-04 记录，arch/android + server 协议入口索引落锚，RUNBOOK + TDS §五六完成。 |
@@ -452,4 +453,4 @@
 
 | Task ID | 前置依赖 | 研发负责人 | 研发状态 | Review Gate 审查门禁 | QA Gate 测试门禁 | Overall Gate 最终门禁 |
 |---------|---------|-----------|---------|---------------------|-----------------|----------------------|
-| [T-30055](../tds/android/T-30055.md) | T-00101 | Dod | 🟡 In Progress | - | - | ⏳ Pending |
+| [T-30055](../tds/android/T-30055.md) | T-00101 | Dod | ✅ Done | ✅ Passed | ✅ Passed | ✅ Released |

@@ -208,7 +208,8 @@ Result/ACK 通用格式：
 
 **错误码**：`40304` NOT_ON_MIC | `40400` NOT_IN_ROOM
 
-**另见对侧路径（T-00104 跨语言 E2E）**：
+**另见对侧路径**：
+- **协议实现架构** ([T-30055 下麦 UI 调用链](../arch/android/room.md#🔌-协议入口索引))：Android `RoomViewModel.leaveMic(slotIndex)` 客户端调用方、Server `handle_leave_mic` 处理端点、Payload 字段说明
 - Android 调用入口：[doc/arch/android/index.md § T-00104](../arch/android/index.md#t-00104-跨语言-e2e-入口索引android-侧)
 - Server 处理入口：[doc/arch/server/index.md § T-00104](../arch/server/index.md#t-00104-跨语言-e2e-入口索引server-侧)
 - 测试文件：`tests/cross-lang/android-server-ws/CROSS-4-leave-mic.spec.ts`
