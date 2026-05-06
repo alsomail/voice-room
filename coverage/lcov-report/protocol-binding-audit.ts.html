@@ -998,7 +998,9 @@
 <a name='L933'></a><a href='#L933'>933</a>
 <a name='L934'></a><a href='#L934'>934</a>
 <a name='L935'></a><a href='#L935'>935</a>
-<a name='L936'></a><a href='#L936'>936</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L936'></a><a href='#L936'>936</a>
+<a name='L937'></a><a href='#L937'>937</a>
+<a name='L938'></a><a href='#L938'>938</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1068,6 +1070,8 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1193,7 +1197,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">64x</span>
+<span class="cline-any cline-yes">88x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1641,9 +1645,9 @@
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">13x</span>
 <span class="cline-any cline-yes">13x</span>
-<span class="cline-any cline-yes">213x</span>
-<span class="cline-any cline-yes">213x</span>
-<span class="cline-any cline-yes">199x</span>
+<span class="cline-any cline-yes">282x</span>
+<span class="cline-any cline-yes">282x</span>
+<span class="cline-any cline-yes">268x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1732,10 +1736,10 @@
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">6x</span>
 <span class="cline-any cline-yes">6x</span>
-<span class="cline-any cline-yes">126x</span>
-<span class="cline-any cline-yes">126x</span>
-<span class="cline-any cline-yes">125x</span>
-<span class="cline-any cline-yes">125x</span>
+<span class="cline-any cline-yes">155x</span>
+<span class="cline-any cline-yes">155x</span>
+<span class="cline-any cline-yes">154x</span>
+<span class="cline-any cline-yes">154x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1752,9 +1756,9 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-yes">288x</span>
-<span class="cline-any cline-yes">288x</span>
-<span class="cline-any cline-yes">286x</span>
+<span class="cline-any cline-yes">310x</span>
+<span class="cline-any cline-yes">310x</span>
+<span class="cline-any cline-yes">308x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1767,11 +1771,11 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">12x</span>
 <span class="cline-any cline-yes">12x</span>
-<span class="cline-any cline-yes">298x</span>
-<span class="cline-any cline-yes">298x</span>
+<span class="cline-any cline-yes">320x</span>
+<span class="cline-any cline-yes">320x</span>
 <span class="cline-any cline-yes">10x</span>
-<span class="cline-any cline-yes">288x</span>
-<span class="cline-any cline-yes">288x</span>
+<span class="cline-any cline-yes">310x</span>
+<span class="cline-any cline-yes">310x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -2007,6 +2011,8 @@ const NA_PATTERNS: RegExp[] = [
   /N\/A.*仅.*内部.*不动协议/,
   /N\/A.*本\s*Task.*为.*基础设施/,
   /N\/A.*纯.*测试/,
+  /N\/A.*纯.*文档清理/,
+  /N\/A.*不涉及.*跨端/,
 ];
 &nbsp;
 /** 标准化的「无客户端」声明标识词 */
@@ -2631,7 +2637,7 @@ export function grepClientCalls(repoRoot: string): GrepResult[] {
   if (fs.existsSync(androidDir)) {
     results.push(
       ...runGrep(
-        'wsClient\\.send|wsClient\\.sendEnvelope|wsClient\\.sendMessage|\\.sendEnvelope(',
+        'wsClient\\.send|wsClient\\.sendEnvelope|wsClient\\.sendMessage|\\.sendEnvelope\\(',
         [androidDir],
         ['*.kt']
       )
@@ -2639,7 +2645,7 @@ export function grepClientCalls(repoRoot: string): GrepResult[] {
     // Retrofit HTTP 调用
     results.push(
       ...runGrep(
-        '@(GET|POST|PUT|DELETE|PATCH)(',
+        '@(GET|POST|PUT|DELETE|PATCH)\\(',
         [androidDir],
         ['*.kt']
       )
@@ -2651,7 +2657,7 @@ export function grepClientCalls(repoRoot: string): GrepResult[] {
   if (fs.existsSync(webDir)) {
     results.push(
       ...runGrep(
-        'apiClient\\.(get|post|put|delete|patch|request)(',
+        'apiClient\\.(get|post|put|delete|patch|request)\\(',
         [webDir],
         ['*.ts', '*.tsx']
       )
@@ -2875,7 +2881,7 @@ if (require.main === module) {
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-05-05T15:06:26.706Z
+                at 2026-05-06T01:20:53.288Z
             </div>
         <script src="prettify.js"></script>
         <script>

@@ -16,7 +16,7 @@
         "mic_index": { "type": "integer", "minimum": 0, "maximum": 8, "description": "被占用的麦位索引" },
         "user_id": { "type": "string", "format": "uuid", "description": "占用该麦位的用户 ID" },
         "nickname": { "type": "string" },
-        "avatar": { "type": "string", "format": "uri" }
+        "avatar": { "type": ["string", "null"], "format": "uri" }
       }
     },
     "msg_id": { "type": "string", "format": "uuid" },

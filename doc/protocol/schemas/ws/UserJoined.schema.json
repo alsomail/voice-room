@@ -15,7 +15,7 @@
       "properties": {
         "user_id": { "type": "string", "format": "uuid" },
         "nickname": { "type": "string" },
-        "avatar": { "type": "string", "format": "uri" },
+        "avatar": { "type": ["string", "null"], "format": "uri" },
         "member_count": { "type": "integer", "minimum": 0 }
       }
     },

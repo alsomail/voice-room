@@ -16,7 +16,7 @@
         "msg_id": { "type": "string", "format": "uuid", "description": "消息唯一 ID" },
         "user_id": { "type": "string", "format": "uuid" },
         "nickname": { "type": "string" },
-        "avatar": { "type": "string", "format": "uri" },
+        "avatar": { "type": ["string", "null"], "format": "uri" },
         "content": { "type": "string", "minLength": 1, "maxLength": 500 }
       }
     },

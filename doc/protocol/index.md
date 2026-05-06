@@ -17,7 +17,7 @@
 
 | 目录 | 内容 | 文件数 |
 |------|------|--------|
-| [schemas/ws/](schemas/ws/) | WebSocket 信令 JSON Schema 2020-12 | 28 个核心信令 |
+| [schemas/ws/](schemas/ws/) | WebSocket 信令 JSON Schema 2020-12 | 34 个（28 核心 + 6 附加 Result 类型） |
 | [schemas/http/](schemas/http/) | HTTP REST DTO JSON Schema 2020-12 | RoomDetail 等 |
 | [schemas/pubsub/](schemas/pubsub/) | Redis Pub/Sub 事件 JSON Schema 2020-12 | 4 个 admin:events |
 
