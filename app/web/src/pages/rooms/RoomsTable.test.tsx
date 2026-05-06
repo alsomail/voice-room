@@ -35,6 +35,7 @@ import type { RoomsPageFilters } from './useRoomsPage';
 
 // ── 测试数据 ──────────────────────────────────────────────────────────────
 const makeRoom = (id: number, status: 'active' | 'closed' = 'active'): AdminRoomItem => ({
+  id: `room-${id}`,
   room_id: `room-${id}`,
   title: `Room ${id}`,
   room_type: 'normal',
@@ -247,6 +248,7 @@ const buildCreatedAt = (minsAgo: number) =>
 
 // 含不同活跃状态的测试数据集
 const activeRoom: AdminRoomItem = {
+  id: 'room-active',
   room_id: 'room-active',
   title: 'Active Room',
   room_type: 'normal',
@@ -260,6 +262,7 @@ const activeRoom: AdminRoomItem = {
 };
 
 const abnormalRoom: AdminRoomItem = {
+  id: 'room-abnormal',
   room_id: 'room-abnormal',
   title: 'Abnormal Room',
   room_type: 'normal',
@@ -273,6 +276,7 @@ const abnormalRoom: AdminRoomItem = {
 };
 
 const quietRoom: AdminRoomItem = {
+  id: 'room-quiet',
   room_id: 'room-quiet',
   title: 'Quiet Room',
   room_type: 'normal',
@@ -286,6 +290,7 @@ const quietRoom: AdminRoomItem = {
 };
 
 const normalRoom: AdminRoomItem = {
+  id: 'room-normal',
   room_id: 'room-normal',
   title: 'Normal Room',
   room_type: 'normal',

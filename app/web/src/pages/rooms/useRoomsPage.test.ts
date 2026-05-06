@@ -33,6 +33,7 @@ const mockAdminCloseRoom = adminCloseRoom as ReturnType<typeof vi.fn>;
 // ── 测试数据工厂 ───────────────────────────────────────────────────────────
 function makeRoom(id: number, status: 'active' | 'closed' = 'active'): AdminRoomItem {
   return {
+    id: `room-${id}`,
     room_id: `room-${id}`,
     title: `Room ${id}`,
     room_type: 'normal',
@@ -383,6 +384,7 @@ function makeActivityRoom(
   minsAgo: number,
 ): AdminRoomItem {
   return {
+    id,
     room_id: id,
     title: `Room ${id}`,
     room_type: 'normal',

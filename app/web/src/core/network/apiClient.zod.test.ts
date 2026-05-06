@@ -31,6 +31,7 @@ import {
   makeGovernanceListResponseSchema,
   AdminLogsDataSchema,
   AdminLogItemSchema,
+  MicSlotSchema,
 } from '../../api/schemas/admin.schemas';
 
 // ── mock useAuthStore ────────────────────────────────────────────────────────
@@ -230,5 +231,130 @@ describe('ZOD-4: .passthrough() allows unknown fields without throwing', () => {
       new_field_from_server: 42,
     };
     expect(() => KickLogItemSchema.parse(input)).not.toThrow();
+  });
+});
+
+// ── ZOD-5: MicSlotSchema validation (T-00102 P0) ──────────────────────────────
+
+describe('ZOD-5: MicSlotSchema — mic_slots typed validation', () => {
+  const validMicSlot = {
+    mic_index: 0,
+    user_id: null,
+    locked: false,
+    muted: false,
+  };
+
+  it('parses a valid mic slot with all required fields', () => {
+    expect(() => MicSlotSchema.parse(validMicSlot)).not.toThrow();
+    const parsed = MicSlotSchema.parse(validMicSlot);
+    expect(parsed.mic_index).toBe(0);
+    expect(parsed.locked).toBe(false);
+    expect(parsed.muted).toBe(false);
+    expect(parsed.user_id).toBeNull();
+  });
+
+  it('parses a valid mic slot without optional user_id', () => {
+    const slot = { mic_index: 3, locked: true, muted: false };
+    expect(() => MicSlotSchema.parse(slot)).not.toThrow();
+    const parsed = MicSlotSchema.parse(slot);
+    expect(parsed.mic_index).toBe(3);
+    expect(parsed.locked).toBe(true);
+  });
+
+  it('parses mic_index at max boundary value 8', () => {
+    const slot = { mic_index: 8, locked: false, muted: true };
+    expect(() => MicSlotSchema.parse(slot)).not.toThrow();
+  });
+
+  it('parses mic_index at min boundary value 0', () => {
+    const slot = { mic_index: 0, locked: false, muted: false };
+    expect(() => MicSlotSchema.parse(slot)).not.toThrow();
+  });
+
+  it('parses a full 9-slot array inside AdminRoomDetailAdminSchema', () => {
+    const slots = Array.from({ length: 9 }, (_, i) => ({
+      mic_index: i,
+      user_id: i === 0 ? 'user-abc' : null,
+      locked: false,
+      muted: false,
+    }));
+    const roomDetail = {
+      room_id: 'r1',
+      title: 'Test Room',
+      status: 'active',
+      room_type: 'normal',
+      member_count: 1,
+      max_members: 9,
+      owner: { user_id: 'u1', nickname: 'Owner', avatar: null },
+      mic_slots: slots,
+      created_at: '2024-01-01T00:00:00Z',
+      updated_at: '2024-01-01T00:00:00Z',
+    };
+    expect(() => AdminRoomDetailAdminSchema.parse(roomDetail)).not.toThrow();
+    const parsed = AdminRoomDetailAdminSchema.parse(roomDetail);
+    expect(parsed.mic_slots).toHaveLength(9);
+    expect(parsed.mic_slots[0].mic_index).toBe(0);
+    expect(parsed.mic_slots[0].user_id).toBe('user-abc');
+  });
+
+  it('throws ZodError when locked field is missing from a mic slot', () => {
+    const invalidSlot = { mic_index: 0, muted: false }; // locked is missing
+    expect(() => MicSlotSchema.parse(invalidSlot)).toThrow(ZodError);
+  });
+
+  it('throws ZodError when muted field is missing from a mic slot', () => {
+    const invalidSlot = { mic_index: 0, locked: false }; // muted is missing
+    expect(() => MicSlotSchema.parse(invalidSlot)).toThrow(ZodError);
+  });
+
+  it('throws ZodError when mic_index field is missing from a mic slot', () => {
+    const invalidSlot = { locked: false, muted: false }; // mic_index is missing
+    expect(() => MicSlotSchema.parse(invalidSlot)).toThrow(ZodError);
+  });
+
+  it('throws ZodError when mic_index is below min (negative)', () => {
+    const invalidSlot = { mic_index: -1, locked: false, muted: false };
+    expect(() => MicSlotSchema.parse(invalidSlot)).toThrow(ZodError);
+  });
+
+  it('throws ZodError when mic_index exceeds max (9)', () => {
+    const invalidSlot = { mic_index: 9, locked: false, muted: false };
+    expect(() => MicSlotSchema.parse(invalidSlot)).toThrow(ZodError);
+  });
+
+  it('throws ZodError when locked is a string instead of boolean', () => {
+    const invalidSlot = { mic_index: 0, locked: 'true', muted: false };
+    expect(() => MicSlotSchema.parse(invalidSlot)).toThrow(ZodError);
+  });
+
+  it('throws ZodError when AdminRoomDetailAdminSchema contains invalid mic_slots', () => {
+    const roomDetailWithBadSlots = {
+      room_id: 'r1',
+      title: 'Test Room',
+      status: 'active',
+      room_type: 'normal',
+      member_count: 1,
+      max_members: 9,
+      owner: { user_id: 'u1', nickname: 'Owner', avatar: null },
+      mic_slots: [
+        { mic_index: 0, muted: false }, // missing locked — invalid
+      ],
+      created_at: '2024-01-01T00:00:00Z',
+      updated_at: '2024-01-01T00:00:00Z',
+    };
+    expect(() => AdminRoomDetailAdminSchema.parse(roomDetailWithBadSlots)).toThrow(ZodError);
+  });
+
+  it('passthrough allows extra fields on MicSlotSchema without throwing', () => {
+    const slotWithExtra = {
+      mic_index: 2,
+      locked: false,
+      muted: true,
+      user_id: 'u42',
+      future_server_field: 'some_value',
+    };
+    expect(() => MicSlotSchema.parse(slotWithExtra)).not.toThrow();
+    const parsed = MicSlotSchema.parse(slotWithExtra);
+    expect((parsed as Record<string, unknown>).future_server_field).toBe('some_value');
   });
 });

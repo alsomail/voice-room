@@ -49,7 +49,11 @@ function validateResponse<T>(data: T, schema: ZodType): T {
     if (import.meta.env.DEV) {
       throw new ZodError(result.error.issues);
     } else {
-      console.error('[T-00102] Zod schema mismatch:', result.error.issues);
+      // PROD: log paths + codes only, never log received values (PII risk)
+      const sanitized = result.error.issues.map(({ path, code, message }) => ({
+        path, code, message,
+      }));
+      console.error('[T-00102] Zod schema mismatch:', sanitized);
     }
   }
   return data;
@@ -219,7 +223,7 @@ export async function adminGetRooms(
     : '';
   const res = await adminFetch<AdminRoomsData>(`/rooms${query}`, { signal });
   // Backend list API returns 'id' field; add 'room_id' alias for UI compatibility
-  res.data.items = res.data.items.map((item: any) => ({
+  res.data.items = res.data.items.map((item: AdminRoomItem) => ({
     ...item,
     room_id: item.room_id ?? item.id,
   }));

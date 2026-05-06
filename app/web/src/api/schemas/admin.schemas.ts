@@ -49,6 +49,17 @@ export const AdminRoomsDataSchema = z
 
 // ─── Room Detail (Admin endpoint — different from app RoomDetail) ─────────────
 
+// PROTO-BINDING: doc/protocol/schemas/http/RoomDetail.schema.json
+// mic_slots items require mic_index, locked, muted as per JSON-Schema spec
+export const MicSlotSchema = z
+  .object({
+    mic_index: z.number().int().min(0).max(8),
+    user_id: z.string().nullable().optional(),
+    locked: z.boolean(),
+    muted: z.boolean(),
+  })
+  .passthrough();
+
 export const AdminRoomDetailAdminSchema = z
   .object({
     room_id: z.string(),
@@ -64,7 +75,7 @@ export const AdminRoomDetailAdminSchema = z
         avatar: z.string().nullable(),
       })
       .passthrough(),
-    mic_slots: z.array(z.unknown()),
+    mic_slots: z.array(MicSlotSchema),
     created_at: z.string(),
     updated_at: z.string(),
   })

@@ -151,25 +151,25 @@ describe('formatDuration — U14: 恰好1min → "1m"', () => {
 
 describe('filterByActivity — 辅助函数覆盖', () => {
   const activeRoom = {
-    room_id: 'r1', title: 'R1', room_type: 'normal' as const,
+    id: 'r1', room_id: 'r1', title: 'R1', room_type: 'normal' as const,
     member_count: 5, max_members: 20, status: 'active' as const,
     owner_id: 'u1', owner_nickname: 'O1', owner_avatar: null,
     created_at: minsAgo(30, NOW),
   };
   const abnormalRoom = {
-    room_id: 'r2', title: 'R2', room_type: 'normal' as const,
+    id: 'r2', room_id: 'r2', title: 'R2', room_type: 'normal' as const,
     member_count: 0, max_members: 20, status: 'active' as const,
     owner_id: 'u2', owner_nickname: 'O2', owner_avatar: null,
     created_at: minsAgo(30, NOW),
   };
   const quietRoom = {
-    room_id: 'r3', title: 'R3', room_type: 'normal' as const,
+    id: 'r3', room_id: 'r3', title: 'R3', room_type: 'normal' as const,
     member_count: 2, max_members: 20, status: 'active' as const,
     owner_id: 'u3', owner_nickname: 'O3', owner_avatar: null,
     created_at: minsAgo(90, NOW),
   };
   const normalRoom = {
-    room_id: 'r4', title: 'R4', room_type: 'normal' as const,
+    id: 'r4', room_id: 'r4', title: 'R4', room_type: 'normal' as const,
     member_count: 3, max_members: 20, status: 'active' as const,
     owner_id: 'u4', owner_nickname: 'O4', owner_avatar: null,
     created_at: minsAgo(30, NOW),

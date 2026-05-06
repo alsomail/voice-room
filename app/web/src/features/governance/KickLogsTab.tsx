@@ -9,6 +9,7 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
+import type { HTMLAttributes } from 'react';
 import { Table, Alert, Empty } from 'antd';
 import type { TableColumnsType } from 'antd';
 import { useTranslation } from 'react-i18next';
@@ -159,7 +160,7 @@ export function KickLogsTab({ filters, onUserClick }: KickLogsTabProps) {
       }}
       onRow={(record) => ({
         'data-testid': `governance-row-${record.id}`,
-      })}
+      } as HTMLAttributes<HTMLElement>)}
     />
   );
 }

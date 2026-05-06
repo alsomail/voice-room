@@ -8,6 +8,7 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
+import type { HTMLAttributes } from 'react';
 import { Table, Alert, Empty, Tag } from 'antd';
 import type { TableColumnsType } from 'antd';
 import { useTranslation } from 'react-i18next';
@@ -176,7 +177,7 @@ export function MuteLogsTab({ filters, onUserClick }: MuteLogsTabProps) {
       }}
       onRow={(record) => ({
         'data-testid': `governance-row-${record.id}`,
-      })}
+      } as HTMLAttributes<HTMLElement>)}
     />
   );
 }

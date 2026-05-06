@@ -43,6 +43,7 @@ const mockAdminGetRoomDetail = adminGetRoomDetail as ReturnType<typeof vi.fn>;
 // ── 测试数据工厂 ───────────────────────────────────────────────────────────
 function makeRoom(id: number, status: 'active' | 'closed' = 'active'): AdminRoomItem {
   return {
+    id: `room-${id}`,
     room_id: `room-${id}`,
     title: `Room ${id}`,
     room_type: 'normal',
@@ -450,6 +451,7 @@ function makeMixedRoomsData(): AdminRoomsData {
     items: [
       // active: member_count=5
       {
+        id: 'room-act',
         room_id: 'room-act',
         title: 'Active Room',
         room_type: 'normal',
@@ -463,6 +465,7 @@ function makeMixedRoomsData(): AdminRoomsData {
       },
       // abnormal: member_count=0, status=active
       {
+        id: 'room-abn',
         room_id: 'room-abn',
         title: 'Abnormal Room',
         room_type: 'normal',
@@ -476,6 +479,7 @@ function makeMixedRoomsData(): AdminRoomsData {
       },
       // quiet: member_count=2, 155min前（即2h35m）→ duration "2h 35m"
       {
+        id: 'room-qui',
         room_id: 'room-qui',
         title: 'Quiet Room',
         room_type: 'normal',
