@@ -24,3 +24,4 @@
 | [模块3-6-8-架构阻塞修复](./模块3-6-8-架构阻塞修复.md) | 跨模块 3/6/8 (T-00041/42/43/44) | ✅ Passed | - | 1/10 | 2026-04-29 通过（QA 战报反向拆出 6 阻塞业务侧 4 个合并复核：WS 心跳超时 / Admin 强制断连 Redis pub-sub / chat_messages 持久化与 _sqlx_app_migrations 强制契约 / Gift HTTP 复用 service；3 条 P3 观察不阻断） |
 | [模块3-BUG-CHAT-WS修复链](./模块3-BUG-CHAT-WS修复链.md) | 模块 3 Chat (T-00045/46 + T-30051/52) | ✅ Passed | - | 1/10 | 2026-05-05 通过（E2E Round 14~22 驱动：REST 广播端点 / WS 广播可观测性 / Android WS 接收链路可观测性 / UI 气泡样式；P0=0/P1=0/P2=0/P3=1 一轮过） |
 | [server-T-00048-chat-dual-path](./server-T-00048-chat-dual-path.md) | 模块 3 Chat (T-00048) | ✅ Passed | - | 1/10 | 2026-05-05 通过（Chat 双路径等价回归集成测试；协议路径绑定 3 行全 PASS；P0=0/P1=0/P2=1非阻断/P3=2；DUAL-1/2/3 全绿） |
+| [模块10-Phase1.7-extended-协议字段冻结](./模块10-Phase1.7-extended-协议字段冻结.md) | T-00100~T-00108 (9 任务) | ⏳ In Review | GlobalReview | 0/10 | 2026-05-08 开批（WS+HTTP+Redis 三协议层 schema 冻结 + Android sealed class + Zod + deny_unknown_fields + 跨语言 E2E） |

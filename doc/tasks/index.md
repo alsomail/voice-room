@@ -433,12 +433,12 @@
 | [T-0000T](../tds/infra/T-0000T.md) | T-0000R | Dod | ✅ Done | [✅ Passed](../review/模块9-T-0000TV-protocol-audit-arch-cleanup.md) | ✅ N/A | ✅ Released |
 | [T-0000U](../tds/infra/T-0000U.md) | T-0000T | Dod | ✅ Done | ✅ Passed | ✅ N/A | ✅ Released |
 | [T-0000V](../tds/infra/T-0000V.md) | T-0000U | Dod | ✅ Done | [✅ Passed](../review/模块9-T-0000TV-protocol-audit-arch-cleanup.md) | ✅ N/A | ✅ Released |
-| [T-00100](../tds/infra/T-00100.md) ⭐ | T-0000V | Dod | ✅ Done | - | - | ⏳ Pending |
-| [T-00101](../tds/android/T-00101.md) | T-00100 | Dod | ✅ Done | - | - | ⏳ Pending |
-| [T-00102](../tds/web/T-00102.md) | T-00100 | Done | ✅ Done | - | - | ⏳ Pending |
-| [T-00103](../tds/server/T-00103.md) | T-00100 | Dod | Done | - | - | ⏳ Pending |
-| [T-00104](../tds/infra/T-00104.md) ⭐ | T-00100, T-00101, T-00103 | Dod | ✅ Done | - | - | ⏳ Pending |
-| [T-00105](../tds/adminServer/T-00105.md) | T-00100 | Dod | ✅ Done | - | - | ⏳ Pending |
-| [T-00106](../tds/infra/T-00106.md) | T-00100, T-0000T | Dod | ✅ Done | - | - | ⏳ Pending |
-| [T-00107](../tds/infra/T-00107.md) | T-00106 | Dod | ✅ Done | - | - | ✅ Done |
-| [T-00108](../tds/infra/T-00108.md) | T-00100 | Dod | ✅ Done | - | - | ⏳ Pending |
+| [T-00100](../tds/infra/T-00100.md) ⭐ | T-0000V | Dod | ✅ Done | [❌ Failed](../review/模块10-Phase1.7-extended-协议字段冻结.md) | - | ⏳ Pending |
+| [T-00101](../tds/android/T-00101.md) | T-00100 | Dod | ✅ Done | [❌ Failed](../review/模块10-Phase1.7-extended-协议字段冻结.md) | - | ⏳ Pending |
+| [T-00102](../tds/web/T-00102.md) | T-00100 | Done | ✅ Done | [❌ Failed](../review/模块10-Phase1.7-extended-协议字段冻结.md) | - | ⏳ Pending |
+| [T-00103](../tds/server/T-00103.md) | T-00100 | Dod | ✅ Done | [❌ Failed](../review/模块10-Phase1.7-extended-协议字段冻结.md) | - | ⏳ Pending |
+| [T-00104](../tds/infra/T-00104.md) ⭐ | T-00100, T-00101, T-00103 | Dod | ✅ Done | [❌ Failed](../review/模块10-Phase1.7-extended-协议字段冻结.md) | - | ⏳ Pending |
+| [T-00105](../tds/adminServer/T-00105.md) | T-00100 | Dod | ✅ Done | [❌ Failed](../review/模块10-Phase1.7-extended-协议字段冻结.md) | - | ⏳ Pending |
+| [T-00106](../tds/infra/T-00106.md) | T-00100, T-0000T | Dod | ✅ Done | [❌ Failed](../review/模块10-Phase1.7-extended-协议字段冻结.md) | - | ⏳ Pending |
+| [T-00107](../tds/infra/T-00107.md) | T-00106 | Dod | ✅ Done | [❌ Failed](../review/模块10-Phase1.7-extended-协议字段冻结.md) | - | ⏳ Pending |
+| [T-00108](../tds/infra/T-00108.md) | T-00100 | Dod | ✅ Done | [❌ Failed](../review/模块10-Phase1.7-extended-协议字段冻结.md) | - | ⏳ Pending |
