@@ -1249,7 +1249,11 @@ class RoomViewModel(
             is WsServerMessage.UserMuted -> {
                 // PROTO-BINDING: doc/protocol/schemas/ws/UserMuted.schema.json
                 // T-30042: 收到被禁麦/禁言通知，WS 服务端只推送给被禁用户
-                val targetUserId = msg.payload.targetUserId ?: return  // 允许此 return：无目标用户无法处理
+                val targetUserId = msg.payload.targetUserId
+                if (targetUserId == null) {
+                    Log.w(TAG, "ws: UserMuted missing payload.targetUserId, ignoring")
+                    return
+                }
                 val muteType = msg.payload.muteType
                 if (muteType == null) {
                     Log.w(TAG, "ws: UserMuted missing payload.muteType, ignoring (targetUserId=$targetUserId)")
