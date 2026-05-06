@@ -1,6 +1,6 @@
 # Voice Room 开发任务清单
 
-> **版本**: v3.07  
+> **版本**: v3.09  
 > **更新日期**: 2026-05-07  
 > **任务总数**: 148 个 (基建: 4 + 14 + 3 + 6, App Server: 33 + 1 + 2 + 1, Admin Server: 16 + 1 + 1, Web: 14 + 1 + 1, Android: 45 + 1 + 1 + 1, E-07 15 + E-07.5 6 + E-10 18)  
 > **当前阶段**: Phase 1 → … → Phase 1.7 协议治理铁律落地 → **Phase 1.7-extended 协议字段全量冻结**（WS + HTTP REST + Redis Pub/Sub 三协议层 schema 机器可读 + 字段级 CI 审计 + Android×Server 跨语言 E2E）
@@ -12,6 +12,7 @@
 | 版本 | 日期 | 变更内容 |
 |------|------|---------|
 | _规则_ | — | 本表只记录**版本级摘要**（一行 ≤ 200 字符），具体 Review/审查/实跑证据请落到对应 [TDS](../tds/) 第五节【Review 意见】或对应模块审查批次 `doc/review/模块N-XXX.md`，**严禁**在本表堆叠详细审查记录。 |
+| **v3.09** | **2026-05-07** | [T-00106] Plan→TDD — 字段级 AST CI 审计启动实现 |
 | **v3.08** | **2026-05-07** | [T-00101] TDD→Review — WsServerMessage sealed class 28信令 + RoomViewModel handleWsMessage全量重写，760 tests/3预存失败 |
 | **v3.07** | **2026-05-07** | [T-00101] TDD In Progress — Android sealed class 反序列化层启动实现 |
 | **v3.07** | **2026-05-07** | [T-00103] TDD 启动 — Server schema_guard + deny_unknown_fields；状态 Plan/Todo → TDD/In Progress。 |
@@ -424,6 +425,6 @@
 | [T-00103](../tds/server/T-00103.md) | T-00100 | TDD | In Progress | - | - | ⏳ Pending |
 | [T-00104](../tds/infra/T-00104.md) ⭐ | T-00100, T-00101, T-00103 | Plan | Todo | - | - | ⏳ Pending |
 | [T-00105](../tds/adminServer/T-00105.md) | T-00100 | TDD | In Progress | - | - | ⏳ Pending |
-| [T-00106](../tds/infra/T-00106.md) | T-00100, T-0000T | Plan | Todo | - | - | ⏳ Pending |
+| [T-00106](../tds/infra/T-00106.md) | T-00100, T-0000T | TDD | In Progress | - | - | ⏳ Pending |
 | [T-00107](../tds/infra/T-00107.md) | T-00106 | Plan | Todo | - | - | ⏳ Pending |
 | [T-00108](../tds/infra/T-00108.md) | T-00100 | Plan | Todo | - | - | ⏳ Pending |
