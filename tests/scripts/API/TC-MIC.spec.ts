@@ -5,7 +5,7 @@
  * Protocol notes (Round-2 fix):
  *  - JoinRoom:  { type:'JoinRoom', payload:{ room_id }, msg_id }  → response type: JoinRoomResult
  *  - TakeMic:  { type:'TakeMic', payload:{ mic_index:N }, msg_id } (N=0..8) → response: TakeMicResult
- *  - LeaveMic: { type:'LeaveMic', msg_id }  (no seat param; releases sender's own slot)
+ *  - LeaveMic: { type:'LeaveMic', msg_id, payload?: { mic_index: number } }  (mic_index optional, for debug; server infers slot from connection context)
  *              → response: LeaveMicResult (code=0 ok, 40304=not on mic)
  *  - Broadcast: MicTaken { type:'MicTaken', payload:{ mic_index, user_id } }
  *  - mic seats are in-memory (RoomState) — no DB table; psql cleanup replaced with WS cycle

@@ -9,7 +9,16 @@
   "properties": {
     "type": { "type": "string", "const": "LeaveMic" },
     "msg_id": { "type": "string", "format": "uuid" },
-    "payload": { "type": "object", "additionalProperties": true },
+    "payload": {
+      "type": "object",
+      "properties": {
+        "mic_index": {
+          "type": "integer",
+          "description": "可选；客户端发送用于调试/日志追踪，服务端通过连接上下文推断槽位，不读取此字段"
+        }
+      },
+      "additionalProperties": true
+    },
     "timestamp": { "type": "integer" }
   }
 }
