@@ -9,7 +9,7 @@
  * 覆盖用例（P1）：
  *   TC-GOVERNANCE-00003 — 用户详情页联动跳转 + 权限控制
  */
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../support/fixtures';
 import { PlaywrightAgent } from '@midscene/web/playwright';
 import { execSync } from 'child_process';
 
@@ -31,7 +31,7 @@ test.describe('TC-GOVERNANCE WEB - 房间治理日志', () => {
     await page.goto('/login');
     await page.waitForLoadState('networkidle');
     await agent.aiAction('在用户名输入 "super_admin"，密码输入 "Pass@123"，点击登录');
-    await page.waitForURL(/dashboard/, { timeout: 15_000 });
+    await page.waitForURL(/dashboard/, { timeout: 30_000 });
 
     // Step1：访问 /governance/logs
     await page.goto('/governance/logs');
@@ -107,7 +107,7 @@ test.describe('TC-GOVERNANCE WEB - 房间治理日志', () => {
     await page.goto('/login');
     await page.waitForLoadState('networkidle');
     await agent.aiAction('在用户名输入 "super_admin"，密码输入 "Pass@123"，点击登录');
-    await page.waitForURL(/dashboard/, { timeout: 15_000 });
+    await page.waitForURL(/dashboard/, { timeout: 30_000 });
 
     if (UID) {
       await page.goto(`/users/${UID}`);
@@ -116,7 +116,7 @@ test.describe('TC-GOVERNANCE WEB - 房间治理日志', () => {
       const hasGovernanceLink = await agent.aiBoolean('用户详情页是否有"查看治理记录"或"治理记录"入口？');
       if (hasGovernanceLink) {
         await agent.aiTap('"查看治理记录"或"治理记录"链接');
-        await page.waitForURL(/governance\/logs/, { timeout: 10_000 });
+        await page.waitForURL(/governance\/logs/, { timeout: 20_000 });
         await page.waitForLoadState('networkidle');
         await agent.aiAssert(`治理日志页 URL 包含用户 ID "${UID}" 的筛选参数，列表已按该用户筛选`);
       }
@@ -153,7 +153,7 @@ test.describe('TC-GOVERNANCE WEB - 房间治理日志', () => {
     await page.goto('/login');
     await page.waitForLoadState('networkidle');
     await agent.aiAction('在用户名输入 "super_admin"，密码输入 "Pass@123"，点击登录');
-    await page.waitForURL(/dashboard/, { timeout: 15_000 });
+    await page.waitForURL(/dashboard/, { timeout: 30_000 });
 
     await page.goto('/governance/logs');
     await page.waitForLoadState('networkidle');

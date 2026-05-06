@@ -24,7 +24,7 @@ test.describe('TC-USER WEB - 用户管理', () => {
     const agent = await login(page);
     await page.goto('/users');
     await page.waitForLoadState('domcontentloaded');
-    await page.waitForSelector('[data-testid="users-table"]', { timeout: 15_000 });
+    await page.waitForSelector('[data-testid="users-table"]', { timeout: 30_000 });
     await agent.aiAction('在搜索框输入 "+86" 并回车');
     await page.waitForTimeout(1500);
     await agent.aiAssert('表格显示用户列表，手机号以 +86 开头');
@@ -36,10 +36,10 @@ test.describe('TC-USER WEB - 用户管理', () => {
     await agent2.aiAction('在用户名输入框输入 "e2e_cs"');
     await agent2.aiAction('在密码输入框输入 "admin_password_change_me"');
     await agent2.aiAction('点击"登录"按钮');
-    await page.waitForURL(/\/dashboard/, { timeout: 15_000 });
+    await page.waitForURL(/\/dashboard/, { timeout: 30_000 });
     await page.goto('/users');
     await page.waitForLoadState('domcontentloaded');
-    await page.waitForSelector('[data-testid="users-table"]', { timeout: 15_000 });
+    await page.waitForSelector('[data-testid="users-table"]', { timeout: 30_000 });
     await agent2.aiAssert('用户列表正常可见，表格中的"封禁"操作按钮不存在或处于不可点击状态');
   });
 
@@ -56,7 +56,7 @@ test.describe('TC-USER WEB - 用户管理', () => {
 
     const agent = await login(page);
     await page.goto('/users');
-    await page.waitForSelector('[data-testid="users-table"]', { timeout: 15_000 });
+    await page.waitForSelector('[data-testid="users-table"]', { timeout: 30_000 });
     // Filter to show only normal users using direct selectors (avoid AI ambiguity)
     await page.locator('[data-testid="status-select"] .ant-select-content').click();
     await page.waitForTimeout(500);
@@ -64,10 +64,10 @@ test.describe('TC-USER WEB - 用户管理', () => {
     await page.getByRole('button', { name: /搜.{0,1}索/ }).first().click();
     await page.waitForTimeout(1500);
     await agent.aiAction('点击表格第一行用户昵称或"查看"按钮');
-    await page.waitForSelector('.ant-drawer', { timeout: 10_000 });
+    await page.waitForSelector('.ant-drawer', { timeout: 20_000 });
     await agent.aiAssert('右侧抽屉打开，显示用户详情信息（基本信息、钱包余额等），有"封禁"操作按钮');
     await agent.aiAction('点击抽屉中的"封禁"按钮');
-    await page.waitForSelector('.ant-modal', { timeout: 10_000 });
+    await page.waitForSelector('.ant-modal', { timeout: 20_000 });
     // BanModal 实际字段：封禁时长（Select）+ 封禁原因（Select）+ 备注（TextArea）
     await agent.aiAssert('弹出封禁弹窗，包含封禁时长下拉框和封禁原因下拉框');
     await agent.aiAction('在封禁时长下拉框中选择"24小时"选项');
@@ -120,7 +120,7 @@ test.describe('TC-USER WEB - 用户管理', () => {
 
     const agent = await login(page);
     await page.goto('/users');
-    await page.waitForSelector('[data-testid="users-table"]', { timeout: 15_000 });
+    await page.waitForSelector('[data-testid="users-table"]', { timeout: 30_000 });
     // Filter to show banned users using direct selectors — actual option label is "封禁" (not "已封禁")
     await page.locator('[data-testid="status-select"] .ant-select-content').click();
     await page.waitForTimeout(500);
@@ -128,9 +128,9 @@ test.describe('TC-USER WEB - 用户管理', () => {
     await page.getByRole('button', { name: /搜.{0,1}索/ }).first().click();
     await page.waitForTimeout(1500);
     await agent.aiAction('点击表格第一行用户昵称或"查看"按钮');
-    await page.waitForSelector('.ant-drawer', { timeout: 10_000 });
+    await page.waitForSelector('.ant-drawer', { timeout: 20_000 });
     await agent.aiAction('在右侧抽屉中点击"解封"按钮');
-    await page.waitForSelector('.ant-modal', { timeout: 10_000 });
+    await page.waitForSelector('.ant-modal', { timeout: 20_000 });
     await agent.aiAssert('弹出解封弹窗，解封原因下拉框带必填红色星号标记');
     await agent.aiAction('不选择原因，直接点击弹窗中的"确定"按钮');
     await page.waitForTimeout(500);

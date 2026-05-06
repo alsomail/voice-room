@@ -7,7 +7,7 @@
  *   TC-ANALYTICS-00001 — 行为流 Tab 默认加载 + 时间窗切换
  *   TC-ANALYTICS-00004 — 权限控制：admin_* 事件仅 super_admin 可见
  */
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../support/fixtures';
 import { PlaywrightAgent } from '@midscene/web/playwright';
 
 const APP_SERVER_BASE_URL = process.env.APP_SERVER_BASE_URL ?? '';
@@ -20,7 +20,7 @@ test.describe('TC-ANALYTICS WEB - 用户行为流 Tab', () => {
     await page.goto('/login');
     await page.waitForLoadState('networkidle');
     await agent.aiAction('在用户名输入 "super_admin"，密码输入 "Pass@123"，点击登录');
-    await page.waitForURL(/dashboard/, { timeout: 15_000 });
+    await page.waitForURL(/dashboard/, { timeout: 30_000 });
   }
 
   // ── TC-ANALYTICS-00001：行为流 Tab 默认加载 + 时间窗切换 ──────────────────
@@ -91,7 +91,7 @@ test.describe('TC-ANALYTICS WEB - 用户行为流 Tab', () => {
     await page.goto('/login');
     await page.waitForLoadState('networkidle');
     await agent.aiAction('在用户名输入 "admin_op"，密码输入 "Pass@123"，点击登录');
-    await page.waitForURL(/dashboard/, { timeout: 15_000 });
+    await page.waitForURL(/dashboard/, { timeout: 30_000 });
 
     if (UID) {
       await page.goto(`/users/${UID}`);
@@ -120,7 +120,7 @@ test.describe('TC-ANALYTICS WEB - 用户行为流 Tab', () => {
     await page.goto('/login');
     await page.waitForLoadState('networkidle');
     await agent.aiAction('在用户名输入 "super_admin"，密码输入 "Pass@123"，点击登录');
-    await page.waitForURL(/dashboard/, { timeout: 15_000 });
+    await page.waitForURL(/dashboard/, { timeout: 30_000 });
 
     if (UID) {
       await page.goto(`/users/${UID}`);

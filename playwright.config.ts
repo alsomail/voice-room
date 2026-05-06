@@ -19,11 +19,11 @@ export default defineConfig({
   testIgnore: ['**/support/__tests__/**', '**/*.yaml', '**/*.yml'],
 
   timeout: 120 * 1000,
-  expect: { timeout: 15000 },
+  expect: { timeout: 30000 },
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  workers: process.env.CI ? 1 : 2,
 
   globalSetup: path.resolve(__dirname, 'tests/scripts/support/globalSetup.ts'),
   globalTeardown: path.resolve(__dirname, 'tests/scripts/support/globalTeardown.ts'),

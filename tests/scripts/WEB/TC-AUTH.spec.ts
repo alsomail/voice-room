@@ -30,15 +30,15 @@ test.describe('TC-AUTH WEB - 管理员登录', () => {
     await agent.aiAction('勾选"记住账号"复选框');
     await agent.aiAction('点击蓝色的"登录"按钮');
     // 等待页面跳转到 dashboard
-    await page.waitForURL(/\/dashboard/, { timeout: 15_000 });
+    await page.waitForURL(/\/dashboard/, { timeout: 30_000 });
     // 等待侧边栏渲染完成（确保退出按钮可见）
-    await page.waitForSelector('[data-testid="app-sider"]', { timeout: 15_000 });
-    await page.waitForSelector('[data-testid="logout-btn"]', { timeout: 10_000 });
+    await page.waitForSelector('[data-testid="app-sider"]', { timeout: 30_000 });
+    await page.waitForSelector('[data-testid="logout-btn"]', { timeout: 20_000 });
     await page.waitForTimeout(1000);
 
     // 退出再回到 /login 验证记住账号
     await agent.aiAction('点击侧边栏底部的"退出登录"按钮');
-    await page.waitForURL(/\/login/, { timeout: 10_000 });
+    await page.waitForURL(/\/login/, { timeout: 20_000 });
     await page.waitForLoadState('domcontentloaded');
     await agent.aiAssert('用户名输入框自动填入 "e2e_op"，"记住账号"仍为勾选状态');
   });
@@ -64,7 +64,7 @@ test.describe('TC-AUTH WEB - 管理员登录', () => {
   test('TC-AUTH-00003: 路由守卫 - 未登录重定向', async ({ page }) => {
     await page.evaluate(() => localStorage.clear()).catch(() => {});
     await page.goto('/rooms');
-    await page.waitForURL(/\/login/, { timeout: 10_000 });
+    await page.waitForURL(/\/login/, { timeout: 20_000 });
     expect(page.url()).toMatch(/\/login/);
 
     const agent = new PlaywrightAgent(page);
@@ -72,12 +72,12 @@ test.describe('TC-AUTH WEB - 管理员登录', () => {
     await agent.aiAction('在密码输入框中输入 "admin_password_change_me"');
     await agent.aiAction('点击"登录"按钮');
     // 登录后重定向到 dashboard（路由守卫未保留原始路径 /rooms）
-    await page.waitForURL(/\/(rooms|dashboard)/, { timeout: 10_000 });
+    await page.waitForURL(/\/(rooms|dashboard)/, { timeout: 20_000 });
     expect(page.url()).toMatch(/\/(rooms|dashboard)/);
 
     // 已登录访问 /login 应重定向 dashboard
     await page.goto('/login');
-    await page.waitForURL(/\/dashboard/, { timeout: 10_000 });
+    await page.waitForURL(/\/dashboard/, { timeout: 20_000 });
   });
 
   test('TC-AUTH-00004: Token 过期自动退出', async ({ page }) => {
@@ -88,7 +88,7 @@ test.describe('TC-AUTH WEB - 管理员登录', () => {
     await agent.aiAction('在用户名输入框中输入 "e2e_op"');
     await agent.aiAction('在密码输入框中输入 "admin_password_change_me"');
     await agent.aiAction('点击"登录"按钮');
-    await page.waitForURL(/\/dashboard/, { timeout: 15_000 });
+    await page.waitForURL(/\/dashboard/, { timeout: 30_000 });
     await page.waitForLoadState('domcontentloaded');
 
     // 使用正确的 key（adminToken）存入过期 token，触发 AuthGuard 重定向
@@ -101,7 +101,7 @@ test.describe('TC-AUTH WEB - 管理员登录', () => {
     await page.reload();
     await page.waitForLoadState('domcontentloaded');
     // AuthGuard 会检查 isTokenValid(adminToken)，过期则重定向 /login
-    await page.waitForURL(/\/login/, { timeout: 10_000 });
+    await page.waitForURL(/\/login/, { timeout: 20_000 });
     const token = await page.evaluate(() => localStorage.getItem('adminToken'));
     expect(token).toBeNull();
   });

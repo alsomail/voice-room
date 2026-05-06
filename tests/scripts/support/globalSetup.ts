@@ -50,7 +50,42 @@ async function androidWarmUp(): Promise<void> {
       { stdio: 'inherit' },
     );
 
-    await new Promise<void>((r) => setTimeout(r, 3000));
+    // 等待 App 完全启动（首次运行弹窗需要更长时间）
+    await new Promise<void>((r) => setTimeout(r, 4000));
+
+    // 尝试关闭「数据收集说明」等首次运行同意弹窗
+    // 使用 uiautomator dump 定位「同意/确定/Accept/Agree/我已了解」按钮并点击
+    try {
+      const uiXml = execSync(
+        `adb -s ${ANDROID_DEVICE_ID} shell uiautomator dump /dev/stdout 2>/dev/null`,
+        { stdio: 'pipe', timeout: 8000 },
+      ).toString();
+
+      const consentKeywords = ['同意', '确定', 'Accept', 'Agree', 'OK', '我已了解', '知道了'];
+      // 匹配 <node ... text="同意" ... bounds="[x1,y1][x2,y2]" .../>
+      const nodeRegex = /text="([^"]*)"[^/]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"/g;
+      let match;
+      let dismissed = false;
+      while ((match = nodeRegex.exec(uiXml)) !== null) {
+        const text = match[1];
+        if (consentKeywords.some((kw) => text.includes(kw))) {
+          const cx = Math.floor((parseInt(match[2]) + parseInt(match[4])) / 2);
+          const cy = Math.floor((parseInt(match[3]) + parseInt(match[5])) / 2);
+          execSync(`adb -s ${ANDROID_DEVICE_ID} shell input tap ${cx} ${cy}`, { stdio: 'pipe' });
+          await new Promise<void>((r) => setTimeout(r, 1000));
+          console.log(`[globalSetup] Dismissed consent dialog: tapped "${text}" at (${cx},${cy})`);
+          dismissed = true;
+          break;
+        }
+      }
+      if (!dismissed) {
+        console.log('[globalSetup] No consent dialog detected, continuing');
+      }
+    } catch {
+      // uiautomator 失败为非阻塞
+      console.warn('[globalSetup] uiautomator dump failed (non-blocking), skipping consent check');
+    }
+
     execSync(`adb -s ${ANDROID_DEVICE_ID} shell input keyevent KEYCODE_HOME`, { stdio: 'pipe' });
     await new Promise<void>((r) => setTimeout(r, 1000));
 
