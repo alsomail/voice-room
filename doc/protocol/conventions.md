@@ -182,6 +182,6 @@
 - S→Room 广播：由服务端分配全局唯一 `msg_id`，`timestamp` 必填。
 - 重连补发场景中，客户端通过 `last_msg_id` 游标拉取遗漏消息。
 
-> ⚠️ **过渡期说明**（T-00108 生效前）：当前实现中，绝大多数信令的 timestamp 字段实际输出 Unix **秒**（server 端调用 `.timestamp()`），仅 RoomMessage 广播使用 Unix **毫秒**（`.timestamp_millis()`）。T-00108 将统一三端改为 Unix 毫秒。下游不要在此字段做精度依赖。
+> ✅ **统一声明**（T-00108 完成）：所有信令的 `timestamp` 字段统一为 Unix 毫秒（`timestamp_millis`）。三端已完成全量修正，不再有秒级与毫秒级的混用。
 
 > ⚠️ **待落地说明**：S→Room 广播的 msg_id 字段为设计目标，当前实现（T-00100 冻结阶段）尚未携带。广播 schema 中 msg_id 不在 required 列表中，以反映当前事实。待后续 Task 补齐后修改。
