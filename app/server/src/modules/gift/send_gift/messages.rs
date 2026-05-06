@@ -6,6 +6,8 @@
 use uuid::Uuid;
 
 /// 构建 GiftReceived 广播消息 JSON（含 sender / receiver / gift 全部展示字段）。
+///
+// PROTO-BINDING: doc/protocol/schemas/ws/GiftReceived.schema.json (S→Room broadcast)
 #[allow(clippy::too_many_arguments)]
 pub fn build_gift_received_msg(
     gift_record_id: Uuid,
@@ -54,6 +56,8 @@ pub fn build_gift_received_msg(
 }
 
 /// 构建 SendGiftResult 成功响应 JSON
+///
+// PROTO-BINDING: doc/protocol/schemas/ws/SendGiftResult.schema.json (S→C result)
 pub fn build_send_gift_result_response(
     msg_id: Option<String>,
     gift_record_id: Uuid,
@@ -67,7 +71,7 @@ pub fn build_send_gift_result_response(
             "gift_record_id": gift_record_id.to_string(),
             "total_price": total_price,
         },
-        "timestamp": chrono::Utc::now().timestamp(),
+        "timestamp": chrono::Utc::now().timestamp_millis(),
     });
     serde_json::to_string(&resp).unwrap_or_default()
 }
@@ -79,7 +83,7 @@ pub fn send_gift_error_response(msg_id: Option<String>, code: i64, message: &str
         "msg_id": msg_id,
         "code": code,
         "message": message,
-        "timestamp": chrono::Utc::now().timestamp(),
+        "timestamp": chrono::Utc::now().timestamp_millis(),
     });
     serde_json::to_string(&resp).unwrap_or_default()
 }

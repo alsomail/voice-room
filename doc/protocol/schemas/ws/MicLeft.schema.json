@@ -15,7 +15,8 @@
       "properties": {
         "mic_index": { "type": "integer", "minimum": 0, "maximum": 8, "description": "被释放的麦位索引" },
         "user_id": { "type": "string", "format": "uuid", "description": "释放该麦位的用户 ID" },
-        "forced": { "type": "boolean", "description": "是否强制下麦" }
+        "forced": { "type": "boolean", "description": "是否强制下麦" },
+        "forced_by": { "type": ["string", "null"], "format": "uuid", "description": "发起强制下麦的管理员/房主 ID；非强制下麦时为 null 或缺省" }
       }
     },
     "msg_id": { "type": "string", "format": "uuid" },

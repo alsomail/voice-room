@@ -30,6 +30,10 @@ pub struct SendMessageDeps {
 ///
 /// 8 步流程：解析 content → 长度校验 → 查连接房间 → 查房间状态 →
 ///          禁言检查 → 幂等去重 → 敏感词过滤+广播 → 返回结果
+///
+// PROTO-BINDING: doc/protocol/schemas/ws/SendMessage.schema.json (C→S)
+// PROTO-BINDING: doc/protocol/schemas/ws/RoomMessage.schema.json (S→Room broadcast)
+// PROTO-BINDING: doc/protocol/schemas/ws/SendMessageResult.schema.json (S→C result)
 pub async fn handle_send_message(
     payload: Option<serde_json::Value>,
     msg_id: Option<String>,
@@ -160,7 +164,7 @@ fn send_message_error_response(msg_id: Option<String>, code: i64, message: &str)
         "msg_id": msg_id,
         "code": code,
         "message": message,
-        "timestamp": chrono::Utc::now().timestamp(),
+        "timestamp": chrono::Utc::now().timestamp_millis(),
     });
     serde_json::to_string(&resp).unwrap_or_default()
 }
@@ -170,7 +174,7 @@ fn send_message_success_response(msg_id: Option<String>) -> String {
         "type": "SendMessageResult",
         "msg_id": msg_id,
         "code": 0,
-        "timestamp": chrono::Utc::now().timestamp(),
+        "timestamp": chrono::Utc::now().timestamp_millis(),
     });
     serde_json::to_string(&resp).unwrap_or_default()
 }

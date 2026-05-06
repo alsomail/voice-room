@@ -54,6 +54,10 @@ pub struct JoinRoomDeps {
 /// 处理 JoinRoom 信令，返回 JSON 字符串响应。
 ///
 /// 所有重依赖通过 `deps: &JoinRoomDeps` 传入，调用方保持所有权。
+///
+// PROTO-BINDING: doc/protocol/schemas/ws/JoinRoom.schema.json (C→S)
+// PROTO-BINDING: doc/protocol/schemas/ws/UserJoined.schema.json (S→Room broadcast)
+// PROTO-BINDING: doc/protocol/schemas/ws/JoinRoomResult.schema.json (S→C result)
 pub async fn handle_join_room(
     payload: Option<serde_json::Value>,
     msg_id: Option<String>,
@@ -195,6 +199,7 @@ pub async fn handle_join_room(
     stats.user_join_room(room_id).await.ok();
 
     // ── 8. 广播 UserJoined 给房间内所有连接（含自己）— 走统一出口 broadcast_to_room ──
+    // PROTO-BINDING: doc/protocol/schemas/ws/UserJoined.schema.json
     let joined_envelope = serde_json::json!({
         "type": "UserJoined",
         "payload": {
@@ -202,7 +207,7 @@ pub async fn handle_join_room(
             "nickname": nickname,
             "avatar": avatar,
         },
-        "timestamp": chrono::Utc::now().timestamp(),
+        "timestamp": chrono::Utc::now().timestamp_millis(),
     });
     crate::ws::broadcaster::broadcast_to_room(registry, &room_state, joined_envelope);
 
@@ -229,7 +234,7 @@ pub async fn handle_join_room(
                 "mic_slots": mic_slots_json,
             }
         },
-        "timestamp": chrono::Utc::now().timestamp(),
+        "timestamp": chrono::Utc::now().timestamp_millis(),
     });
 
     serde_json::to_string(&resp).unwrap_or_default()
@@ -291,10 +296,11 @@ pub async fn do_leave_room(connection_id: Uuid, user_id: Uuid, deps: &LeaveRoomD
     deps.stats.user_leave_room(room_id, remaining).await.ok();
 
     // 7. 广播 UserLeft 给房间剩余成员（离开者已被步骤 5 排除）— 统一出口
+    // PROTO-BINDING: doc/protocol/schemas/ws/UserLeft.schema.json (S→Room broadcast)
     let user_left_envelope = serde_json::json!({
         "type": "UserLeft",
         "payload": { "user_id": user_id.to_string() },
-        "timestamp": chrono::Utc::now().timestamp(),
+        "timestamp": chrono::Utc::now().timestamp_millis(),
     });
     crate::ws::broadcaster::broadcast_to_room(&deps.registry, &room_state, user_left_envelope);
 
@@ -314,6 +320,9 @@ pub async fn do_leave_room(connection_id: Uuid, user_id: Uuid, deps: &LeaveRoomD
 /// 处理 LeaveRoom 信令，调用 `do_leave_room` 后返回 JSON 响应字符串。
 ///
 /// 仅主动离开时调用（断线路径直接调用 `do_leave_room`）。
+///
+// PROTO-BINDING: doc/protocol/schemas/ws/LeaveRoom.schema.json (C→S)
+// PROTO-BINDING: doc/protocol/schemas/ws/LeaveRoomResult.schema.json (S→C result)
 pub async fn handle_leave_room(
     msg_id: Option<String>,
     connection_id: Uuid,
@@ -326,7 +335,7 @@ pub async fn handle_leave_room(
         "type": "LeaveRoomResult",
         "msg_id": msg_id,
         "code": 0,
-        "timestamp": chrono::Utc::now().timestamp(),
+        "timestamp": chrono::Utc::now().timestamp_millis(),
     });
 
     serde_json::to_string(&resp).unwrap_or_default()
@@ -340,7 +349,7 @@ fn error_response(msg_id: Option<String>, code: i64, message: &str) -> String {
         "msg_id": msg_id,
         "code": code,
         "message": message,
-        "timestamp": chrono::Utc::now().timestamp(),
+        "timestamp": chrono::Utc::now().timestamp_millis(),
     });
     serde_json::to_string(&resp).unwrap_or_default()
 }
@@ -353,7 +362,7 @@ fn join_room_kick_cooldown_response(msg_id: Option<String>, remaining_sec: i64) 
         "code": 42911,
         "message": "kicked cooldown",
         "payload": { "remaining_sec": remaining_sec },
-        "timestamp": chrono::Utc::now().timestamp(),
+        "timestamp": chrono::Utc::now().timestamp_millis(),
     });
     serde_json::to_string(&resp).unwrap_or_default()
 }

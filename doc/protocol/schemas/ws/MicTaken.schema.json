@@ -16,7 +16,8 @@
         "mic_index": { "type": "integer", "minimum": 0, "maximum": 8, "description": "被占用的麦位索引" },
         "user_id": { "type": "string", "format": "uuid", "description": "占用该麦位的用户 ID" },
         "nickname": { "type": "string" },
-        "avatar": { "type": ["string", "null"], "format": "uri" }
+        "avatar": { "type": ["string", "null"], "format": "uri" },
+        "forced_by": { "type": ["string", "null"], "format": "uuid", "description": "强制抱麦的管理员/房主 ID；非强制抱麦时为 null 或缺省" }
       }
     },
     "msg_id": { "type": "string", "format": "uuid" },

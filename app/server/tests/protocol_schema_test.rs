@@ -604,3 +604,112 @@ fn ping_compat_4_real_path_dual_send_vs_isolated_single_send() {
         dual_resps.len()
     );
 }
+
+// ─── PS-NEW-1: MicTaken 含 forced_by 应通过 schema 验证 ──────────────────────
+//
+// P0-2 缺陷验证：ForceTakeMic 广播 MicTaken 时携带 forced_by，
+// 该字段必须被 MicTaken.schema.json 允许（additionalProperties: false 下须显式声明）。
+// 修复前：schema 无 forced_by → 验证失败；修复后：schema 含 forced_by → 验证通过。
+#[test]
+fn ps_new_1_mic_taken_with_forced_by_passes_schema() {
+    let schema_str = ws_schema!("MicTaken");
+    let user_id = Uuid::new_v4().to_string();
+    let operator_id = Uuid::new_v4().to_string();
+    let msg_id = Uuid::new_v4().to_string();
+
+    // ForceTakeMic 广播的 MicTaken envelope（含 forced_by 字段）
+    let envelope = json!({
+        "type": "MicTaken",
+        "msg_id": msg_id,
+        "payload": {
+            "mic_index": 2,
+            "user_id": user_id,
+            "forced_by": operator_id   // ← ForceTakeMic 业务字段，schema 必须允许
+        },
+        "timestamp": 1_700_000_000i64
+    });
+
+    assert_valid(schema_str, &envelope, "PS-NEW-1: MicTaken with forced_by");
+}
+
+// ─── PS-NEW-2: MicLeft 含 forced_by 应通过 schema 验证 ──────────────────────
+//
+// P0-3 缺陷验证：ForceLeaveMic 广播 MicLeft 时携带 forced_by，
+// 该字段必须被 MicLeft.schema.json 允许。
+// 修复前：schema 无 forced_by → 验证失败；修复后：schema 含 forced_by → 验证通过。
+#[test]
+fn ps_new_2_mic_left_with_forced_by_passes_schema() {
+    let schema_str = ws_schema!("MicLeft");
+    let user_id = Uuid::new_v4().to_string();
+    let operator_id = Uuid::new_v4().to_string();
+    let msg_id = Uuid::new_v4().to_string();
+
+    // ForceLeaveMic 广播的 MicLeft envelope（含 forced=true 与 forced_by 字段）
+    let envelope = json!({
+        "type": "MicLeft",
+        "msg_id": msg_id,
+        "payload": {
+            "mic_index": 0,
+            "user_id": user_id,
+            "forced": true,
+            "forced_by": operator_id   // ← ForceLeaveMic 业务字段，schema 必须允许
+        },
+        "timestamp": 1_700_000_000i64
+    });
+
+    assert_valid(schema_str, &envelope, "PS-NEW-2: MicLeft with forced_by");
+}
+
+// ─── PS-NEW-3: AdminChanged payload 嵌套格式应通过 schema 验证 ───────────────
+//
+// P0-4 缺陷验证：server 广播 AdminChanged 使用 payload 嵌套 snake_case，
+// AdminChanged.schema.json 必须存在且与 server 广播格式完全对齐。
+#[test]
+fn ps_new_3_admin_changed_payload_nested_passes_schema() {
+    let schema_str = ws_schema!("AdminChanged");
+    let room_id = Uuid::new_v4().to_string();
+    let admin_user_id = Uuid::new_v4().to_string();
+    let previous_admin_id = Uuid::new_v4().to_string();
+    let operator_id = Uuid::new_v4().to_string();
+    let msg_id = Uuid::new_v4().to_string();
+
+    // server transfer.rs 广播的 AdminChanged envelope（payload 嵌套 snake_case）
+    let envelope = json!({
+        "type": "AdminChanged",
+        "msg_id": msg_id,
+        "payload": {
+            "room_id": room_id,
+            "admin_user_id": admin_user_id,
+            "previous_admin_id": previous_admin_id,
+            "operator_id": operator_id
+        },
+        "timestamp": 1_700_000_000i64
+    });
+
+    assert_valid(schema_str, &envelope, "PS-NEW-3: AdminChanged payload-nested snake_case");
+}
+
+// ─── PS-NEW-4: AdminChanged revoke（admin_user_id=null）通过 schema 验证 ──────
+#[test]
+fn ps_new_4_admin_changed_revoke_null_admin_passes_schema() {
+    let schema_str = ws_schema!("AdminChanged");
+    let room_id = Uuid::new_v4().to_string();
+    let previous_admin_id = Uuid::new_v4().to_string();
+    let operator_id = Uuid::new_v4().to_string();
+    let msg_id = Uuid::new_v4().to_string();
+
+    // revoke 时 admin_user_id = null
+    let envelope = json!({
+        "type": "AdminChanged",
+        "msg_id": msg_id,
+        "payload": {
+            "room_id": room_id,
+            "admin_user_id": null,
+            "previous_admin_id": previous_admin_id,
+            "operator_id": operator_id
+        },
+        "timestamp": 1_700_000_000i64
+    });
+
+    assert_valid(schema_str, &envelope, "PS-NEW-4: AdminChanged revoke (admin_user_id=null)");
+}

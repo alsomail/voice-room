@@ -384,6 +384,11 @@ fn kick_success(msg_id: Option<String>) -> String {
 ///
 /// Redis SETEX 覆盖写无副作用；
 /// DB INSERT 允许多条（记录多位管理员的踢出操作）。
+///
+// PROTO-BINDING: doc/protocol/schemas/ws/KickUser.schema.json (C→S)
+// PROTO-BINDING: doc/protocol/schemas/ws/UserKicked.schema.json (S→Target send)
+// PROTO-BINDING: doc/protocol/schemas/ws/UserLeft.schema.json (S→Room broadcast)
+// PROTO-BINDING: doc/protocol/schemas/ws/KickUserResult.schema.json (S→C result)
 pub async fn handle_kick(
     payload: Option<serde_json::Value>,
     msg_id: Option<String>,
@@ -527,6 +532,7 @@ pub async fn handle_kick(
 
     // ── 14. 广播 UserLeft 给房间其他成员（走统一出口 broadcast_to_room）──────
     // K28-03: 其他人收到 UserLeft reason=kicked_by_admin
+    // PROTO-BINDING: doc/protocol/schemas/ws/UserLeft.schema.json
     if let Some(rs) = room_state_opt.as_ref() {
         let user_left_envelope = serde_json::json!({
             "type": "UserLeft",
@@ -535,7 +541,7 @@ pub async fn handle_kick(
                 "reason": "kicked_by_admin",
                 "operator_id": operator_user_id.to_string(),
             },
-            "timestamp": chrono::Utc::now().timestamp(),
+            "timestamp": chrono::Utc::now().timestamp_millis(),
         });
         crate::ws::broadcaster::broadcast_to_room(registry, rs, user_left_envelope);
 

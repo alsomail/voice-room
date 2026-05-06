@@ -144,7 +144,7 @@ pub fn broadcast_room_info_updated(
     let envelope = json!({
         "type": "RoomInfoUpdated",
         "payload": payload,
-        "timestamp": chrono::Utc::now().timestamp(),
+        "timestamp": chrono::Utc::now().timestamp_millis(),
     });
 
     if let Some(rs) = room_manager.get_room(room_id) {
@@ -169,7 +169,7 @@ pub fn build_outbound_envelope(type_str: &str, payload: Value) -> (String, Strin
         "type": type_str,
         "msg_id": msg_id,
         "payload": payload,
-        "timestamp": chrono::Utc::now().timestamp(),
+        "timestamp": chrono::Utc::now().timestamp_millis(),
     });
     schema_guard::guard_outbound_envelope(&envelope);
     (
@@ -203,7 +203,7 @@ pub fn build_outbound_result(
         "msg_id": msg_id,
         "code": code,
         "payload": payload,
-        "timestamp": chrono::Utc::now().timestamp(),
+        "timestamp": chrono::Utc::now().timestamp_millis(),
     });
     schema_guard::guard_outbound_envelope(&envelope);
     serde_json::to_string(&envelope).unwrap_or_default()

@@ -30,6 +30,10 @@ pub struct TakeMicDeps {
 /// 处理 TakeMic 信令，返回 JSON 字符串响应。
 ///
 /// 7 步流程：解析参数 → 查连接房间 → 查房间状态 → 禁麦检查 → 原子占位 → 广播 → 返回结果
+///
+// PROTO-BINDING: doc/protocol/schemas/ws/TakeMic.schema.json (C→S)
+// PROTO-BINDING: doc/protocol/schemas/ws/MicTaken.schema.json (S→Room broadcast)
+// PROTO-BINDING: doc/protocol/schemas/ws/TakeMicResult.schema.json (S→C result)
 pub async fn handle_take_mic(
     payload: Option<serde_json::Value>,
     msg_id: Option<String>,
@@ -137,13 +141,14 @@ pub async fn handle_take_mic(
     }
 
     // ── 6. 广播 MicTaken 给房间内所有连接（含请求方）— 走统一出口 broadcast_to_room
+    // PROTO-BINDING: doc/protocol/schemas/ws/MicTaken.schema.json
     let mic_taken_envelope = serde_json::json!({
         "type": "MicTaken",
         "payload": {
             "mic_index": mic_index,
             "user_id": user_id.to_string(),
         },
-        "timestamp": chrono::Utc::now().timestamp(),
+        "timestamp": chrono::Utc::now().timestamp_millis(),
     });
     crate::ws::broadcaster::broadcast_to_room(&deps.registry, &room_state, mic_taken_envelope);
 
@@ -153,7 +158,7 @@ pub async fn handle_take_mic(
         "msg_id": msg_id,
         "code": 0,
         "payload": { "mic_index": mic_index },
-        "timestamp": chrono::Utc::now().timestamp(),
+        "timestamp": chrono::Utc::now().timestamp_millis(),
     });
     serde_json::to_string(&resp).unwrap_or_default()
 }
@@ -164,7 +169,7 @@ fn take_mic_error_response(msg_id: Option<String>, code: i64, message: &str) -> 
         "msg_id": msg_id,
         "code": code,
         "message": message,
-        "timestamp": chrono::Utc::now().timestamp(),
+        "timestamp": chrono::Utc::now().timestamp_millis(),
     });
     serde_json::to_string(&resp).unwrap_or_default()
 }
@@ -186,6 +191,10 @@ pub struct LeaveMicDeps {
 /// 处理 LeaveMic 信令，返回 JSON 字符串响应。
 ///
 /// 5 步流程：查连接房间 → 查房间状态 → 原子下麦 → 广播 MicLeft → 返回结果
+///
+// PROTO-BINDING: doc/protocol/schemas/ws/LeaveMic.schema.json (C→S)
+// PROTO-BINDING: doc/protocol/schemas/ws/MicLeft.schema.json (S→Room broadcast)
+// PROTO-BINDING: doc/protocol/schemas/ws/LeaveMicResult.schema.json (S→C result)
 pub async fn handle_leave_mic(
     msg_id: Option<String>,
     connection_id: Uuid,
@@ -232,7 +241,7 @@ pub async fn handle_leave_mic(
         "msg_id": msg_id,
         "code": 0,
         "payload": { "mic_index": mic_index },
-        "timestamp": chrono::Utc::now().timestamp(),
+        "timestamp": chrono::Utc::now().timestamp_millis(),
     });
     serde_json::to_string(&resp).unwrap_or_default()
 }
@@ -243,7 +252,7 @@ fn leave_mic_error_response(msg_id: Option<String>, code: i64, message: &str) ->
         "msg_id": msg_id,
         "code": code,
         "message": message,
-        "timestamp": chrono::Utc::now().timestamp(),
+        "timestamp": chrono::Utc::now().timestamp_millis(),
     });
     serde_json::to_string(&resp).unwrap_or_default()
 }
@@ -252,6 +261,8 @@ fn leave_mic_error_response(msg_id: Option<String>, code: i64, message: &str) ->
 ///
 /// - `forced = false`：主动下麦（LeaveRoom / LeaveMic）
 /// - `forced = true`：被踢下麦（KickUser）
+///
+// PROTO-BINDING: doc/protocol/schemas/ws/MicLeft.schema.json (S→Room broadcast)
 pub(crate) fn broadcast_mic_left(
     registry: &ConnectionRegistry,
     room_state: &RoomState,
@@ -266,7 +277,7 @@ pub(crate) fn broadcast_mic_left(
             "user_id": user_id.to_string(),
             "forced": forced,
         },
-        "timestamp": chrono::Utc::now().timestamp(),
+        "timestamp": chrono::Utc::now().timestamp_millis(),
     });
     crate::ws::broadcaster::broadcast_to_room(registry, room_state, envelope);
 }

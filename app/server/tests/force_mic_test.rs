@@ -113,23 +113,17 @@ fn make_force_leave_deps(
     }
 }
 
-/// 构建 ForceTakeMic payload
-fn take_mic_payload(
-    room_id: Uuid,
-    target_user_id: Uuid,
-    slot_index: u64,
-) -> Option<serde_json::Value> {
+/// 构建 ForceTakeMic payload（schema 合规：仅含 target_user_id + mic_index）
+fn take_mic_payload(target_user_id: Uuid, mic_index: u64) -> Option<serde_json::Value> {
     Some(serde_json::json!({
-        "room_id": room_id.to_string(),
         "target_user_id": target_user_id.to_string(),
-        "slot_index": slot_index,
+        "mic_index": mic_index,
     }))
 }
 
-/// 构建 ForceLeaveMic payload
-fn leave_mic_payload(room_id: Uuid, target_user_id: Uuid) -> Option<serde_json::Value> {
+/// 构建 ForceLeaveMic payload（schema 合规：仅含 target_user_id）
+fn leave_mic_payload(target_user_id: Uuid) -> Option<serde_json::Value> {
     Some(serde_json::json!({
-        "room_id": room_id.to_string(),
         "target_user_id": target_user_id.to_string(),
     }))
 }
@@ -160,9 +154,10 @@ async fn fm30_07_owner_force_take_mic_success() {
     let deps = make_force_take_deps(&room_manager, &room_service, mute_redis, &registry);
 
     let resp = handle_force_take_mic(
-        take_mic_payload(room_id, target_id, 2),
+        take_mic_payload(target_id, 2),
         Some("msg-7".to_string()),
         owner_id,
+        Some(room_id), // operator_room_id from session context
         &deps,
     )
     .await;
@@ -233,9 +228,10 @@ async fn fm30_08_occupied_slot_returns_40907() {
     let deps = make_force_take_deps(&room_manager, &room_service, mute_redis, &registry);
 
     let resp = handle_force_take_mic(
-        take_mic_payload(room_id, target_id, 1),
+        take_mic_payload(target_id, 1),
         Some("msg-8".to_string()),
         owner_id,
+        Some(room_id), // operator_room_id from session context
         &deps,
     )
     .await;
@@ -271,9 +267,10 @@ async fn fm30_09_muted_target_returns_40306() {
     let deps = make_force_take_deps(&room_manager, &room_service, mute_redis, &registry);
 
     let resp = handle_force_take_mic(
-        take_mic_payload(room_id, target_id, 3),
+        take_mic_payload(target_id, 3),
         Some("msg-9".to_string()),
         owner_id,
+        Some(room_id), // operator_room_id from session context
         &deps,
     )
     .await;
@@ -309,9 +306,10 @@ async fn fm30_10_force_leave_mic_success() {
     let deps = make_force_leave_deps(&room_manager, &room_service, &registry);
 
     let resp = handle_force_leave_mic(
-        leave_mic_payload(room_id, target_id),
+        leave_mic_payload(target_id),
         Some("msg-10".to_string()),
         owner_id,
+        Some(room_id), // operator_room_id from session context
         &deps,
     )
     .await;
@@ -375,9 +373,10 @@ async fn fm30_11_force_leave_not_on_mic_returns_40404() {
     let deps = make_force_leave_deps(&room_manager, &room_service, &registry);
 
     let resp = handle_force_leave_mic(
-        leave_mic_payload(room_id, target_id),
+        leave_mic_payload(target_id),
         Some("msg-11".to_string()),
         owner_id,
+        Some(room_id), // operator_room_id from session context
         &deps,
     )
     .await;
@@ -410,9 +409,10 @@ async fn fm30_12_admin_cannot_force_leave_owner() {
 
     // 管理员尝试把房主抱下麦
     let resp = handle_force_leave_mic(
-        leave_mic_payload(room_id, owner_id),
+        leave_mic_payload(owner_id),
         Some("msg-12".to_string()),
         admin_id, // operator = admin
+        Some(room_id), // operator_room_id from session context
         &deps,
     )
     .await;
@@ -463,9 +463,10 @@ async fn fm30_13_regular_user_force_mic_returns_40301() {
         &registry,
     );
     let resp_take = handle_force_take_mic(
-        take_mic_payload(room_id, target_id, 3),
+        take_mic_payload(target_id, 3),
         Some("msg-13a".to_string()),
         regular_user_id, // operator = regular user
+        Some(room_id),   // operator_room_id from session context
         &take_deps,
     )
     .await;
@@ -479,9 +480,10 @@ async fn fm30_13_regular_user_force_mic_returns_40301() {
     // ForceLeaveMic by regular user → 40301
     let leave_deps = make_force_leave_deps(&room_manager_leave, &room_service_leave, &registry);
     let resp_leave = handle_force_leave_mic(
-        leave_mic_payload(room_id, target_id),
+        leave_mic_payload(target_id),
         Some("msg-13b".to_string()),
         regular_user_id, // operator = regular user
+        Some(room_id),   // operator_room_id from session context
         &leave_deps,
     )
     .await;
@@ -490,5 +492,79 @@ async fn fm30_13_regular_user_force_mic_returns_40301() {
     assert_eq!(
         vl["code"], 40301,
         "FM30-13: regular user ForceLeaveMic should return 40301"
+    );
+}
+
+/// FM30-14: ForceTakeMic operator_room_id=None（未加入任何房间）→ 40400
+/// P0-1 回归：room_id 不再从 payload 读取，而是从 session context 传入
+#[tokio::test]
+async fn fm30_14_no_room_id_returns_40400() {
+    let room_id = Uuid::new_v4();
+    let owner_id = Uuid::new_v4();
+    let target_id = Uuid::new_v4();
+
+    let room = make_room(room_id, owner_id, None);
+    let room_service = make_room_service(room);
+    let room_manager = Arc::new(RoomManager::new());
+    let registry = Arc::new(ConnectionRegistry::new());
+    let mute_redis = Arc::new(FakeMuteRedis::default());
+
+    room_manager.get_or_create_room(room_id);
+
+    let deps = make_force_take_deps(&room_manager, &room_service, mute_redis, &registry);
+
+    // operator_room_id = None（operator 未加入任何房间）
+    let resp = handle_force_take_mic(
+        take_mic_payload(target_id, 2),
+        Some("msg-14".to_string()),
+        owner_id,
+        None, // ← 模拟 session 中无 room_id（未 JoinRoom）
+        &deps,
+    )
+    .await;
+
+    let v: serde_json::Value = serde_json::from_str(&resp).unwrap();
+    assert_eq!(
+        v["code"], 40400,
+        "FM30-14: operator not in any room should return 40400"
+    );
+}
+
+/// FM30-15: ForceTakeMic 使用旧字段名 slot_index 应返回 40002（P0-1 回归）
+#[tokio::test]
+async fn fm30_15_legacy_slot_index_returns_40002() {
+    let room_id = Uuid::new_v4();
+    let owner_id = Uuid::new_v4();
+    let target_id = Uuid::new_v4();
+
+    let room = make_room(room_id, owner_id, None);
+    let room_service = make_room_service(room);
+    let room_manager = Arc::new(RoomManager::new());
+    let registry = Arc::new(ConnectionRegistry::new());
+    let mute_redis = Arc::new(FakeMuteRedis::default());
+
+    room_manager.get_or_create_room(room_id);
+
+    let deps = make_force_take_deps(&room_manager, &room_service, mute_redis, &registry);
+
+    // 使用旧字段名 slot_index（协议不符合 schema）
+    let legacy_payload = Some(serde_json::json!({
+        "target_user_id": target_id.to_string(),
+        "slot_index": 2_u64,  // ← 旧字段名，schema 要求 mic_index
+    }));
+
+    let resp = handle_force_take_mic(
+        legacy_payload,
+        Some("msg-15".to_string()),
+        owner_id,
+        Some(room_id),
+        &deps,
+    )
+    .await;
+
+    let v: serde_json::Value = serde_json::from_str(&resp).unwrap();
+    assert_eq!(
+        v["code"], 40002,
+        "FM30-15: legacy slot_index (not mic_index) should return 40002 missing/invalid"
     );
 }

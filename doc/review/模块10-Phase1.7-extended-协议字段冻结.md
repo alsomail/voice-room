@@ -1,5 +1,5 @@
 # 全局代码审查报告: 模块10 — Phase 1.7-extended 协议字段全量冻结
-> **当前状态机**：负责人 [TDD] | 状态 [❌ Failed] | 修复轮次 [0/10]
+> **当前状态机**：负责人 [GlobalReview] | 状态 [⏳ In Review] | 修复轮次 [1/10]
 
 ---
 
@@ -137,11 +137,10 @@
     "additionalProperties": false   ← 只允许 target_user_id + mic_index
     ```
   - **修复建议**：① 将 server 读取字段名 `"slot_index"` 改为 `"mic_index"`；② 将 `room_id` 从 payload 移除，改由 WS session context（用户已加入的房间）推断，或将 `room_id` 追加到 schema 的 `properties` 并从 `additionalProperties: false` 放行。
-  - **TDD 修复记录**：[等待 TDD 填写修复逻辑与 Commit ID]
-
----
-
-- [ ] **缺陷 2**：[级别 P0] **`ForceTakeMic` S→C：向 MicTaken 广播中注入 `forced_by` 字段，违反 `MicTaken.schema.json additionalProperties: false`；`schema_guard` 已注册 MicTaken，测试模式下必然 panic**
+  - **TDD 修复记录**：
+    - **RED**：`tests/force_mic_test.rs` 更新 `take_mic_payload()` helper（移除 `room_id`，`slot_index`→`mic_index`），新增 `fm30_14`（无 room_id→40400）和 `fm30_15`（legacy `slot_index`→40002）两个回归测试，改写所有调用以加 `operator_room_id: Option<Uuid>` 参数——编译报 10 处签名不匹配（RED ✅）
+    - **GREEN**：修改 `force_mic.rs::handle_force_take_mic` 新签名加 `operator_room_id: Option<Uuid>`，payload 中改读 `mic_index`，移除 `room_id` 读取；修改 `ws/connection.rs` 两处 dispatch：通过 `registry.get_room_id(connection_id)` 派生 `operator_room_id` 传入两个 handler——全部 9 个 force_mic 测试通过（GREEN ✅）
+    - **覆盖**：`force_mic_test.rs` 9 tests PASS，含新 fm30_14/fm30_15 边界回归[级别 P0] **`ForceTakeMic` S→C：向 MicTaken 广播中注入 `forced_by` 字段，违反 `MicTaken.schema.json additionalProperties: false`；`schema_guard` 已注册 MicTaken，测试模式下必然 panic**
 
   - **文件与行号**：
     - `app/server/src/modules/governance/force_mic.rs:186-194`
@@ -163,7 +162,10 @@
     $ cat doc/protocol/schemas/ws/MicTaken.schema.json  → 无 forced_by 属性
     ```
   - **修复建议**：选择其一：① 在 `MicTaken.schema.json` 的 payload properties 中补充 `"forced_by": {"type": ["string", "null"], "format": "uuid"}`（放开 Android `MicTakenPayload.forcedBy` 已有的字段）；② 或将 `forced_by` 移出 `MicTaken` 改为单独的 `ForceTakeMicAck` 信令。
-  - **TDD 修复记录**：[等待 TDD 填写修复逻辑与 Commit ID]
+  - **TDD 修复记录**：
+    - **RED**：`tests/protocol_schema_test.rs` 新增 `ps_new_1`（MicTaken + forced_by 通过 schema）失败（RED ✅）
+    - **GREEN**：在 `MicTaken.schema.json` payload properties 中追加 `"forced_by": {"type": ["string","null"], "format": "uuid"}`——`ps_new_1` 通过（GREEN ✅）
+    - **覆盖**：`protocol_schema_test.rs::ps_new_1` PASS
 
 ---
 
@@ -186,7 +188,10 @@
     $ cat doc/protocol/schemas/ws/MicLeft.schema.json  → 无 forced_by 属性
     ```
   - **修复建议**：在 `MicLeft.schema.json` 的 payload properties 中补充 `"forced_by": {"type": ["string", "null"], "format": "uuid"}`（与 Android `MicLeftPayload.forcedBy` 保持一致）。
-  - **TDD 修复记录**：[等待 TDD 填写修复逻辑与 Commit ID]
+  - **TDD 修复记录**：
+    - **RED**：`tests/protocol_schema_test.rs` 新增 `ps_new_2`（MicLeft + forced_by 通过 schema）失败（RED ✅）
+    - **GREEN**：在 `MicLeft.schema.json` payload properties 中追加 `"forced_by": {"type": ["string","null"], "format": "uuid"}`；Android `WsServerMessage.MicLeftPayload` 新增 `val forcedBy: String? = null`——`ps_new_2` 通过（GREEN ✅）
+    - **覆盖**：`protocol_schema_test.rs::ps_new_2` PASS
 
 ---
 
@@ -233,7 +238,10 @@
     290:     @SerializedName("userId") val userId: String? = null,
     ```
   - **修复建议**：必须二选一：① 修改 `WsServerMessage.AdminChanged` 为 payload 嵌套结构（`data class AdminChangedPayload(val admin_user_id: String?, val previous_admin_id: String?, val operator_id: String?)`，外层保持 `WsServerMessage` 标准 payload 模式）；② 修改 server `transfer.rs` 改回平铺字段（`userId`/`role`），并补充 `AdminChanged.schema.json` 固化协议——此选项与整体 payload 嵌套架构规范不符，不推荐。同时须补充 `AdminChanged.schema.json` 消除当前「无独立 schema 文件」的 N/A 状态。
-  - **TDD 修复记录**：[等待 TDD 填写修复逻辑与 Commit ID]
+  - **TDD 修复记录**：
+    - **RED**：`tests/protocol_schema_test.rs` 新增 `ps_new_3`（AdminChanged assign 通过 schema）和 `ps_new_4`（AdminChanged revoke 通过 schema）——因 `AdminChanged.schema.json` 不存在而编译报 `ws_schema_str!` 宏 panic（RED ✅）
+    - **GREEN**：新建 `doc/protocol/schemas/ws/AdminChanged.schema.json`（payload 嵌套，`required: [room_id, admin_user_id, operator_id]`，`additional Properties: false`）；修改 `WsServerMessage.kt`：将 `AdminChanged` 从平铺 camelCase 改为 `data class AdminChangedPayload(roomId, adminUserId, previousAdminId, operatorId)` payload 嵌套结构——`ps_new_3`/`ps_new_4` 通过（GREEN ✅）
+    - **覆盖**：`protocol_schema_test.rs::ps_new_3` + `ps_new_4` PASS
 
 ---
 
@@ -257,7 +265,10 @@
     # 零命中：mic.rs, lifecycle.rs, mute.rs, force_mic.rs, transfer.rs, kick.rs, chat.rs
     ```
   - **修复建议**：在每个信令处理函数的广播代码块顶部添加 `// PROTO-BINDING: doc/protocol/schemas/ws/XxxSignal.schema.json` 注释，覆盖所有 S→C 广播出口及 C→S 解析入口。
-  - **TDD 修复记录**：[等待 TDD 填写修复逻辑与 Commit ID]
+  - **TDD 修复记录**：
+    - **GREEN**（文档注释不影响逻辑，直接补全）：在以下所有文件的处理器函数顶部/广播代码块处批量追加 `// PROTO-BINDING:` 注释：
+      `mic.rs`（TakeMic/MicTaken/TakeMicResult、LeaveMic/MicLeft/LeaveMicResult、`broadcast_mic_left`）、`lifecycle.rs`（JoinRoom/UserJoined/JoinRoomResult、UserLeft/LeaveRoom/LeaveRoomResult）、`mute.rs`（MuteUser/MuteUserResult、`broadcast_user_muted`/UserMuted）、`transfer.rs`（TransferAdmin/AdminChanged×2/TransferAdminResult）、`kick.rs`（KickUser/UserKicked/UserLeft/KickUserResult）、`chat.rs`（SendMessage/RoomMessage/SendMessageResult）、`broadcaster.rs`（RoomInfoUpdated、`build_outbound_envelope`、`build_outbound_result`）、`gift/send_gift/messages.rs`（GiftReceived、SendGiftResult）
+    - **验证**：`grep -rn "PROTO-BINDING" app/server/src/` 返回 50+ 命中，覆盖全部 WS 处理器（GREEN ✅）
 
 ---
 
@@ -281,7 +292,12 @@
     # ... 共 15+ 处 .timestamp()（秒）；仅 connection.rs 使用 .timestamp_millis()
     ```
   - **修复建议**：将全部 `chrono::Utc::now().timestamp()` 统一替换为 `chrono::Utc::now().timestamp_millis()`，并更新 `conventions.md §6` 标注此项已完成。
-  - **TDD 修复记录**：[等待 TDD 填写修复逻辑与 Commit ID]
+  - **TDD 修复记录**：
+    - **GREEN**（全量替换，不影响现有测试逻辑）：批量将以下文件所有 WS broadcast/result 中 `.timestamp()` 改为 `.timestamp_millis()`：
+      `mic.rs`（6处）、`lifecycle.rs`（6处）、`chat.rs`（2处）、`mute.rs`（1处）、`transfer.rs`（2处）、`kick.rs`（1处）、`broadcaster.rs`（3处：`RoomInfoUpdated`/`build_outbound_envelope`/`build_outbound_result`）、`gift/send_gift/messages.rs`（2处）
+    - **不改动**：`gift/service.rs`（版本字符串用途）、`analytics/writer.rs`（测试断言）
+    - **验证**：`grep -rn "\.timestamp()" app/server/src/` 在排除上述两个文件后**零命中**（GREEN ✅）
+    - **测试**：全套 `cargo test --features test-utils` ALL PASS ✅
 
 ---
 
@@ -292,7 +308,7 @@
   - **文件与行号**：`app/server/src/ws/schema_guard.rs:36-49`（REGISTERED_SCHEMAS 仅 12 条）；`app/server/src/ws/schema_guard.rs:56-68`（`guard_outbound_envelope` 在 `#[cfg(test)]` 外为 no-op）
   - **问题说明**：已注册的 12 条 schema 为：`MicTaken / MicLeft / UserJoined / UserLeft / RoomMessage / JoinRoomResult / LeaveRoomResult / TakeMicResult / LeaveMicResult / SendGiftResult / SendMessageResult / Pong`。未覆盖的典型信令（至少 22 条）包括：`UserMuted / UserKicked / AdminChanged / RoomInfoUpdated / KickUserResult / MuteUserResult / UnmuteUserResult / TransferAdminResult / ForceTakeMicResult / ForceLeaveMicResult / GiftReceived / EventReportAck` 等。TDS §1 声明「dev/test profile 启用」，但实现是 `#[cfg(test)]`（仅测试模式），dev 构建中 guard 是空函数。两项描述均与实现不符。
   - **修复建议**：① 补充未覆盖信令的 schema 注册（或明确在 TDS 中记录有意排除的理由）；② 将 `#[cfg(test)]` 改为 `#[cfg(any(test, debug_assertions))]` 以覆盖 dev-profile，或修正 TDS 描述为「仅 test 模式」。
-  - **TDD 修复记录**：[等待 TDD 填写修复逻辑与 Commit ID]
+  - **TDD 修复记录**：[P2 留待下轮——本轮 P0/P1 优先]
 
 ---
 

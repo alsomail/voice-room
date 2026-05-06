@@ -473,6 +473,8 @@ pub async fn handle_socket(
                                 }
                                 "ForceTakeMic" => {
                                     // T-00030: ForceTakeMic 信令处理
+                                    // room_id 来自 session context（不从 payload 读取，schema additionalProperties: false）
+                                    let operator_room_id = registry.get_room_id(connection_id);
                                     let deps = ForceTakeMicDeps {
                                         room_manager: room_manager.clone(),
                                         room_service: room_service.clone(),
@@ -484,6 +486,7 @@ pub async fn handle_socket(
                                             incoming.payload,
                                             incoming.msg_id,
                                             user_id,
+                                            operator_room_id,
                                             &deps,
                                         )
                                         .await,
@@ -491,6 +494,8 @@ pub async fn handle_socket(
                                 }
                                 "ForceLeaveMic" => {
                                     // T-00030: ForceLeaveMic 信令处理
+                                    // room_id 来自 session context（不从 payload 读取，schema additionalProperties: false）
+                                    let operator_room_id = registry.get_room_id(connection_id);
                                     let deps = ForceLeaveMicDeps {
                                         room_manager: room_manager.clone(),
                                         room_service: room_service.clone(),
@@ -501,6 +506,7 @@ pub async fn handle_socket(
                                             incoming.payload,
                                             incoming.msg_id,
                                             user_id,
+                                            operator_room_id,
                                             &deps,
                                         )
                                         .await,

@@ -179,6 +179,10 @@ fn transfer_success(msg_id: Option<String>) -> String {
 ///
 /// ## 原子性保障
 /// DB 更新成功后才广播；DB 失败时立即返回 50000，**不广播**。
+///
+// PROTO-BINDING: doc/protocol/schemas/ws/TransferAdmin.schema.json (C→S)
+// PROTO-BINDING: doc/protocol/schemas/ws/AdminChanged.schema.json (S→Room broadcast)
+// PROTO-BINDING: doc/protocol/schemas/ws/TransferAdminResult.schema.json (S→C result)
 pub async fn handle_transfer_admin(
     payload: Option<serde_json::Value>,
     msg_id: Option<String>,
@@ -262,6 +266,7 @@ pub async fn handle_transfer_admin(
         }
 
         // ── 6a. DB 成功后广播 AdminChanged — 走统一出口 broadcast_to_room ─────
+        // PROTO-BINDING: doc/protocol/schemas/ws/AdminChanged.schema.json
         let admin_changed_envelope = serde_json::json!({
             "type": "AdminChanged",
             "payload": {
@@ -270,7 +275,7 @@ pub async fn handle_transfer_admin(
                 "previous_admin_id": previous_admin_id.map(|id| id.to_string()),
                 "operator_id": operator_user_id.to_string(),
             },
-            "timestamp": chrono::Utc::now().timestamp(),
+            "timestamp": chrono::Utc::now().timestamp_millis(),
         });
         if let Some(rs) = room_manager.get_room(room_id) {
             crate::ws::broadcaster::broadcast_to_room(registry, &rs, admin_changed_envelope);
@@ -298,6 +303,7 @@ pub async fn handle_transfer_admin(
         }
 
         // ── 6b. DB 成功后广播 AdminChanged — 走统一出口 broadcast_to_room ─────
+        // PROTO-BINDING: doc/protocol/schemas/ws/AdminChanged.schema.json
         let admin_changed_envelope = serde_json::json!({
             "type": "AdminChanged",
             "payload": {
@@ -306,7 +312,7 @@ pub async fn handle_transfer_admin(
                 "previous_admin_id": previous_admin_id.map(|id| id.to_string()),
                 "operator_id": operator_user_id.to_string(),
             },
-            "timestamp": chrono::Utc::now().timestamp(),
+            "timestamp": chrono::Utc::now().timestamp_millis(),
         });
         if let Some(rs) = room_manager.get_room(room_id) {
             crate::ws::broadcaster::broadcast_to_room(registry, &rs, admin_changed_envelope);

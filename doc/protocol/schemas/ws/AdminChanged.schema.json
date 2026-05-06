@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voiceroom.example/protocol/ws/AdminChanged",
+  "title": "AdminChanged",
+  "description": "管理员变更广播 (S→Room)，payload 嵌套 snake_case 字段",
+  "type": "object",
+  "required": ["type", "payload", "timestamp"],
+  "additionalProperties": false,
+  "properties": {
+    "type": { "type": "string", "const": "AdminChanged" },
+    "payload": {
+      "type": "object",
+      "required": ["room_id", "admin_user_id", "operator_id"],
+      "additionalProperties": false,
+      "properties": {
+        "room_id": { "type": "string", "format": "uuid" },
+        "admin_user_id": {
+          "type": ["string", "null"],
+          "format": "uuid",
+          "description": "新管理员 ID；null 表示撤销管理员（revoke）"
+        },
+        "previous_admin_id": {
+          "type": ["string", "null"],
+          "format": "uuid",
+          "description": "前一任管理员 ID；首次任命时为 null"
+        },
+        "operator_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "发起操作的房主 ID"
+        }
+      }
+    },
+    "msg_id": { "type": "string", "format": "uuid" },
+    "timestamp": { "type": "integer" }
+  }
+}

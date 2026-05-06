@@ -490,6 +490,8 @@ fn unmute_success(msg_id: Option<String>) -> String {
 }
 
 /// 广播 UserMuted 给房间内所有连接（走统一出口 broadcast_to_room）
+///
+// PROTO-BINDING: doc/protocol/schemas/ws/UserMuted.schema.json (S→Room broadcast)
 #[allow(clippy::too_many_arguments)]
 fn broadcast_user_muted(
     registry: &ConnectionRegistry,
@@ -523,7 +525,7 @@ fn broadcast_user_muted(
     let envelope = serde_json::json!({
         "type": "UserMuted",
         "payload": payload,
-        "timestamp": chrono::Utc::now().timestamp(),
+        "timestamp": chrono::Utc::now().timestamp_millis(),
     });
     crate::ws::broadcaster::broadcast_to_room(registry, room_state, envelope);
 }
@@ -533,6 +535,9 @@ fn broadcast_user_muted(
 /// 处理 MuteUser 信令，返回 JSON 字符串响应。
 ///
 /// duration_sec=0 时等同于 UnmuteUser，走解除禁麦/禁言路径。
+///
+// PROTO-BINDING: doc/protocol/schemas/ws/MuteUser.schema.json (C→S)
+// PROTO-BINDING: doc/protocol/schemas/ws/MuteUserResult.schema.json (S→C result)
 pub async fn handle_mute(
     payload: Option<serde_json::Value>,
     msg_id: Option<String>,

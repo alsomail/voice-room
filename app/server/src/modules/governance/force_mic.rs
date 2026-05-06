@@ -1,14 +1,14 @@
 //! ForceTakeMic / ForceLeaveMic 信令处理 — T-00030
 //!
 //! ## ForceTakeMic 处理流程
-//! 1. 解析 payload（room_id / target_user_id / slot_index）
+//! 1. 解析 payload（target_user_id / mic_index）；room_id 来自 session context
 //! 2. 加载房间 Model → 权限校验（owner 或 admin）
 //! 3. 检查 target 是否被禁麦（mic_muted Redis key）→ 40306
 //! 4. 获取 RoomState → 原子占用麦位
 //! 5. 广播 MicTaken { forced_by: operator_id }
 //!
 //! ## ForceLeaveMic 处理流程
-//! 1. 解析 payload（room_id / target_user_id）
+//! 1. 解析 payload（target_user_id）；room_id 来自 session context
 //! 2. 加载房间 Model → 权限校验（owner 或 admin）
 //! 3. 管理员不能抱下房主 → 40302
 //! 4. 获取 RoomState → 原子查找并清除麦位（→ 40404 若不在麦）
@@ -93,10 +93,19 @@ fn force_leave_success(msg_id: Option<String>, mic_index: usize) -> String {
 /// 处理 ForceTakeMic 信令，返回 JSON 字符串响应。
 ///
 /// 仅 owner 或 admin 可调用；广播 `MicTaken { forced_by: operator_id }` 给房间所有成员。
+///
+/// # 参数
+/// - `operator_room_id`：来自 WS session context（`registry.get_room_id(connection_id)`），
+///   schema 规定 ForceTakeMic payload 不含 room_id（`additionalProperties: false`）。
+///
+// PROTO-BINDING: doc/protocol/schemas/ws/ForceTakeMic.schema.json (C→S)
+// PROTO-BINDING: doc/protocol/schemas/ws/MicTaken.schema.json (S→Room broadcast)
+// PROTO-BINDING: doc/protocol/schemas/ws/ForceTakeMicResult.schema.json (S→C result)
 pub async fn handle_force_take_mic(
     payload: Option<serde_json::Value>,
     msg_id: Option<String>,
     operator_user_id: Uuid,
+    operator_room_id: Option<Uuid>,
     deps: &ForceTakeMicDeps,
 ) -> String {
     let ForceTakeMicDeps {
@@ -106,15 +115,10 @@ pub async fn handle_force_take_mic(
         registry,
     } = deps;
 
-    // ── 1. 解析 payload ────────────────────────────────────────────────────────
-    let room_id = match payload
-        .as_ref()
-        .and_then(|p| p.get("room_id"))
-        .and_then(|v| v.as_str())
-        .and_then(|s| Uuid::parse_str(s).ok())
-    {
+    // ── 1. room_id 来自 session context（不从 payload 读取，schema additionalProperties: false）
+    let room_id = match operator_room_id {
         Some(id) => id,
-        None => return force_take_error(msg_id, 40002, "missing room_id"),
+        None => return force_take_error(msg_id, 40400, "operator not in any room"),
     };
 
     let target_user_id = match payload
@@ -127,13 +131,14 @@ pub async fn handle_force_take_mic(
         None => return force_take_error(msg_id, 40002, "missing target_user_id"),
     };
 
-    let slot_index = match payload
+    // schema 要求字段名为 mic_index（非 slot_index）
+    let mic_index = match payload
         .as_ref()
-        .and_then(|p| p.get("slot_index"))
+        .and_then(|p| p.get("mic_index"))
         .and_then(|v| v.as_u64())
     {
         Some(i) if (i as usize) < 9 => i as usize,
-        _ => return force_take_error(msg_id, 40002, "invalid or missing slot_index (0-8)"),
+        _ => return force_take_error(msg_id, 40002, "invalid or missing mic_index (0-8)"),
     };
 
     // ── 2. 加载房间 Model → 权限校验 ──────────────────────────────────────────
@@ -172,7 +177,7 @@ pub async fn handle_force_take_mic(
     };
 
     // ── 5. 原子占用麦位 ───────────────────────────────────────────────────────
-    match room_state.take_mic_slot(slot_index, target_user_id) {
+    match room_state.take_mic_slot(mic_index, target_user_id) {
         Ok(()) => {}
         Err(TakeMicError::SlotOccupied) => {
             return force_take_error(msg_id, 40907, "slot already occupied");
@@ -183,18 +188,19 @@ pub async fn handle_force_take_mic(
     }
 
     // ── 6. 广播 MicTaken { forced_by } ── 走统一出口 broadcast_to_room ────────
+    // PROTO-BINDING: doc/protocol/schemas/ws/MicTaken.schema.json
     let mic_taken_envelope = serde_json::json!({
         "type": "MicTaken",
         "payload": {
-            "mic_index": slot_index,
+            "mic_index": mic_index,
             "user_id": target_user_id.to_string(),
             "forced_by": operator_user_id.to_string(),
         },
-        "timestamp": chrono::Utc::now().timestamp(),
+        "timestamp": chrono::Utc::now().timestamp_millis(),
     });
     crate::ws::broadcaster::broadcast_to_room(registry, &room_state, mic_taken_envelope);
 
-    force_take_success(msg_id, slot_index)
+    force_take_success(msg_id, mic_index)
 }
 
 // ─── handle_force_leave_mic ───────────────────────────────────────────────────
@@ -203,10 +209,19 @@ pub async fn handle_force_take_mic(
 ///
 /// 仅 owner 或 admin 可调用；admin 不能抱下 owner（40302）。
 /// 广播 `MicLeft { forced: true, forced_by: operator_id }` 给房间所有成员。
+///
+/// # 参数
+/// - `operator_room_id`：来自 WS session context（`registry.get_room_id(connection_id)`），
+///   schema 规定 ForceLeaveMic payload 不含 room_id（`additionalProperties: false`）。
+///
+// PROTO-BINDING: doc/protocol/schemas/ws/ForceLeaveMic.schema.json (C→S)
+// PROTO-BINDING: doc/protocol/schemas/ws/MicLeft.schema.json (S→Room broadcast)
+// PROTO-BINDING: doc/protocol/schemas/ws/ForceLeaveMicResult.schema.json (S→C result)
 pub async fn handle_force_leave_mic(
     payload: Option<serde_json::Value>,
     msg_id: Option<String>,
     operator_user_id: Uuid,
+    operator_room_id: Option<Uuid>,
     deps: &ForceLeaveMicDeps,
 ) -> String {
     let ForceLeaveMicDeps {
@@ -215,15 +230,10 @@ pub async fn handle_force_leave_mic(
         registry,
     } = deps;
 
-    // ── 1. 解析 payload ────────────────────────────────────────────────────────
-    let room_id = match payload
-        .as_ref()
-        .and_then(|p| p.get("room_id"))
-        .and_then(|v| v.as_str())
-        .and_then(|s| Uuid::parse_str(s).ok())
-    {
+    // ── 1. room_id 来自 session context（不从 payload 读取，schema additionalProperties: false）
+    let room_id = match operator_room_id {
         Some(id) => id,
-        None => return force_leave_error(msg_id, 40002, "missing room_id"),
+        None => return force_leave_error(msg_id, 40400, "operator not in any room"),
     };
 
     let target_user_id = match payload
@@ -271,6 +281,7 @@ pub async fn handle_force_leave_mic(
     };
 
     // ── 6. 广播 MicLeft { forced: true, forced_by } — 走统一出口 broadcast_to_room
+    // PROTO-BINDING: doc/protocol/schemas/ws/MicLeft.schema.json
     let mic_left_envelope = serde_json::json!({
         "type": "MicLeft",
         "payload": {
@@ -279,7 +290,7 @@ pub async fn handle_force_leave_mic(
             "forced": true,
             "forced_by": operator_user_id.to_string(),
         },
-        "timestamp": chrono::Utc::now().timestamp(),
+        "timestamp": chrono::Utc::now().timestamp_millis(),
     });
     crate::ws::broadcaster::broadcast_to_room(registry, &room_state, mic_left_envelope);
 

@@ -94,6 +94,11 @@ sealed class WsServerMessage {
         @SerializedName("user_id") val userId: String? = null,
         /** 是否强制下麦（ForceLeaveMic 时为 true）*/
         val forced: Boolean? = null,
+        /**
+         * 强制下麦时由谁发起（ForceLeaveMic 流程）。
+         * PROTO-BINDING: doc/protocol/schemas/ws/MicLeft.schema.json#forced_by
+         */
+        @SerializedName("forced_by") val forcedBy: String? = null,
     )
 
     /**
@@ -283,15 +288,36 @@ sealed class WsServerMessage {
     )
 
     /**
-     * 管理员变更广播（无独立 schema，平铺字段，向后兼容）。
-     * PROTO-BINDING: No schema (backward-compat, flat fields)
+     * 管理员变更广播（payload 嵌套 snake_case，对齐 AdminChanged.schema.json）。
+     * PROTO-BINDING: doc/protocol/schemas/ws/AdminChanged.schema.json
+     *
+     * server 广播格式：
+     * {
+     *   "type": "AdminChanged",
+     *   "payload": {
+     *     "room_id": "...",
+     *     "admin_user_id": "..." | null,   // 新管理员；null = revoke
+     *     "previous_admin_id": "..." | null,
+     *     "operator_id": "..."
+     *   },
+     *   "timestamp": millis
+     * }
      */
     data class AdminChanged(
-        /** 被变更的目标用户 ID（camelCase，backward-compat） */
-        @SerializedName("userId") val userId: String? = null,
-        val role: String? = null,
+        val payload: AdminChangedPayload? = null,
         @SerializedName("msg_id") val msgId: String? = null,
+        val timestamp: Long = 0,
     ) : WsServerMessage()
+
+    data class AdminChangedPayload(
+        @SerializedName("room_id") val roomId: String? = null,
+        /** 新管理员 ID；null 表示撤销管理员（revoke） */
+        @SerializedName("admin_user_id") val adminUserId: String? = null,
+        /** 前一任管理员 ID；首次任命时为 null */
+        @SerializedName("previous_admin_id") val previousAdminId: String? = null,
+        /** 发起操作的房主 ID */
+        @SerializedName("operator_id") val operatorId: String? = null,
+    )
 
     /**
      * 房间信息更新广播（无 schema，平铺字段，向后兼容）。
