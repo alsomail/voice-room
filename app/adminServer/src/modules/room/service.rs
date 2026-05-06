@@ -3,7 +3,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::common::error::AppError;
-use crate::modules::event::publisher::{AdminEvent, EventPublisher};
+use crate::modules::event::publisher::{AdminEvent, CloseRoomPayload, EventPublisher};
 
 use super::{
     dto::{
@@ -130,11 +130,11 @@ impl AdminRoomService {
         }
 
         // 4. 发布关闭事件（fire-and-forget，失败不影响主业务）
-        let event = AdminEvent {
-            r#type: "close_room".to_string(),
-            payload: serde_json::json!({ "room_id": room_id.to_string() }),
-            admin_id: operator_id.to_string(),
-            ts: chrono::Utc::now().timestamp(),
+        // T-00105: 使用 strict AdminEvent enum（来自 voice_room_shared），消除字符串拼写错误风险
+        let event = AdminEvent::CloseRoom {
+            payload: CloseRoomPayload { room_id },
+            admin_id: operator_id,
+            ts: chrono::Utc::now().timestamp_millis(),
         };
         if let Err(e) = self.event_publisher.publish("admin:events", event).await {
             tracing::warn!(error = %e, "failed to publish close_room event");
@@ -546,15 +546,14 @@ mod tests {
             calls[0].0, "admin:events",
             "FR-01: channel 应为 admin:events"
         );
-        assert_eq!(
-            calls[0].1.r#type, "close_room",
-            "FR-01: event.type 应为 close_room"
-        );
-        assert_eq!(
-            calls[0].1.payload["room_id"].as_str().unwrap(),
-            id.to_string(),
-            "FR-01: payload.room_id 应与 room_id 一致"
-        );
+        // T-00105: 使用枚举变体匹配，不再依赖字符串类型字段
+        match &calls[0].1 {
+            crate::modules::event::publisher::AdminEvent::CloseRoom { payload, admin_id, .. } => {
+                assert_eq!(payload.room_id, id, "FR-01: payload.room_id 应与 room_id 一致");
+                assert_eq!(*admin_id, operator_id, "FR-01: admin_id 应为 operator_id");
+            }
+            other => panic!("FR-01: expected CloseRoom variant, got {:?}", other),
+        }
     }
 
     // ── FR-02: 使用 ErrorEventPublisher 时，force_close_room 仍返回 Ok(()) ───────

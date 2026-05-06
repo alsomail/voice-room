@@ -382,3 +382,100 @@ fn ping_compat_3_pong_envelope_matches_schema() {
     assert_valid(schema_str, &envelope, "PING-COMPAT-3: Pong schema");
 }
 
+// ─── PING-1: 大写 Ping → Pong，msg_id 回显，timestamp 为毫秒 ─────────────────
+
+/// PING-1: handle_text_message 对大写 Ping 信令返回 Pong，timestamp 必须为毫秒级
+///
+/// Schema 要求 Pong.timestamp 为毫秒整数（> 1_000_000_000_000）。
+/// 此测试在 timestamp() 未改为 timestamp_millis() 时失败（RED），
+/// 修复后通过（GREEN）。
+#[test]
+fn ping_1_uppercase_ping_returns_pong_with_ms_timestamp() {
+    use voice_room_server::ws::connection::handle_text_message;
+
+    let hb = Arc::new(RwLock::new(Instant::now()));
+    let msg_id = "550e8400-e29b-41d4-a716-446655440000";
+    let ping_json =
+        format!(r#"{{"type":"Ping","msg_id":"{msg_id}","timestamp":1700000000000}}"#);
+
+    let resp = handle_text_message(&ping_json, &hb).unwrap();
+    let v: Value = serde_json::from_str(&resp).expect("Pong must be valid JSON");
+
+    assert_eq!(v["type"], "Pong", "PING-1: response type must be Pong");
+    assert_eq!(
+        v["msg_id"], msg_id,
+        "PING-1: msg_id must be echoed back"
+    );
+
+    // timestamp 必须是毫秒级（> 1 trillion = 10^12）
+    // 秒级时间戳 ~1.7×10^9，毫秒级时间戳 ~1.7×10^12
+    let ts = v["timestamp"]
+        .as_i64()
+        .expect("PING-1: timestamp must be an integer");
+    assert!(
+        ts > 1_000_000_000_000,
+        "PING-1: timestamp must be milliseconds (> 1_000_000_000_000), got {ts}"
+    );
+}
+
+// ─── PING-2: 小写 ping 仍工作（兼容期），timestamp 为毫秒 ─────────────────────
+
+/// PING-2: handle_text_message 对旧格式 ping 返回 pong，timestamp 必须为毫秒级
+///
+/// PROTO-BINDING: doc/protocol/schemas/ws/Ping.schema.json (deprecated path)
+/// 此测试在 timestamp() 未改为 timestamp_millis() 时失败（RED）。
+#[test]
+fn ping_2_lowercase_ping_compat_returns_pong_with_ms_timestamp() {
+    use voice_room_server::ws::connection::handle_text_message;
+
+    let hb = Arc::new(RwLock::new(Instant::now()));
+    let ping_json =
+        r#"{"type":"ping","msg_id":"550e8400-e29b-41d4-a716-446655440001","timestamp":1700000000000}"#;
+
+    let resp = handle_text_message(ping_json, &hb)
+        .expect("PING-2: legacy ping must return a pong response");
+    let v: Value = serde_json::from_str(&resp).expect("pong must be valid JSON");
+
+    assert_eq!(
+        v["type"], "pong",
+        "PING-2: legacy ping must return type=pong (lowercase)"
+    );
+
+    // timestamp 也必须是毫秒级
+    let ts = v["timestamp"]
+        .as_i64()
+        .expect("PING-2: timestamp must be an integer");
+    assert!(
+        ts > 1_000_000_000_000,
+        "PING-2: legacy pong timestamp must be milliseconds (> 1_000_000_000_000), got {ts}"
+    );
+}
+
+// ─── PING-3: ping_pong_responses() 所有 timestamp 为毫秒 ─────────────────────
+
+/// PING-3: ping_pong_responses 返回的所有响应，timestamp 必须为毫秒级
+///
+/// 此测试在 ping_pong_responses 内 timestamp() 未改为 timestamp_millis() 时失败。
+#[test]
+fn ping_3_pong_timestamp_is_milliseconds() {
+    use voice_room_server::ws::connection::ping_pong_responses;
+
+    let responses = ping_pong_responses(Some("550e8400-e29b-41d4-a716-446655440002".to_string()));
+
+    assert!(
+        !responses.is_empty(),
+        "PING-3: ping_pong_responses must return at least one response"
+    );
+
+    for (i, resp) in responses.iter().enumerate() {
+        let v: Value =
+            serde_json::from_str(resp).expect("each ping_pong_responses entry must be valid JSON");
+        let ts = v["timestamp"]
+            .as_i64()
+            .expect("PING-3: timestamp must be an integer in all responses");
+        assert!(
+            ts > 1_000_000_000_000,
+            "PING-3: response[{i}] timestamp must be milliseconds (> 1_000_000_000_000), got {ts}"
+        );
+    }
+}

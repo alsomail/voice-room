@@ -1,4 +1,5 @@
 pub mod auth;
+pub mod admin_event;
 pub mod crypto;
 pub mod error;
 pub mod events;

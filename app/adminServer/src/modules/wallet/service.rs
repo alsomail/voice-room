@@ -4,7 +4,7 @@ use uuid::Uuid;
 use voice_room_shared::events::BalanceUpdatedEvent;
 
 use crate::common::error::AppError;
-use crate::modules::event::publisher::{AdminEvent, EventPublisher};
+use crate::modules::event::publisher::{EventPublisher, RawEvent};
 
 use super::repository::WalletRepository;
 
@@ -67,13 +67,13 @@ impl WalletService {
             // 暂置 None；后续可由 repository 层返回。App 端 `#[serde(default)]` 接受 null。
             ref_id: None,
         };
-        let event = AdminEvent {
-            r#type: "balance_updated".to_string(),
+        let event = RawEvent {
+            event_type: "balance_updated".to_string(),
             payload: serde_json::to_value(&payload).unwrap_or_else(|_| serde_json::json!({})),
             admin_id: admin_id.to_string(),
             ts: chrono::Utc::now().timestamp(),
         };
-        if let Err(e) = self.event_publisher.publish("admin:events", event).await {
+        if let Err(e) = self.event_publisher.publish_raw("admin:events", event).await {
             tracing::warn!(error = %e, user_id = %user_id, "wallet adjust: failed to publish Redis event");
         }
 
@@ -113,14 +113,14 @@ mod tests {
         assert_eq!(new_balance, 1500, "WS-01: new_balance 应为 1500");
         assert_eq!(delta, 500, "WS-01: delta 应为 500");
 
-        let calls = publisher.calls.lock().unwrap();
+        let calls = publisher.raw_calls.lock().unwrap();
         assert_eq!(calls.len(), 1, "WS-01: Redis publish 应调用 1 次");
         assert_eq!(
             calls[0].0, "admin:events",
             "WS-01: channel 应为 admin:events"
         );
         assert_eq!(
-            calls[0].1.r#type, "balance_updated",
+            calls[0].1.event_type, "balance_updated",
             "WS-01: event.type 应为 balance_updated"
         );
         // 缺陷 #1 P0：payload 字段必须是 balance_after（不是 new_balance）
@@ -174,7 +174,7 @@ mod tests {
 
         assert!(matches!(err, AppError::InsufficientBalance));
         assert_eq!(
-            publisher.calls.lock().unwrap().len(),
+            publisher.raw_calls.lock().unwrap().len(),
             0,
             "WS-02: 失败时不应 publish"
         );

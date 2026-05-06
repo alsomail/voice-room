@@ -3,9 +3,9 @@
 //! 提供纯函数 `handle_text_message`，解析 JSON 信令并返回响应。
 //! 真实的读/写 task (`handle_socket`) 构建于此之上，但测试直接调用纯函数。
 //!
-//! 信令格式（对齐 protocol.md §6.3）:
+//! 信令格式（对齐 protocol.md §6.3 + Ping.schema.json）:
 //! ```json
-//! {"type":"ping","msg_id":"uuid","payload":{},"timestamp":1713312000}
+//! {"type":"Ping","msg_id":"uuid","payload":{},"timestamp":1700000000000}
 //! ```
 
 use std::sync::{Arc, RwLock};
@@ -81,6 +81,12 @@ pub fn handle_text_message(text: &str, last_heartbeat: &Arc<RwLock<Instant>>) ->
 
     match msg.msg_type.as_str() {
         "ping" => {
+            // [DEPRECATED] 旧格式 ping，兼容期保留。将在下一主版本移除。
+            // PROTO-BINDING: doc/protocol/schemas/ws/Ping.schema.json
+            tracing::warn!(
+                msg_type = "ping",
+                "DEPRECATED: received lowercase 'ping', use 'Ping' (PascalCase). Will be removed in next major version."
+            );
             // 更新心跳时间戳
             match last_heartbeat.write() {
                 Ok(mut guard) => *guard = Instant::now(),
@@ -91,13 +97,14 @@ pub fn handle_text_message(text: &str, last_heartbeat: &Arc<RwLock<Instant>>) ->
                 msg_type: "pong".to_string(),
                 msg_id: msg.msg_id,
                 payload: None,
-                timestamp: chrono::Utc::now().timestamp(),
+                timestamp: chrono::Utc::now().timestamp_millis(),
             };
 
             serde_json::to_string(&pong).ok()
         }
         "Ping" => {
-            // 新格式大写 Ping 信令（T-00103 兼容期）
+            // 主格式：大写 Ping 信令
+            // PROTO-BINDING: doc/protocol/schemas/ws/Ping.schema.json
             match last_heartbeat.write() {
                 Ok(mut guard) => *guard = Instant::now(),
                 Err(e) => tracing::error!("heartbeat lock poisoned: {e}"),
@@ -107,7 +114,7 @@ pub fn handle_text_message(text: &str, last_heartbeat: &Arc<RwLock<Instant>>) ->
                 msg_type: "Pong".to_string(),
                 msg_id: msg.msg_id,
                 payload: None,
-                timestamp: chrono::Utc::now().timestamp(),
+                timestamp: chrono::Utc::now().timestamp_millis(),
             };
 
             serde_json::to_string(&pong).ok()
@@ -126,7 +133,7 @@ pub fn handle_text_message(text: &str, last_heartbeat: &Arc<RwLock<Instant>>) ->
 ///
 /// 用于 T-00103 PING-COMPAT-2 测试。
 pub fn ping_pong_responses(msg_id: Option<String>) -> Vec<String> {
-    let ts = chrono::Utc::now().timestamp();
+    let ts = chrono::Utc::now().timestamp_millis();
 
     let pong_new = OutgoingMessage {
         msg_type: "Pong".to_string(),

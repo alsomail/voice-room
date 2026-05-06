@@ -4,7 +4,7 @@ use uuid::Uuid;
 use voice_room_shared::models::gift::GiftModel;
 
 use crate::common::error::AppError;
-use crate::modules::event::publisher::{AdminEvent, EventPublisher};
+use crate::modules::event::publisher::{EventPublisher, RawEvent};
 
 use super::dto::{CreateGiftRequest, UpdateGiftRequest};
 use super::repo::{CreateGiftData, GiftRepository, UpdateGiftData};
@@ -138,13 +138,13 @@ impl GiftService {
 
     /// 通知 App Server 清除礼物缓存（fire-and-forget）。
     async fn publish_cache_invalidate(&self) {
-        let event = AdminEvent {
-            r#type: "gift_cache_invalidate".to_string(),
+        let event = RawEvent {
+            event_type: "gift_cache_invalidate".to_string(),
             payload: serde_json::json!({}),
             admin_id: "system".to_string(),
             ts: chrono::Utc::now().timestamp(),
         };
-        if let Err(e) = self.event_publisher.publish("admin:events", event).await {
+        if let Err(e) = self.event_publisher.publish_raw("admin:events", event).await {
             tracing::warn!(error = %e, "gift service: failed to publish cache invalidate event");
         }
     }
@@ -383,9 +383,9 @@ mod tests {
         assert!(gift.is_active);
         assert!(!gift.is_deleted);
 
-        let calls = publisher.calls.lock().unwrap();
+        let calls = publisher.raw_calls.lock().unwrap();
         assert_eq!(calls.len(), 1, "GS-01: 应发布 1 次缓存失效事件");
-        assert_eq!(calls[0].1.r#type, "gift_cache_invalidate");
+        assert_eq!(calls[0].1.event_type, "gift_cache_invalidate");
     }
 
     // ── GS-02: duplicate code → DuplicateCode 错误 ───────────────────────────

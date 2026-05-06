@@ -3,7 +3,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::common::error::AppError;
-use crate::modules::event::publisher::{AdminEvent, EventPublisher};
+use crate::modules::event::publisher::{AdminEvent, BanUserPayload, EventPublisher, UnbanUserPayload};
 
 use super::{
     dto::{
@@ -183,19 +183,19 @@ impl AdminUserService {
         // P1-7: 移除业务层 tracing 伪审计；审计统一由 controller 调用 audit_logger.log_action
 
         // 发布管理事件（fire-and-forget，失败不影响主业务）
-        // P3-18: ban/unban 事件 payload 字段对称，便于下游消费方统一处理
-        let event_type = if is_banned { "ban_user" } else { "unban_user" };
-        let payload = serde_json::json!({
-            "user_id": user_id.to_string(),
-            "ban_type": if is_banned { Some(req.ban_type.as_deref().unwrap_or("permanent")) } else { None },
-            "duration_hours": if is_banned { req.duration_hours } else { None },
-            "reason": req.reason.as_deref().unwrap_or(""),
-        });
-        let event = AdminEvent {
-            r#type: event_type.to_string(),
-            payload,
-            admin_id: operator_id.to_string(),
-            ts: chrono::Utc::now().timestamp(),
+        // T-00105: 使用 strict AdminEvent enum（来自 voice_room_shared），消除字符串拼写错误风险
+        let event = if is_banned {
+            AdminEvent::BanUser {
+                payload: BanUserPayload { user_id },
+                admin_id: operator_id,
+                ts: chrono::Utc::now().timestamp_millis(),
+            }
+        } else {
+            AdminEvent::UnbanUser {
+                payload: UnbanUserPayload { user_id },
+                admin_id: operator_id,
+                ts: chrono::Utc::now().timestamp_millis(),
+            }
         };
         if let Err(e) = self.event_publisher.publish("admin:events", event).await {
             // fire-and-forget：发布失败不影响主业务，仅记录警告
@@ -734,15 +734,14 @@ mod tests {
             calls[0].0, "admin:events",
             "SB-06: channel 应为 admin:events"
         );
-        assert_eq!(
-            calls[0].1.r#type, "ban_user",
-            "SB-06: event.type 应为 ban_user"
-        );
-        assert_eq!(
-            calls[0].1.admin_id,
-            operator_id.to_string(),
-            "SB-06: event.admin_id 应为 operator_id"
-        );
+        // T-00105: 使用枚举变体匹配，不再依赖字符串类型字段
+        match &calls[0].1 {
+            crate::modules::event::publisher::AdminEvent::BanUser { payload, admin_id, .. } => {
+                assert_eq!(payload.user_id, user_id, "SB-06: payload.user_id 应与 user_id 一致");
+                assert_eq!(*admin_id, operator_id, "SB-06: admin_id 应为 operator_id");
+            }
+            other => panic!("SB-06: expected BanUser variant, got {:?}", other),
+        }
     }
 
     // ── SB-07: unban 操作后 event.type="unban_user" ────────────────────────────
@@ -767,9 +766,10 @@ mod tests {
 
         let calls = publisher.calls.lock().unwrap();
         assert_eq!(calls.len(), 1, "SB-07: 应发布恰好 1 次事件");
-        assert_eq!(
-            calls[0].1.r#type, "unban_user",
-            "SB-07: event.type 应为 unban_user"
+        // T-00105: 使用枚举变体匹配，不再依赖字符串类型字段
+        assert!(
+            matches!(&calls[0].1, crate::modules::event::publisher::AdminEvent::UnbanUser { .. }),
+            "SB-07: event 应为 UnbanUser 变体"
         );
     }
 
@@ -938,32 +938,25 @@ mod tests {
         let calls = publisher.calls.lock().unwrap();
         assert_eq!(calls.len(), 2, "应有 ban + unban 两次发布");
 
-        let ban_payload = &calls[0].1.payload;
-        let unban_payload = &calls[1].1.payload;
-
-        // 关键：两侧 payload 顶层 key 集合完全一致（P3-18 对称性）
-        let ban_keys: std::collections::BTreeSet<String> = ban_payload
-            .as_object()
-            .unwrap()
-            .keys()
-            .cloned()
-            .collect();
-        let unban_keys: std::collections::BTreeSet<String> = unban_payload
-            .as_object()
-            .unwrap()
-            .keys()
-            .cloned()
-            .collect();
-        assert_eq!(
-            ban_keys, unban_keys,
-            "P3-18: ban / unban 事件 payload 顶层字段必须对称（含 user_id/ban_type/duration_hours/reason）"
-        );
-
-        // ban 侧字段非空，unban 侧 ban_type/duration_hours 为 null
-        assert_eq!(ban_payload["ban_type"], "temporary");
-        assert_eq!(ban_payload["duration_hours"], 24);
-        assert!(unban_payload["ban_type"].is_null());
-        assert!(unban_payload["duration_hours"].is_null());
-        assert_eq!(unban_payload["user_id"], unban_user_id.to_string());
+        // T-00105: 严格类型匹配，schema `additionalProperties: false` 要求 payload 只有 user_id
+        match &calls[0].1 {
+            crate::modules::event::publisher::AdminEvent::BanUser { payload, .. } => {
+                assert_eq!(
+                    payload.user_id, ban_user_id,
+                    "SB-14: ban 事件 payload.user_id 应与 ban_user_id 一致"
+                );
+            }
+            other => panic!("SB-14: expected BanUser, got {:?}", other),
+        }
+        match &calls[1].1 {
+            crate::modules::event::publisher::AdminEvent::UnbanUser { payload, admin_id, .. } => {
+                assert_eq!(
+                    payload.user_id, unban_user_id,
+                    "SB-14: unban 事件 payload.user_id 应与 unban_user_id 一致"
+                );
+                assert_eq!(*admin_id, operator_id, "SB-14: admin_id 应为 operator_id");
+            }
+            other => panic!("SB-14: expected UnbanUser, got {:?}", other),
+        }
     }
 }

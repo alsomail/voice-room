@@ -3422,14 +3422,14 @@ mod tests {
         assert_eq!(admin_logs[0].amount, 500, "WA01: admin_log amount=500");
 
         // Redis publish 命中
-        let calls = fake_pub.calls.lock().unwrap();
+        let calls = fake_pub.raw_calls.lock().unwrap();
         assert_eq!(calls.len(), 1, "WA01: Redis publish 应调用 1 次");
         assert_eq!(
             calls[0].0, "admin:events",
             "WA01: channel 应为 admin:events"
         );
         assert_eq!(
-            calls[0].1.r#type, "balance_updated",
+            calls[0].1.event_type, "balance_updated",
             "WA01: event.type 应为 balance_updated"
         );
         let payload = &calls[0].1.payload;
@@ -3702,7 +3702,7 @@ mod tests {
 
         // Redis publish 未调用（业务失败不发布事件）
         assert_eq!(
-            fake_pub.calls.lock().unwrap().len(),
+            fake_pub.raw_calls.lock().unwrap().len(),
             0,
             "WA08: 业务失败时不应发布 Redis 事件"
         );
@@ -4226,11 +4226,11 @@ mod tests {
         .await;
         assert_eq!(resp.status(), StatusCode::CREATED, "GC12: 创建应 201");
 
-        let calls = publisher.calls.lock().unwrap();
+        let calls = publisher.raw_calls.lock().unwrap();
         assert!(
             calls
                 .iter()
-                .any(|(_, e)| e.r#type == "gift_cache_invalidate"),
+                .any(|(_, e)| e.event_type == "gift_cache_invalidate"),
             "GC12: 应发布 gift_cache_invalidate 事件"
         );
     }
