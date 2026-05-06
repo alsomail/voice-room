@@ -435,7 +435,7 @@
 | [T-00101](../tds/android/T-00101.md) | T-00100 | Dod | ✅ Done | - | - | ⏳ Pending |
 | [T-00102](../tds/web/T-00102.md) | T-00100 | Done | ✅ Done | - | - | ⏳ Pending |
 | [T-00103](../tds/server/T-00103.md) | T-00100 | Dod | Done | - | - | ⏳ Pending |
-| [T-00104](../tds/infra/T-00104.md) ⭐ | T-00100, T-00101, T-00103 | Plan | Todo | - | - | ⏳ Pending |
+| [T-00104](../tds/infra/T-00104.md) ⭐ | T-00100, T-00101, T-00103 | TDD | In Progress | - | - | ⏳ Pending |
 | [T-00105](../tds/adminServer/T-00105.md) | T-00100 | Dod | ✅ Done | - | - | ⏳ Pending |
 | [T-00106](../tds/infra/T-00106.md) | T-00100, T-0000T | Dod | ✅ Done | - | - | ⏳ Pending |
 | [T-00107](../tds/infra/T-00107.md) | T-00106 | Plan | Todo | - | - | ⏳ Pending |
