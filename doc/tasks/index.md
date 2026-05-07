@@ -11,11 +11,11 @@
 
 | 版本 | 日期 | 变更内容 |
 |------|------|---------|
-| **v3.14** | **2026-05-09** | [T-30055 DoD ✅ Done] — Android RoomScreen/AppNavGraph LeaveMic 下麦调用链修复完成，协议入口索引落锚于 arch/android/room.md，protocol 交叉链接补齐，Payload 字段 mic_index 正式声明为可选 integer；门禁全绿（Research ✅ + QA ✅ + Overall ✅ Released）；doc/arch/android/room.md + doc/protocol/websocket_signals.md 已同步交叉链接。 |
+| **v3.14** | **2026-05-09** | [T-30055 DoD ✅ Done] — Android RoomScreen/AppNavGraph LeaveMic 下麦调用链修复完成，协议入口索引落锚于 arch/android/room.md，protocol 交叉链接补齐，Payload 字段 mic_index 正式声明为可选 integer；门禁全绿（Research ✅ + QA ✅ + Overall -）；doc/arch/android/room.md + doc/protocol/websocket_signals.md 已同步交叉链接。 |
 | **v3.15** | **2026-05-07** | [QA 全量重置] QA Gate + Overall Gate 全部回滚为 `-`，tests/scripts .spec.ts 全量清除，准备由 qa-coordinator 基于 doc/tests/cases/ 重新生成并执行全量 E2E。 |
 | _规则_ | — | 本表只记录**版本级摘要**（一行 ≤ 200 字符），具体 Review/审查/实跑证据请落到对应 [TDS](../tds/) 第五节【Review 意见】或对应模块审查批次 `doc/review/模块N-XXX.md`，**严禁**在本表堆叠详细审查记录。 |
 | **v3.13** | **2026-05-07** | [E2E 基礎設施] 全量 E2E 四項修復：P0 Android 弹窗關閉（uiautomator tap），P1 WEB waitForURL 15s→30s，P1 playwright workers 2 防 Android 爭搶，CI expect.timeout 升至 30s；report-202605071650 診斷。 |
-| **v3.13** | **2026-05-07** | [T-30055] QA Gate ✅ Passed — TC-MIC-00009 Run #16 实证通过（report-202605071022，UIAutomator 轮询确认入房→上麦→下麦对话框→下麦成功，Kotlin JWT currentUserId 修复 + 固定坐标 tap 根因全部消除）；Overall Gate ✅ Released。 |
+| **v3.13** | **2026-05-07** | [T-30055] QA Gate ✅ Passed — TC-MIC-00009 Run #16 实证通过（report-202605071022，UIAutomator 轮询确认入房→上麦→下麦对话框→下麦成功，Kotlin JWT currentUserId 修复 + 固定坐标 tap 根因全部消除）；Overall Gate -。 |
 | **v3.13** | **2026-05-07** | [BUG-MIC-ONCLICK / T-30055] Plan 启动 — Android RoomScreen/AppNavGraph 缺少 `onMicSlotClick` 回调传递，点击自己已占麦位图标无法触发下麦，WS `LeaveMic` 帧从未发出；诊断来源：TC-MIC-00002/TC-MIC-00004 E2E 实证 + 代码静态分析。 |
 | **v3.12** | **2026-05-08** | [T-00104] DoD ✅ Done — 8 跨语言 E2E 场景落地（CROSS-1~8，19 测试），PROTO-BINDING 全绑定，协议差异 D-01~D-04 记录，arch/android + server 协议入口索引落锚，RUNBOOK + TDS §五六完成。 |
 | **v3.12** | **2026-05-08** | [T-00107] DoD ✅ Done — TDS 字段级回填完成，P0=0/P1=0；修复审计工具 3 处 bug（regex/adminServer/web 独立函数），154 TDS files 全量合规。 |
@@ -40,20 +40,20 @@
 | **v3.06** | **2026-05-07** | [T-00100] DoD ✅ Done — 协议三层Schema冻结完成：WS 34信令+HTTP DTO+Redis Pub/Sub schema落锚，arch四端协议入口索引同步，T-00101/102/103/105/106/108现可并行启动。 |
 | **v3.05** | **2026-05-07** | [T-00100] TDD→Review — 协议三层Schema冻结TDD完成(8/8 PROTO-FREEZE全绿)；WS 34信令+HTTP DTO+Redis Pub/Sub schema落锚；T-00100状态Plan→Review/In Progress。 |
 | **v3.04** | **2026-05-06** | Phase 1.7-extended 启动：协议字段全量冻结（WS + HTTP REST + Redis Pub/Sub 三协议层）——注册 9 个新 Task：T-00100⭐（protocol 三层 schema 冻结+ping→Ping）、T-00101（Android sealed class 干掉 27+ 野生反序列化）、T-00102（Web Zod）、T-00103（Server schema_guard+deny_unknown_fields）、T-00104⭐（Android×Server 跨语言 E2E 8 场景）、T-00105（Redis admin:events 双端契约）、T-00106（字段级 AST CI 审计）、T-00107（TDS 字段级回填）、T-00108（ping/Ping 三端）；9 份 TDS 全部创建，均 Plan→TDD 待领取。 |
-| **v3.02** | **2026-05-06** | 收尾归档：SKIP-OOS×6 Overall Gate→✅ Released；T-0000T/V QA Gate→✅ N/A；版本头同步v3.02。 |
+| **v3.02** | **2026-05-06** | 收尾归档：SKIP-OOS×6 Overall Gate→-；T-0000T/V QA Gate→-；版本头同步v3.02。 |
 | **v3.01** | **2026-05-06** | [T-0000V] DoD — ARCHITECTURE.md物理删除，ADR-0002新增协议治理铁律，§8.2明确指向protocol/index.md单一事实源，模块9进度20/20。 |
 | **v3.00** | **2026-05-06** | [T-0000U] DoD — 历史TDS协议路径绑定表全量回填完成，P1 MISSING_BINDING_TABLE从139降至0，N/A声明140个，模块9进度19/20。 |
-| **v2.99** | **2026-05-05** | QA Gate 全量回写：所有 Done+ReviewPassed 且无专属 E2E 测试用例的 Task，QA Gate `-` → `✅ N/A`，Overall Gate `⏳ Pending` → `✅ Released`；影响约 120+ Task。 |
+| **v2.99** | **2026-05-05** | QA Gate 全量回写：所有 Done+ReviewPassed 且无专属 E2E 测试用例的 Task，QA Gate `-` → `-`，Overall Gate `⏳ Pending` → `-`；影响约 120+ Task。 |
 | **v2.98** | **2026-05-05** | T-0000T DoD 完成 - 协议路径绑定审计脚本上线（53 tests PASS，grep -rEn ERE，P0 exit(1)，CI audit:protocol 接入）；模块 9 进度 18/20。 |
 | **v2.97** | **2026-05-05** | [T-30054] DoD — Android sendMessage WS 协议路径绑定锁定，集成测试 6/6 PASS，arch/android 协议入口索引回填 WS SendMessage ⭐ 行；T-30054 ✅ Done。 |
 | **v2.96** | **2026-05-05** | [T-30054] Review Round1 — 🟢 通过；修正 TDS grep 模式为 PROTO-BINDING 注释锚点；T-30054 状态 Review→DoD。 |
 | **v2.95** | **2026-05-05** | [T-30054] TDD — RoomViewModel.sendMessage 注入 PROTO-BINDING 注释 + MAX_MESSAGE_LENGTH=500 防御；新增 ChatSendMessageProtocolBindingTest（6/6 PASS）；T-30054 状态 TDD→Review。 |
 | **v2.94** | **2026-05-05** | [T-30054] Plan — 创建 TDS android/T-30054.md（协议路径绑定表 + 6 个验收用例 TC-PROTO-1/2/3 + TC-BOUND-1/2/3）；T-30054 状态 Plan→TDD。 |
-| **v2.93** | **2026-05-05** | Overall Gate 全量归档：T-30053 index.md 补录（Review/QA/Overall ✅ Released）；T-00045/46/T-30051/52/T-00048 Overall Gate ✅ Released；研发 T-30054/T-0000T 启动。 |
+| **v2.93** | **2026-05-05** | Overall Gate 全量归档：T-30053 index.md 补录（Review/QA/Overall -）；T-00045/46/T-30051/52/T-00048 Overall Gate -；研发 T-30054/T-0000T 启动。 |
 | **v2.92** | **2026-05-05** | T-00048 Review Gate ✅ Passed - GlobalReview 架构审查通过（P0=0/P1=0/P2=1非阻断/P3=2）；协议路径绑定三行全 PASS（WS SendMessage ⭐ / RoomMessage 广播 / REST 备路径），DUAL-1/2/3 三用例等价性完整；P2 timestamp>0 规格偏差记录于 TDS §五，P3×2 建议可选处理；详见 [server-T-00048-chat-dual-path.md](../review/server-T-00048-chat-dual-path.md)。 |
 | **v2.91** | **2026-05-05** | T-00048 Review Gate 开批 - 批次 `server-T-00048-chat-dual-path.md` 建档，任务表状态修正为 ✅ Done，Review Gate → [⏳ In Review](../review/server-T-00048-chat-dual-path.md)；GlobalReview 独立架构审查启动。 |
 | **v2.90** | **2026-05-05** | T-00048 DoD 完成 - chat_dual_path_equivalence 集成测试归档，双路径 DUAL-1/2/3 全绿，arch/server 协议入口索引同步。 |
-| **v2.87** | **2026-05-05** | T-30053 DoD 收尾：三门禁全绿（研发✅/Review✅/QA✅），Overall Gate ✅ Released；BUG-CHAT-LONGPRESS 修复链完整闭环收官。 |
+| **v2.87** | **2026-05-05** | T-30053 DoD 收尾：三门禁全绿（研发✅/Review✅/QA✅），Overall Gate -；BUG-CHAT-LONGPRESS 修复链完整闭环收官。 |
 | **v2.86** | **2026-05-05** | T-30053 QA Gate ✅ Passed — TC-CHAT-00002 Round 23 实证（report-20260505-213102，6/6 PASS，DELTA_WS=+1，DELTA_BCAST=+1，5节点全命中，aiTap→aiLongPress self-healing Round 1 通过）；BUG-CHAT-LONGPRESS 闭环。 |
 | **v2.85** | **2026-05-05** | T-30053 DoD 完成 - Android ChatMessageList UserMessageItem 长按复制菜单（DropdownMenu+ClipboardManager+Toast），LP-01~08 测试通过，无协议变更，arch/android Chat 章节已同步。 |
 | **v2.84** | **2026-05-05** | T-00047 试跑 Task 闭环：Chat WS 主路径 ⭐ + REST 备路径协议落锚，REST 补 `filter_content` 与空白校验，PROTO-2 集成测试通过；server 协议入口索引完成 DoD 回填。 |
@@ -181,7 +181,7 @@
 | 列名 | 含义 | 初始值 |
 |------|------|--------|
 | `Review Gate 审查门禁` | 全局架构级代码审查门禁，由 `review-coordinator` 调度 `global-code-reviewer` 在完成批次审查后填写。`✅ Passed` 表示通过，`❌ Failed` / `⏳ In Review` 表示进行中。**单 Task 流转中的 `Review` 角色不维护此列**。 | `-`（未评审） |
-| `QA Gate 测试门禁` | 测试验收门禁，由 QA 在 E2E/手动测试通过后填写。`✅ Passed` / `❌ Failed`/ `✅ N/A`(无此项) | `-`（未测试） |
+| `QA Gate 测试门禁` | 测试验收门禁，由 QA 在 E2E/手动测试通过后填写。`✅ Passed` / `❌ Failed`/ `-`(无此项) | `-`（未测试） |
 | `Overall Gate 最终门禁` | 综合质量门禁，按下表规则自动推导 | `⏳ Pending` |
 
 **Overall Gate 推导规则**：
@@ -189,8 +189,8 @@
 | 条件 | Overall Gate |
 |------|------|
 | 研发状态非 `✅ Done`，或 `Review Gate` / `QA Gate` 任一为 `-` | `⏳ Pending` |
-| 研发状态为 `✅ Done`，且 `Review Gate` / `QA Gate` 任一为 `❌ Failed`（或 ✅ N/A） | `❌ Failed` |
-| 研发状态为 `✅ Done`，且 `Review Gate` 与 `QA Gate` 均为 `✅ Passed`（或 ✅ N/A） | `✅ Passed` |
+| 研发状态为 `✅ Done`，且 `Review Gate` / `QA Gate` 任一为 `❌ Failed`（或 -） | `❌ Failed` |
+| 研发状态为 `✅ Done`，且 `Review Gate` 与 `QA Gate` 均为 `✅ Passed`（或 -） | `✅ Passed` |
 
 ## 职责流转规则
 
