@@ -19,8 +19,58 @@ import { runShell as defaultRunShell, ShellExecError } from './runShell';
 
 const ANDROID_PKG = process.env.ANDROID_APP_ID ?? 'com.voice.room.android.local.debug';
 const ANDROID_DEVICE_ID = process.env.ANDROID_DEVICE_ID ?? '9A251FFAZ00EAJ';
-// 由 `adb shell cmd package resolve-activity --brief` 实测得到的 MainActivity 全限定名
-const MAIN_ACTIVITY = `${ANDROID_PKG}/com.voice.room.android.presentation.MainActivity`;
+// P0-Fix: 使用简短限定名 MainActivity（presentation.MainActivity 曾导致 App 停在启动闪屏）
+const MAIN_ACTIVITY = `${ANDROID_PKG}/com.voice.room.android.MainActivity`;
+
+/**
+ * 尝试通过 uiautomator dump 关闭同意弹窗（最多重试 maxRetries 次）。
+ * 返回 true 表示成功关闭或未检测到弹窗。
+ */
+async function dismissConsentDialogViaAdb(maxRetries = 3): Promise<boolean> {
+  const consentKeywords = ['同意', '确定', 'Accept', 'Agree', 'OK', '我已了解', '知道了', 'موافقت', 'قبول'];
+  // 匹配 <node ... text="同意" ... bounds="[x1,y1][x2,y2]" .../>
+  const nodeRegex = /text="([^"]*)"[^/]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"/g;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      // dump UI to file then pull (避免 /dev/stdout 的 pipe 截断问题)
+      execSync(
+        `adb -s ${ANDROID_DEVICE_ID} shell uiautomator dump /sdcard/ui_warmup.xml`,
+        { stdio: 'pipe', timeout: 8000 },
+      );
+      const uiXml = execSync(
+        `adb -s ${ANDROID_DEVICE_ID} shell cat /sdcard/ui_warmup.xml`,
+        { stdio: 'pipe', timeout: 5000 },
+      ).toString();
+
+      let match;
+      nodeRegex.lastIndex = 0;
+      let dismissed = false;
+      while ((match = nodeRegex.exec(uiXml)) !== null) {
+        const text = match[1];
+        if (consentKeywords.some((kw) => text.includes(kw))) {
+          const cx = Math.floor((parseInt(match[2]) + parseInt(match[4])) / 2);
+          const cy = Math.floor((parseInt(match[3]) + parseInt(match[5])) / 2);
+          execSync(`adb -s ${ANDROID_DEVICE_ID} shell input tap ${cx} ${cy}`, { stdio: 'pipe' });
+          await new Promise<void>((r) => setTimeout(r, 1500));
+          console.log(`[globalSetup] Dismissed consent dialog (attempt ${attempt}): tapped "${text}" at (${cx},${cy})`);
+          dismissed = true;
+          break;
+        }
+      }
+      if (!dismissed) {
+        console.log(`[globalSetup] No consent dialog detected (attempt ${attempt}), continuing`);
+        return true; // no dialog present
+      }
+    } catch {
+      console.warn(`[globalSetup] uiautomator dump failed (attempt ${attempt}), skipping`);
+      return true; // non-blocking
+    }
+    // 等待下一个弹窗（如果有多页）
+    await new Promise<void>((r) => setTimeout(r, 1500));
+  }
+  return true;
+}
 
 async function androidWarmUp(): Promise<void> {
   try {
@@ -35,14 +85,12 @@ async function androidWarmUp(): Promise<void> {
       return;
     }
 
+    // force-stop 后重启，确保 App 从干净状态启动（避免残留 UI 状态影响测试）
     try {
-      const dump = execSync(
-        `adb -s ${ANDROID_DEVICE_ID} shell pm dump ${ANDROID_PKG} | grep -E "stopped=|notLaunched="`,
-        { stdio: 'pipe' },
-      ).toString();
-      console.log(`[globalSetup] Android app state: ${dump.trim()}`);
+      execSync(`adb -s ${ANDROID_DEVICE_ID} shell am force-stop ${ANDROID_PKG}`, { stdio: 'pipe' });
+      await new Promise<void>((r) => setTimeout(r, 1000));
     } catch {
-      // pm dump grep 失败无所谓，继续
+      // force-stop 失败无所谓，继续
     }
 
     execSync(
@@ -50,46 +98,40 @@ async function androidWarmUp(): Promise<void> {
       { stdio: 'inherit' },
     );
 
-    // 等待 App 完全启动（首次运行弹窗需要更长时间）
-    await new Promise<void>((r) => setTimeout(r, 4000));
+    // 等待 App 完全启动（闪屏 + 初始化需要 5s）
+    await new Promise<void>((r) => setTimeout(r, 5000));
 
-    // 尝试关闭「数据收集说明」等首次运行同意弹窗
-    // 使用 uiautomator dump 定位「同意/确定/Accept/Agree/我已了解」按钮并点击
+    // 尝试多轮关闭「数据收集说明」等首次运行同意弹窗（支持多页弹窗）
+    await dismissConsentDialogViaAdb(3);
+
+    // P0-Fix：最终验证 — 等待 3s 再 dump XML，确认 App 已进入登录页
+    // （检测手机号输入框或"获取验证码"/"登录"按钮，任意一个存在即视为成功）
+    await new Promise<void>((r) => setTimeout(r, 3000));
     try {
-      const uiXml = execSync(
-        `adb -s ${ANDROID_DEVICE_ID} shell uiautomator dump /dev/stdout 2>/dev/null`,
+      execSync(
+        `adb -s ${ANDROID_DEVICE_ID} shell uiautomator dump /sdcard/ui_final.xml`,
         { stdio: 'pipe', timeout: 8000 },
+      );
+      const finalXml = execSync(
+        `adb -s ${ANDROID_DEVICE_ID} shell cat /sdcard/ui_final.xml`,
+        { stdio: 'pipe', timeout: 5000 },
       ).toString();
-
-      const consentKeywords = ['同意', '确定', 'Accept', 'Agree', 'OK', '我已了解', '知道了'];
-      // 匹配 <node ... text="同意" ... bounds="[x1,y1][x2,y2]" .../>
-      const nodeRegex = /text="([^"]*)"[^/]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"/g;
-      let match;
-      let dismissed = false;
-      while ((match = nodeRegex.exec(uiXml)) !== null) {
-        const text = match[1];
-        if (consentKeywords.some((kw) => text.includes(kw))) {
-          const cx = Math.floor((parseInt(match[2]) + parseInt(match[4])) / 2);
-          const cy = Math.floor((parseInt(match[3]) + parseInt(match[5])) / 2);
-          execSync(`adb -s ${ANDROID_DEVICE_ID} shell input tap ${cx} ${cy}`, { stdio: 'pipe' });
-          await new Promise<void>((r) => setTimeout(r, 1000));
-          console.log(`[globalSetup] Dismissed consent dialog: tapped "${text}" at (${cx},${cy})`);
-          dismissed = true;
-          break;
-        }
-      }
-      if (!dismissed) {
-        console.log('[globalSetup] No consent dialog detected, continuing');
+      const loginKeywords = ['手机号', '登录', '获取验证码', 'phone', 'Login', 'Send Code', 'phoneInput', 'login'];
+      const hasLoginScreen = loginKeywords.some((kw) => finalXml.includes(kw));
+      if (hasLoginScreen) {
+        console.log('[globalSetup] ✅ Final verification passed – login screen detected');
+      } else {
+        console.warn('[globalSetup] ⚠️ Final verification: login screen NOT detected in XML dump (App may be on unexpected screen). Tests may be unreliable.');
       }
     } catch {
-      // uiautomator 失败为非阻塞
-      console.warn('[globalSetup] uiautomator dump failed (non-blocking), skipping consent check');
+      console.warn('[globalSetup] ⚠️ Final verification: uiautomator dump failed, skipping check');
     }
 
-    execSync(`adb -s ${ANDROID_DEVICE_ID} shell input keyevent KEYCODE_HOME`, { stdio: 'pipe' });
-    await new Promise<void>((r) => setTimeout(r, 1000));
+    // ❌ 移除：不再发送 KEYCODE_HOME —— 原实现会把 App 送到主屏幕背景，
+    //    导致每个 AND 测试启动时 Midscene agent.launch() 看到主屏幕而非登录页。
+    //    修复后让 App 保持前台，各 test 的 agent.launch() 会从当前前台状态接管。
 
-    console.log('[globalSetup] Android warm-up done – App is no longer in STOPPED state');
+    console.log('[globalSetup] Android warm-up done – App is in foreground, ready for tests');
   } catch (e) {
     console.warn(`[globalSetup] Android warm-up failed (non-blocking): ${(e as Error).message}`);
   }
@@ -167,7 +209,22 @@ export async function runGlobalSetup(deps: SetupDeps): Promise<void> {
         'bash',
         [path.join(deps.cwd, 'scripts/dev/seed-e2e.sh')],
         {
-          env: { ...process.env, E2E_PROFILE: env.profile, E2E_ALLOW_WRITES: '1' },
+          // RC-7 Fix: Inject JWT secrets from .env.<profile> (matches running server secrets).
+          // Shell exports may carry stale values (e.g., test-admin-jwt-secret from root .env)
+          // that differ from what e2e-up.sh injects into the servers. We overlay the profile
+          // env file's JWT_SECRET / APP_JWT_SECRET / ADMIN_JWT_SECRET on top of process.env so
+          // seed-e2e.sh always signs tokens with the same key the server uses for verification.
+          env: (() => {
+            const localEnvFile = path.join(deps.cwd, 'tests/scripts/env', `.env.${env.profile}`);
+            const localVars = fs.existsSync(localEnvFile)
+              ? dotenv.parse(fs.readFileSync(localEnvFile))
+              : {};
+            const jwtOverrides: Record<string, string> = {};
+            for (const k of ['JWT_SECRET', 'APP_JWT_SECRET', 'ADMIN_JWT_SECRET']) {
+              if (localVars[k]) jwtOverrides[k] = localVars[k];
+            }
+            return { ...process.env, ...jwtOverrides, E2E_PROFILE: env.profile, E2E_ALLOW_WRITES: '1' };
+          })(),
           cwd: deps.cwd,
           timeoutMs: 60_000,
         },
