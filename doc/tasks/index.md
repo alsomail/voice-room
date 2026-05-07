@@ -1,7 +1,7 @@
 # Voice Room 开发任务清单
 
-> **版本**: v3.14  
-> **更新日期**: 2026-05-09  
+> **版本**: v3.15
+> **更新日期**: 2026-05-07
 > **任务总数**: 149 个 (基建: 4 + 14 + 3 + 6, App Server: 33 + 1 + 2 + 1, Admin Server: 16 + 1 + 1, Web: 14 + 1 + 1, Android: 45 + 1 + 1 + 1 + 1, E-07 15 + E-07.5 6 + E-10 18)  
 > **当前阶段**: Phase 1 → … → Phase 1.7 协议治理铁律落地 → **Phase 1.7-extended 协议字段全量冻结**（WS + HTTP REST + Redis Pub/Sub 三协议层 schema 机器可读 + 字段级 CI 审计 + Android×Server 跨语言 E2E）
 
@@ -12,6 +12,7 @@
 | 版本 | 日期 | 变更内容 |
 |------|------|---------|
 | **v3.14** | **2026-05-09** | [T-30055 DoD ✅ Done] — Android RoomScreen/AppNavGraph LeaveMic 下麦调用链修复完成，协议入口索引落锚于 arch/android/room.md，protocol 交叉链接补齐，Payload 字段 mic_index 正式声明为可选 integer；门禁全绿（Research ✅ + QA ✅ + Overall ✅ Released）；doc/arch/android/room.md + doc/protocol/websocket_signals.md 已同步交叉链接。 |
+| **v3.15** | **2026-05-07** | [QA 全量重置] QA Gate + Overall Gate 全部回滚为 `-`，tests/scripts .spec.ts 全量清除，准备由 qa-coordinator 基于 doc/tests/cases/ 重新生成并执行全量 E2E。 |
 | _规则_ | — | 本表只记录**版本级摘要**（一行 ≤ 200 字符），具体 Review/审查/实跑证据请落到对应 [TDS](../tds/) 第五节【Review 意见】或对应模块审查批次 `doc/review/模块N-XXX.md`，**严禁**在本表堆叠详细审查记录。 |
 | **v3.13** | **2026-05-07** | [E2E 基礎設施] 全量 E2E 四項修復：P0 Android 弹窗關閉（uiautomator tap），P1 WEB waitForURL 15s→30s，P1 playwright workers 2 防 Android 爭搶，CI expect.timeout 升至 30s；report-202605071650 診斷。 |
 | **v3.13** | **2026-05-07** | [T-30055] QA Gate ✅ Passed — TC-MIC-00009 Run #16 实证通过（report-202605071022，UIAutomator 轮询确认入房→上麦→下麦对话框→下麦成功，Kotlin JWT currentUserId 修复 + 固定坐标 tap 根因全部消除）；Overall Gate ✅ Released。 |
@@ -228,91 +229,91 @@
 
 | Task ID | 前置依赖 | 研发负责人 | 研发状态 | Review Gate 审查门禁 | QA Gate 测试门禁 | Overall Gate 最终门禁 |
 |---------|---------|-----------|---------|---------------------|-----------------|----------------------|
-| [T-0000A](../tds/infra/T-0000A.md) | 无 | Dod | ✅ Done | [✅ Passed](../review/模块0-工程基建.md) | ✅ N/A | ✅ Released |
-| [T-0000B](../tds/infra/T-0000B.md) | 无 | Dod | ✅ Done | [✅ Passed](../review/模块0-工程基建.md) | ✅ N/A | ✅ Released |
-| [T-0000C](../tds/infra/T-0000C.md) | T-0000A | Dod | ✅ Done | [✅ Passed](../review/模块0-工程基建.md) | ✅ N/A | ✅ Released |
-| [T-0000D](../tds/infra/T-0000D.md) | T-0000B | Dod | ✅ Done | [✅ Passed](../review/模块0-工程基建.md) | ✅ N/A | ✅ Released |
+| [T-0000A](../tds/infra/T-0000A.md) | 无 | Dod | ✅ Done | [✅ Passed](../review/模块0-工程基建.md) | - | - |
+| [T-0000B](../tds/infra/T-0000B.md) | 无 | Dod | ✅ Done | [✅ Passed](../review/模块0-工程基建.md) | - | - |
+| [T-0000C](../tds/infra/T-0000C.md) | T-0000A | Dod | ✅ Done | [✅ Passed](../review/模块0-工程基建.md) | - | - |
+| [T-0000D](../tds/infra/T-0000D.md) | T-0000B | Dod | ✅ Done | [✅ Passed](../review/模块0-工程基建.md) | - | - |
 
 #### [模块 1: 用户认证系统 (User Authentication)](./模块1-用户认证系统%20(User%20Authentication).md)
 
 | Task ID | 前置依赖 | 研发负责人 | 研发状态 | Review Gate 审查门禁 | QA Gate 测试门禁 | Overall Gate 最终门禁 |
 |---------|---------|-----------|---------|---------------------|-----------------|----------------------|
-| [T-00001](../tds/server/T-00001.md) | T-0000B, T-0000C | Dod | ✅ Done | [✅ Passed](../review/模块1-用户认证系统.md) | ✅ N/A | ✅ Released |
-| [T-00002](../tds/server/T-00002.md) | T-00001 | Dod | ✅ Done | [✅ Passed](../review/模块1-用户认证系统.md) | ✅ N/A | ✅ Released |
-| [T-00003](../tds/server/T-00003.md) | T-00002 | Dod | ✅ Done | [✅ Passed](../review/模块1-用户认证系统.md) | ✅ N/A | ✅ Released |
-| [T-00004](../tds/server/T-00004.md) | T-00003 | Dod | ✅ Done | [✅ Passed](../review/模块1-用户认证系统.md) | ✅ N/A | ✅ Released |
-| [T-00005](../tds/server/T-00005.md) | T-00004 | Dod | ✅ Done | [✅ Passed](../review/模块1-用户认证系统.md) | ✅ N/A | ✅ Released |
-| [T-10001](../tds/adminServer/T-10001.md) | T-00001 | Dod | ✅ Done | [✅ Passed](../review/模块1-用户认证系统.md) | ✅ N/A | ✅ Released |
-| [T-10002](../tds/adminServer/T-10002.md) | T-10001 | Dod | ✅ Done | [✅ Passed](../review/模块1-用户认证系统.md) | ✅ N/A | ✅ Released |
-| [T-10003](../tds/adminServer/T-10003.md) | T-10002 | Dod | ✅ Done | [✅ Passed](../review/模块1-用户认证系统.md) | ✅ N/A | ✅ Released |
-| [T-20001](../tds/web/T-20001.md) | T-10002 | Dod | ✅ Done | [✅ Passed](../review/模块1-用户认证系统.md) | ✅ N/A | ✅ Released |
-| [T-20002](../tds/web/T-20002.md) | T-10002, T-20001 | Dod | ✅ Done | [✅ Passed](../review/模块1-用户认证系统.md) | ✅ N/A | ✅ Released |
-| [T-30001](../tds/android/T-30001.md) | T-00002 | Dod | ✅ Done | [✅ Passed](../review/模块1-用户认证系统.md) | ✅ N/A | ✅ Released |
-| [T-30002](../tds/android/T-30002.md) | T-00003, T-30001 | Dod | ✅ Done | [✅ Passed](../review/模块1-用户认证系统.md) | ⏭️ SKIP-OOS | ✅ Released |
-| [T-30003](../tds/android/T-30003.md) | T-00004, T-30002 | Dod | ✅ Done | [✅ Passed](../review/模块1-用户认证系统.md) | ⏭️ SKIP-OOS | ✅ Released |
-| [T-30004](../tds/android/T-30004.md) | T-00005, T-30003 | Dod | ✅ Done | [✅ Passed](../review/模块1-用户认证系统.md) | ⏭️ SKIP-OOS | ✅ Released |
+| [T-00001](../tds/server/T-00001.md) | T-0000B, T-0000C | Dod | ✅ Done | [✅ Passed](../review/模块1-用户认证系统.md) | - | - |
+| [T-00002](../tds/server/T-00002.md) | T-00001 | Dod | ✅ Done | [✅ Passed](../review/模块1-用户认证系统.md) | - | - |
+| [T-00003](../tds/server/T-00003.md) | T-00002 | Dod | ✅ Done | [✅ Passed](../review/模块1-用户认证系统.md) | - | - |
+| [T-00004](../tds/server/T-00004.md) | T-00003 | Dod | ✅ Done | [✅ Passed](../review/模块1-用户认证系统.md) | - | - |
+| [T-00005](../tds/server/T-00005.md) | T-00004 | Dod | ✅ Done | [✅ Passed](../review/模块1-用户认证系统.md) | - | - |
+| [T-10001](../tds/adminServer/T-10001.md) | T-00001 | Dod | ✅ Done | [✅ Passed](../review/模块1-用户认证系统.md) | - | - |
+| [T-10002](../tds/adminServer/T-10002.md) | T-10001 | Dod | ✅ Done | [✅ Passed](../review/模块1-用户认证系统.md) | - | - |
+| [T-10003](../tds/adminServer/T-10003.md) | T-10002 | Dod | ✅ Done | [✅ Passed](../review/模块1-用户认证系统.md) | - | - |
+| [T-20001](../tds/web/T-20001.md) | T-10002 | Dod | ✅ Done | [✅ Passed](../review/模块1-用户认证系统.md) | - | - |
+| [T-20002](../tds/web/T-20002.md) | T-10002, T-20001 | Dod | ✅ Done | [✅ Passed](../review/模块1-用户认证系统.md) | - | - |
+| [T-30001](../tds/android/T-30001.md) | T-00002 | Dod | ✅ Done | [✅ Passed](../review/模块1-用户认证系统.md) | - | - |
+| [T-30002](../tds/android/T-30002.md) | T-00003, T-30001 | Dod | ✅ Done | [✅ Passed](../review/模块1-用户认证系统.md) | - | - |
+| [T-30003](../tds/android/T-30003.md) | T-00004, T-30002 | Dod | ✅ Done | [✅ Passed](../review/模块1-用户认证系统.md) | - | - |
+| [T-30004](../tds/android/T-30004.md) | T-00005, T-30003 | Dod | ✅ Done | [✅ Passed](../review/模块1-用户认证系统.md) | - | - |
 
 #### [模块 2: 房间大厅与列表 (Room Hall)](./模块2-房间大厅与列表%20(Room%20Hall).md)
 
 | Task ID | 前置依赖 | 研发负责人 | 研发状态 | Review Gate 审查门禁 | QA Gate 测试门禁 | Overall Gate 最终门禁 |
 |---------|---------|-----------|---------|---------------------|-----------------|----------------------|
-| [T-00006](../tds/server/T-00006.md) | T-00001 | Dod | ✅ Done | [✅ Passed](../review/模块2-房间大厅与列表.md) | ✅ N/A | ✅ Released |
-| [T-00007](../tds/server/T-00007.md) | T-00006, T-00004 | Dod | ✅ Done | [✅ Passed](../review/模块2-房间大厅与列表.md) | ✅ N/A | ✅ Released |
-| [T-00008](../tds/server/T-00008.md) | T-00006 | Dod | ✅ Done | [✅ Passed](../review/模块2-房间大厅与列表.md) | ✅ N/A | ✅ Released |
-| [T-00009](../tds/server/T-00009.md) | T-00008 | Dod | ✅ Done | [✅ Passed](../review/模块2-房间大厅与列表.md) | ✅ N/A | ✅ Released |
-| [T-00010](../tds/server/T-00010.md) | T-00007 | Dod | ✅ Done | [✅ Passed](../review/模块2-房间大厅与列表.md) | ✅ N/A | ✅ Released |
-| [T-10004](../tds/adminServer/T-10004.md) | T-00006, T-10003 | Dod | ✅ Done | [✅ Passed](../review/模块2-房间大厅与列表.md) | ✅ N/A | ✅ Released |
-| [T-10005](../tds/adminServer/T-10005.md) | T-10004 | Dod | ✅ Done | [✅ Passed](../review/模块2-房间大厅与列表.md) | ✅ N/A | ✅ Released |
-| [T-10006](../tds/adminServer/T-10006.md) | T-10005 | Dod | ✅ Done | [✅ Passed](../review/模块2-房间大厅与列表.md) | ✅ N/A | ✅ Released |
-| [T-20003](../tds/web/T-20003.md) | T-20002, T-10010 | Dod | ✅ Done | [✅ Passed](../review/模块2-房间大厅与列表.md) | ✅ N/A | ✅ Released |
-| [T-20004](../tds/web/T-20004.md) | T-10004 | Dod | ✅ Done | [✅ Passed](../review/模块2-房间大厅与列表.md) | ✅ N/A | ✅ Released |
-| [T-20005](../tds/web/T-20005.md) | T-10005, T-20004 | Dod | ✅ Done | [✅ Passed](../review/模块2-房间大厅与列表.md) | ✅ N/A | ✅ Released |
-| [T-30005](../tds/android/T-30005.md) | T-00008 | Dod | ✅ Done | [✅ Passed](../review/模块2-房间大厅与列表.md) | ✅ N/A | ✅ Released |
-| [T-30006](../tds/android/T-30006.md) | T-00008, T-30005 | Dod | ✅ Done | [✅ Passed](../review/模块2-房间大厅与列表.md) | ✅ N/A | ✅ Released |
-| [T-30007](../tds/android/T-30007.md) | T-00007 | Dod | ✅ Done | [✅ Passed](../review/模块2-房间大厅与列表.md) | ⏭️ SKIP-OOS | ✅ Released |
+| [T-00006](../tds/server/T-00006.md) | T-00001 | Dod | ✅ Done | [✅ Passed](../review/模块2-房间大厅与列表.md) | - | - |
+| [T-00007](../tds/server/T-00007.md) | T-00006, T-00004 | Dod | ✅ Done | [✅ Passed](../review/模块2-房间大厅与列表.md) | - | - |
+| [T-00008](../tds/server/T-00008.md) | T-00006 | Dod | ✅ Done | [✅ Passed](../review/模块2-房间大厅与列表.md) | - | - |
+| [T-00009](../tds/server/T-00009.md) | T-00008 | Dod | ✅ Done | [✅ Passed](../review/模块2-房间大厅与列表.md) | - | - |
+| [T-00010](../tds/server/T-00010.md) | T-00007 | Dod | ✅ Done | [✅ Passed](../review/模块2-房间大厅与列表.md) | - | - |
+| [T-10004](../tds/adminServer/T-10004.md) | T-00006, T-10003 | Dod | ✅ Done | [✅ Passed](../review/模块2-房间大厅与列表.md) | - | - |
+| [T-10005](../tds/adminServer/T-10005.md) | T-10004 | Dod | ✅ Done | [✅ Passed](../review/模块2-房间大厅与列表.md) | - | - |
+| [T-10006](../tds/adminServer/T-10006.md) | T-10005 | Dod | ✅ Done | [✅ Passed](../review/模块2-房间大厅与列表.md) | - | - |
+| [T-20003](../tds/web/T-20003.md) | T-20002, T-10010 | Dod | ✅ Done | [✅ Passed](../review/模块2-房间大厅与列表.md) | - | - |
+| [T-20004](../tds/web/T-20004.md) | T-10004 | Dod | ✅ Done | [✅ Passed](../review/模块2-房间大厅与列表.md) | - | - |
+| [T-20005](../tds/web/T-20005.md) | T-10005, T-20004 | Dod | ✅ Done | [✅ Passed](../review/模块2-房间大厅与列表.md) | - | - |
+| [T-30005](../tds/android/T-30005.md) | T-00008 | Dod | ✅ Done | [✅ Passed](../review/模块2-房间大厅与列表.md) | - | - |
+| [T-30006](../tds/android/T-30006.md) | T-00008, T-30005 | Dod | ✅ Done | [✅ Passed](../review/模块2-房间大厅与列表.md) | - | - |
+| [T-30007](../tds/android/T-30007.md) | T-00007 | Dod | ✅ Done | [✅ Passed](../review/模块2-房间大厅与列表.md) | - | - |
 
 #### [模块 3: 房间内核心功能 (In-Room Core)](./模块3-房间内核心功能%20(In-Room%20Core).md)
 
 | Task ID | 前置依赖 | 研发负责人 | 研发状态 | Review Gate 审查门禁 | QA Gate 测试门禁 | Overall Gate 最终门禁 |
 |---------|---------|-----------|---------|---------------------|-----------------|----------------------|
-| [T-00011](../tds/server/T-00011.md) | T-00004 | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | ✅ N/A | ✅ Released |
-| [T-00011B](../tds/server/T-00011B.md) | T-00011 | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | ✅ N/A | ✅ Released |
-| [T-00011C](../tds/server/T-00011C.md) | T-00011, T-00012 | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | ✅ N/A | ✅ Released |
-| [T-00012](../tds/server/T-00012.md) | T-00011 | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | ✅ N/A | ✅ Released |
-| [T-00013](../tds/server/T-00013.md) | T-00012 | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | ✅ N/A | ✅ Released |
-| [T-00014](../tds/server/T-00014.md) | T-00012 | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | ✅ N/A | ✅ Released |
-| [T-00015](../tds/server/T-00015.md) | T-00014 | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | ✅ N/A | ✅ Released |
-| [T-00016](../tds/server/T-00016.md) | T-00012 | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | ✅ N/A | ✅ Released |
-| [T-00041](../tds/server/T-00041.md) | T-00011 | Dod | ✅ Done | [✅ Passed](../review/模块3-6-8-架构阻塞修复.md) | ✅ N/A | ✅ Released |
-| [T-00043](../tds/server/T-00043.md) | T-00016 | Dod | ✅ Done | [✅ Passed](../review/模块3-6-8-架构阻塞修复.md) | ✅ N/A | ✅ Released |
-| [T-00045](../tds/server/T-00045.md) | T-00043 | Dod | ✅ Done | [✅ Passed](../review/模块3-BUG-CHAT-WS修复链.md) | [✅ Passed · Round 22](../../tests/report-20260505-124251/AND/TC-CHAT-00002/TC-CHAT-00002_Report.md) | ✅ Released |
-| [T-00046](../tds/server/T-00046.md) | T-00045 | Dod | ✅ Done | [✅ Passed](../review/模块3-BUG-CHAT-WS修复链.md) | [✅ Passed · Round 22](../../tests/report-20260505-124251/AND/TC-CHAT-00002/TC-CHAT-00002_Report.md) | ✅ Released |
-| [T-00047](../tds/server/T-00047.md) ⭐ | T-00045, T-00046, T-30054 | Dod | ✅ Done | [✅ Passed](../tds/server/T-00047.md) | ✅ N/A | ✅ Released |
-| [T-00048](../tds/server/T-00048.md) | T-00047 | Dod | ✅ Done | [✅ Passed](../review/server-T-00048-chat-dual-path.md) | ✅ N/A | ✅ Released |
-| [T-10007](../tds/adminServer/T-10007.md) | T-10003 | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | ✅ N/A | ✅ Released |
-| [T-10008](../tds/adminServer/T-10008.md) | T-10007 | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | ✅ N/A | ✅ Released |
-| [T-10009](../tds/adminServer/T-10009.md) | T-10008 | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | ✅ N/A | ✅ Released |
-| [T-10010](../tds/adminServer/T-10010.md) | T-10003 | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | ✅ N/A | ✅ Released |
-| [T-10011](../tds/adminServer/T-10011.md) | T-10003, T-0000A | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | ✅ N/A | ✅ Released |
-| [T-10012](../tds/adminServer/T-10012.md) | T-10001 | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | ✅ N/A | ✅ Released |
-| [T-20006](../tds/web/T-20006.md) | T-10007 | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | ✅ N/A | ✅ Released |
-| [T-20007](../tds/web/T-20007.md) | T-10008, T-20006 | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | ✅ N/A | ✅ Released |
-| [T-20008](../tds/web/T-20008.md) | T-10009, T-20007 | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | ✅ N/A | ✅ Released |
-| [T-20009](../tds/web/T-20009.md) | T-10012 | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | ✅ N/A | ✅ Released |
-| [T-30008](../tds/android/T-30008.md) | T-00011 | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | ✅ N/A | ✅ Released |
-| [T-30009](../tds/android/T-30009.md) | T-00009 | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | ✅ N/A | ✅ Released |
-| [T-30010](../tds/android/T-30010.md) | T-00012, T-30008, T-30009 | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | ✅ N/A | ✅ Released |
-| [T-30011](../tds/android/T-30011.md) | T-30009 | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | ✅ N/A | ✅ Released |
-| [T-30012](../tds/android/T-30012.md) | T-30011 | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | ✅ N/A | ✅ Released |
-| [T-30013](../tds/android/T-30013.md) | T-00014, T-30012 | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | ✅ N/A | ✅ Released |
-| [T-30014](../tds/android/T-30014.md) | T-30009 | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | ✅ N/A | ✅ Released |
-| [T-30015](../tds/android/T-30015.md) | T-30014 | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | ✅ N/A | ✅ Released |
-| [T-30016](../tds/android/T-30016.md) | T-00016, T-30015 | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | ✅ N/A | ✅ Released |
-| [T-30017](../tds/android/T-30017.md) | T-00016, T-30014 | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | ✅ N/A | ✅ Released |
-| [T-30051](../tds/android/T-30051.md) | T-30017 | Dod | ✅ Done | [✅ Passed](../review/模块3-BUG-CHAT-WS修复链.md) | [✅ Passed · Round 22](../../tests/report-20260505-124251/AND/TC-CHAT-00002/TC-CHAT-00002_Report.md) | ✅ Released |
-| [T-30052](../tds/android/T-30052.md) | T-30051 | Dod | ✅ Done | [✅ Passed](../review/模块3-BUG-CHAT-WS修复链.md) | [✅ Passed · Round 22](../../tests/report-20260505-124251/AND/TC-CHAT-00002/TC-CHAT-00002_Report.md) | ✅ Released |
-| [T-30053](../tds/android/T-30053.md) | T-30052 | - | ✅ Done | [✅ Passed](../review/模块3-T-30053-chat-longpress.md) | [✅ Passed · Round 23](../../tests/report-20260505-213102/AND/TC-CHAT-00002/TC-CHAT-00002_Report.md) | ✅ Released |
-| [T-30054](../tds/android/T-30054.md) | T-00047 | Dod | ✅ Done | [✅ Passed](../tds/android/T-30054.md) | ✅ N/A | ✅ Released |
+| [T-00011](../tds/server/T-00011.md) | T-00004 | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | - | - |
+| [T-00011B](../tds/server/T-00011B.md) | T-00011 | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | - | - |
+| [T-00011C](../tds/server/T-00011C.md) | T-00011, T-00012 | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | - | - |
+| [T-00012](../tds/server/T-00012.md) | T-00011 | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | - | - |
+| [T-00013](../tds/server/T-00013.md) | T-00012 | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | - | - |
+| [T-00014](../tds/server/T-00014.md) | T-00012 | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | - | - |
+| [T-00015](../tds/server/T-00015.md) | T-00014 | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | - | - |
+| [T-00016](../tds/server/T-00016.md) | T-00012 | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | - | - |
+| [T-00041](../tds/server/T-00041.md) | T-00011 | Dod | ✅ Done | [✅ Passed](../review/模块3-6-8-架构阻塞修复.md) | - | - |
+| [T-00043](../tds/server/T-00043.md) | T-00016 | Dod | ✅ Done | [✅ Passed](../review/模块3-6-8-架构阻塞修复.md) | - | - |
+| [T-00045](../tds/server/T-00045.md) | T-00043 | Dod | ✅ Done | [✅ Passed](../review/模块3-BUG-CHAT-WS修复链.md) | - | - |
+| [T-00046](../tds/server/T-00046.md) | T-00045 | Dod | ✅ Done | [✅ Passed](../review/模块3-BUG-CHAT-WS修复链.md) | - | - |
+| [T-00047](../tds/server/T-00047.md) ⭐ | T-00045, T-00046, T-30054 | Dod | ✅ Done | [✅ Passed](../tds/server/T-00047.md) | - | - |
+| [T-00048](../tds/server/T-00048.md) | T-00047 | Dod | ✅ Done | [✅ Passed](../review/server-T-00048-chat-dual-path.md) | - | - |
+| [T-10007](../tds/adminServer/T-10007.md) | T-10003 | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | - | - |
+| [T-10008](../tds/adminServer/T-10008.md) | T-10007 | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | - | - |
+| [T-10009](../tds/adminServer/T-10009.md) | T-10008 | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | - | - |
+| [T-10010](../tds/adminServer/T-10010.md) | T-10003 | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | - | - |
+| [T-10011](../tds/adminServer/T-10011.md) | T-10003, T-0000A | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | - | - |
+| [T-10012](../tds/adminServer/T-10012.md) | T-10001 | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | - | - |
+| [T-20006](../tds/web/T-20006.md) | T-10007 | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | - | - |
+| [T-20007](../tds/web/T-20007.md) | T-10008, T-20006 | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | - | - |
+| [T-20008](../tds/web/T-20008.md) | T-10009, T-20007 | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | - | - |
+| [T-20009](../tds/web/T-20009.md) | T-10012 | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | - | - |
+| [T-30008](../tds/android/T-30008.md) | T-00011 | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | - | - |
+| [T-30009](../tds/android/T-30009.md) | T-00009 | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | - | - |
+| [T-30010](../tds/android/T-30010.md) | T-00012, T-30008, T-30009 | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | - | - |
+| [T-30011](../tds/android/T-30011.md) | T-30009 | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | - | - |
+| [T-30012](../tds/android/T-30012.md) | T-30011 | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | - | - |
+| [T-30013](../tds/android/T-30013.md) | T-00014, T-30012 | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | - | - |
+| [T-30014](../tds/android/T-30014.md) | T-30009 | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | - | - |
+| [T-30015](../tds/android/T-30015.md) | T-30014 | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | - | - |
+| [T-30016](../tds/android/T-30016.md) | T-00016, T-30015 | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | - | - |
+| [T-30017](../tds/android/T-30017.md) | T-00016, T-30014 | Dod | ✅ Done | [✅ Passed](../review/模块3-房间内核心功能.md) | - | - |
+| [T-30051](../tds/android/T-30051.md) | T-30017 | Dod | ✅ Done | [✅ Passed](../review/模块3-BUG-CHAT-WS修复链.md) | - | - |
+| [T-30052](../tds/android/T-30052.md) | T-30051 | Dod | ✅ Done | [✅ Passed](../review/模块3-BUG-CHAT-WS修复链.md) | - | - |
+| [T-30053](../tds/android/T-30053.md) | T-30052 | - | ✅ Done | [✅ Passed](../review/模块3-T-30053-chat-longpress.md) | - | - |
+| [T-30054](../tds/android/T-30054.md) | T-00047 | Dod | ✅ Done | [✅ Passed](../tds/android/T-30054.md) | - | - |
 
 ---
 
@@ -322,22 +323,22 @@
 
 | Task ID | 前置依赖 | 研发负责人 | 研发状态 | Review Gate 审查门禁 | QA Gate 测试门禁 | Overall Gate 最终门禁 |
 |---------|---------|-----------|---------|---------------------|-----------------|----------------------|
-| [T-30018](../tds/android/T-30018.md) | 无 | Dod | ✅ Done | [✅ Passed](../review/模块4-中东黑金主题与App壳体.md) | ✅ N/A | ✅ Released |
-| [T-30019](../tds/android/T-30019.md) | T-30018 | Dod | ✅ Done | [✅ Passed](../review/模块4-中东黑金主题与App壳体.md) | ✅ N/A | ✅ Released |
-| [T-30020](../tds/android/T-30020.md) | T-30018, T-30019 | Dod | ✅ Done | [✅ Passed](../review/模块4-中东黑金主题与App壳体.md) | ✅ N/A | ✅ Released |
-| [T-30021](../tds/android/T-30021.md) | T-30018 | Dod | ✅ Done | [✅ Passed](../review/模块4-中东黑金主题与App壳体.md) | ✅ N/A | ✅ Released |
-| [T-30022](../tds/android/T-30022.md) | T-30018, T-30020 | Dod | ✅ Done | [✅ Passed](../review/模块4-中东黑金主题与App壳体.md) | ✅ N/A | ✅ Released |
-| [T-30023](../tds/android/T-30023.md) | T-30018, T-30020 | Dod | ✅ Done | [✅ Passed](../review/模块4-中东黑金主题与App壳体.md) | ✅ N/A | ✅ Released |
-| [T-30024](../tds/android/T-30024.md) | T-30018, T-30020, T-30004 | Dod | ✅ Done | [✅ Passed](../review/模块4-中东黑金主题与App壳体.md) | ✅ N/A | ✅ Released |
-| [T-30025](../tds/android/T-30025.md) | T-30018 | Dod | ✅ Done | [✅ Passed](../review/模块4-中东黑金主题与App壳体.md) | ✅ N/A | ✅ Released |
-| [T-30026](../tds/android/T-30026.md) | T-30018, T-30025 | Dod | ✅ Done | [✅ Passed](../review/模块4-中东黑金主题与App壳体.md) | ✅ N/A | ✅ Released |
+| [T-30018](../tds/android/T-30018.md) | 无 | Dod | ✅ Done | [✅ Passed](../review/模块4-中东黑金主题与App壳体.md) | - | - |
+| [T-30019](../tds/android/T-30019.md) | T-30018 | Dod | ✅ Done | [✅ Passed](../review/模块4-中东黑金主题与App壳体.md) | - | - |
+| [T-30020](../tds/android/T-30020.md) | T-30018, T-30019 | Dod | ✅ Done | [✅ Passed](../review/模块4-中东黑金主题与App壳体.md) | - | - |
+| [T-30021](../tds/android/T-30021.md) | T-30018 | Dod | ✅ Done | [✅ Passed](../review/模块4-中东黑金主题与App壳体.md) | - | - |
+| [T-30022](../tds/android/T-30022.md) | T-30018, T-30020 | Dod | ✅ Done | [✅ Passed](../review/模块4-中东黑金主题与App壳体.md) | - | - |
+| [T-30023](../tds/android/T-30023.md) | T-30018, T-30020 | Dod | ✅ Done | [✅ Passed](../review/模块4-中东黑金主题与App壳体.md) | - | - |
+| [T-30024](../tds/android/T-30024.md) | T-30018, T-30020, T-30004 | Dod | ✅ Done | [✅ Passed](../review/模块4-中东黑金主题与App壳体.md) | - | - |
+| [T-30025](../tds/android/T-30025.md) | T-30018 | Dod | ✅ Done | [✅ Passed](../review/模块4-中东黑金主题与App壳体.md) | - | - |
+| [T-30026](../tds/android/T-30026.md) | T-30018, T-30025 | Dod | ✅ Done | [✅ Passed](../review/模块4-中东黑金主题与App壳体.md) | - | - |
 
 #### [模块 5: Web 管理端增强 (Admin Web Enhancements)](./模块5-Web%20管理端增强%20(Admin%20Web%20Enhancements).md)
 
 | Task ID | 前置依赖 | 研发负责人 | 研发状态 | Review Gate 审查门禁 | QA Gate 测试门禁 | Overall Gate 最终门禁 |
 |---------|---------|-----------|---------|---------------------|-----------------|----------------------|
-| [T-20010](../tds/web/T-20010.md) | T-20007, T-10009 | Dod | ✅ Done | [✅ Passed](../review/模块5-Web管理端增强.md) | ✅ N/A | ✅ Released |
-| [T-20011](../tds/web/T-20011.md) | T-20004 | Dod | ✅ Done | [✅ Passed](../review/模块5-Web管理端增强.md) | [✅ Passed · Round1](../../tests/report-20260506-070958/WEB/TC-ROOM/Report.md) | ✅ Released |
+| [T-20010](../tds/web/T-20010.md) | T-20007, T-10009 | Dod | ✅ Done | [✅ Passed](../review/模块5-Web管理端增强.md) | - | - |
+| [T-20011](../tds/web/T-20011.md) | T-20004 | Dod | ✅ Done | [✅ Passed](../review/模块5-Web管理端增强.md) | - | - |
 
 ---
 
@@ -347,22 +348,22 @@
 
 | Task ID | 前置依赖 | 研发负责人 | 研发状态 | Review Gate 审查门禁 | QA Gate 测试门禁 | Overall Gate 最终门禁 |
 |---------|---------|-----------|---------|---------------------|-----------------|----------------------|
-| [T-00017](../tds/server/T-00017.md) | T-0000B | Dod | ✅ Done | [✅ Passed](../review/模块6-虚拟礼物与钱包闭环MVP.md) | ✅ N/A | ✅ Released |
-| [T-00018](../tds/server/T-00018.md) | T-00017 | Dod | ✅ Done | [✅ Passed](../review/模块6-虚拟礼物与钱包闭环MVP.md) | ✅ N/A | ✅ Released |
-| [T-00019](../tds/server/T-00019.md) | T-0000B | Dod | ✅ Done | [✅ Passed](../review/模块6-虚拟礼物与钱包闭环MVP.md) | ✅ N/A | ✅ Released |
-| [T-00020](../tds/server/T-00020.md) | T-00017, T-00019, T-00016 | Dod | ✅ Done | [✅ Passed](../review/模块6-虚拟礼物与钱包闭环MVP.md) | ✅ N/A | ✅ Released |
-| [T-00021](../tds/server/T-00021.md) | T-00020 | Dod | ✅ Done | [✅ Passed](../review/模块6-虚拟礼物与钱包闭环MVP.md) | ✅ N/A | ✅ Released |
-| [T-00044](../tds/server/T-00044.md) | T-00020 | Dod | ✅ Done | [✅ Passed](../review/模块3-6-8-架构阻塞修复.md) | ✅ N/A | ✅ Released |
-| [T-10013](../tds/adminServer/T-10013.md) | T-00017, T-10012 | Dod | ✅ Done | [✅ Passed](../review/模块6-虚拟礼物与钱包闭环MVP.md) | ✅ N/A | ✅ Released |
-| [T-10014](../tds/adminServer/T-10014.md) | T-00019, T-10012 | Dod | ✅ Done | [✅ Passed](../review/模块6-虚拟礼物与钱包闭环MVP.md) | ✅ N/A | ✅ Released |
-| [T-20012](../tds/web/T-20012.md) | T-10013, T-10014, T-20007 | Dod | ✅ Done | [✅ Passed](../review/模块6-虚拟礼物与钱包闭环MVP.md) | ✅ N/A | ✅ Released |
-| [T-30027](../tds/android/T-30027.md) | T-00018, T-30024 | Dod | ✅ Done | [✅ Passed](../review/模块6-虚拟礼物与钱包闭环MVP.md) | ✅ N/A | ✅ Released |
-| [T-30028](../tds/android/T-30028.md) | T-00019, T-30026 | Dod | ✅ Done | [✅ Passed](../review/模块6-虚拟礼物与钱包闭环MVP.md) | ✅ N/A | ✅ Released |
-| [T-30029](../tds/android/T-30029.md) | T-30028 | Dod | ✅ Done | [✅ Passed](../review/模块6-虚拟礼物与钱包闭环MVP.md) | ✅ N/A | ✅ Released |
-| [T-30030](../tds/android/T-30030.md) | T-30028, T-30029, T-00020 | Dod | ✅ Done | [✅ Passed](../review/模块6-虚拟礼物与钱包闭环MVP.md) | ✅ N/A | ✅ Released |
-| [T-30031](../tds/android/T-30031.md) | T-30030 | Dod | ✅ Done | [✅ Passed](../review/模块6-虚拟礼物与钱包闭环MVP.md) | ✅ N/A | ✅ Released |
-| [T-30032](../tds/android/T-30032.md) | T-30028 | Dod | ✅ Done | [✅ Passed](../review/模块6-虚拟礼物与钱包闭环MVP.md) | ✅ N/A | ✅ Released |
-| [T-30033](../tds/android/T-30033.md) | T-00021, T-30018 | Dod | ✅ Done | [✅ Passed](../review/模块6-虚拟礼物与钱包闭环MVP.md) | ✅ N/A | ✅ Released |
+| [T-00017](../tds/server/T-00017.md) | T-0000B | Dod | ✅ Done | [✅ Passed](../review/模块6-虚拟礼物与钱包闭环MVP.md) | - | - |
+| [T-00018](../tds/server/T-00018.md) | T-00017 | Dod | ✅ Done | [✅ Passed](../review/模块6-虚拟礼物与钱包闭环MVP.md) | - | - |
+| [T-00019](../tds/server/T-00019.md) | T-0000B | Dod | ✅ Done | [✅ Passed](../review/模块6-虚拟礼物与钱包闭环MVP.md) | - | - |
+| [T-00020](../tds/server/T-00020.md) | T-00017, T-00019, T-00016 | Dod | ✅ Done | [✅ Passed](../review/模块6-虚拟礼物与钱包闭环MVP.md) | - | - |
+| [T-00021](../tds/server/T-00021.md) | T-00020 | Dod | ✅ Done | [✅ Passed](../review/模块6-虚拟礼物与钱包闭环MVP.md) | - | - |
+| [T-00044](../tds/server/T-00044.md) | T-00020 | Dod | ✅ Done | [✅ Passed](../review/模块3-6-8-架构阻塞修复.md) | - | - |
+| [T-10013](../tds/adminServer/T-10013.md) | T-00017, T-10012 | Dod | ✅ Done | [✅ Passed](../review/模块6-虚拟礼物与钱包闭环MVP.md) | - | - |
+| [T-10014](../tds/adminServer/T-10014.md) | T-00019, T-10012 | Dod | ✅ Done | [✅ Passed](../review/模块6-虚拟礼物与钱包闭环MVP.md) | - | - |
+| [T-20012](../tds/web/T-20012.md) | T-10013, T-10014, T-20007 | Dod | ✅ Done | [✅ Passed](../review/模块6-虚拟礼物与钱包闭环MVP.md) | - | - |
+| [T-30027](../tds/android/T-30027.md) | T-00018, T-30024 | Dod | ✅ Done | [✅ Passed](../review/模块6-虚拟礼物与钱包闭环MVP.md) | - | - |
+| [T-30028](../tds/android/T-30028.md) | T-00019, T-30026 | Dod | ✅ Done | [✅ Passed](../review/模块6-虚拟礼物与钱包闭环MVP.md) | - | - |
+| [T-30029](../tds/android/T-30029.md) | T-30028 | Dod | ✅ Done | [✅ Passed](../review/模块6-虚拟礼物与钱包闭环MVP.md) | - | - |
+| [T-30030](../tds/android/T-30030.md) | T-30028, T-30029, T-00020 | Dod | ✅ Done | [✅ Passed](../review/模块6-虚拟礼物与钱包闭环MVP.md) | - | - |
+| [T-30031](../tds/android/T-30031.md) | T-30030 | Dod | ✅ Done | [✅ Passed](../review/模块6-虚拟礼物与钱包闭环MVP.md) | - | - |
+| [T-30032](../tds/android/T-30032.md) | T-30028 | Dod | ✅ Done | [✅ Passed](../review/模块6-虚拟礼物与钱包闭环MVP.md) | - | - |
+| [T-30033](../tds/android/T-30033.md) | T-00021, T-30018 | Dod | ✅ Done | [✅ Passed](../review/模块6-虚拟礼物与钱包闭环MVP.md) | - | - |
 
 ---
 
@@ -372,12 +373,12 @@
 
 | Task ID | 前置依赖 | 研发负责人 | 研发状态 | Review Gate 审查门禁 | QA Gate 测试门禁 | Overall Gate 最终门禁 |
 |---------|---------|-----------|---------|---------------------|-----------------|----------------------|
-| [T-00022](../tds/server/T-00022.md) | T-0000B | Dod | ✅ Done | [✅ Passed](../review/模块7-埋点与观测性基建.md) | ✅ N/A | ✅ Released |
-| [T-00023](../tds/server/T-00023.md) | T-00022, T-00016 | Dod | ✅ Done | [✅ Passed](../review/模块7-埋点与观测性基建.md) | ✅ N/A | ✅ Released |
-| [T-10015](../tds/adminServer/T-10015.md) | T-00022, T-10012 | Dod | ✅ Done | [✅ Passed](../review/模块7-埋点与观测性基建.md) | ✅ N/A | ✅ Released |
-| [T-20013](../tds/web/T-20013.md) | T-10015, T-20007 | Dod | ✅ Done | [✅ Passed](../review/模块7-埋点与观测性基建.md) | ✅ N/A | ✅ Released |
-| [T-30034](../tds/android/T-30034.md) | T-0000D | Dod | ✅ Done | [✅ Passed](../review/模块7-埋点与观测性基建.md) | ⏭️ SKIP-OOS | ✅ Released |
-| [T-30035](../tds/android/T-30035.md) | T-30034, T-00022, T-00023, T-30002 | Dod | ✅ Done | [✅ Passed](../review/模块7-埋点与观测性基建.md) | ⏭️ SKIP-OOS | ✅ Released |
+| [T-00022](../tds/server/T-00022.md) | T-0000B | Dod | ✅ Done | [✅ Passed](../review/模块7-埋点与观测性基建.md) | - | - |
+| [T-00023](../tds/server/T-00023.md) | T-00022, T-00016 | Dod | ✅ Done | [✅ Passed](../review/模块7-埋点与观测性基建.md) | - | - |
+| [T-10015](../tds/adminServer/T-10015.md) | T-00022, T-10012 | Dod | ✅ Done | [✅ Passed](../review/模块7-埋点与观测性基建.md) | - | - |
+| [T-20013](../tds/web/T-20013.md) | T-10015, T-20007 | Dod | ✅ Done | [✅ Passed](../review/模块7-埋点与观测性基建.md) | - | - |
+| [T-30034](../tds/android/T-30034.md) | T-0000D | Dod | ✅ Done | [✅ Passed](../review/模块7-埋点与观测性基建.md) | - | - |
+| [T-30035](../tds/android/T-30035.md) | T-30034, T-00022, T-00023, T-30002 | Dod | ✅ Done | [✅ Passed](../review/模块7-埋点与观测性基建.md) | - | - |
 
 ---
 
@@ -387,25 +388,25 @@
 
 | Task ID | 前置依赖 | 研发负责人 | 研发状态 | Review Gate 审查门禁 | QA Gate 测试门禁 | Overall Gate 最终门禁 |
 |---------|---------|-----------|---------|---------------------|-----------------|----------------------|
-| [T-00024](../tds/server/T-00024.md) | T-0000B | Dod | ✅ Done | [✅ Passed](../review/模块8-房间主权与管理员体系.md) | ✅ N/A | ✅ Released |
-| [T-00025](../tds/server/T-00025.md) | T-00024 | Dod | ✅ Done | [✅ Passed](../review/模块8-房间主权与管理员体系.md) | ✅ N/A | ✅ Released |
-| [T-00026](../tds/server/T-00026.md) | T-00025 | Dod | ✅ Done | [✅ Passed](../review/模块8-房间主权与管理员体系.md) | ✅ N/A | ✅ Released |
-| [T-00027](../tds/server/T-00027.md) | T-00024, T-00016 | Dod | ✅ Done | [✅ Passed](../review/模块8-房间主权与管理员体系.md) | ✅ N/A | ✅ Released |
-| [T-00028](../tds/server/T-00028.md) | T-00024, T-00027 | Dod | ✅ Done | [✅ Passed](../review/模块8-房间主权与管理员体系.md) | ✅ N/A | ✅ Released |
-| [T-00029](../tds/server/T-00029.md) | T-00024, T-00027 | Dod | ✅ Done | [✅ Passed](../review/模块8-房间主权与管理员体系.md) | ✅ N/A | ✅ Released |
-| [T-00030](../tds/server/T-00030.md) | T-00024, T-00027 | Dod | ✅ Done | [✅ Passed](../review/模块8-房间主权与管理员体系.md) | ✅ N/A | ✅ Released |
-| [T-00042](../tds/server/T-00042.md) | T-00011B, T-10009 | Dod | ✅ Done | [✅ Passed R2](../review/QA回归遗留改动审查.md) | ✅ N/A | ✅ Released |
-| [T-10016](../tds/adminServer/T-10016.md) | T-00028, T-00029, T-10012 | Dod | ✅ Done | [✅ Passed](../review/模块8-房间主权与管理员体系.md) | ✅ N/A | ✅ Released |
-| [T-20014](../tds/web/T-20014.md) | T-10016, T-20007 | Dod | ✅ Done | [✅ Passed](../review/模块8-房间主权与管理员体系.md) | ✅ N/A | ✅ Released |
-| [T-30036](../tds/android/T-30036.md) | T-00025, T-30007 | Dod | ✅ Done | [✅ Passed](../review/模块8-房间主权与管理员体系.md) | ✅ N/A | ✅ Released |
-| [T-30037](../tds/android/T-30037.md) | T-30036 | Dod | ✅ Done | [✅ Passed](../review/模块8-房间主权与管理员体系.md) | ✅ N/A | ✅ Released |
-| [T-30038](../tds/android/T-30038.md) | T-00026, T-30007 | Dod | ✅ Done | [✅ Passed](../review/模块8-房间主权与管理员体系.md) | ✅ N/A | ✅ Released |
-| [T-30039](../tds/android/T-30039.md) | T-00027, T-30018 | Dod | ✅ Done | [✅ Passed](../review/模块8-房间主权与管理员体系.md) | ✅ N/A | ✅ Released |
-| [T-30040](../tds/android/T-30040.md) | T-30039 | Dod | ✅ Done | [✅ Passed](../review/模块8-房间主权与管理员体系.md) | ✅ N/A | ✅ Released |
-| [T-30041](../tds/android/T-30041.md) | T-30040, T-00028 | Dod | ✅ Done | [✅ Passed](../review/模块8-房间主权与管理员体系.md) | ✅ N/A | ✅ Released |
-| [T-30042](../tds/android/T-30042.md) | T-00028, T-00029 | Dod | ✅ Done | [✅ Passed](../review/模块8-房间主权与管理员体系.md) | ✅ N/A | ✅ Released |
-| [T-30043](../tds/android/T-30043.md) | T-00025, T-00030, T-30018 | Dod | ✅ Done | [✅ Passed](../review/模块8-房间主权与管理员体系.md) | ✅ N/A | ✅ Released |
-| [T-30044](../tds/android/T-30044.md) | T-00029, T-00030, T-30042 | Dod | ✅ Done | [✅ Passed](../review/模块8-房间主权与管理员体系.md) | ✅ N/A | ✅ Released |
+| [T-00024](../tds/server/T-00024.md) | T-0000B | Dod | ✅ Done | [✅ Passed](../review/模块8-房间主权与管理员体系.md) | - | - |
+| [T-00025](../tds/server/T-00025.md) | T-00024 | Dod | ✅ Done | [✅ Passed](../review/模块8-房间主权与管理员体系.md) | - | - |
+| [T-00026](../tds/server/T-00026.md) | T-00025 | Dod | ✅ Done | [✅ Passed](../review/模块8-房间主权与管理员体系.md) | - | - |
+| [T-00027](../tds/server/T-00027.md) | T-00024, T-00016 | Dod | ✅ Done | [✅ Passed](../review/模块8-房间主权与管理员体系.md) | - | - |
+| [T-00028](../tds/server/T-00028.md) | T-00024, T-00027 | Dod | ✅ Done | [✅ Passed](../review/模块8-房间主权与管理员体系.md) | - | - |
+| [T-00029](../tds/server/T-00029.md) | T-00024, T-00027 | Dod | ✅ Done | [✅ Passed](../review/模块8-房间主权与管理员体系.md) | - | - |
+| [T-00030](../tds/server/T-00030.md) | T-00024, T-00027 | Dod | ✅ Done | [✅ Passed](../review/模块8-房间主权与管理员体系.md) | - | - |
+| [T-00042](../tds/server/T-00042.md) | T-00011B, T-10009 | Dod | ✅ Done | [✅ Passed R2](../review/QA回归遗留改动审查.md) | - | - |
+| [T-10016](../tds/adminServer/T-10016.md) | T-00028, T-00029, T-10012 | Dod | ✅ Done | [✅ Passed](../review/模块8-房间主权与管理员体系.md) | - | - |
+| [T-20014](../tds/web/T-20014.md) | T-10016, T-20007 | Dod | ✅ Done | [✅ Passed](../review/模块8-房间主权与管理员体系.md) | - | - |
+| [T-30036](../tds/android/T-30036.md) | T-00025, T-30007 | Dod | ✅ Done | [✅ Passed](../review/模块8-房间主权与管理员体系.md) | - | - |
+| [T-30037](../tds/android/T-30037.md) | T-30036 | Dod | ✅ Done | [✅ Passed](../review/模块8-房间主权与管理员体系.md) | - | - |
+| [T-30038](../tds/android/T-30038.md) | T-00026, T-30007 | Dod | ✅ Done | [✅ Passed](../review/模块8-房间主权与管理员体系.md) | - | - |
+| [T-30039](../tds/android/T-30039.md) | T-00027, T-30018 | Dod | ✅ Done | [✅ Passed](../review/模块8-房间主权与管理员体系.md) | - | - |
+| [T-30040](../tds/android/T-30040.md) | T-30039 | Dod | ✅ Done | [✅ Passed](../review/模块8-房间主权与管理员体系.md) | - | - |
+| [T-30041](../tds/android/T-30041.md) | T-30040, T-00028 | Dod | ✅ Done | [✅ Passed](../review/模块8-房间主权与管理员体系.md) | - | - |
+| [T-30042](../tds/android/T-30042.md) | T-00028, T-00029 | Dod | ✅ Done | [✅ Passed](../review/模块8-房间主权与管理员体系.md) | - | - |
+| [T-30043](../tds/android/T-30043.md) | T-00025, T-00030, T-30018 | Dod | ✅ Done | [✅ Passed](../review/模块8-房间主权与管理员体系.md) | - | - |
+| [T-30044](../tds/android/T-30044.md) | T-00029, T-00030, T-30042 | Dod | ✅ Done | [✅ Passed](../review/模块8-房间主权与管理员体系.md) | - | - |
 
 ---
 
@@ -415,37 +416,37 @@
 
 | Task ID | 前置依赖 | 研发负责人 | 研发状态 | Review Gate 审查门禁 | QA Gate 测试门禁 | Overall Gate 最终门禁 |
 |---------|---------|-----------|---------|---------------------|-----------------|----------------------|
-| [T-0000E](../tds/infra/T-0000E.md) | 无 | Dod | ✅ Done | [✅ Passed](../review/模块9-E2E测试基建.md) | ✅ N/A | ✅ Released |
-| [T-0000F](../tds/infra/T-0000F.md) | T-0000E | Dod | ✅ Done | [✅ Passed](../review/模块9-E2E测试基建.md) | ✅ N/A | ✅ Released |
-| [T-0000G](../tds/infra/T-0000G.md) | T-0000E, T-0000A | Dod | ✅ Done | [✅ Passed](../review/模块9-E2E测试基建.md) | ✅ N/A | ✅ Released |
-| [T-0000H](../tds/infra/T-0000H.md) | T-0000F, T-0000G | Dod | ✅ Done | [✅ Passed](../review/模块9-E2E测试基建.md) | ✅ N/A | ✅ Released |
-| [T-0000I](../tds/infra/T-0000I.md) | T-0000H | Dod | ✅ Done | [✅ Passed](../review/模块9-E2E测试基建.md) | ✅ N/A | ✅ Released |
-| [T-0000J](../tds/infra/T-0000J.md) | T-0000H | Dod | ✅ Done | [✅ Passed](../review/模块9-E2E测试基建.md) | ✅ N/A | ✅ Released |
-| [T-0000K](../tds/infra/T-0000K.md) | T-0000F | Dod | ✅ Done | [✅ Passed](../review/模块9-E2E测试基建.md) | ✅ N/A | ✅ Released |
-| [T-0000L](../tds/infra/T-0000L.md) | T-0000I, T-0000J | Dod | ✅ Done | [✅ Passed](../review/模块9-E2E测试基建.md) | ✅ N/A | ✅ Released |
-| [T-0000M](../tds/infra/T-0000M.md) | T-0000H | Dod | ✅ Done | [✅ Passed](../review/模块9-E2E测试基建.md) | ✅ N/A | ✅ Released |
-| [T-0000N](../tds/infra/T-0000N.md) | T-0000H, T-0000M | Dod | ✅ Done | [✅ Passed](../review/模块9-E2E测试基建.md) | ✅ N/A | ✅ Released |
-| [T-0000O](../tds/infra/T-0000O.md) | T-0000M | Dod | ✅ Done | [✅ Passed](../review/模块9-E2E测试基建.md) | ✅ N/A | ✅ Released |
-| [T-0000P](../tds/infra/T-0000P.md) | T-0000H | Dod | ✅ Done | [✅ Passed](../review/模块9-E2E测试基建.md) | ✅ N/A | ✅ Released |
-| [T-0000Q](../tds/infra/T-0000Q.md) | T-0000G | Dod | ✅ Done | [✅ Passed](../review/模块9-E2E测试基建.md) | ✅ N/A | ✅ Released |
-| [T-0000R](../tds/infra/T-0000R.md) | T-0000P | Dod | ✅ Done | [✅ Passed](../tds/infra/T-0000R.md) | ✅ N/A | ✅ Released |
-| [T-0000S](../tds/infra/T-0000S.md) | T-0000H, T-00041, T-00042 | Dod | ✅ Done | [✅ Passed](../review/模块9-E2E测试基建.md) | ✅ N/A | ✅ Released |
-| [T-00040](../tds/server/T-00040.md) | T-0000E | Dod | ✅ Done | [✅ Passed](../review/模块9-E2E测试基建.md) | ✅ N/A | ✅ Released |
-| [T-10020](../tds/adminServer/T-10020.md) | T-0000E | Dod | ✅ Done | [✅ Passed](../review/模块9-E2E测试基建.md) | ✅ N/A | ✅ Released |
-| [T-20020](../tds/web/T-20020.md) | T-0000E | Dod | ✅ Done | [✅ Passed](../review/模块9-E2E测试基建.md) | ✅ N/A | ✅ Released |
-| [T-30050](../tds/android/T-30050.md) | T-0000E | Dod | ✅ Done | [✅ Passed](../review/模块9-E2E测试基建.md) | ✅ N/A | ✅ Released |
-| [T-0000T](../tds/infra/T-0000T.md) | T-0000R | Dod | ✅ Done | [✅ Passed](../review/模块9-T-0000TV-protocol-audit-arch-cleanup.md) | ✅ N/A | ✅ Released |
-| [T-0000U](../tds/infra/T-0000U.md) | T-0000T | Dod | ✅ Done | ✅ Passed | ✅ N/A | ✅ Released |
-| [T-0000V](../tds/infra/T-0000V.md) | T-0000U | Dod | ✅ Done | [✅ Passed](../review/模块9-T-0000TV-protocol-audit-arch-cleanup.md) | ✅ N/A | ✅ Released |
-| [T-00100](../tds/infra/T-00100.md) ⭐ | T-0000V | Dod | ✅ Done | [✅ Passed](../review/模块10-Phase1.7-extended-协议字段冻结.md) | ✅ N/A | ✅ Released |
-| [T-00101](../tds/android/T-00101.md) | T-00100 | Dod | ✅ Done | [✅ Passed](../review/模块10-Phase1.7-extended-协议字段冻结.md) | ✅ N/A | ✅ Released |
-| [T-00102](../tds/web/T-00102.md) | T-00100 | Done | ✅ Done | [✅ Passed](../review/模块10-Phase1.7-extended-协议字段冻结.md) | ✅ N/A | ✅ Released |
-| [T-00103](../tds/server/T-00103.md) | T-00100 | Dod | ✅ Done | [✅ Passed](../review/模块10-Phase1.7-extended-协议字段冻结.md) | ✅ N/A | ✅ Released |
-| [T-00104](../tds/infra/T-00104.md) ⭐ | T-00100, T-00101, T-00103 | Dod | ✅ Done | [✅ Passed](../review/模块10-Phase1.7-extended-协议字段冻结.md) | ✅ N/A | ✅ Released |
-| [T-00105](../tds/adminServer/T-00105.md) | T-00100 | Dod | ✅ Done | [✅ Passed](../review/模块10-Phase1.7-extended-协议字段冻结.md) | ✅ N/A | ✅ Released |
-| [T-00106](../tds/infra/T-00106.md) | T-00100, T-0000T | Dod | ✅ Done | [✅ Passed](../review/模块10-Phase1.7-extended-协议字段冻结.md) | ✅ N/A | ✅ Released |
-| [T-00107](../tds/infra/T-00107.md) | T-00106 | Dod | ✅ Done | [✅ Passed](../review/模块10-Phase1.7-extended-协议字段冻结.md) | ✅ N/A | ✅ Released |
-| [T-00108](../tds/infra/T-00108.md) | T-00100 | Dod | ✅ Done | [✅ Passed](../review/模块10-Phase1.7-extended-协议字段冻结.md) | ✅ N/A | ✅ Released |
+| [T-0000E](../tds/infra/T-0000E.md) | 无 | Dod | ✅ Done | [✅ Passed](../review/模块9-E2E测试基建.md) | - | - |
+| [T-0000F](../tds/infra/T-0000F.md) | T-0000E | Dod | ✅ Done | [✅ Passed](../review/模块9-E2E测试基建.md) | - | - |
+| [T-0000G](../tds/infra/T-0000G.md) | T-0000E, T-0000A | Dod | ✅ Done | [✅ Passed](../review/模块9-E2E测试基建.md) | - | - |
+| [T-0000H](../tds/infra/T-0000H.md) | T-0000F, T-0000G | Dod | ✅ Done | [✅ Passed](../review/模块9-E2E测试基建.md) | - | - |
+| [T-0000I](../tds/infra/T-0000I.md) | T-0000H | Dod | ✅ Done | [✅ Passed](../review/模块9-E2E测试基建.md) | - | - |
+| [T-0000J](../tds/infra/T-0000J.md) | T-0000H | Dod | ✅ Done | [✅ Passed](../review/模块9-E2E测试基建.md) | - | - |
+| [T-0000K](../tds/infra/T-0000K.md) | T-0000F | Dod | ✅ Done | [✅ Passed](../review/模块9-E2E测试基建.md) | - | - |
+| [T-0000L](../tds/infra/T-0000L.md) | T-0000I, T-0000J | Dod | ✅ Done | [✅ Passed](../review/模块9-E2E测试基建.md) | - | - |
+| [T-0000M](../tds/infra/T-0000M.md) | T-0000H | Dod | ✅ Done | [✅ Passed](../review/模块9-E2E测试基建.md) | - | - |
+| [T-0000N](../tds/infra/T-0000N.md) | T-0000H, T-0000M | Dod | ✅ Done | [✅ Passed](../review/模块9-E2E测试基建.md) | - | - |
+| [T-0000O](../tds/infra/T-0000O.md) | T-0000M | Dod | ✅ Done | [✅ Passed](../review/模块9-E2E测试基建.md) | - | - |
+| [T-0000P](../tds/infra/T-0000P.md) | T-0000H | Dod | ✅ Done | [✅ Passed](../review/模块9-E2E测试基建.md) | - | - |
+| [T-0000Q](../tds/infra/T-0000Q.md) | T-0000G | Dod | ✅ Done | [✅ Passed](../review/模块9-E2E测试基建.md) | - | - |
+| [T-0000R](../tds/infra/T-0000R.md) | T-0000P | Dod | ✅ Done | [✅ Passed](../tds/infra/T-0000R.md) | - | - |
+| [T-0000S](../tds/infra/T-0000S.md) | T-0000H, T-00041, T-00042 | Dod | ✅ Done | [✅ Passed](../review/模块9-E2E测试基建.md) | - | - |
+| [T-00040](../tds/server/T-00040.md) | T-0000E | Dod | ✅ Done | [✅ Passed](../review/模块9-E2E测试基建.md) | - | - |
+| [T-10020](../tds/adminServer/T-10020.md) | T-0000E | Dod | ✅ Done | [✅ Passed](../review/模块9-E2E测试基建.md) | - | - |
+| [T-20020](../tds/web/T-20020.md) | T-0000E | Dod | ✅ Done | [✅ Passed](../review/模块9-E2E测试基建.md) | - | - |
+| [T-30050](../tds/android/T-30050.md) | T-0000E | Dod | ✅ Done | [✅ Passed](../review/模块9-E2E测试基建.md) | - | - |
+| [T-0000T](../tds/infra/T-0000T.md) | T-0000R | Dod | ✅ Done | [✅ Passed](../review/模块9-T-0000TV-protocol-audit-arch-cleanup.md) | - | - |
+| [T-0000U](../tds/infra/T-0000U.md) | T-0000T | Dod | ✅ Done | ✅ Passed | - | - |
+| [T-0000V](../tds/infra/T-0000V.md) | T-0000U | Dod | ✅ Done | [✅ Passed](../review/模块9-T-0000TV-protocol-audit-arch-cleanup.md) | - | - |
+| [T-00100](../tds/infra/T-00100.md) ⭐ | T-0000V | Dod | ✅ Done | [✅ Passed](../review/模块10-Phase1.7-extended-协议字段冻结.md) | - | - |
+| [T-00101](../tds/android/T-00101.md) | T-00100 | Dod | ✅ Done | [✅ Passed](../review/模块10-Phase1.7-extended-协议字段冻结.md) | - | - |
+| [T-00102](../tds/web/T-00102.md) | T-00100 | Done | ✅ Done | [✅ Passed](../review/模块10-Phase1.7-extended-协议字段冻结.md) | - | - |
+| [T-00103](../tds/server/T-00103.md) | T-00100 | Dod | ✅ Done | [✅ Passed](../review/模块10-Phase1.7-extended-协议字段冻结.md) | - | - |
+| [T-00104](../tds/infra/T-00104.md) ⭐ | T-00100, T-00101, T-00103 | Dod | ✅ Done | [✅ Passed](../review/模块10-Phase1.7-extended-协议字段冻结.md) | - | - |
+| [T-00105](../tds/adminServer/T-00105.md) | T-00100 | Dod | ✅ Done | [✅ Passed](../review/模块10-Phase1.7-extended-协议字段冻结.md) | - | - |
+| [T-00106](../tds/infra/T-00106.md) | T-00100, T-0000T | Dod | ✅ Done | [✅ Passed](../review/模块10-Phase1.7-extended-协议字段冻结.md) | - | - |
+| [T-00107](../tds/infra/T-00107.md) | T-00106 | Dod | ✅ Done | [✅ Passed](../review/模块10-Phase1.7-extended-协议字段冻结.md) | - | - |
+| [T-00108](../tds/infra/T-00108.md) | T-00100 | Dod | ✅ Done | [✅ Passed](../review/模块10-Phase1.7-extended-协议字段冻结.md) | - | - |
 
 ---
 
@@ -455,4 +456,4 @@
 
 | Task ID | 前置依赖 | 研发负责人 | 研发状态 | Review Gate 审查门禁 | QA Gate 测试门禁 | Overall Gate 最终门禁 |
 |---------|---------|-----------|---------|---------------------|-----------------|----------------------|
-| [T-30055](../tds/android/T-30055.md) | T-00101 | Dod | ✅ Done | ✅ Passed | ✅ Passed | ✅ Released |
+| [T-30055](../tds/android/T-30055.md) | T-00101 | Dod | ✅ Done | ✅ Passed | - | - |
