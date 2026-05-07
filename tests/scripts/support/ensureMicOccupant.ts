@@ -93,12 +93,24 @@ export async function ensureMicOccupant(
 
   const url = `${wsUrl}?token=${encodeURIComponent(token)}`;
   const ws = new WebSocket(url);
+  // Keepalive: 每 20s 发一次 Ping，防止 30s 心跳超时断连
+  // （服务端心跳超时时会先把 connection 从 registry 移除，导致 do_leave_room 早退，
+  //   麦位无法自动释放，形成陈旧占位。加 Ping 彻底避免该竞态。）
+  let keepaliveTimer: ReturnType<typeof setInterval> | null = null;
+
   try {
     await new Promise<void>((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error('ws connect timeout')), timeoutMs);
       ws.once('open', () => { clearTimeout(timer); resolve(); });
       ws.once('error', (err) => { clearTimeout(timer); reject(err); });
     });
+
+    // 启动心跳保活（连接建立后立即开始）
+    keepaliveTimer = setInterval(() => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'Ping', msg_id: `keepalive_${Date.now()}` }));
+      }
+    }, 20_000);
 
     // JoinRoom
     const joinMsgId = `seed_join_${Date.now()}`;
@@ -123,7 +135,10 @@ export async function ensureMicOccupant(
         const ack = await recv(ws, (m) => m.msg_id === takeMsgId, timeoutMs);
         if (ack.code === 0) {
           occupied = idx;
+          console.log(`[ensureMicOccupant] ✅ WS 占麦成功 mic_index=${idx}`);
           break;
+        } else {
+          console.warn(`[ensureMicOccupant] TakeMic(${idx}) code=${ack.code} msg=${ack.message ?? ''}`);
         }
       } catch {
         /* 超时则尝试下一个 */
@@ -136,10 +151,11 @@ export async function ensureMicOccupant(
       micIndex: occupied,
       userId,
       dispose: async () => {
+        if (keepaliveTimer) { clearInterval(keepaliveTimer); keepaliveTimer = null; }
         try {
           if (ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ type: 'LeaveMic', msg_id: `seed_leave_${Date.now()}` }));
-            await new Promise((r) => setTimeout(r, 200));
+            await new Promise((r) => setTimeout(r, 300));
           }
         } catch {
           /* best-effort */
@@ -149,6 +165,7 @@ export async function ensureMicOccupant(
       },
     };
   } catch (err) {
+    if (keepaliveTimer) { clearInterval(keepaliveTimer); keepaliveTimer = null; }
     try { ws.close(); } catch { /* */ }
     console.warn('[ensureMicOccupant] seed mic failed (best-effort):', (err as Error).message);
     return null;

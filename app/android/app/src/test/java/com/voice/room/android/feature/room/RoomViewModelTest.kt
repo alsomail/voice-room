@@ -419,8 +419,27 @@ class RoomViewModelTest {
             advanceUntilIdle()
             fakeWsClient.sentMessages.clear()
 
+            // Step 1: onMicSlotClick → should emit ShowLeaveMicConfirmDialog (T-30055 新行为)
+            val events = mutableListOf<RoomEvent>()
+            val collectJob = launch { viewModel.events.collect { events.add(it) } }
+
             viewModel.onMicSlotClick(slotIndex = 0)
             advanceUntilIdle()
+
+            assertTrue(
+                "onMicSlotClick should emit ShowLeaveMicConfirmDialog event",
+                events.any { it is RoomEvent.ShowLeaveMicConfirmDialog && it.slotIndex == 0 },
+            )
+            // No WS message should be sent yet — dialog not confirmed
+            assertTrue(
+                "No WS message should be sent before user confirms dialog",
+                fakeWsClient.sentMessages.isEmpty(),
+            )
+
+            // Step 2: confirmLeaveMic → should send LeaveMic WS message
+            viewModel.confirmLeaveMic(slotIndex = 0)
+            advanceUntilIdle()
+            collectJob.cancel()
 
             assertEquals("Should send exactly 1 message", 1, fakeWsClient.sentMessages.size)
             val sent = fakeWsClient.sentMessages[0]
@@ -444,9 +463,26 @@ class RoomViewModelTest {
             advanceUntilIdle()
             fakeWsClient.sentMessages.clear()
 
-            // When: user clicks their own mic slot
+            // Step 1: user clicks their own mic slot → dialog event emitted (T-30055 新行为)
+            val events = mutableListOf<RoomEvent>()
+            val collectJob = launch { viewModel.events.collect { events.add(it) } }
+
             viewModel.onMicSlotClick(slotIndex = 0)
             advanceUntilIdle()
+
+            assertTrue(
+                "onMicSlotClick should emit ShowLeaveMicConfirmDialog(0)",
+                events.any { it is RoomEvent.ShowLeaveMicConfirmDialog && it.slotIndex == 0 },
+            )
+            assertTrue(
+                "No WS message should be sent before user confirms dialog",
+                fakeWsClient.sentMessages.isEmpty(),
+            )
+
+            // Step 2: user confirms dialog → sendEnvelope called with type=LeaveMic + mic_index=0
+            viewModel.confirmLeaveMic(slotIndex = 0)
+            advanceUntilIdle()
+            collectJob.cancel()
 
             // Then: sendEnvelope must be called with both type=LeaveMic and payload.mic_index=0
             assertEquals("Should send exactly 1 WS message", 1, fakeWsClient.sentMessages.size)
@@ -498,9 +534,22 @@ class RoomViewModelTest {
             advanceUntilIdle()
             fakeWsClient.sentMessages.clear()
 
-            // When: user leaves mic via onMicSlotClick
+            // Step 1: user clicks their own mic slot → ShowLeaveMicConfirmDialog event emitted
+            val events = mutableListOf<RoomEvent>()
+            val collectJob = launch { viewModel.events.collect { events.add(it) } }
+
             viewModel.onMicSlotClick(slotIndex = 0)
             advanceUntilIdle()
+
+            assertTrue(
+                "onMicSlotClick should emit ShowLeaveMicConfirmDialog(0)",
+                events.any { it is RoomEvent.ShowLeaveMicConfirmDialog && it.slotIndex == 0 },
+            )
+
+            // Step 2: user confirms dialog → LeaveMic WS message sent
+            viewModel.confirmLeaveMic(slotIndex = 0)
+            advanceUntilIdle()
+            collectJob.cancel()
 
             val sent = fakeWsClient.sentMessages[0]
             // PROTO-BINDING: doc/protocol/schemas/ws/LeaveMic.schema.json

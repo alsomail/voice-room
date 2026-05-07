@@ -105,6 +105,8 @@ fun RoomScreen(
     onGoToWalletClick: () -> Unit = {},
     onNavigateToWallet: () -> Unit = {},
     onNavigateToRanking: () -> Unit = {},
+    /** 下麦确认对话框中点击"下麦"后的回调，参数为麦位 index（T-30055 TC-MIC-00009 Step2）*/
+    onConfirmLeaveMic: (slotIndex: Int) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     // T-30016: 输入框本地状态，由 ClearInput 事件驱动清空
@@ -115,6 +117,9 @@ fun RoomScreen(
 
     // T-30033 MEDIUM-02: 溢出菜单展开状态（本地）
     var showOverflowMenu by remember { mutableStateOf(false) }
+
+    // T-30055 TC-MIC-00009 Step2: 下麦确认对话框状态（本地）
+    var leaveMicConfirmSlotIndex by remember { mutableStateOf<Int?>(null) }
 
     // T-30042: 收集禁麦/禁言到期时间戳
     val micExpiresAt by (muteCountdownViewModel?.micExpiresAt ?: kotlinx.coroutines.flow.MutableStateFlow(null)).collectAsState()
@@ -137,6 +142,10 @@ fun RoomScreen(
                         if (event.muteType == "mic") muteCountdownViewModel?.startMicCountdown(expiresAt)
                         else muteCountdownViewModel?.startChatCountdown(expiresAt)
                     }
+                }
+                is RoomEvent.ShowLeaveMicConfirmDialog -> {
+                    // T-30055 TC-MIC-00009 Step2: 弹出下麦确认对话框
+                    leaveMicConfirmSlotIndex = event.slotIndex
                 }
                 else -> { /* 其他事件由调用方通过 events flow 处理 */ }
             }
@@ -258,6 +267,33 @@ fun RoomScreen(
         UserKickedDialog(
             state = ks,
             onAcknowledge = onAcknowledgeKick,
+        )
+    }
+
+    // T-30055 TC-MIC-00009 Step2: 下麦确认对话框
+    // 用户点击自己麦位图标后弹出；点击"下麦"确认后调用 onConfirmLeaveMic 发出 LeaveMic 信令。
+    leaveMicConfirmSlotIndex?.let { slotIdx ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { leaveMicConfirmSlotIndex = null },
+            title   = { Text(text = "下麦") },
+            text    = { Text(text = "确认离开麦位吗？") },
+            confirmButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = {
+                        leaveMicConfirmSlotIndex = null
+                        onConfirmLeaveMic(slotIdx)
+                    },
+                ) {
+                    Text(text = "下麦")
+                }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = { leaveMicConfirmSlotIndex = null },
+                ) {
+                    Text(text = "取消")
+                }
+            },
         )
     }
 

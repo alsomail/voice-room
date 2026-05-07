@@ -79,7 +79,7 @@ agent: e2e-runner
 prompt: |
 请读取 tests/cases/ 下的 Markdown 用例文件，
 针对 Review Gate 已通过但 QA Gate 尚未通过的 Task 模块，
-生成并执行对应 E2E 测试脚本，将测试报告写入 tests/report-[时间戳]/，
+生成并执行对应测试脚本，将测试报告写入 tests/report-[时间戳]/，
 失败场景请执行自愈策略。
 
 ```

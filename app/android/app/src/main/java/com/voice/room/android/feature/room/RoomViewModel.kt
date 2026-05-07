@@ -305,6 +305,28 @@ class RoomViewModel(
                 if (tokenManager != null && wsUrl.isNotBlank()) {
                     val token = tokenManager.getToken()
                     if (token != null) {
+                        // T-30055 FIX-2: 若 joinRoom 调用方未传 userId（默认 ""），从 JWT sub 自动提取。
+                        // currentUserId 在 onMicSlotClick 中用于判断是否为自己的麦位，
+                        // 若为空则 ShowLeaveMicConfirmDialog 条件永远不满足。
+                        if (currentUserId.isEmpty()) {
+                            try {
+                                val parts = token.split(".")
+                                if (parts.size == 3) {
+                                    val payloadBytes = android.util.Base64.decode(
+                                        parts[1],
+                                        android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP,
+                                    )
+                                    val payloadJson = String(payloadBytes, Charsets.UTF_8)
+                                    val sub = org.json.JSONObject(payloadJson).optString("sub", "")
+                                    if (sub.isNotEmpty()) {
+                                        currentUserId = sub
+                                        Log.d(TAG, "rvm: currentUserId auto-extracted from JWT sub=$sub")
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                Log.w(TAG, "rvm: failed to parse userId from JWT: ${e.message}")
+                            }
+                        }
                         val spec = RoomSocketRequestFactory.create(
                             baseWsUrl = wsUrl,
                             session = RoomSocketSession(
@@ -415,9 +437,20 @@ class RoomViewModel(
         val slot = currentState.uiState.micSlots.getOrNull(slotIndex) ?: return
 
         if (slot.userId != null && slot.userId == currentUserId && currentUserId.isNotEmpty()) {
-            leaveMic(slotIndex)
+            // T-30055 TC-MIC-00009 Step2: 弹出下麦确认菜单，由 UI 层展示；
+            // 用户确认后调用 confirmLeaveMic(slotIndex) 发出 LeaveMic 信令。
+            _events.trySend(RoomEvent.ShowLeaveMicConfirmDialog(slotIndex))
         }
         // 空麦位 / 他人麦位：不操作
+    }
+
+    /**
+     * 用户在下麦确认对话框中点击"下麦/确认"后调用（T-30055）。
+     *
+     * @param slotIndex 需要释放的麦位下标（由 [RoomEvent.ShowLeaveMicConfirmDialog] 传入）
+     */
+    fun confirmLeaveMic(slotIndex: Int) {
+        leaveMic(slotIndex)
     }
 
     /**

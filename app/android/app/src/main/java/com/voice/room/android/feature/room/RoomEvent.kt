@@ -69,5 +69,15 @@ sealed class RoomEvent {
         val muteType: String,
         val expiresAt: Long?,
     ) : RoomEvent()
+
+    /**
+     * 弹出下麦确认对话框（T-30055 BUG-MIC-ONCLICK — TC-MIC-00009 Step2）
+     *
+     * 用户点击自己已占据的麦位图标后，UI 层收到此事件后显示下麦确认菜单。
+     * 用户点击"下麦/确认"后，UI 层调用 [RoomViewModel.confirmLeaveMic] 发出 LeaveMic 信令。
+     *
+     * @param slotIndex 被点击的麦位下标（0-based）
+     */
+    data class ShowLeaveMicConfirmDialog(val slotIndex: Int) : RoomEvent()
 }
 

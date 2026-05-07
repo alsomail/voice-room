@@ -220,6 +220,7 @@ fun AppNavGraph(appContainer: AppContainer) {
                             roomViewModel.leaveRoom()
                             navController.popBackStack()
                         },
+                        onConfirmLeaveMic        = { slotIndex -> roomViewModel.confirmLeaveMic(slotIndex) },
                         onSelectGift             = { giftId -> giftPanelViewModel.selectGift(giftId) },
                         onSelectCount            = { count -> giftPanelViewModel.selectCount(count) },
                         onSelectGiftTab          = { tab -> giftPanelViewModel.selectTab(tab) },
