@@ -12,7 +12,7 @@ import { PlaywrightAgent } from '@midscene/web/playwright';
 import { agentFromAdbDevice } from '@midscene/android';
 import { execSync } from 'child_process';
 import { redisExecSync, RedisCliUnavailableError } from '../support/redisCli';
-import { resetAndroidToLoginPage } from '../support/androidReset';
+import { resetAndroidToLoginPage, dismissConsentDialog } from '../support/androidReset';
 
 test.setTimeout(300_000);
 
@@ -54,9 +54,11 @@ test.describe('TC-GOVERNANCE E2E - 房间治理跨端闭环', () => {
     });
 
     try {
-      // Step 1: Android（房主）登录 + 进入房间（Round 3：标准化重置，不 pm clear）
+      // Step 1: Android（房主）登录 + 进入房间（Round 3：clearData=true 清除 JWT）
       await resetAndroidToLoginPage(adbPrefix, ANDROID_APP_ID, 5, true);
       await agent.launch(ANDROID_APP_ID);
+      // Round 3 fix: post-launch ADB dismiss 作为第二重保障
+      await dismissConsentDialog(adbPrefix, 5);
       await agent.aiWaitFor('界面上有可交互的元素', { timeoutMs: 15_000 });
 
       const hasConsent = await agent.aiBoolean('是否存在数据收集或隐私同意弹窗？');
@@ -162,9 +164,11 @@ test.describe('TC-GOVERNANCE E2E - 房间治理跨端闭环', () => {
     });
 
     try {
-      // Round 3：标准化重置（force-stop + am start，不 pm clear 避免弹窗）
+      // Round 3：clearData=true 清除 JWT，post-launch ADB dismiss 双重保障
       await resetAndroidToLoginPage(adbPrefix, ANDROID_APP_ID, 5, true);
       await agent.launch(ANDROID_APP_ID);
+      // Round 3 fix: post-launch ADB dismiss 作为第二重保障
+      await dismissConsentDialog(adbPrefix, 5);
       await agent.aiWaitFor('界面上有可交互的元素', { timeoutMs: 15_000 });
 
       const hasConsent = await agent.aiBoolean('是否存在数据收集或隐私同意弹窗？');

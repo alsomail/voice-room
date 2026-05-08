@@ -8,7 +8,7 @@ import { test, expect } from '../support/fixtures';
 import { agentFromAdbDevice } from '@midscene/android';
 import { execSync } from 'child_process';
 import { redisExecSync, RedisCliUnavailableError } from '../support/redisCli';
-import { resetAndroidToLoginPage } from '../support/androidReset';
+import { resetAndroidToLoginPage, dismissConsentDialog } from '../support/androidReset';
 
 test.setTimeout(300_000);
 
@@ -94,7 +94,18 @@ test.describe('TC-AUTH E2E - 登录闭环', () => {
       // Step 10：冷启验证 JWT 持久化
       execSync(`${adbPrefix} shell am force-stop ${ANDROID_APP_ID}`);
       await new Promise(r => setTimeout(r, 1000));
+      // Round 3 fix: 先用 ADB 消可能出现的同意弹窗（force-stop 后重启可能再次弹窗）
+      await dismissConsentDialog(adbPrefix, 5);
       await agent.launch(ANDROID_APP_ID);
+      await agent.aiWaitFor('界面上有可交互的元素', { timeoutMs: 10_000 });
+      // Midscene fallback: 再次检查同意弹窗
+      try {
+        const hasConsentAfterRestart = await agent.aiBoolean('是否存在数据收集或隐私同意弹窗？');
+        if (hasConsentAfterRestart) {
+          await agent.aiTap('"全部同意" 或 "同意" 按钮');
+          await new Promise(r => setTimeout(r, 1000));
+        }
+      } catch { /* 忽略 */ }
       await agent.aiWaitFor('App 重启后主界面可见（无需重新登录）', { timeoutMs: 15_000 });
       await agent.aiAssert('App 重启后自动进入主界面（JWT 持久化，未回到登录页）');
 

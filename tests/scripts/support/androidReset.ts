@@ -93,9 +93,11 @@ export async function resetAndroidToLoginPage(
       );
     } catch { /* 忽略 */ }
   }
-  await sleep(3000);
+  await sleep(clearData ? 5000 : 3000);
 
-  // 4. 关闭弹窗（最多 maxDialogAttempts 次）
+  // 4. 关闭弹窗（两轮：第一轮等应用加载，第二轮清除可能延迟出现的弹窗）
   await dismissConsentDialog(adbPrefix, maxDialogAttempts);
+  await sleep(2000);
+  await dismissConsentDialog(adbPrefix, 3);
   await sleep(500);
 }
