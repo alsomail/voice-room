@@ -50,7 +50,7 @@ test.describe('TC-GIFT E2E - 跨端打赏', () => {
 
     try {
       // 前置：确保 U1 已登录并进入 ROOM（Round 3：标准化重置，不 pm clear）
-      await resetAndroidToLoginPage(adbPrefix, ANDROID_APP_ID);
+      await resetAndroidToLoginPage(adbPrefix, ANDROID_APP_ID, 5, true);
       await agent.launch(ANDROID_APP_ID);
       await agent.aiWaitFor('界面上有可交互的按钮或输入框', { timeoutMs: 15_000 });
 

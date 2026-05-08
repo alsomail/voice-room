@@ -38,7 +38,7 @@ test('TC-SHELL-00001: SplashScreen Logo 动画 + 跳转分流', async ({ e2eEnv 
 
   try {
     // Step1：标准化重置（force-stop + am start，不 pm clear 避免弹窗）→ 应跳到 LoginScreen
-    await resetAndroidToLoginPage(adbPrefix, ANDROID_APP_ID);
+    await resetAndroidToLoginPage(adbPrefix, ANDROID_APP_ID, 5, true);
     await agent.launch(ANDROID_APP_ID);
     await agent.aiWaitFor('界面上有可交互的按钮或输入框（弹窗或登录页均可）', { timeoutMs: 20_000 });
     const hasConsentDialog = await agent.aiBoolean('当前界面是否存在数据收集通知、隐私政策或权限请求弹窗？');
@@ -103,7 +103,7 @@ test('TC-SHELL-00002: MainScreen 底部 3 Tab + 状态保留', async ({ e2eEnv }
 
   try {
     // 冷启动 + 登录：标准化重置（force-stop + am start，不 pm clear 避免弹窗）
-    await resetAndroidToLoginPage(adbPrefix, ANDROID_APP_ID);
+    await resetAndroidToLoginPage(adbPrefix, ANDROID_APP_ID, 5, true);
     await agent.launch(ANDROID_APP_ID);
     await agent.aiWaitFor('界面上有可交互的按钮或输入框', { timeoutMs: 15_000 });
     const hasConsentDialog = await agent.aiBoolean('当前界面是否存在数据收集通知、隐私政策或权限请求弹窗？');
@@ -172,7 +172,7 @@ test('TC-SHELL-00005: RoomScreen 黑金升级 + 主副麦 + 弹幕 + 底栏', as
 
   try {
     // 冷启动 + 登录：标准化重置（force-stop + am start，不 pm clear 避免弹窗）
-    await resetAndroidToLoginPage(adbPrefix, ANDROID_APP_ID);
+    await resetAndroidToLoginPage(adbPrefix, ANDROID_APP_ID, 5, true);
     await agent.launch(ANDROID_APP_ID);
     await agent.aiWaitFor('界面上有可交互的按钮或输入框', { timeoutMs: 15_000 });
     const hasConsentDialog = await agent.aiBoolean('当前界面是否存在数据收集通知、隐私政策或权限请求弹窗？');

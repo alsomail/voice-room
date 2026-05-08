@@ -4,7 +4,8 @@
  * Round 3 P0 修复：消除 pm clear 触发的同意弹窗污染 + 顺序污染
  *
  * 核心策略：
- *   - 使用 force-stop → am start（不 pm clear），避免弹窗
+ *   - 使用 force-stop → am start，避免弹窗
+ *   - clearData=true 时追加 pm clear（清除 JWT，确保从登录页开始）
  *   - 通过 uiautomator dump 主动关闭同意弹窗（最多 N 次）
  *   - 不依赖 Midscene agent，纯 ADB 实现，可在 agent.launch() 前调用
  */
@@ -16,7 +17,7 @@ function sleep(ms: number): Promise<void> {
 
 /**
  * 通过 uiautomator dump 检测并关闭同意/权限弹窗。
- * 匹配按钮文本：同意/确定/Accept/Agree/OK/我已了解/知道了/Continue
+ * 匹配按钮文本：同意/确定/Accept/Agree/OK/我已了解/知道了/Continue/全部同意
  *
  * @param adbPrefix  ADB 命令前缀，如 "adb -s 9A251FFAZ00EAJ"
  * @param maxAttempts  最多尝试关闭次数，默认 5
@@ -29,7 +30,7 @@ export async function dismissConsentDialog(adbPrefix: string, maxAttempts = 5): 
         { stdio: ['pipe', 'pipe', 'pipe'] }
       ).toString();
 
-      // 匹配同意/确定/Accept/Agree/OK/我已了解/知道了/Continue 按钮
+      // 匹配同意/确定/Accept/Agree/OK/我已了解/知道了/Continue/全部同意 按钮
       const btnMatch = xml.match(
         /text="([^"]*(?:同意|确定|Accept|Agree|OK|我已了解|知道了|Continue)[^"]*)"\s[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"/i
       );
@@ -49,26 +50,35 @@ export async function dismissConsentDialog(adbPrefix: string, maxAttempts = 5): 
 /**
  * 标准化 Android 测试前重置序列。
  *
- * 流程：force-stop → am start（不 pm clear，避免弹窗）→ 等待 3s → 关闭弹窗 × maxDialogAttempts → 等待 0.5s
- *
- * 调用方应在此函数返回后立刻调用 agent.launch(appId) 以让 Midscene 接管。
+ * 流程：force-stop → [pm clear（可选）] → am start → 等待 3s → 关闭弹窗 × maxDialogAttempts → 等待 0.5s
  *
  * @param adbPrefix        ADB 命令前缀，如 "adb -s 9A251FFAZ00EAJ"
  * @param appId            Android 应用包名，如 "com.voice.room.android.local.debug"
  * @param maxDialogAttempts  关闭弹窗最大尝试次数，默认 5
+ * @param clearData        是否执行 pm clear（清除 JWT 等持久数据，确保从登录页开始），默认 false
+ *                         设为 true 时：pm clear 会清除同意偏好，但 dismissConsentDialog 会立刻用 ADB 关闭弹窗
  */
 export async function resetAndroidToLoginPage(
   adbPrefix: string,
   appId: string,
-  maxDialogAttempts = 5
+  maxDialogAttempts = 5,
+  clearData = false
 ): Promise<void> {
-  // 1. force-stop（不 pm clear 避免弹窗）
+  // 1. force-stop
   try {
     execSync(`${adbPrefix} shell am force-stop ${appId}`, { stdio: 'pipe' });
   } catch { /* 忽略 */ }
   await sleep(800);
 
-  // 2. am start — 使用正确的 Activity 路径（经 adb resolve-activity 验证）
+  // 2. 可选 pm clear（清除 JWT + 所有应用数据）
+  if (clearData) {
+    try {
+      execSync(`${adbPrefix} shell pm clear ${appId}`, { stdio: 'pipe' });
+    } catch { /* 忽略 */ }
+    await sleep(300);
+  }
+
+  // 3. am start — 使用正确的 Activity 路径（经 adb resolve-activity 验证）
   try {
     execSync(
       `${adbPrefix} shell am start --include-stopped-packages -n ${appId}/com.voice.room.android.presentation.MainActivity`,
@@ -85,7 +95,7 @@ export async function resetAndroidToLoginPage(
   }
   await sleep(3000);
 
-  // 3. 关闭弹窗（最多 maxDialogAttempts 次）
+  // 4. 关闭弹窗（最多 maxDialogAttempts 次）
   await dismissConsentDialog(adbPrefix, maxDialogAttempts);
   await sleep(500);
 }

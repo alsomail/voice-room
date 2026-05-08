@@ -61,7 +61,7 @@ test('TC-AUTH-00003: Android 端注册登录全链路', async ({ e2eEnv }: any) 
 
   try {
     // ── Step0：标准化重置 + 首次同意弹窗处理 ─────────────────────────────────
-    await resetAndroidToLoginPage(adbPrefix, ANDROID_APP_ID);
+    await resetAndroidToLoginPage(adbPrefix, ANDROID_APP_ID, 5, true);
     await agent.launch(ANDROID_APP_ID);
     // 等第一个可交互元素（弹窗或登录页均可）
     await agent.aiWaitFor('界面上有可交互的按钮或输入框（弹窗或登录页均可）', { timeoutMs: 15_000 });

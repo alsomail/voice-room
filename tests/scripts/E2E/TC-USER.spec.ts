@@ -43,7 +43,7 @@ test.describe('TC-USER E2E - 封禁多端闭环', () => {
 
     try {
       // Step 1: Android 已登录，进入大厅（Round 3：标准化重置，不 pm clear）
-      await resetAndroidToLoginPage(adbPrefix, ANDROID_APP_ID);
+      await resetAndroidToLoginPage(adbPrefix, ANDROID_APP_ID, 5, true);
       await agent.launch(ANDROID_APP_ID);
       await agent.aiWaitFor('界面上有可交互的按钮或输入框', { timeoutMs: 15_000 });
 

@@ -35,7 +35,7 @@ async function coldStartAndLogin(
   phone: string
 ) {
   // Round 3 修复：force-stop + am start（不 pm clear），消除弹窗 + 顺序污染
-  await resetAndroidToLoginPage(adbPrefix, ANDROID_APP_ID);
+  await resetAndroidToLoginPage(adbPrefix, ANDROID_APP_ID, 5, true);
   await agent.launch(ANDROID_APP_ID);
   await agent.aiWaitFor('界面上有可交互的按钮或输入框', { timeoutMs: 15_000 });
   // Round-1 fix: 无条件尝试关闭同意弹窗（aiBoolean 可能误判为 false，改为 try/catch 强制 tap）

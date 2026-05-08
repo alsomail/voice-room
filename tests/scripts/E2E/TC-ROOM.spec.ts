@@ -50,7 +50,7 @@ test.describe('TC-ROOM E2E - Web 强制关闭 → App 被动退出', () => {
 
     try {
       // 登录（Round 3：标准化重置，不 pm clear 避免弹窗）
-      await resetAndroidToLoginPage(adbPrefix, ANDROID_APP_ID);
+      await resetAndroidToLoginPage(adbPrefix, ANDROID_APP_ID, 5, true);
       await agent.launch(ANDROID_APP_ID);
       await agent.aiWaitFor('界面上有可交互的按钮或输入框', { timeoutMs: 15_000 });
 

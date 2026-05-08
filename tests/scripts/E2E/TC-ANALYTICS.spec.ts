@@ -43,7 +43,7 @@ test.describe('TC-ANALYTICS E2E - 埋点全链路闭环', () => {
 
     try {
       // Step 0: Android 登录 + 进入房间（Round 3：标准化重置，不 pm clear）
-      await resetAndroidToLoginPage(adbPrefix, ANDROID_APP_ID);
+      await resetAndroidToLoginPage(adbPrefix, ANDROID_APP_ID, 5, true);
       await agent.launch(ANDROID_APP_ID);
       await agent.aiWaitFor('界面上有可交互的元素', { timeoutMs: 15_000 });
 

@@ -40,7 +40,7 @@ test('TC-CHAT-00002: 公屏发送 + 接收 + 自动滚动', async ({ e2eEnv }: a
 
   try {
     // 前置：标准化重置（force-stop + am start，不 pm clear 避免弹窗）+ 登录
-    await resetAndroidToLoginPage(adbPrefix, ANDROID_APP_ID);
+    await resetAndroidToLoginPage(adbPrefix, ANDROID_APP_ID, 5, true);
     await agent.launch(ANDROID_APP_ID);
     await agent.aiWaitFor('界面上有可交互的按钮或输入框', { timeoutMs: 15_000 });
     const hasConsentDialog = await agent.aiBoolean('当前界面是否存在数据收集通知、隐私政策或权限请求弹窗？');

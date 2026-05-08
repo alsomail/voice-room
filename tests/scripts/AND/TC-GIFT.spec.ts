@@ -25,7 +25,7 @@ const psql = (databaseUrl: string, sql: string): string =>
 
 async function loginAndEnterRoom(agent: any, adbPrefix: string, ANDROID_APP_ID: string, phone: string) {
   // Round 3 修复：force-stop + am start（不 pm clear），消除弹窗 + 顺序污染
-  await resetAndroidToLoginPage(adbPrefix, ANDROID_APP_ID);
+  await resetAndroidToLoginPage(adbPrefix, ANDROID_APP_ID, 5, true);
   await agent.launch(ANDROID_APP_ID);
   await agent.aiWaitFor('界面上有可交互的按钮或输入框', { timeoutMs: 15_000 });
   const hasConsentDialog = await agent.aiBoolean('当前界面是否存在数据收集通知、隐私政策或权限请求弹窗？');

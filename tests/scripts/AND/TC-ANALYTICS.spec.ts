@@ -119,7 +119,7 @@ test('TC-ANALYTICS-00004: EventReportClient 节流队列验证', async ({ e2eEnv
 
   try {
     // 前置：标准化重置（force-stop + am start，不 pm clear 避免弹窗）
-    await resetAndroidToLoginPage(adbPrefix, ANDROID_APP_ID);
+    await resetAndroidToLoginPage(adbPrefix, ANDROID_APP_ID, 5, true);
     await agent.launch(ANDROID_APP_ID);
     await agent.aiWaitFor('界面上有可交互的按钮或输入框', { timeoutMs: 15_000 });
 
