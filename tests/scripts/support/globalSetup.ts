@@ -103,8 +103,8 @@ async function androidWarmUp(): Promise<void> {
     // 等待 App 完全启动（闪屏 + 初始化需要 5s）
     await new Promise<void>((r) => setTimeout(r, 5000));
 
-    // 尝试多轮关闭「数据收集说明」等首次运行同意弹窗（支持多页弹窗）
-    await dismissConsentDialogViaAdb(3);
+    // Round 4 增强：尝试多轮关闭「数据收集说明」等首次运行同意弹窗（最多 10 次，总超时 ~15s）
+    await dismissConsentDialogViaAdb(10);
 
     // P0-Fix：最终验证 — 等待 3s 再 dump XML，确认 App 已进入登录页
     // （检测手机号输入框或"获取验证码"/"登录"按钮，任意一个存在即视为成功）
