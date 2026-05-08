@@ -19,8 +19,10 @@ import { runShell as defaultRunShell, ShellExecError } from './runShell';
 
 const ANDROID_PKG = process.env.ANDROID_APP_ID ?? 'com.voice.room.android.local.debug';
 const ANDROID_DEVICE_ID = process.env.ANDROID_DEVICE_ID ?? '9A251FFAZ00EAJ';
-// P0-Fix: 使用简短限定名 MainActivity（presentation.MainActivity 曾导致 App 停在启动闪屏）
-const MAIN_ACTIVITY = `${ANDROID_PKG}/com.voice.room.android.MainActivity`;
+// 由 `adb shell cmd package resolve-activity --brief` 实测得到的 MainActivity 全限定名
+// P0-Fix Note: 经验证 com.voice.room.android.presentation.MainActivity 是正确路径
+//   （com.voice.room.android.MainActivity 不存在，会导致 Error type 3）
+const MAIN_ACTIVITY = `${ANDROID_PKG}/com.voice.room.android.presentation.MainActivity`;
 
 /**
  * 尝试通过 uiautomator dump 关闭同意弹窗（最多重试 maxRetries 次）。
