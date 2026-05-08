@@ -50,10 +50,13 @@ export default defineConfig({
 
   projects: [
     // Web / Admin 端 测试 —— 三个浏览器，排除 AND 目录（Android 端无需浏览器上下文）
+    // Round 3 修复：firefox/webkit 排除 E2E 目录，避免 3 个 project 并发竞争同一 Android 设备
+    // E2E 跨端测试仅在 chromium 中运行（单设备，串行保障）
     { name: 'chromium', testIgnore: ['**/AND/**'], use: { ...devices['Desktop Chrome'] } },
-    { name: 'firefox',  testIgnore: ['**/AND/**'], use: { ...devices['Desktop Firefox'] } },
-    { name: 'webkit',   testIgnore: ['**/AND/**'], use: { ...devices['Desktop Safari'] } },
+    { name: 'firefox',  testIgnore: ['**/AND/**', '**/E2E/**'], use: { ...devices['Desktop Firefox'] } },
+    { name: 'webkit',   testIgnore: ['**/AND/**', '**/E2E/**'], use: { ...devices['Desktop Safari'] } },
     // Android Midscene 测试 —— 无浏览器，仅跟踪 AND/ 目录
-    { name: 'android',  testMatch: ['**/AND/**'] },
+    // fullyParallel:false 强制串行：单设备不可并发操作，两个 worker 同时跑会产生竞态
+    { name: 'android',  testMatch: ['**/AND/**'], fullyParallel: false },
   ],
 });

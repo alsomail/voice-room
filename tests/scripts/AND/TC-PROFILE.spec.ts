@@ -30,9 +30,9 @@ async function coldStartAndLogin(agent: any, adbPrefix: string, ANDROID_APP_ID: 
   await agent.launch(ANDROID_APP_ID);
   await agent.aiWaitFor('界面上有可交互的按钮或输入框', { timeoutMs: 15_000 });
   const hasConsentDialog = await agent.aiBoolean('当前界面是否存在数据收集通知、隐私政策或权限请求弹窗？');
-  if (hasConsentDialog) {
+  try {
     await agent.aiTap('"同意" 或 "确定" 或 "接受" 按钮（关闭弹窗）');
-  }
+  } catch { /* 忽略：弹窗已由 ADB 关闭或无弹窗 */ }
   try {
     redisExecSync(['HSET', `sms:code:${phone}`, 'code', '123456']);
   } catch (e) {
@@ -178,9 +178,9 @@ test('TC-PROFILE-00005: 退出登录二次确认 + 清栈', async ({ e2eEnv }: a
     await agent.launch(ANDROID_APP_ID);
     await agent.aiWaitFor('界面加载完成', { timeoutMs: 20_000 });
     const hasDialog = await agent.aiBoolean('当前界面是否存在弹窗？');
-    if (hasDialog) {
+    try {
       await agent.aiTap('"同意" 或 "确定" 或 "关闭" 按钮');
-    }
+    } catch { /* 忽略：弹窗已由 ADB 关闭或无弹窗 */ }
     await agent.aiAssert('重启后仍显示登录页（手机号输入框可见），不是大厅或个人中心页', {
       errorMessage: 'JWT 清除失败：退出登录后重启仍显示非登录页，token 未清除',
     });

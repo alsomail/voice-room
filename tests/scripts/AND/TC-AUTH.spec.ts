@@ -67,9 +67,9 @@ test('TC-AUTH-00003: Android 端注册登录全链路', async ({ e2eEnv }: any) 
     await agent.aiWaitFor('界面上有可交互的按钮或输入框（弹窗或登录页均可）', { timeoutMs: 15_000 });
     // 探测并关闭可能残余的同意弹窗（dismissConsentDialog 已处理大部分情况，Midscene 二次保底）
     const hasConsentDialog = await agent.aiBoolean('当前界面是否存在数据收集通知、隐私政策或权限请求弹窗？');
-    if (hasConsentDialog) {
+    try {
       await agent.aiTap('"同意" 或 "确定" 或 "接受" 按钮（关闭弹窗）');
-    }
+    } catch { /* 忽略：弹窗已由 ADB 关闭或无弹窗 */ }
     await agent.aiWaitFor('手机号输入框可见，登录页面已加载完成', { timeoutMs: 10_000 });
 
     // ── Step1：输入手机号 ────────────────────────────────────────────────────

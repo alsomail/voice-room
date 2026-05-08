@@ -23,24 +23,34 @@ function sleep(ms: number): Promise<void> {
  * @param maxAttempts  最多尝试关闭次数，默认 5
  */
 export async function dismissConsentDialog(adbPrefix: string, maxAttempts = 5): Promise<void> {
+  // Round 3 修复：dump 到 /sdcard 文件再 cat，避免 /dev/stdout pipe 截断问题
+  // 与 globalSetup.ts 保持一致（经验证可靠的方式）
+  const consentKeywords = ['同意', '确定', 'Accept', 'Agree', 'OK', '我已了解', '知道了', 'Continue', 'موافقت', 'قبول'];
+  const nodeRegex = /text="([^"]*)"[^/]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"/g;
+
   for (let i = 0; i < maxAttempts; i++) {
     try {
-      const xml = execSync(
-        `${adbPrefix} shell uiautomator dump /dev/stdout 2>/dev/null`,
-        { stdio: ['pipe', 'pipe', 'pipe'] }
-      ).toString();
+      execSync(`${adbPrefix} shell uiautomator dump /sdcard/ui_e2e_dismiss.xml`, { stdio: 'pipe', timeout: 8000 });
+      const xml = execSync(`${adbPrefix} shell cat /sdcard/ui_e2e_dismiss.xml`, { stdio: 'pipe', timeout: 5000 }).toString();
 
-      // 匹配同意/确定/Accept/Agree/OK/我已了解/知道了/Continue/全部同意 按钮
-      const btnMatch = xml.match(
-        /text="([^"]*(?:同意|确定|Accept|Agree|OK|我已了解|知道了|Continue)[^"]*)"\s[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"/i
-      );
-      if (!btnMatch) {
+      nodeRegex.lastIndex = 0;
+      let dismissed = false;
+      let match: RegExpExecArray | null;
+      while ((match = nodeRegex.exec(xml)) !== null) {
+        const text = match[1];
+        if (consentKeywords.some((kw) => text.includes(kw))) {
+          const cx = Math.floor((parseInt(match[2]) + parseInt(match[4])) / 2);
+          const cy = Math.floor((parseInt(match[3]) + parseInt(match[5])) / 2);
+          execSync(`${adbPrefix} shell input tap ${cx} ${cy}`, { stdio: 'pipe' });
+          await sleep(1500);
+          dismissed = true;
+          break;
+        }
+      }
+      if (!dismissed) {
         break; // 没有弹窗，结束
       }
-      const cx = Math.floor((parseInt(btnMatch[2]) + parseInt(btnMatch[4])) / 2);
-      const cy = Math.floor((parseInt(btnMatch[3]) + parseInt(btnMatch[5])) / 2);
-      execSync(`${adbPrefix} shell input tap ${cx} ${cy}`, { stdio: 'pipe' });
-      await sleep(1000);
+      await sleep(1500);
     } catch {
       break;
     }

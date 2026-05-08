@@ -48,7 +48,7 @@ test.describe('TC-ANALYTICS E2E - 埋点全链路闭环', () => {
       await agent.aiWaitFor('界面上有可交互的元素', { timeoutMs: 15_000 });
 
       const hasConsent = await agent.aiBoolean('是否存在数据收集或隐私同意弹窗？');
-      if (hasConsent) await agent.aiTap('"同意" 或 "确定" 按钮（完整同意，不是仅崩溃）');
+      try { await agent.aiTap('"同意" 或 "确定" 按钮（完整同意，不是仅崩溃）'); } catch { /* 忽略：弹窗已由 ADB 关闭或无弹窗 */ }
 
       try { redisExecSync(['HSET', `sms:code:${phone}`, 'code', '123456']); }
       catch (e) { if (!(e instanceof RedisCliUnavailableError)) throw e; }

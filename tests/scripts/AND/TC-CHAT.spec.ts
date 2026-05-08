@@ -44,9 +44,9 @@ test('TC-CHAT-00002: 公屏发送 + 接收 + 自动滚动', async ({ e2eEnv }: a
     await agent.launch(ANDROID_APP_ID);
     await agent.aiWaitFor('界面上有可交互的按钮或输入框', { timeoutMs: 15_000 });
     const hasConsentDialog = await agent.aiBoolean('当前界面是否存在数据收集通知、隐私政策或权限请求弹窗？');
-    if (hasConsentDialog) {
+    try {
       await agent.aiTap('"同意" 或 "确定" 或 "接受" 按钮（关闭弹窗）');
-    }
+    } catch { /* 忽略：弹窗已由 ADB 关闭或无弹窗 */ }
     try {
       redisExecSync(['HSET', `sms:code:${phone}`, 'code', '123456']);
     } catch (e) {

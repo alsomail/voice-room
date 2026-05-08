@@ -56,9 +56,9 @@ test('TC-MIC-00001: 权限申请拒绝后 Fallback 到系统设置', async ({ e2
     await agent.launch(ANDROID_APP_ID);
     await agent.aiWaitFor('界面上有可交互的按钮或输入框', { timeoutMs: 15_000 });
     const hasConsentDialog = await agent.aiBoolean('当前界面是否存在数据收集通知、隐私政策或权限请求弹窗？');
-    if (hasConsentDialog) {
+    try {
       await agent.aiTap('"同意" 或 "确定" 或 "接受" 按钮（关闭弹窗）');
-    }
+    } catch { /* 忽略：弹窗已由 ADB 关闭或无弹窗 */ }
     try {
       redisExecSync(['HSET', `sms:code:${phone}`, 'code', '123456']);
     } catch (e) {
@@ -143,9 +143,9 @@ test('TC-MIC-00002: 上麦 → RTC publish → 下麦 E2E', async ({ e2eEnv }: a
     await agent.launch(ANDROID_APP_ID);
     await agent.aiWaitFor('界面上有可交互的按钮或输入框', { timeoutMs: 15_000 });
     const hasConsentDialog = await agent.aiBoolean('当前界面是否存在数据收集通知、隐私政策或权限请求弹窗？');
-    if (hasConsentDialog) {
+    try {
       await agent.aiTap('"同意" 或 "确定" 或 "接受" 按钮（关闭弹窗）');
-    }
+    } catch { /* 忽略：弹窗已由 ADB 关闭或无弹窗 */ }
     try {
       redisExecSync(['HSET', `sms:code:${phone}`, 'code', '123456']);
     } catch (e) {
@@ -322,9 +322,9 @@ test('TC-MIC-00009: 点击自己已占麦位图标触发下麦（T-30055 onMicSl
     await agent.aiWaitFor('界面上有可交互的按钮或输入框', { timeoutMs: 15_000 });
 
     const hasConsentDialog = await agent.aiBoolean('当前界面是否存在数据收集通知、隐私政策或权限请求弹窗？');
-    if (hasConsentDialog) {
+    try {
       await agent.aiTap('"同意" 或 "确定" 或 "接受" 按钮（关闭弹窗）');
-    }
+    } catch { /* 忽略：弹窗已由 ADB 关闭或无弹窗 */ }
 
     // 注入 SMS 验证码
     try { redisExecSync(['HSET', `sms:code:${phone}`, 'code', '123456']); }

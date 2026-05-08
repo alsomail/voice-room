@@ -55,7 +55,7 @@ test.describe('TC-GIFT E2E - 跨端打赏', () => {
       await agent.aiWaitFor('界面上有可交互的按钮或输入框', { timeoutMs: 15_000 });
 
       const hasConsentDialog = await agent.aiBoolean('当前界面是否存在数据收集通知或权限请求弹窗？');
-      if (hasConsentDialog) await agent.aiTap('"同意" 或 "确定" 按钮');
+      try { await agent.aiTap('"同意" 或 "确定" 按钮'); } catch { /* 忽略：弹窗已由 ADB 关闭或无弹窗 */ }
 
       try { redisExecSync(['HSET', `sms:code:${phone}`, 'code', '123456']); }
       catch (e) { if (!(e instanceof RedisCliUnavailableError)) throw e; }

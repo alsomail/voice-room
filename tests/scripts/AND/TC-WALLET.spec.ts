@@ -231,9 +231,9 @@ test('TC-WALLET-00004: InsufficientBalanceDialog 余额不足弹窗', async ({ e
     await agent.aiTap('底部操作栏中的礼物按钮（🎁 图标）');
     await agent.aiWaitFor('礼物面板 Bottom Sheet 已弹出', { timeoutMs: 10_000 });
 
-    // 选择一个高价礼物（如果余额不足，按钮会置灰）
-    await agent.aiTap('礼物网格中价格较高的礼物（如显示 500💎 或更高价格的礼物）');
-    await agent.aiWaitFor('礼物选中或余额不足提示', { timeoutMs: 8_000 });
+    // 选择价格最高的礼物（不限具体价格，取礼物列表中最贵的）
+    await agent.aiTap('礼物网格中价格最高的礼物');
+    await agent.aiWaitFor('礼物选中或有"送出"按钮可见', { timeoutMs: 8_000 });
 
     const isInsufficientBalance = await agent.aiBoolean(
       '"送出"按钮是否置灰（余额不足状态），或页面是否显示余额不足提示？'

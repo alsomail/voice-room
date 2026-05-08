@@ -62,7 +62,7 @@ test.describe('TC-GOVERNANCE E2E - 房间治理跨端闭环', () => {
       await agent.aiWaitFor('界面上有可交互的元素', { timeoutMs: 15_000 });
 
       const hasConsent = await agent.aiBoolean('是否存在数据收集或隐私同意弹窗？');
-      if (hasConsent) await agent.aiTap('"同意" 或 "确定" 按钮');
+      try { await agent.aiTap('"同意" 或 "确定" 按钮'); } catch { /* 忽略：弹窗已由 ADB 关闭或无弹窗 */ }
 
       try { redisExecSync(['HSET', `sms:code:${phone}`, 'code', '123456']); }
       catch (e) { if (!(e instanceof RedisCliUnavailableError)) throw e; }
@@ -172,7 +172,7 @@ test.describe('TC-GOVERNANCE E2E - 房间治理跨端闭环', () => {
       await agent.aiWaitFor('界面上有可交互的元素', { timeoutMs: 15_000 });
 
       const hasConsent = await agent.aiBoolean('是否存在数据收集或隐私同意弹窗？');
-      if (hasConsent) await agent.aiTap('"同意" 或 "确定" 按钮');
+      try { await agent.aiTap('"同意" 或 "确定" 按钮'); } catch { /* 忽略：弹窗已由 ADB 关闭或无弹窗 */ }
 
       try { redisExecSync(['HSET', `sms:code:${phone}`, 'code', '123456']); }
       catch (e) { if (!(e instanceof RedisCliUnavailableError)) throw e; }

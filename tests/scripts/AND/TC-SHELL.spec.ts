@@ -42,9 +42,9 @@ test('TC-SHELL-00001: SplashScreen Logo 动画 + 跳转分流', async ({ e2eEnv 
     await agent.launch(ANDROID_APP_ID);
     await agent.aiWaitFor('界面上有可交互的按钮或输入框（弹窗或登录页均可）', { timeoutMs: 20_000 });
     const hasConsentDialog = await agent.aiBoolean('当前界面是否存在数据收集通知、隐私政策或权限请求弹窗？');
-    if (hasConsentDialog) {
+    try {
       await agent.aiTap('"同意" 或 "确定" 或 "接受" 按钮（关闭弹窗）');
-    }
+    } catch { /* 忽略：弹窗已由 ADB 关闭或无弹窗 */ }
     await agent.aiWaitFor('手机号输入框可见，登录页面已加载完成', { timeoutMs: 10_000 });
     await agent.aiAssert('当前显示登录页面，有手机号输入框（Splash 动画完成后跳转）');
 
@@ -73,9 +73,9 @@ test('TC-SHELL-00001: SplashScreen Logo 动画 + 跳转分流', async ({ e2eEnv 
     await agent.launch(ANDROID_APP_ID);
     await agent.aiWaitFor('界面加载完成', { timeoutMs: 20_000 });
     const hasDialog = await agent.aiBoolean('当前界面是否存在弹窗？');
-    if (hasDialog) {
+    try {
       await agent.aiTap('"同意" 或 "确定" 或 "关闭" 按钮');
-    }
+    } catch { /* 忽略：弹窗已由 ADB 关闭或无弹窗 */ }
     await agent.aiAssert('有效 JWT 重启后直接进入主界面（大厅列表可见），不是登录页', {
       errorMessage: 'JWT 持久化失败：force-stop 后重启仍显示登录页',
     });
@@ -107,9 +107,9 @@ test('TC-SHELL-00002: MainScreen 底部 3 Tab + 状态保留', async ({ e2eEnv }
     await agent.launch(ANDROID_APP_ID);
     await agent.aiWaitFor('界面上有可交互的按钮或输入框', { timeoutMs: 15_000 });
     const hasConsentDialog = await agent.aiBoolean('当前界面是否存在数据收集通知、隐私政策或权限请求弹窗？');
-    if (hasConsentDialog) {
+    try {
       await agent.aiTap('"同意" 或 "确定" 或 "接受" 按钮（关闭弹窗）');
-    }
+    } catch { /* 忽略：弹窗已由 ADB 关闭或无弹窗 */ }
     try {
       redisExecSync(['HSET', `sms:code:${phone}`, 'code', '123456']);
     } catch (e) {
@@ -176,9 +176,9 @@ test('TC-SHELL-00005: RoomScreen 黑金升级 + 主副麦 + 弹幕 + 底栏', as
     await agent.launch(ANDROID_APP_ID);
     await agent.aiWaitFor('界面上有可交互的按钮或输入框', { timeoutMs: 15_000 });
     const hasConsentDialog = await agent.aiBoolean('当前界面是否存在数据收集通知、隐私政策或权限请求弹窗？');
-    if (hasConsentDialog) {
+    try {
       await agent.aiTap('"同意" 或 "确定" 或 "接受" 按钮（关闭弹窗）');
-    }
+    } catch { /* 忽略：弹窗已由 ADB 关闭或无弹窗 */ }
     try {
       redisExecSync(['HSET', `sms:code:${phone}`, 'code', '123456']);
     } catch (e) {

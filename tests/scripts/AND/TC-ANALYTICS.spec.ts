@@ -132,9 +132,9 @@ test('TC-ANALYTICS-00004: EventReportClient 节流队列验证', async ({ e2eEnv
 
     // 登录
     const hasConsentDialog = await agent.aiBoolean('当前界面是否存在数据收集通知或权限请求弹窗？');
-    if (hasConsentDialog) {
+    try {
       await agent.aiTap('"同意" 或 "确定" 按钮');
-    }
+    } catch { /* 忽略：弹窗已由 ADB 关闭或无弹窗 */ }
     try {
       redisExecSync(['HSET', `sms:code:${phone}`, 'code', '123456']);
     } catch (e) {
