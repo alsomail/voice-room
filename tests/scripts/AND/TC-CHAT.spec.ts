@@ -10,7 +10,7 @@ import { test, expect } from '../support/fixtures';
 import { agentFromAdbDevice } from '@midscene/android';
 import { execSync } from 'child_process';
 import { redisExecSync, RedisCliUnavailableError } from '../support/redisCli';
-import { resetAndroidToLoginPage } from '../support/androidReset';
+import { resetAndroidToLoginPage, resetAndroidToMainPage } from '../support/androidReset';
 
 test.setTimeout(300_000);
 
@@ -39,30 +39,8 @@ test('TC-CHAT-00002: 公屏发送 + 接收 + 自动滚动', async ({ e2eEnv }: a
   });
 
   try {
-    // 前置：标准化重置（force-stop + am start，不 pm clear 避免弹窗）+ 登录
-    await resetAndroidToLoginPage(adbPrefix, ANDROID_APP_ID, 5, true);
-    await agent.launch(ANDROID_APP_ID);
-    await agent.aiWaitFor('界面上有可交互的按钮或输入框', { timeoutMs: 15_000 });
-    const hasConsentDialog = await agent.aiBoolean('当前界面是否存在数据收集通知、隐私政策或权限请求弹窗？');
-    try {
-      await agent.aiTap('"同意" 或 "确定" 或 "接受" 按钮（关闭弹窗）');
-    } catch { /* 忽略：弹窗已由 ADB 关闭或无弹窗 */ }
-    try {
-      redisExecSync(['HSET', `sms:code:${phone}`, 'code', '123456']);
-    } catch (e) {
-      if (!(e instanceof RedisCliUnavailableError)) throw e;
-    }
-    await agent.aiWaitFor('手机号输入框可见', { timeoutMs: 10_000 });
-    await agent.aiInput(phoneLocal, '手机号输入框');
-    await agent.aiTap('"获取验证码"/"Get Code"/"احصل على الرمز" 按钮');
-    await agent.aiWaitFor('按钮进入倒计时状态', { timeoutMs: 10_000 });
-    try {
-      redisExecSync(['HSET', `sms:code:${phone}`, 'code', '123456']);
-    } catch (e) {
-      if (!(e instanceof RedisCliUnavailableError)) throw e;
-    }
-    await agent.aiInput('123456', '验证码输入框');
-    await agent.aiTap('登录 或 确认 按钮');
+    // Round 5 修复（方案 D）：JWT 注入绕过 UI 登录流（agent.launch() 移除，避免 HOME 闪屏）
+    await resetAndroidToMainPage(adbPrefix, ANDROID_APP_ID, phone);
     await agent.aiWaitFor('主界面已加载，大厅房间列表可见', { timeoutMs: 20_000 });
 
     // Step1：进入房间

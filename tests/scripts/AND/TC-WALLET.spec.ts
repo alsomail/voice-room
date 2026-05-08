@@ -12,7 +12,7 @@ import { test, expect } from '../support/fixtures';
 import { agentFromAdbDevice } from '@midscene/android';
 import { execSync } from 'child_process';
 import { redisExecSync, RedisCliUnavailableError } from '../support/redisCli';
-import { resetAndroidToLoginPage } from '../support/androidReset';
+import { resetAndroidToLoginPage, resetAndroidToMainPage } from '../support/androidReset';
 
 test.setTimeout(300_000);
 
@@ -25,35 +25,10 @@ const psql = (databaseUrl: string, sql: string): string =>
 // ── 共用：冷启动 + 登录 + 进个人中心 ─────────────────────────────────────────
 
 async function loginAndGoToProfile(agent: any, adbPrefix: string, ANDROID_APP_ID: string, phone: string) {
-  // Round 3 修复：force-stop + am start（不 pm clear），消除弹窗 + 顺序污染
-  await resetAndroidToLoginPage(adbPrefix, ANDROID_APP_ID, 5, true);
-  await agent.launch(ANDROID_APP_ID);
-  await agent.aiWaitFor('界面上有可交互的按钮或输入框', { timeoutMs: 15_000 });
-  // Round-1 fix: 无条件尝试关闭同意弹窗（resetAndroidToLoginPage 已用 ADB 处理，此处为 fallback）
-  await new Promise(r => setTimeout(r, 500));
-  try {
-    await agent.aiTap('"同意" 或 "确定" 按钮（关闭数据收集隐私政策弹窗）');
-    await new Promise(r => setTimeout(r, 500));
-  } catch { /* 如无弹窗则忽略 */ }
-  // Round-1 fix: 清除 OTP 每日上限，防止发送失败
-  const today = new Date().toISOString().slice(0, 10);
-  try { redisExecSync(['DEL', `sms:daily:${phone}:${today}`]); } catch { /* 忽略 */ }
-  try {
-    redisExecSync(['HSET', `sms:code:${phone}`, 'code', '123456']);
-  } catch (e) {
-    if (!(e instanceof RedisCliUnavailableError)) throw e;
-  }
-  await agent.aiWaitFor('手机号输入框可见', { timeoutMs: 10_000 });
-  await agent.aiInput('500000900', '手机号输入框');
-  await agent.aiTap('"获取验证码"/"Get Code"/"احصل على الرمز" 按钮');
-  await agent.aiWaitFor('按钮进入倒计时状态', { timeoutMs: 10_000 });
-  try {
-    redisExecSync(['HSET', `sms:code:${phone}`, 'code', '123456']);
-  } catch (e) {
-    if (!(e instanceof RedisCliUnavailableError)) throw e;
-  }
-  await agent.aiInput('123456', '验证码输入框');
-  await agent.aiTap('登录 或 确认 按钮');
+  // Round 5 修复（方案 D）：JWT 注入绕过 UI 登录流
+  // agent.launch() 已移除 — resetAndroidToMainPage 已通过 am start 将 App 启动到主界面
+  // 保留 agent.launch() 会触发 activateApp() 的 FLAG_ACTIVITY_RESET_TASK_IF_NEEDED 导致 HOME 闪屏
+  await resetAndroidToMainPage(adbPrefix, ANDROID_APP_ID, phone);
   await agent.aiWaitFor('主界面已加载，底部 Tab 栏可见', { timeoutMs: 20_000 });
 
   // 进个人中心
@@ -194,33 +169,8 @@ test('TC-WALLET-00004: InsufficientBalanceDialog 余额不足弹窗', async ({ e
   });
 
   try {
-    // 冷启动 + 登录：标准化重置（force-stop + am start，不 pm clear 避免弹窗）
-    await resetAndroidToLoginPage(adbPrefix, ANDROID_APP_ID, 5, true);
-    await agent.launch(ANDROID_APP_ID);
-    await agent.aiWaitFor('界面上有可交互的按钮或输入框', { timeoutMs: 15_000 });
-    await new Promise(r => setTimeout(r, 500));
-    try {
-      await agent.aiTap('"同意" 或 "确定" 按钮（关闭数据收集隐私政策弹窗）');
-      await new Promise(r => setTimeout(r, 500));
-    } catch { /* 无弹窗则忽略 */ }
-    const today_w4 = new Date().toISOString().slice(0, 10);
-    try { redisExecSync(['DEL', `sms:daily:${phone}:${today_w4}`]); } catch { /* 忽略 */ }
-    try {
-      redisExecSync(['HSET', `sms:code:${phone}`, 'code', '123456']);
-    } catch (e) {
-      if (!(e instanceof RedisCliUnavailableError)) throw e;
-    }
-    await agent.aiWaitFor('手机号输入框可见', { timeoutMs: 10_000 });
-    await agent.aiInput('500000900', '手机号输入框');
-    await agent.aiTap('"获取验证码"/"Get Code"/"احصل على الرمز" 按钮');
-    await agent.aiWaitFor('按钮进入倒计时状态', { timeoutMs: 10_000 });
-    try {
-      redisExecSync(['HSET', `sms:code:${phone}`, 'code', '123456']);
-    } catch (e) {
-      if (!(e instanceof RedisCliUnavailableError)) throw e;
-    }
-    await agent.aiInput('123456', '验证码输入框');
-    await agent.aiTap('登录 或 确认 按钮');
+    // Round 5 修复（方案 D）：JWT 注入绕过 UI 登录流（agent.launch() 已移除，见 loginAndGoToProfile）
+    await resetAndroidToMainPage(adbPrefix, ANDROID_APP_ID, phone);
     await agent.aiWaitFor('主界面已加载，大厅房间列表可见', { timeoutMs: 20_000 });
 
     // 进入房间

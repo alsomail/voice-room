@@ -18,7 +18,7 @@ import { redisExecSync, RedisCliUnavailableError } from '../support/redisCli';
 import { ensureMicOccupant } from '../support/ensureMicOccupant';
 import type { MicOccupant } from '../support/ensureMicOccupant';
 import WebSocket from 'ws';
-import { resetAndroidToLoginPage } from '../support/androidReset';
+import { resetAndroidToLoginPage, resetAndroidToMainPage } from '../support/androidReset';
 
 test.setTimeout(600_000); // 10 min — AI visual calls are slow (~20-40s each), 15+ calls needed
 
@@ -134,34 +134,12 @@ test('TC-MIC-00002: 上麦 → RTC publish → 下麦 E2E', async ({ e2eEnv }: a
   });
 
   try {
-    // 冷启动 + 登录：标准化重置（force-stop + am start，不 pm clear 避免弹窗）
-    await resetAndroidToLoginPage(adbPrefix, ANDROID_APP_ID, 5, true);
+    // Round 5 修复（方案 D）：JWT 注入绕过 UI 登录流（agent.launch() 移除，避免 HOME 闪屏）
+    await resetAndroidToMainPage(adbPrefix, ANDROID_APP_ID, phone);
     // Round 3：不再 pm clear，权限通常保留，但显式授予更可靠（授予已有权限为 no-op）
     try {
       execSync(`${adbPrefix} shell pm grant ${ANDROID_APP_ID} android.permission.RECORD_AUDIO`, { stdio: 'pipe' });
     } catch { /* 忽略 */ }
-    await agent.launch(ANDROID_APP_ID);
-    await agent.aiWaitFor('界面上有可交互的按钮或输入框', { timeoutMs: 15_000 });
-    const hasConsentDialog = await agent.aiBoolean('当前界面是否存在数据收集通知、隐私政策或权限请求弹窗？');
-    try {
-      await agent.aiTap('"同意" 或 "确定" 或 "接受" 按钮（关闭弹窗）');
-    } catch { /* 忽略：弹窗已由 ADB 关闭或无弹窗 */ }
-    try {
-      redisExecSync(['HSET', `sms:code:${phone}`, 'code', '123456']);
-    } catch (e) {
-      if (!(e instanceof RedisCliUnavailableError)) throw e;
-    }
-    await agent.aiWaitFor('手机号输入框可见', { timeoutMs: 10_000 });
-    await agent.aiInput('500000900', '手机号输入框');
-    await agent.aiTap('"获取验证码"/"Get Code"/"احصل على الرمز" 按钮');
-    await agent.aiWaitFor('按钮进入倒计时状态', { timeoutMs: 10_000 });
-    try {
-      redisExecSync(['HSET', `sms:code:${phone}`, 'code', '123456']);
-    } catch (e) {
-      if (!(e instanceof RedisCliUnavailableError)) throw e;
-    }
-    await agent.aiInput('123456', '验证码输入框');
-    await agent.aiTap('登录 或 确认 按钮');
     await agent.aiWaitFor('主界面已加载，大厅房间列表可见', { timeoutMs: 20_000 });
 
     // 进入房间
@@ -307,9 +285,8 @@ test('TC-MIC-00009: 点击自己已占麦位图标触发下麦（T-30055 onMicSl
       }
     }
 
-    // ── 冷启动 + 授权 + 登录 ──────────────────────────────────────────────────
-    // Round 3 修复：force-stop + am start（不 pm clear），消除弹窗 + 顺序污染
-    await resetAndroidToLoginPage(adbPrefix, ANDROID_APP_ID, 5, true);
+    // ── Round 5 修复（方案 D）：JWT 注入绕过 UI 登录流（agent.launch() 移除，避免 HOME 闪屏）────
+    await resetAndroidToMainPage(adbPrefix, ANDROID_APP_ID, phone);
     try {
       execSync(`${adbPrefix} shell pm grant ${ANDROID_APP_ID} android.permission.RECORD_AUDIO`, { stdio: 'pipe' });
     } catch { /* 忽略 */ }
@@ -318,28 +295,6 @@ test('TC-MIC-00009: 点击自己已占麦位图标触发下麦（T-30055 onMicSl
       execSync(`${adbPrefix} shell cmd locale set-app-locales ${ANDROID_APP_ID} --locales zh-CN`, { stdio: 'pipe' });
     } catch { /* 旧版 Android 不支持，忽略 */ }
 
-    await agent.launch(ANDROID_APP_ID);
-    await agent.aiWaitFor('界面上有可交互的按钮或输入框', { timeoutMs: 15_000 });
-
-    const hasConsentDialog = await agent.aiBoolean('当前界面是否存在数据收集通知、隐私政策或权限请求弹窗？');
-    try {
-      await agent.aiTap('"同意" 或 "确定" 或 "接受" 按钮（关闭弹窗）');
-    } catch { /* 忽略：弹窗已由 ADB 关闭或无弹窗 */ }
-
-    // 注入 SMS 验证码
-    try { redisExecSync(['HSET', `sms:code:${phone}`, 'code', '123456']); }
-    catch (e) { if (!(e instanceof RedisCliUnavailableError)) throw e; }
-
-    await agent.aiWaitFor('手机号输入框可见', { timeoutMs: 10_000 });
-    await agent.aiInput('500000900', '手机号输入框');
-    await agent.aiTap('"获取验证码"/"Get Code"/"احصل على الرمز" 按钮');
-    await agent.aiWaitFor('按钮进入倒计时状态', { timeoutMs: 10_000 });
-
-    try { redisExecSync(['HSET', `sms:code:${phone}`, 'code', '123456']); }
-    catch (e) { if (!(e instanceof RedisCliUnavailableError)) throw e; }
-
-    await agent.aiInput('123456', '验证码输入框');
-    await agent.aiTap('登录 或 确认 按钮');
     await agent.aiWaitFor('主界面已加载，大厅房间列表可见', { timeoutMs: 20_000 });
 
     // ── 进入 seed 测试房间（自愈 R2：Strategy C — 由 App 自身上麦）──────────────

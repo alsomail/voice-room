@@ -1,6 +1,13 @@
 /**
  * androidReset.ts — 标准化 Android 测试前重置序列
  *
+ * Round 5 P0 修复（方案 D）：JWT 注入登录，彻底跳过 UI 登录流
+ *
+ * 核心策略：
+ *   - force-stop → API 登录获取 JWT → 编码为 DataStore proto → run-as 写入设备
+ *   - am start → App 读取 JWT → 直接进入主界面（跳过登录页）
+ *   - 解决 Round 4 根因：ADB tap 坐标因键盘状态而偏移、Midscene 误识"登录"标题为按钮
+ *
  * Round 4 P0 修复（方案 C）：不清数据 → 只删 JWT token → 无弹窗直达登录页
  *
  * 核心策略：
@@ -39,8 +46,9 @@ async function detectScreenState(adbPrefix: string): Promise<ScreenState> {
     const consentMarkers = ['数据收集说明', '隐私政策', '用户协议', 'Privacy Policy', 'Data Collection'];
     if (consentMarkers.some(m => xml.includes(m))) return 'consent';
 
-    // 登录页：包含手机号输入框或登录按钮
-    const loginMarkers = ['手机号', '获取验证码', 'Send Code', 'phoneInput', 'login_btn', 'com.voice.room.android.local.debug:id/phone'];
+    // 登录页：包含手机号输入框或登录按钮（含阿拉伯语标记）
+    const loginMarkers = ['手机号', '获取验证码', 'Send Code', 'phoneInput', 'login_btn', 'com.voice.room.android.local.debug:id/phone',
+      'رقم الهاتف', 'إرسال رمز التحقق', 'رمز التحقق'];
     if (loginMarkers.some(m => xml.includes(m))) return 'login';
 
     // 主界面：包含底部 Tab 栏（首页/排行/钱包/我的等）
@@ -248,4 +256,197 @@ export async function resetAndroidToLoginPage(
   }
 
   await sleep(500);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Round 5: JWT 注入登录（方案 D）
+// 绕过 UI 登录流，通过 API + DataStore proto 直接注入 JWT
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * 将整数编码为 protobuf varint（小端序，每字节低 7 位有效，最高位为续位标志）
+ */
+function encodeVarint(n: number): Buffer {
+  const bytes: number[] = [];
+  while (n > 127) {
+    bytes.push((n & 0x7f) | 0x80);
+    n >>>= 7;
+  }
+  bytes.push(n & 0x7f);
+  return Buffer.from(bytes);
+}
+
+/**
+ * 将 JWT 字符串编码为 DataStore Preferences protobuf 二进制格式。
+ *
+ * 格式（逆向分析 auth.preferences_pb）：
+ *   outer:  field 1 (tag=0x0a) + varint(entry_len) + entry_msg
+ *   entry:  field 1 (0x0a) + len('jwt_token') + 'jwt_token'
+ *           + field 2 (0x12) + varint(value_len) + value_msg
+ *   value:  field 5 (0x2a) + varint(jwt_len) + jwt_bytes
+ */
+function buildDataStorePb(jwt: string): Buffer {
+  const jwtBuf = Buffer.from(jwt, 'utf8');
+  // value_msg: field 5 LEN = tag 0x2a + varint(jwt_len) + jwt_bytes
+  const valueMsg = Buffer.concat([Buffer.from([0x2a]), encodeVarint(jwtBuf.length), jwtBuf]);
+  // entry_msg: 0x0a + 0x09 + 'jwt_token' + 0x12 + varint(value_len) + value_msg
+  const keyBuf = Buffer.from('jwt_token', 'utf8'); // 9 bytes
+  const entryMsg = Buffer.concat([
+    Buffer.from([0x0a, keyBuf.length]),
+    keyBuf,
+    Buffer.from([0x12]),
+    encodeVarint(valueMsg.length),
+    valueMsg,
+  ]);
+  // outer: 0x0a + varint(entry_len) + entry_msg
+  return Buffer.concat([Buffer.from([0x0a]), encodeVarint(entryMsg.length), entryMsg]);
+}
+
+/**
+ * Round 5 方案 D：通过 API 获取 JWT 并注入 DataStore，绕过 UI 登录流。
+ *
+ * 流程：
+ *   1. 清除 Redis SMS cooldown（避免限速拒绝）
+ *   2. 预置 OTP：HSET sms:code:{phone} code 123456
+ *   3. POST /api/v1/auth/login → 获取 JWT
+ *   4. 编码为 DataStore protobuf 格式
+ *   5. adb run-as 写入 auth.preferences_pb
+ */
+async function loginViaJwtInjection(
+  adbPrefix: string,
+  appId: string,
+  phone: string,
+  serverUrl: string
+): Promise<void> {
+  // 1. 清除 SMS cooldown（忽略 docker 不可用情况）
+  try {
+    execSync(`docker exec vr-redis redis-cli DEL "sms:cooldown:${phone}"`, { stdio: 'pipe', timeout: 5000 });
+  } catch { /* 忽略：redis 容器可能不可用 */ }
+
+  // 2. 预置 OTP（直接 SET，绕过发送流程）
+  try {
+    execSync(`docker exec vr-redis redis-cli HSET "sms:code:${phone}" code 123456 attempts 0`, { stdio: 'pipe', timeout: 5000 });
+  } catch { /* 忽略 */ }
+
+  // 3. 调用登录 API 获取 JWT
+  const loginOutput = execSync(
+    `curl -s -X POST "${serverUrl}/api/v1/auth/login" ` +
+    `-H "Content-Type: application/json" ` +
+    `-d '{"phone":"${phone}","code":"123456"}'`,
+    { stdio: 'pipe', timeout: 12000 }
+  ).toString().trim();
+
+  let jwt: string;
+  try {
+    const parsed = JSON.parse(loginOutput);
+    // 响应格式：{"code":0,"message":"ok","data":{"token":"...","expires_in":...}}
+    jwt = parsed?.data?.token || parsed?.token || parsed?.jwt || parsed?.access_token;
+    if (!jwt || typeof jwt !== 'string') {
+      throw new Error(`JWT not found in response: ${loginOutput.substring(0, 200)}`);
+    }
+  } catch (e) {
+    throw new Error(`[androidReset] Login API failed for ${phone}: ${e}`);
+  }
+
+  // 4. 编码为 DataStore proto
+  const pb = buildDataStorePb(jwt);
+  const b64 = pb.toString('base64');
+
+  // 5. 写入设备（两步法，避免 ADB run-as 双层 shell 引号剥离问题）
+  //    Step A: 创建目录（直接传 mkdir 参数，无需 sh -c）
+  try {
+    execSync(
+      `${adbPrefix} shell run-as ${appId} mkdir -p files/datastore`,
+      { stdio: 'pipe', timeout: 5000 }
+    );
+  } catch { /* 目录可能已存在，忽略 */ }
+
+  //    Step B: 写入文件（用外层单引号包裹整个 run-as 命令，确保 ADB 不剥离双引号）
+  execSync(
+    `${adbPrefix} shell 'run-as ${appId} sh -c "echo ${b64} | base64 -d > files/datastore/auth.preferences_pb"'`,
+    { stdio: 'pipe', timeout: 12000 }
+  );
+
+  console.log(`[androidReset] ✅ JWT injected for ${phone} (${pb.length} bytes)`);
+}
+
+/**
+ * Round 5 方案 D：完整重置 + JWT 注入，App 启动后直接进入主界面（跳过 UI 登录流）。
+ *
+ * 适用于：绝大多数需要"登录后"状态的测试用例。
+ * 不适用于：TC-AUTH（专门测试登录 UI 流程）。
+ *
+ * 流程：
+ *   1. force-stop App
+ *   2. 通过 API 获取 JWT 并注入 auth.preferences_pb
+ *   3. am start
+ *   4. App 读取 JWT → 跳过登录页 → 直接进入主界面
+ *   5. dismissConsentDialog 安全网（正常情况无弹窗）
+ *
+ * @param adbPrefix  ADB 命令前缀，如 "adb -s 9A251FFAZ00EAJ"
+ * @param appId      Android 应用包名，如 "com.voice.room.android.local.debug"
+ * @param phone      手机号 E.164 格式，如 "+966500000900"
+ * @param serverUrl  后端 API 地址（默认从 process.env.APP_SERVER_BASE_URL 读取）
+ */
+export async function resetAndroidToMainPage(
+  adbPrefix: string,
+  appId: string,
+  phone = '+966500000900',
+  serverUrl?: string
+): Promise<void> {
+  const apiBase = serverUrl ?? process.env.APP_SERVER_BASE_URL ?? 'http://192.168.1.19:3000';
+
+  // Step 1: 回到 Home Screen（清除可能残留的系统 UI，如键盘设置页）
+  try {
+    execSync(`${adbPrefix} shell input keyevent KEYCODE_HOME`, { stdio: 'pipe' });
+  } catch { /* 忽略 */ }
+  await sleep(300);
+
+  // Step 2: force-stop（杀进程，确保干净状态）
+  try {
+    execSync(`${adbPrefix} shell am force-stop ${appId}`, { stdio: 'pipe' });
+  } catch { /* 忽略 */ }
+  await sleep(300);
+
+  // Step 3: JWT 注入（API login + write DataStore proto）
+  await loginViaJwtInjection(adbPrefix, appId, phone, apiBase);
+  await sleep(200);
+
+  // Step 4: am start —— 触发 App 从 force-stop 状态启动，读取 JWT，自动跳转到主界面
+  try {
+    execSync(
+      `${adbPrefix} shell am start --include-stopped-packages -n ${appId}/com.voice.room.android.presentation.MainActivity`,
+      { stdio: 'pipe' }
+    );
+  } catch {
+    try {
+      execSync(
+        `${adbPrefix} shell monkey -p ${appId} -c android.intent.category.LAUNCHER 1`,
+        { stdio: 'pipe' }
+      );
+    } catch { /* 忽略 */ }
+  }
+
+  // Step 5: 等待 App 初始化（读取 JWT → 渲染主界面）
+  await sleep(4000);
+
+  // Step 6: 有针对性地处理同意弹窗——仅当 detectScreenState 检测到 'consent' 时才 dismiss
+  // 目的：避免 dismissConsentDialog 误触主界面上与同意无关的"确定"/"确认"按钮导致导航异常
+  const screenState = await detectScreenState(adbPrefix);
+  if (screenState === 'consent') {
+    console.log(`[androidReset] ⚠️ Consent dialog detected after JWT launch, dismissing...`);
+    await dismissConsentDialog(adbPrefix, 8, 1200);
+    await sleep(1000);
+    // 确认弹窗已消除
+    const stateAfter = await detectScreenState(adbPrefix);
+    if (stateAfter === 'consent') {
+      console.warn(`[androidReset] ⚠️ Consent dialog still present, one more round...`);
+      await dismissConsentDialog(adbPrefix, 5, 1500);
+      await sleep(800);
+    }
+  } else {
+    console.log(`[androidReset] ✅ Screen state after launch: ${screenState} (no consent dialog)`);
+  }
+
+  console.log(`[androidReset] ✅ resetAndroidToMainPage done — ${phone} → main screen`);
 }

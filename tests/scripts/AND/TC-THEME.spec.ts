@@ -12,37 +12,16 @@ import { test, expect } from '../support/fixtures';
 import { agentFromAdbDevice } from '@midscene/android';
 import { execSync } from 'child_process';
 import { redisExecSync, RedisCliUnavailableError } from '../support/redisCli';
-import { resetAndroidToLoginPage, dismissConsentDialog } from '../support/androidReset';
+import { resetAndroidToLoginPage, resetAndroidToMainPage } from '../support/androidReset';
 
 test.setTimeout(300_000);
 
 // ── 共用：冷启动 + 登录 ──────────────────────────────────────────────────────
 
 async function coldStartAndLogin(agent: any, adbPrefix: string, ANDROID_APP_ID: string, phone: string) {
-  // Round 3 修复：force-stop + am start（不 pm clear），消除弹窗 + 顺序污染
-  await resetAndroidToLoginPage(adbPrefix, ANDROID_APP_ID, 5, true);
-  await agent.launch(ANDROID_APP_ID);
-  await agent.aiWaitFor('界面上有可交互的按钮或输入框', { timeoutMs: 15_000 });
-  const hasConsentDialog = await agent.aiBoolean('当前界面是否存在数据收集通知、隐私政策或权限请求弹窗？');
-  try {
-    await agent.aiTap('"同意" 或 "确定" 或 "接受" 按钮（关闭弹窗）');
-  } catch { /* 忽略：弹窗已由 ADB 关闭或无弹窗 */ }
-  try {
-    redisExecSync(['HSET', `sms:code:${phone}`, 'code', '123456']);
-  } catch (e) {
-    if (!(e instanceof RedisCliUnavailableError)) throw e;
-  }
-  await agent.aiWaitFor('手机号输入框可见', { timeoutMs: 10_000 });
-  await agent.aiInput('500000900', '手机号输入框');
-  await agent.aiTap('"获取验证码"/"Get Code"/"احصل على الرمز" 按钮');
-  await agent.aiWaitFor('按钮进入倒计时状态', { timeoutMs: 10_000 });
-  try {
-    redisExecSync(['HSET', `sms:code:${phone}`, 'code', '123456']);
-  } catch (e) {
-    if (!(e instanceof RedisCliUnavailableError)) throw e;
-  }
-  await agent.aiInput('123456', '验证码输入框');
-  await agent.aiTap('登录 或 确认 按钮');
+  // Round 5 修复（方案 D）：JWT 注入绕过 UI 登录流
+  // agent.launch() 已移除 — resetAndroidToMainPage 已将 App 启动到主界面，保留会触发 HOME 闪屏
+  await resetAndroidToMainPage(adbPrefix, ANDROID_APP_ID, phone);
   await agent.aiWaitFor('主界面已加载，底部 Tab 栏可见', { timeoutMs: 20_000 });
 }
 
@@ -66,21 +45,12 @@ test('TC-THEME-00001: MenaTheme 色值与 Typography', async ({ e2eEnv }: any) =
     await agent.aiAssert('所有页面背景色为极深的深黑紫色（接近黑色，非白色），整体黑金风格');
 
     // Step2：主按钮颜色验证（如"获取验证码"按钮）
-    // 需返回登录页查看按钮
+    // 需返回登录页 — Round 5 修复：使用 resetAndroidToLoginPage（删 JWT 不 pm clear）避免弹窗
     execSync(`${adbPrefix} shell am force-stop ${ANDROID_APP_ID}`);
     await new Promise(r => setTimeout(r, 1000));
-    // Round 3 修复：pm clear 保留（用于清除 JWT 以返回登录页），但之后用 ADB 消弹窗
-    execSync(`${adbPrefix} shell pm clear ${ANDROID_APP_ID}`);
-    execSync(`${adbPrefix} shell am start -n ${ANDROID_APP_ID}/com.voice.room.android.presentation.MainActivity`);
-    await new Promise(r => setTimeout(r, 3000));
-    await dismissConsentDialog(adbPrefix, 5);
+    await resetAndroidToLoginPage(adbPrefix, ANDROID_APP_ID, 5, true);
     await agent.launch(ANDROID_APP_ID);
-    await agent.aiWaitFor('界面上有可交互的按钮或输入框', { timeoutMs: 15_000 });
-    const hasConsentDialog2 = await agent.aiBoolean('当前界面是否存在数据收集通知、隐私政策或权限请求弹窗？');
-    if (hasConsentDialog2) {
-      await agent.aiTap('"同意" 或 "确定" 或 "接受" 按钮（关闭弹窗）');
-    }
-    await agent.aiWaitFor('登录页面加载完成', { timeoutMs: 10_000 });
+    await agent.aiWaitFor('登录页面加载完成，手机号输入框可见', { timeoutMs: 15_000 });
     await agent.aiAssert('登录页中的主要按钮（"获取验证码"或类似按钮）有金色渐变填充，圆角样式');
 
   } finally {
@@ -112,22 +82,12 @@ test('TC-THEME-00002: GoldButton + GoldOutlinedTextField + AvatarWithFrame', asy
     await agent.aiAssert('页面中的主要行动按钮（FAB 或创建/登录按钮）整体呈金色视觉效果（纯色金或金色渐变均符合）');
 
     // Step2：验证 GoldOutlinedTextField（在登录页手机号框）
-    // 需返回登录页
+    // 需返回登录页 — Round 5 修复：使用 resetAndroidToLoginPage（删 JWT 不 pm clear）避免弹窗
     execSync(`${adbPrefix} shell am force-stop ${ANDROID_APP_ID}`);
     await new Promise(r => setTimeout(r, 1000));
-    // Round 3 修复：pm clear 保留（用于清除 JWT 以返回登录页），但之后用 ADB 消弹窗
-    execSync(`${adbPrefix} shell pm clear ${ANDROID_APP_ID}`);
-    execSync(`${adbPrefix} shell am start -n ${ANDROID_APP_ID}/com.voice.room.android.presentation.MainActivity`);
-    await new Promise(r => setTimeout(r, 3000));
-    await dismissConsentDialog(adbPrefix, 5);
+    await resetAndroidToLoginPage(adbPrefix, ANDROID_APP_ID, 5, true);
     await agent.launch(ANDROID_APP_ID);
-    // [Round3修复] pm clear 后先用 ADB 消弹窗，再等待任何可交互元素
-    await agent.aiWaitFor('界面上有可交互的按钮或输入框', { timeoutMs: 15_000 });
-    const hasConsentDialog2 = await agent.aiBoolean('当前界面是否存在数据收集通知、隐私政策或权限请求弹窗？');
-    if (hasConsentDialog2) {
-      await agent.aiTap('"同意" 或 "确定" 或 "接受" 按钮（关闭弹窗）');
-    }
-    await agent.aiWaitFor('手机号输入框可见', { timeoutMs: 10_000 });
+    await agent.aiWaitFor('手机号输入框可见', { timeoutMs: 15_000 });
     await agent.aiAssert('手机号输入框使用金色边框样式：未聚焦时淡金边框，聚焦时金色加粗边框');
 
     // 点击输入框查看聚焦样式
@@ -135,22 +95,8 @@ test('TC-THEME-00002: GoldButton + GoldOutlinedTextField + AvatarWithFrame', asy
     await agent.aiAssert('聚焦后输入框边框变为金色更亮的样式（金色 2dp 边框）');
 
     // Step3：AvatarWithFrame 在个人中心头像
-    // 先重新登录
-    try {
-      redisExecSync(['HSET', `sms:code:${phone}`, 'code', '123456']);
-    } catch (e) {
-      if (!(e instanceof RedisCliUnavailableError)) throw e;
-    }
-    await agent.aiInput('500000900', '手机号输入框');
-    await agent.aiTap('"获取验证码"/"Get Code"/"احصل على الرمز" 按钮');
-    await agent.aiWaitFor('按钮进入倒计时状态', { timeoutMs: 10_000 });
-    try {
-      redisExecSync(['HSET', `sms:code:${phone}`, 'code', '123456']);
-    } catch (e) {
-      if (!(e instanceof RedisCliUnavailableError)) throw e;
-    }
-    await agent.aiInput('123456', '验证码输入框');
-    await agent.aiTap('登录 或 确认 按钮');
+    // 先重新登录（Round 5 修复：JWT 注入绕过 UI 登录流，agent.launch() 移除，避免 HOME 闪屏）
+    await resetAndroidToMainPage(adbPrefix, ANDROID_APP_ID, phone);
     await agent.aiWaitFor('主界面加载完成', { timeoutMs: 20_000 });
 
     await agent.aiTap('底部 Tab 栏中的"我的"或"Me"选项卡');

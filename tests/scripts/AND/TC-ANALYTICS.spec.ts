@@ -11,7 +11,7 @@ import { test, expect } from '../support/fixtures';
 import { agentFromAdbDevice } from '@midscene/android';
 import { execSync } from 'child_process';
 import { redisExecSync, RedisCliUnavailableError } from '../support/redisCli';
-import { resetAndroidToLoginPage, dismissConsentDialog } from '../support/androidReset';
+import { resetAndroidToLoginPage, resetAndroidToMainPage, dismissConsentDialog } from '../support/androidReset';
 
 test.setTimeout(300_000);
 
@@ -118,39 +118,8 @@ test('TC-ANALYTICS-00004: EventReportClient 节流队列验证', async ({ e2eEnv
   });
 
   try {
-    // 前置：标准化重置（force-stop + am start，不 pm clear 避免弹窗）
-    await resetAndroidToLoginPage(adbPrefix, ANDROID_APP_ID, 5, true);
-    await agent.launch(ANDROID_APP_ID);
-    await agent.aiWaitFor('界面上有可交互的按钮或输入框', { timeoutMs: 15_000 });
-
-    // 处理隐私弹窗：选择"同意完整分析"
-    const hasPrivacyDialog = await agent.aiBoolean('是否显示隐私同意弹窗？');
-    if (hasPrivacyDialog) {
-      await agent.aiTap('"同意"/"完整分析"/"全部接受" 按钮（选择完整分析，不是仅Crash）');
-      await agent.aiWaitFor('弹窗关闭', { timeoutMs: 8_000 });
-    }
-
-    // 登录
-    const hasConsentDialog = await agent.aiBoolean('当前界面是否存在数据收集通知或权限请求弹窗？');
-    try {
-      await agent.aiTap('"同意" 或 "确定" 按钮');
-    } catch { /* 忽略：弹窗已由 ADB 关闭或无弹窗 */ }
-    try {
-      redisExecSync(['HSET', `sms:code:${phone}`, 'code', '123456']);
-    } catch (e) {
-      if (!(e instanceof RedisCliUnavailableError)) throw e;
-    }
-    await agent.aiWaitFor('手机号输入框可见', { timeoutMs: 10_000 });
-    await agent.aiInput('500000900', '手机号输入框');
-    await agent.aiTap('"获取验证码"/"Get Code"/"احصل على الرمز" 按钮');
-    await agent.aiWaitFor('按钮进入倒计时状态', { timeoutMs: 10_000 });
-    try {
-      redisExecSync(['HSET', `sms:code:${phone}`, 'code', '123456']);
-    } catch (e) {
-      if (!(e instanceof RedisCliUnavailableError)) throw e;
-    }
-    await agent.aiInput('123456', '验证码输入框');
-    await agent.aiTap('登录 或 确认 按钮');
+    // Round 5 修复（方案 D）：JWT 注入绕过 UI 登录流（agent.launch() 移除，避免 HOME 闪屏）
+    await resetAndroidToMainPage(adbPrefix, ANDROID_APP_ID, phone);
     await agent.aiWaitFor('主界面已加载，底部 Tab 栏可见', { timeoutMs: 20_000 });
 
     // Step1-2：快速触发 8+ 个用户动作以验证队列 flush

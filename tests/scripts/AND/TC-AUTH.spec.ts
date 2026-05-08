@@ -76,7 +76,7 @@ test('TC-AUTH-00003: Android 端注册登录全链路', async ({ e2eEnv }: any) 
     await agent.aiInput(phoneLocal, '手机号输入框');
 
     // ── Step2：发送验证码 ────────────────────────────────────────────────────
-    await agent.aiTap('"获取验证码"/"Get Code"/"احصل على الرمز" 按钮');
+    await agent.aiTap('"获取验证码"/"Get Code"/"احصل على الرمز"/"إرسال رمز التحقق" 按钮');
     await agent.aiAssert('按钮文案变为 "60s 后重发" 或类似倒计时态');
 
     // ── Step3：Redis 副作用断言（SMS 验证码为 Hash 结构，用 HGET）──────────
@@ -91,7 +91,7 @@ test('TC-AUTH-00003: Android 端注册登录全链路', async ({ e2eEnv }: any) 
     await agent.aiInput('123456', '验证码输入框');
 
     // ── Step5：点击登录 ──────────────────────────────────────────────────────
-    await agent.aiTap('登录 或 确认 按钮');
+    await agent.aiTap('验证码输入框下方的登录提交按钮（屏幕底部，非顶部"登录"标题文字）');
     // 自愈修复（轮次1）：原条件等待"正在跳转"是瞬态，AI 截图时 App 已到达主界面
     // → 改为等待最终态"已在大厅/主界面"
     await agent.aiWaitFor('已成功进入大厅主界面或房间列表页面（登录跳转完成，不再是登录页）', { timeoutMs: 20_000 });
