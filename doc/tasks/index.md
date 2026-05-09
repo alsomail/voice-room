@@ -1,7 +1,7 @@
 # Voice Room 开发任务清单
 
-> **版本**: v3.15
-> **更新日期**: 2026-05-07
+> **版本**: v3.17
+> **更新日期**: 2026-05-09
 > **任务总数**: 149 个 (基建: 4 + 14 + 3 + 6, App Server: 33 + 1 + 2 + 1, Admin Server: 16 + 1 + 1, Web: 14 + 1 + 1, Android: 45 + 1 + 1 + 1 + 1, E-07 15 + E-07.5 6 + E-10 18)  
 > **当前阶段**: Phase 1 → … → Phase 1.7 协议治理铁律落地 → **Phase 1.7-extended 协议字段全量冻结**（WS + HTTP REST + Redis Pub/Sub 三协议层 schema 机器可读 + 字段级 CI 审计 + Android×Server 跨语言 E2E）
 
@@ -11,6 +11,8 @@
 
 | 版本 | 日期 | 变更内容 |
 |------|------|---------|
+| **v3.17** | **2026-05-09** | [E2E Round 6] API 恢复后首次有效执行：AND 7/34 PASS（20.6%）, E2E 2/5 PASS（40%），WEB 25/25 PASS；androidReset.ts 三项修复（RECORD_AUDIO ✅ + activity-clear-task + KEYCODE_BACK）；P0 阻塞点：ROOM 大厅 DataStore 导航恢复 + JWT 删除失效；report-20260509073757。 |
+| **v3.16** | **2026-05-08** | [E2E Round 3] AND 31/34 FAILED（+1 vs Round 2），E2E 4/8 FAILED（+1 新增 TC-LIFECYCLE），WEB 25/25 PASS（沿用 Round 2）；AND/E2E QA Gate ❌ Blocked Round 3/5；report-20260508201055。 |
 | **v3.14** | **2026-05-09** | [T-30055 DoD ✅ Done] — Android RoomScreen/AppNavGraph LeaveMic 下麦调用链修复完成，协议入口索引落锚于 arch/android/room.md，protocol 交叉链接补齐，Payload 字段 mic_index 正式声明为可选 integer；门禁全绿（Research ✅ + QA ✅ + Overall -）；doc/arch/android/room.md + doc/protocol/websocket_signals.md 已同步交叉链接。 |
 | **v3.15** | **2026-05-07** | [QA 全量重置] QA Gate + Overall Gate 全部回滚为 `-`，tests/scripts .spec.ts 全量清除，准备由 qa-coordinator 基于 doc/tests/cases/ 重新生成并执行全量 E2E。 |
 | _规则_ | — | 本表只记录**版本级摘要**（一行 ≤ 200 字符），具体 Review/审查/实跑证据请落到对应 [TDS](../tds/) 第五节【Review 意见】或对应模块审查批次 `doc/review/模块N-XXX.md`，**严禁**在本表堆叠详细审查记录。 |

@@ -186,7 +186,18 @@ export async function resetAndroidToLoginPage(
   maxDialogAttempts = 5,
   clearData = false  // Round 4: 参数保留，但不再触发 pm clear
 ): Promise<void> {
-  // Step 1: force-stop（杀进程，确保干净状态）
+  // Step 1: 先退出任何 Room（避免 am start 还原 Room backstack）
+  // 按 BACK 键两次尝试退出房间，再 HOME 键回主屏
+  try {
+    execSync(`${adbPrefix} shell input keyevent KEYCODE_BACK`, { stdio: 'pipe', timeout: 3000 });
+  } catch { /* 忽略 */ }
+  await sleep(500);
+  try {
+    execSync(`${adbPrefix} shell input keyevent KEYCODE_HOME`, { stdio: 'pipe', timeout: 3000 });
+  } catch { /* 忽略 */ }
+  await sleep(300);
+
+  // Step 1b: force-stop（杀进程，确保干净状态）
   try {
     execSync(`${adbPrefix} shell am force-stop ${appId}`, { stdio: 'pipe' });
   } catch { /* 忽略 */ }
@@ -197,10 +208,10 @@ export async function resetAndroidToLoginPage(
   const deleteMode = await deleteAuthTokenOnly(adbPrefix, appId);
   await sleep(300);
 
-  // Step 3: am start — 使用经 adb resolve-activity 验证的 Activity 路径
+  // Step 3: am start — --activity-clear-task 强制清除 Activity 栈（防止恢复 Room 页面）
   try {
     execSync(
-      `${adbPrefix} shell am start --include-stopped-packages -n ${appId}/com.voice.room.android.presentation.MainActivity`,
+      `${adbPrefix} shell am start --activity-clear-task --activity-new-task --include-stopped-packages -n ${appId}/com.voice.room.android.presentation.MainActivity`,
       { stdio: 'pipe' }
     );
   } catch {
@@ -396,7 +407,12 @@ export async function resetAndroidToMainPage(
 ): Promise<void> {
   const apiBase = serverUrl ?? process.env.APP_SERVER_BASE_URL ?? 'http://192.168.1.19:3000';
 
-  // Step 1: 回到 Home Screen（清除可能残留的系统 UI，如键盘设置页）
+  // Step 1: 先退出任何 Room（避免 am start 还原 Room backstack）
+  try {
+    execSync(`${adbPrefix} shell input keyevent KEYCODE_BACK`, { stdio: 'pipe', timeout: 3000 });
+  } catch { /* 忽略 */ }
+  await sleep(500);
+  // Step 1b: 回到 Home Screen（清除可能残留的系统 UI，如键盘设置页）
   try {
     execSync(`${adbPrefix} shell input keyevent KEYCODE_HOME`, { stdio: 'pipe' });
   } catch { /* 忽略 */ }
@@ -412,10 +428,15 @@ export async function resetAndroidToMainPage(
   await loginViaJwtInjection(adbPrefix, appId, phone, apiBase);
   await sleep(200);
 
-  // Step 4: am start —— 触发 App 从 force-stop 状态启动，读取 JWT，自动跳转到主界面
+  // Step 3b: 授予录音权限（进房间类测试需要麦克风权限，避免权限弹窗阻断流程）
+  try {
+    execSync(`${adbPrefix} shell pm grant ${appId} android.permission.RECORD_AUDIO`, { stdio: 'pipe', timeout: 5000 });
+  } catch { /* 忽略：权限可能已授予或不适用 */ }
+
+  // Step 4: am start —— --activity-clear-task 强制清除 Activity 栈（防止恢复 Room 页面）
   try {
     execSync(
-      `${adbPrefix} shell am start --include-stopped-packages -n ${appId}/com.voice.room.android.presentation.MainActivity`,
+      `${adbPrefix} shell am start --activity-clear-task --activity-new-task --include-stopped-packages -n ${appId}/com.voice.room.android.presentation.MainActivity`,
       { stdio: 'pipe' }
     );
   } catch {
@@ -427,8 +448,8 @@ export async function resetAndroidToMainPage(
     } catch { /* 忽略 */ }
   }
 
-  // Step 5: 等待 App 初始化（读取 JWT → 渲染主界面）
-  await sleep(4000);
+  // Step 5: 等待 App 初始化（读取 JWT → 渲染主界面），适当延长等待（排除 splash 未完成）
+  await sleep(5000);
 
   // Step 6: 有针对性地处理同意弹窗——仅当 detectScreenState 检测到 'consent' 时才 dismiss
   // 目的：避免 dismissConsentDialog 误触主界面上与同意无关的"确定"/"确认"按钮导致导航异常
