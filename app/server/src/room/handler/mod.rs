@@ -178,6 +178,7 @@ mod tests {
             stats: stats.clone(),
             jwt_secret: "test-secret".to_string(),
             kick_redis: None,
+            nobility_service: None,
         }
     }
 
@@ -1927,6 +1928,7 @@ mod tests {
             stats: stats.clone(),
             jwt_secret: "test-secret".to_string(),
             kick_redis: None,
+            nobility_service: None,
         };
 
         let response = handle_join_room(

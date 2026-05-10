@@ -29,6 +29,7 @@ use crate::modules::governance::mute::{handle_mute, handle_unmute, MuteDb, MuteD
 use crate::modules::governance::transfer::{
     handle_transfer_admin, TransferAdminDeps, TransferAdminRepo,
 };
+use crate::modules::nobility::NobilityServicePort;
 use crate::modules::room::service::RoomService;
 use crate::room::handler::do_leave_room;
 use crate::room::handler::{JoinRoomDeps, LeaveRoomDeps};
@@ -194,6 +195,8 @@ pub struct SocketDeps {
     pub transfer_admin_repo: Arc<dyn TransferAdminRepo>,
     /// 聊天消息持久化（T-00043 SendMessage）
     pub chat_repo: Arc<dyn crate::modules::chat::ChatRepository>,
+    /// 贵族服务（T-00069 UserJoined 广播携带 noble 字段）
+    pub nobility_service: Arc<dyn NobilityServicePort>,
 }
 
 /// 在成功升级的 WebSocket 上运行完整的读/写生命周期。
@@ -220,6 +223,7 @@ pub async fn handle_socket(
     mic_lock: Arc<dyn MicLock>,
     transfer_admin_repo: Arc<dyn TransferAdminRepo>,
     chat_repo: Arc<dyn crate::modules::chat::ChatRepository>,
+    nobility_service: Arc<dyn NobilityServicePort>,
 ) {
     let connection_id = Uuid::new_v4(); // 每次連接生成唯一 ID，與 user_id 解耦
     let (tx, mut rx) = mpsc::unbounded_channel::<String>();
@@ -285,6 +289,7 @@ pub async fn handle_socket(
                                         stats: stats.clone(),
                                         jwt_secret: jwt_secret.clone(),
                                         kick_redis: Some(kick_redis.clone()),
+                                        nobility_service: Some(nobility_service.clone()),
                                     };
                                     Some(
                                         crate::room::handler::handle_join_room(

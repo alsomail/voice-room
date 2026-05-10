@@ -23,6 +23,7 @@ use voice_room_shared::auth::room_access::decode_room_access_token;
 
 use crate::modules::auth::service::AuthService;
 use crate::modules::governance::kick::KickRedis;
+use crate::modules::nobility::NobilityServicePort;
 use crate::modules::room::service::RoomService;
 use crate::room::mic_lock::MicLock;
 use crate::stats::StatsPort;
@@ -47,6 +48,8 @@ pub struct JoinRoomDeps {
     pub jwt_secret: String,
     /// 踢人冷却 Redis（T-00028 JoinRoom 前置检查）；None = 跳过检查
     pub kick_redis: Option<Arc<dyn KickRedis>>,
+    /// 贵族服务（T-00069 UserJoined 广播携带 noble 字段）；None = 跳过
+    pub nobility_service: Option<Arc<dyn NobilityServicePort>>,
 }
 
 // ─── handle_join_room ────────────────────────────────────────────────────────
@@ -73,6 +76,7 @@ pub async fn handle_join_room(
         stats,
         jwt_secret,
         kick_redis,
+        nobility_service,
     } = deps;
 
     // ── 1. 解析 room_id ───────────────────────────────────────────────────────
@@ -200,15 +204,35 @@ pub async fn handle_join_room(
 
     // ── 8. 广播 UserJoined 给房间内所有连接（含自己）— 走统一出口 broadcast_to_room ──
     // PROTO-BINDING: doc/protocol/schemas/ws/UserJoined.schema.json
-    let joined_envelope = serde_json::json!({
-        "type": "UserJoined",
-        "payload": {
-            "user_id": user_id.to_string(),
-            "nickname": nickname,
-            "avatar": avatar,
-        },
-        "timestamp": chrono::Utc::now().timestamp_millis(),
-    });
+    // T-00069: 若用户有贵族，附带 noble 字段
+    let noble_dto = if let Some(svc) = nobility_service.as_ref() {
+        svc.get_user_noble_dto(user_id).await
+    } else {
+        None
+    };
+
+    let joined_envelope = if let Some(noble) = noble_dto {
+        serde_json::json!({
+            "type": "UserJoined",
+            "payload": {
+                "user_id": user_id.to_string(),
+                "nickname": nickname,
+                "avatar": avatar,
+                "noble": noble,
+            },
+            "timestamp": chrono::Utc::now().timestamp_millis(),
+        })
+    } else {
+        serde_json::json!({
+            "type": "UserJoined",
+            "payload": {
+                "user_id": user_id.to_string(),
+                "nickname": nickname,
+                "avatar": avatar,
+            },
+            "timestamp": chrono::Utc::now().timestamp_millis(),
+        })
+    };
     crate::ws::broadcaster::broadcast_to_room(registry, &room_state, joined_envelope);
 
     // ── 9. 返回 JoinRoomResult ──────────────────────────────────────────────────

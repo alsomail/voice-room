@@ -55,6 +55,22 @@ pub enum ErrorCode {
     #[error("ROOM_ALREADY_CLOSED")]
     RoomAlreadyClosed = 40901,
 
+    // 409 / 404 / 422 - E-09 贵族体系错误码 (§10.6)
+    #[error("DOWNGRADE_NOT_ALLOWED")]
+    DowngradeNotAllowed = 40911,
+    #[error("INSUFFICIENT_NOBLE_BALANCE")]
+    InsufficientNobleBalance = 40912,
+    #[error("SAME_TIER_RENEWAL_OVERLAP")]
+    SameTierRenewalOverlap = 40913,
+    #[error("TIER_INACTIVE")]
+    TierInactive = 40914,
+    #[error("NOBLE_PRIVILEGE_BLOCKED")]
+    NoblePrivilegeBlocked = 40915,
+    #[error("RENEW_REMINDER_ACK_INVALID")]
+    RenewReminderAckInvalid = 40916,
+    #[error("PRIVILEGES_SCHEMA_INVALID")]
+    PrivilegesSchemaInvalid = 40917,
+
     // 429 - 频率限制
     #[error("VERIFICATION_CODE_COOLDOWN")]
     VerificationCodeCooldown = 42901,

@@ -76,6 +76,7 @@ pub async fn ws_handler(
     let mic_lock = state.mic_lock.clone();
     let transfer_admin_repo = state.transfer_admin_repo.clone();
     let chat_repo = state.chat_repo.clone();
+    let nobility_service = state.nobility_service.clone();
     tracing::info!(%user_id, "websocket upgrade accepted");
     ws.on_upgrade(move |socket| {
         handle_socket(
@@ -96,6 +97,7 @@ pub async fn ws_handler(
             mic_lock,
             transfer_admin_repo,
             chat_repo,
+            nobility_service,
         )
     })
 }

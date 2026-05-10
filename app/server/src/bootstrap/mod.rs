@@ -18,6 +18,11 @@ use crate::{
         governance::kick::{KickAuditDb, KickRedis},
         governance::mute::{MuteDb, MuteRedis},
         governance::transfer::TransferAdminRepo,
+        nobility::{nobility_routes, NobilityServicePort},
+        payment::{
+            payment_routes, PaymentOrderServicePort, PaymentRtdnServicePort,
+            PaymentVerifyServicePort,
+        },
         ranking::{ranking_routes, RankingServicePort},
         room::{password::RoomPasswordRedis, repository::RoomRepository, room_routes, RoomService},
         wallet::{service::WalletServicePort, wallet_routes},
@@ -64,6 +69,14 @@ pub struct AppState {
     pub transfer_admin_repo: Arc<dyn TransferAdminRepo>,
     /// 聊天消息持久化（T-00043 SendMessage 落库 + REST 历史查询）
     pub chat_repo: Arc<dyn ChatRepository>,
+    /// 贵族服务（E-09 T-00065~70）
+    pub nobility_service: Arc<dyn NobilityServicePort>,
+    /// 支付订单服务（E-08 T-00051）
+    pub payment_order_service: Arc<dyn PaymentOrderServicePort>,
+    /// 支付验签 + 入账服务（E-08 T-00052）
+    pub payment_verify_service: Arc<dyn PaymentVerifyServicePort>,
+    /// RTDN 推送处理服务（E-08 T-00053）
+    pub payment_rtdn_service: Arc<dyn PaymentRtdnServicePort>,
 }
 
 impl AppState {
@@ -115,6 +128,18 @@ impl AppState {
                 crate::modules::governance::transfer::FakeTransferAdminRepo::default(),
             ),
             chat_repo: Arc::new(crate::modules::chat::FakeChatRepository::default()),
+            nobility_service: Arc::new(
+                crate::modules::nobility::FakeNobilityService::default(),
+            ),
+            payment_order_service: Arc::new(
+                crate::modules::payment::FakePaymentOrderService,
+            ),
+            payment_verify_service: Arc::new(
+                crate::modules::payment::FakePaymentVerifyService,
+            ),
+            payment_rtdn_service: Arc::new(
+                crate::modules::payment::FakePaymentRtdnService,
+            ),
         }
     }
 
@@ -147,6 +172,7 @@ impl AppState {
         mic_lock: Arc<dyn crate::room::mic_lock::MicLock>,
         transfer_admin_repo: Arc<dyn TransferAdminRepo>,
         chat_repo: Arc<dyn ChatRepository>,
+        nobility_service: Arc<dyn NobilityServicePort>,
     ) -> Self {
         let auth_service = Arc::new(AuthService::new(
             user_repo,
@@ -175,7 +201,45 @@ impl AppState {
             mic_lock,
             transfer_admin_repo,
             chat_repo,
+            nobility_service,
+            // Payment services: default to Fake; use with_payment_* builders for production
+            payment_order_service: Arc::new(
+                crate::modules::payment::FakePaymentOrderService,
+            ),
+            payment_verify_service: Arc::new(
+                crate::modules::payment::FakePaymentVerifyService,
+            ),
+            payment_rtdn_service: Arc::new(
+                crate::modules::payment::FakePaymentRtdnService,
+            ),
         }
+    }
+
+    /// 设置 Payment Order 服务（T-00051）
+    pub fn with_payment_order_service(
+        mut self,
+        svc: Arc<dyn PaymentOrderServicePort>,
+    ) -> Self {
+        self.payment_order_service = svc;
+        self
+    }
+
+    /// 设置 Payment Verify 服务（T-00052）
+    pub fn with_payment_verify_service(
+        mut self,
+        svc: Arc<dyn PaymentVerifyServicePort>,
+    ) -> Self {
+        self.payment_verify_service = svc;
+        self
+    }
+
+    /// 设置 RTDN 服务（T-00053）
+    pub fn with_payment_rtdn_service(
+        mut self,
+        svc: Arc<dyn PaymentRtdnServicePort>,
+    ) -> Self {
+        self.payment_rtdn_service = svc;
+        self
     }
 
     /// 设置生产环境真实 Redis（用于密码房校验），替换默认的 FakeRoomPasswordRedis。
@@ -223,6 +287,12 @@ impl AppState {
     /// 设置生产环境真实 ChatRepository（T-00043）。
     pub fn with_chat_repo(mut self, repo: Arc<dyn ChatRepository>) -> Self {
         self.chat_repo = repo;
+        self
+    }
+
+    /// 设置生产环境真实 NobilityService（E-09 T-00065~70）。
+    pub fn with_nobility_service(mut self, svc: Arc<dyn NobilityServicePort>) -> Self {
+        self.nobility_service = svc;
         self
     }
 
@@ -354,6 +424,8 @@ pub fn build_app(state: AppState) -> Router {
         .merge(gift_routes())
         .merge(ranking_routes())
         .merge(events_routes())
+        .merge(nobility_routes())
+        .merge(payment_routes())
         .layer(middleware::from_fn(request_context_middleware))
         .with_state(state)
 }

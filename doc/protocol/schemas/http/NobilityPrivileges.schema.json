@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voiceroom.example.com/schemas/http/NobilityPrivileges.schema.json",
+  "title": "NobilityPrivileges",
+  "description": "贵族特权结构体（T-00065 / E-09）。所有 diamond 数量为 i64 整数，无浮点。",
+  "type": "object",
+  "required": [],
+  "additionalProperties": false,
+  "properties": {
+    "invisibility_scope": {
+      "description": "隐身范围枚举。none=无隐身，mic_only=仅在麦位不可见，mic_and_audience=对观众和麦位不可见，all=仅管理员可见。",
+      "type": "string",
+      "enum": ["none", "mic_only", "mic_and_audience", "all"],
+      "examples": ["none", "mic_only", "mic_and_audience", "all"]
+    },
+    "can_bypass_password": {
+      "description": "是否可以免密进入密码房（duke 及以上为 true）。",
+      "type": "boolean",
+      "examples": [true, false]
+    },
+    "mic_priority": {
+      "description": "麦位优先权（可选，knight/baron/viscount 无此字段）。",
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "required": ["weight"],
+          "additionalProperties": false,
+          "properties": {
+            "weight": {
+              "description": "抢麦权重（整数倍率，存储为浮点但业务上取整比较）。",
+              "type": "number",
+              "minimum": 1,
+              "examples": [1.0, 1.5, 3.0, 10.0]
+            }
+          }
+        }
+      ]
+    },
+    "gift_discount": {
+      "description": "送礼折扣（可选，knight 无折扣）。",
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "required": ["percent"],
+          "additionalProperties": false,
+          "properties": {
+            "percent": {
+              "description": "折扣百分比（整数，0–15）。",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 15,
+              "examples": [2, 5, 8, 10, 15]
+            }
+          }
+        }
+      ]
+    },
+    "monthly_stipend": {
+      "description": "每月贵族津贴（可选，仅 duke/king 有）。",
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "required": ["diamonds"],
+          "additionalProperties": false,
+          "properties": {
+            "diamonds": {
+              "description": "每月津贴钻石数（i64 整数）。duke=60000，king=200000。",
+              "type": "integer",
+              "minimum": 0,
+              "examples": [60000, 200000]
+            }
+          }
+        }
+      ]
+    },
+    "global_broadcast": {
+      "description": "全服广播特权（可选，仅 duke/king 有）。",
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "required": ["enabled"],
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "description": "是否启用全服广播。",
+              "type": "boolean",
+              "examples": [true]
+            }
+          }
+        }
+      ]
+    }
+  },
+  "examples": [
+    {
+      "invisibility_scope": "none",
+      "can_bypass_password": false,
+      "mic_priority": { "weight": 1.0 },
+      "gift_discount": null,
+      "monthly_stipend": null,
+      "global_broadcast": null
+    },
+    {
+      "invisibility_scope": "all",
+      "can_bypass_password": true,
+      "mic_priority": { "weight": 10.0 },
+      "gift_discount": { "percent": 15 },
+      "monthly_stipend": { "diamonds": 200000 },
+      "global_broadcast": { "enabled": true }
+    }
+  ]
+}

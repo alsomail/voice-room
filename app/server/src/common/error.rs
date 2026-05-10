@@ -61,6 +61,23 @@ pub enum AppError {
     #[error("Receiver not available")]
     ReceiverUnavailable,
 
+    // ── E-09 贵族体系错误（T-00066 / T-00067）──────────────────────────────
+    // 409
+    #[error("Downgrade to a lower tier is not allowed")]
+    DowngradeNotAllowed,
+    // 409
+    #[error("Cannot renew the same tier with more than 30 days remaining")]
+    SameTierRenewalOverlap,
+    // 404
+    #[error("Noble tier is inactive or not found")]
+    TierInactive,
+    // 422
+    #[error("Insufficient noble balance to complete purchase")]
+    InsufficientNobleBalance,
+    // 409
+    #[error("Noble privilege blocked this action")]
+    NoblePrivilegeBlocked,
+
     // 500
     #[error("SMS send failed: {0}")]
     SmsSendFailed(String),
@@ -94,6 +111,11 @@ impl AppError {
             AppError::NotFound(_) => ErrorCode::NotFound,
             AppError::GiftNotAvailable => ErrorCode::GiftNotAvailable,
             AppError::ReceiverUnavailable => ErrorCode::ReceiverUnavailable,
+            AppError::DowngradeNotAllowed => ErrorCode::DowngradeNotAllowed,
+            AppError::SameTierRenewalOverlap => ErrorCode::SameTierRenewalOverlap,
+            AppError::TierInactive => ErrorCode::TierInactive,
+            AppError::InsufficientNobleBalance => ErrorCode::InsufficientNobleBalance,
+            AppError::NoblePrivilegeBlocked => ErrorCode::NoblePrivilegeBlocked,
             AppError::SmsSendFailed(_)
             | AppError::DatabaseError(_)
             | AppError::RedisError(_)
@@ -121,6 +143,11 @@ impl AppError {
             }
             AppError::NotFound(_) => StatusCode::NOT_FOUND,
             AppError::GiftNotAvailable | AppError::ReceiverUnavailable => StatusCode::NOT_FOUND,
+            AppError::DowngradeNotAllowed
+            | AppError::SameTierRenewalOverlap
+            | AppError::NoblePrivilegeBlocked => StatusCode::CONFLICT,
+            AppError::TierInactive => StatusCode::NOT_FOUND,
+            AppError::InsufficientNobleBalance => StatusCode::UNPROCESSABLE_ENTITY,
             AppError::SmsSendFailed(_)
             | AppError::DatabaseError(_)
             | AppError::RedisError(_)

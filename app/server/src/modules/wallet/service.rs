@@ -143,6 +143,11 @@ pub fn txn_type_to_str(ty: &WalletTxnType) -> String {
         WalletTxnType::AdminAdjust => "admin_adjust".to_string(),
         WalletTxnType::Recharge => "recharge".to_string(),
         WalletTxnType::Refund => "refund".to_string(),
+        WalletTxnType::NoblePurchase => "noble_purchase".to_string(),
+        WalletTxnType::NobleRenew => "noble_renew".to_string(),
+        WalletTxnType::NobleUpgradeProration => "noble_upgrade_proration".to_string(),
+        WalletTxnType::NobleStipend => "noble_stipend".to_string(),
+        WalletTxnType::GiftDiscountSubsidy => "gift_discount_subsidy".to_string(),
     }
 }
 
@@ -298,6 +303,12 @@ mod tests {
         assert_eq!(txn_type_to_str(&WalletTxnType::AdminAdjust), "admin_adjust");
         assert_eq!(txn_type_to_str(&WalletTxnType::Recharge), "recharge");
         assert_eq!(txn_type_to_str(&WalletTxnType::Refund), "refund");
+        // E-09 贵族类型
+        assert_eq!(txn_type_to_str(&WalletTxnType::NoblePurchase), "noble_purchase");
+        assert_eq!(txn_type_to_str(&WalletTxnType::NobleRenew), "noble_renew");
+        assert_eq!(txn_type_to_str(&WalletTxnType::NobleUpgradeProration), "noble_upgrade_proration");
+        assert_eq!(txn_type_to_str(&WalletTxnType::NobleStipend), "noble_stipend");
+        assert_eq!(txn_type_to_str(&WalletTxnType::GiftDiscountSubsidy), "gift_discount_subsidy");
     }
 
     // WS04: Arc<FakeWalletService> 满足 WalletServicePort 的 Send+Sync+dyn 约束

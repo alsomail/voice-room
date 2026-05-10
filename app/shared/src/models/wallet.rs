@@ -20,6 +20,16 @@ pub enum WalletTxnType {
     Recharge,
     /// 退款
     Refund,
+    /// 贵族购买扣钻（E-09）
+    NoblePurchase,
+    /// 贵族续费扣钻（E-09）
+    NobleRenew,
+    /// 贵族升级补差（E-09）
+    NobleUpgradeProration,
+    /// 贵族月津贴发放（E-09）
+    NobleStipend,
+    /// 礼物折扣平台补贴（E-09）
+    GiftDiscountSubsidy,
 }
 
 /// 钱包流水表模型
