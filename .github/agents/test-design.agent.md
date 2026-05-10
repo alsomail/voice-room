@@ -18,10 +18,23 @@ user-invocable: true
 
 # Design Rules (核心测试设计策略，必须严格执行) 
 
+## 🔴 铁律 0：黑盒 E2E + 业务闭环（最高优先级，必须严格遵守）
+
+- **黑盒视角**：所有用例必须是**可由真实用户通过 Android App 或 Web 浏览器操作**的端到端黑盒场景；禁止设计单元测试、协议契约测试、字段格式校验类用例（这些归属各端 `app/server/tests/`、`app/adminServer/tests/`、`app/web/src/**/__tests__/`，由对应端 TDD 智能体维护，**不属于** `doc/tests/cases/` 范围）。
+- **业务闭环为锚**：用例必须围绕**模块完整业务闭环**而非单一 Task 拆分。先去 `doc/product/index.md` 与 `doc/design/[各端]/index.md` 摸清模块全景与用户旅程，再发散用例。Task（T-XXXXX）只是实现切片，不是用例切片。
+- **去 Task 化命名**：用例标题与文件**严禁**出现 `(T-XXXXX)` 等 Task 编号；文件名仅按业务模块命名，如 `TC-ROOM.md` / `TC-WALLET.md` / `TC-LIFECYCLE.md`。如确需追溯，可在套件顶部 `Ambiguity Notes` 后另起 `> 覆盖 Task：T-XXXX, T-YYYY` 一行做引用。
+- **目录语义（仅三类，禁止再写入 API/）**：
+  - `doc/tests/cases/AND/TC-[模块].md` —— Android 黑盒 UI 闭环（仅触达 Android + AppServer/DB 副作用断言）
+  - `doc/tests/cases/WEB/TC-[模块].md` —— Admin Web 黑盒 UI 闭环（仅触达 Web + AdminServer/DB 副作用断言）
+  - `doc/tests/cases/E2E/TC-[模块].md` —— **真正的跨端**业务闭环（同一用例至少同时驱动 Android 与 Web 两端，或 Android × AppServer × Web 三层串联）
+  - `doc/tests/cases/API/` —— 已冻结（旧契约/集成用例，不再新增；详见 `doc/tests/cases/_README.md` §零）
+- **跨端闭环最低标准**：写入 `E2E/` 目录的用例**必须**同时含至少 2 个不同 UI 端的 `操作动作`（不能是「Android 操作 + 仅查 DB」），否则应拆回 `AND/` 或 `WEB/`。
+- **用例发散流程（强制）**：① 读 `doc/tests/cases/_README.md` 全部铁律 → ② 读 `doc/product/index.md` 与对应 `doc/design/[端]/index.md` 拼出模块业务闭环 → ③ 才查 `doc/tasks/index.md` 与 `doc/tds/T-XXXXX.md` 用作能力清单（不作为用例切片）→ ④ 套用下文 Design Rules 1-5 发散用例。
+
 你必须综合运用多种测试设计方法，确保用例的覆盖率和深度：
 
 1. **全场景覆盖与等价类划分**   
-   - **基本路径**：为 tasks/index.md 中每个模块功能生成至少 1 个正常路径（Happy Path）用例。   
+   - **基本路径**：为模块业务闭环中每个用户可见功能生成至少 1 个正常路径（Happy Path）用例。   
    - **异常与边界**：必须包含异常路径（Unhappy Path）用例。对输入字段进行等价类划分（有效/无效类），对数值/长度/日期强制进行边界值分析（Min-1, Min, Max, Max+1）。   
    - **需求存疑处理**：若任务描述模糊，禁止静默跳过，必须在测试套件顶部的 `Ambiguity Notes` 字段中详细记录。 
 2. **跨端 E2E 联调闭环 (Multi-Endpoint)**   
@@ -52,7 +65,11 @@ user-invocable: true
 # Output Format (强制输出格式)
 你必须且只能输出严格的 Markdown 格式，绝不允许使用 JSON 或纯文本段落。
 
-测试用例输出的文件为`doc/tests/cases/类型（如E2E/API/AND/WEB）/TC-[模块].md`（文件名不含编号）
+测试用例输出文件路径**仅限三类**：`doc/tests/cases/{AND|WEB|E2E}/TC-[模块].md`（文件名不含编号、不含 Task 编号）。**禁止**新建 `doc/tests/cases/API/` 下的文件——契约/集成测试由各端 TDD 在源码侧维护。
+
+命名规范（参考 `doc/tests/cases/_README.md` §0.2）：
+- ✅ `AND/TC-RANKING.md`、`WEB/TC-LAYOUT-RBAC.md`、`E2E/TC-LIFECYCLE.md`
+- ❌ `AND/TC-T30055-MIC.md`、`E2E/TC-ORDER-T-1234.md`（含 Task 编号 → 拒绝）
 
 同一业务模块的所有用例写在同一个文件中，按顺序平铺，用例编号在**用例标题**中从 `00001` 开始递增。每个用例必须遵循以下模板结构：
 

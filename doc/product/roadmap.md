@@ -85,27 +85,33 @@ S
 **Admin Server**: 房间治理日志查询
 **Web**: 房间治理日志查询页
 
-### E-08 Google Play 真支付 🔴 待开发
-**Android**: Billing Library 接入 / 充值页 / 订单状态
-**App Server**: 订单表 / 回调验签 / 充值入账
-**Admin Server**: 订单查询与对账 / 手动补单
-**Web**: 订单查询页 / 财务报表
+### E-08 Google Play 真支付 � 设计中
+> 详见专项总纲：[phase1_payment_billing.md](./phase1_payment_billing.md)｜Tasks：[模块10-Google Play 真支付 (E-08).md](../tasks/模块10-Google%20Play%20真支付%20(E-08).md)
+**Android**: Billing Library 接入 / 充值页 / 订单状态（T-30060~T-30064）
+**App Server**: 订单表 / 回调验签 / 充值入账（T-00050~T-00054）
+**Admin Server**: 订单查询与对账 / 手动补单（T-10025~T-10028）
+**Web**: 订单查询页 / 财务报表（T-20030~T-20033）
 
-### E-09 贵族体系 🔴 待开发
-**Android**: 贵族购买页 / 特权说明 / 进场特效
-**App Server**: 贵族级别配置 / 权限校验 / 过期推送
-**Web**: 贵族配置管理
+### E-09 贵族体系 🟡 设计中
+> 详见专项总纲：[phase1_nobility.md](./phase1_nobility.md)｜Tasks：[模块11-贵族体系 (E-09).md](../tasks/模块11-贵族体系%20(E-09).md)
+**Android**: 贵族购买页 / 特权说明 / 进场特效（T-30070~T-30075）
+**App Server**: 贵族级别配置 / 权限校验 / 过期推送（T-00065~T-00070）
+**Web**: 贵族配置管理（T-20035~T-20036） + Admin（T-10030~T-10032）
 
 ---
 
 ## Phase 2: 社交裂变 (预计 3-4 个月)
 
+> 已启动设计的 Epic：
+> - **E-11 家族/公会** 🟡 设计中——[phase2_family_guild.md](./phase2_family_guild.md) ｜ [模块12](../tasks/模块12-家族公会%20(E-11).md)
+> - **E-12 好友/关注/粉丝关系链** 🟡 设计中——[phase2_social_relations.md](./phase2_social_relations.md) ｜ [模块13](../tasks/模块13-好友关注关系链%20(E-12).md)
+
 **Android 端**:
-- [ ] 家族/公会系统
-- [ ] 好友/关注/粉丝
-- [ ] 1v1 私聊房
-- [ ] 动态广场
-- [ ] 邀请返利
+- [ ] 家族/公会系统（E-11）
+- [ ] 好友/关注/粉丝（E-12）
+- [ ] 1v1 私聊（E-12 内含）
+- [ ] 动态广场（E-14 待拆）
+- [ ] 邀请返利（E-13 待拆）
 
 **App Server 端**:
 - [ ] 家族/公会管理

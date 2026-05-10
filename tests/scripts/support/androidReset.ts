@@ -267,6 +267,17 @@ export async function resetAndroidToLoginPage(
   }
 
   await sleep(500);
+
+  // ⚠️ 最终结果页校验：仅接受 'login' 或 'unknown'（unknown 留给下游 aiAssert 仔细看）。
+  // 主界面/房间/个人中心仅代表未能成功退出登录态，必须接受上游修复、不要让后续用例走错误状态。
+  const finalState = await detectScreenState(adbPrefix);
+  if (finalState === 'main' || finalState === 'room' || finalState === 'profile') {
+    throw new Error(
+      `[androidReset.resetAndroidToLoginPage] reset 未达预期状态。期望 login，实际 ${finalState}。` +
+      `可能原因：JWT 删除未生效 / DataStore 路径变更 / Activity 恢复。` +
+      `请检查应用包名与 DataStore 存储位置。`
+    );
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -469,5 +480,25 @@ export async function resetAndroidToMainPage(
     console.log(`[androidReset] ✅ Screen state after launch: ${screenState} (no consent dialog)`);
   }
 
-  console.log(`[androidReset] ✅ resetAndroidToMainPage done — ${phone} → main screen`);
+  // ⚠️ 若启动后落在 room 页（应用内部导航到房间），强制 BACK 一次回到大厅
+  let postState = await detectScreenState(adbPrefix);
+  if (postState === 'room') {
+    console.warn(`[androidReset] ⚠️ Landed on room after launch, sending BACK to recover lobby...`);
+    try {
+      execSync(`${adbPrefix} shell input keyevent KEYCODE_BACK`, { stdio: 'pipe', timeout: 3000 });
+    } catch { /* 忽略 */ }
+    await sleep(1500);
+    postState = await detectScreenState(adbPrefix);
+  }
+
+  // ⚠️ 最终结果页校验：期望 'main' 或 'unknown'（unknown 交给下游 aiAssert）
+  if (postState === 'login' || postState === 'consent') {
+    throw new Error(
+      `[androidReset.resetAndroidToMainPage] JWT 注入后页面未进入主界面。实际 ${postState}。` +
+      `可能原因：DataStore proto 序列化 key/路径变更 / login API 响应变更 / consent 弹窗未关闭。` +
+      `请仿照 buildDataStorePb 实现与 App TokenManager 双向对齐。`
+    );
+  }
+
+  console.log(`[androidReset] ✅ resetAndroidToMainPage done — ${phone} → ${postState} screen`);
 }

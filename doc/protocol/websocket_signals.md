@@ -925,6 +925,49 @@ Result/ACK 通用格式：
 
 ---
 
+## 6.13 Phase 1 (E-08) 真支付信令
+
+### §6.13.1 `BalanceUpdated.reason` 取值扩展（沿用 §6.8.3 既有信令）
+
+E-08 在既有 `BalanceUpdated`（S→C 单播）基础上新增 `reason` 取值：
+
+| reason | 触发 | 关联事务 |
+|--------|------|---------|
+| `payment_credit` | Google verify 成功 + 入账事务推进至 CREDITED | T-00052 |
+| `payment_refund` | RTDN REFUNDED 事件回扣余额 | T-00053 |
+| `admin_recredit` | Admin 手动补单 | T-10026 |
+| `admin_refund` | Admin 手动退款 | T-10026 |
+| `dev_mock_recharge` | Dev/Staging mock 通道入账（仅非 production） | T-00055 |
+
+> 字段冻结：详见 [payment_api.md §9](payment_api.md)；`BalanceUpdated` envelope 与字段保持 §6.8.3 不变，仅 `reason` 枚举增量。
+
+---
+
+## 6.14 Phase 1 (E-09) 贵族体系信令
+
+### §6.14.1 信令清单
+
+| # | 信令 | 方向 | 频道 | 字段冻结锚点 |
+|---|------|------|------|------------|
+| 1 | `NobleChanged` | S→C 单播 + S→Room 广播 | user / room:{id} | [nobility_api.md §10.4.1](nobility_api.md#1041-noblechangedsc-单播--sroom-广播) |
+| 2 | `NobleRenewSuccess` | S→C 单播 | user | [§10.4.2](nobility_api.md#1042-noblerenewsuccesssc-单播) |
+| 3 | `NobleRenewFailed` | S→C 单播 | user | [§10.4.3](nobility_api.md#1043-noblerenewfailedsc-单播) |
+| 4 | `NobleExpired` | S→C 单播 | user | [§10.4.4](nobility_api.md#1044-nobleexpiredsc-单播) |
+| 5 | `NobleEntered` | S→Room 广播 | room:{id} | [§10.4.5](nobility_api.md#1045-nobleenteredsroom-广播) |
+| 6 | `NobleEntranceGlobal` | S→Global Pub/Sub | `noble:global` | [§10.4.6](nobility_api.md#1046-nobleentranceglobalsglobal-全服跑马灯) |
+
+### §6.14.2 既有信令扩展
+
+- `UserJoined.payload.noble`（S→Room 广播）：见 [nobility_api.md §10.4.7](nobility_api.md#1047-userjoinednoble-字段扩展已有信令的字段补充)
+- `MemberSnapshot[].noble`（HTTP / WS 用户列表项嵌入）：同上
+- `BalanceUpdated.reason` 新增 `noble_purchase` / `noble_renew` / `noble_upgrade_proration` / `noble_stipend` / `noble_gift_discount_subsidy` / `admin_noble_grant_rollback`（[nobility_api.md §10.4.8](nobility_api.md#1048-balanceupdatedreason-扩展)）
+
+### §6.14.3 隐身贵族广播规则
+
+服务端 `BroadcastFilter` 按 `noble_tiers.privileges.invisibility.scope` 在序列化前剔除接收者，详见 [nobility_api.md §10.4.5](nobility_api.md#1045-nobleenteredsroom-广播)。
+
+---
+
 ## 🔗 另见对侧路径
 
 > **Android 客户端实现**：见 [`doc/arch/android/room.md`](../arch/android/room.md) 中的 WS 消息反序列化层章节（T-00101 sealed class 层落锚）；协议入口索引详见 [`doc/arch/android/index.md`](../arch/android/index.md#-协议入口索引protocol-entry-index)（28 个信令锚点）。

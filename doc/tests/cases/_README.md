@@ -8,6 +8,55 @@
 
 ---
 
+## 零、目录性质与铁律 8 — **测试用例只能是「黑盒 E2E + 跨端业务闭环」**
+
+> **核心原则**（2026-05-07 落盘，所有新增/修改用例必须遵守）：
+> 1. **黑盒铁律**：用例步骤**只能**通过用户实际可触达的入口（Android 屏幕点击 / Web 浏览器交互）发起业务动作；**严禁**直接构造 HTTP / WebSocket / Redis 帧作为业务用例步骤。
+> 2. **业务闭环铁律**：用例必须围绕**模块/业务能力**设计，覆盖一个完整的"用户视角故事"，**严禁**拆成单 Task 的 BUG 回归用例堆砌。BUG 修复的回归校验应作为对应模块主用例下的"步骤变体 / 等价类分支"。
+> 3. **去 Task 化命名铁律**：用例标题**禁止**出现 `（T-XXXX）`、`onXxxClick 调用链`、`某某修复` 等 Task / 实现细节描述；用例命名以**用户视角的业务动作**为准。
+> 4. **副作用真实性**：写操作 P0 用例必须配合 §六之二【铁律 6 — Wiring & Side-Effect Mandatory】的副作用断言（DB / Redis / access-log），UI 文案断言不构成完整闭环。
+
+### 0.1 目录性质重分类（**重要：4 个目录性质不同，不可混淆**）
+
+| 目录 | 性质 | 是否"黑盒 E2E" | 维护方 | 调度入口 |
+|------|------|----------------|--------|---------|
+| **[AND/](./AND/)** | Android UI 黑盒 E2E（Midscene Android Agent） | ✅ 是 | test-design / e2e-runner | `npm run e2e:android` |
+| **[WEB/](./WEB/)** | Web UI 黑盒 E2E（Playwright + Midscene） | ✅ 是 | test-design / e2e-runner | `npm run e2e:local` |
+| **[E2E/](./E2E/)** | 跨端真 E2E 联调（Android × AppServer × DB × Web 多端串联） | ✅ 是（核心业务闭环） | test-design / e2e-runner | `npm run e2e:local` |
+| **[API/](./API/)** | ⚠️ **契约/集成测试套件（非黑盒 E2E）** | ❌ 否 | server / adminServer 团队 | `cargo test` / 各端集成测试 |
+
+> **铁律 8.1**：`API/` 目录中的用例**不属于**黑盒 E2E，而是**契约层 / 集成层**的协议字段断言，由后端单元/集成测试承接。E2E 流水线（qa-coordinator / e2e-runner）**不再调度** `API/` 用例；test-design 新增黑盒 E2E **只能**写入 `AND/`、`WEB/`、`E2E/` 三个目录。
+>
+> **历史用例处理**：`API/` 现有 14 个文件保留作为协议契约审计的事实源，但**禁止**新增；新协议契约用例请直接落入对应端的集成测试（`app/server/tests/`、`app/adminServer/tests/`、`app/web/src/**/__tests__/`）。
+
+### 0.2 子目录命名规约（去 Task 化）
+
+| ✅ 推荐命名 | ❌ 禁用命名 |
+|-----------|-----------|
+| `TC-MIC-00009：用户点击自己已占麦位 → 触发下麦` | `TC-MIC-00009：onMicSlotClick 调用链（T-30055 修复）` |
+| `TC-WALLET-00004：余额不足时弹窗引导充值并保留礼物面板状态` | `TC-WALLET-00004：InsufficientBalanceDialog (T-30032)` |
+| `TC-ROOM-00005：活跃房间监控（状态/时长/筛选/异常高亮）` | `TC-ROOM-00005：T-20011 活跃房间监控增强` |
+
+### 0.3 跨端真 E2E 联调（E2E/ 目录）的最小闭环要求
+
+E2E/ 目录的每个用例**必须**至少触达 3 端（Android UI + AppServer/AdminServer + DB 或 Web UI），用以验证**业务闭环**而非单端 UI。当前已落锚的核心业务闭环：
+
+| 业务闭环文件 | 覆盖故事 |
+|-------------|---------|
+| [E2E/TC-AUTH.md](./E2E/TC-AUTH.md) | 新用户注册登录全旅程 |
+| [E2E/TC-LIFECYCLE.md](./E2E/TC-LIFECYCLE.md) | 新用户首次旅程（注册 → 隐私同意 → 大厅 → 进房 → 上麦 → 首单送礼） |
+| [E2E/TC-ROOM.md](./E2E/TC-ROOM.md) | Web 强制关闭 → App 被动退出闭环 |
+| [E2E/TC-GIFT.md](./E2E/TC-GIFT.md) | 完整送礼业务流（充值 → 进房 → 选麦位 → 送礼 → 双端余额 → 礼物特效 → Web 行为流可见） |
+| [E2E/TC-USER.md](./E2E/TC-USER.md) | 用户冻结完整闭环（封禁 → 强制下线 → 重新登录被拒 → 解封 → 可登录 → 操作日志双条） |
+| [E2E/TC-GOVERNANCE.md](./E2E/TC-GOVERNANCE.md) | 房主治理完整流（创建房 → 上麦 → 转管理员 → 踢人 → 弹窗 → Web 治理日志 + CSV 导出） |
+| [E2E/TC-ANALYTICS.md](./E2E/TC-ANALYTICS.md) | 送礼全链路埋点 → DB → Web 行为流 |
+
+### 0.4 治理类（AUDIT / PROTO / WIRING）说明
+
+[E2E/TC-AUDIT.md](./E2E/TC-AUDIT.md)、[E2E/TC-PROTO.md](./E2E/TC-PROTO.md)、[E2E/TC-WIRING.md](./E2E/TC-WIRING.md)、[AND/TC-CROSS.md](./AND/TC-CROSS.md) 是**协议/铁律治理用例**，性质上属于工程治理（非端到端业务），保留在 E2E/AND/ 目录但**不计入业务回归矩阵**。这四个文件顶部已加 `> **🛡️ 治理类用例**` banner 标识。
+
+---
+
 ## 一、所有用例默认前置条件（隐式前置）
 
 任何 TC-*.md 中如未显式说明环境启动方式，则隐式前置如下三条**均已通过**：

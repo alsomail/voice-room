@@ -1,5 +1,7 @@
 # 测试套件：E2E 装配契约（DI Wiring Contract）
 
+> **🛡️ 治理类用例（与业务用例配合执行）**：本文件属于 [_README.md §0.4](../_README.md#04-治理类audit--proto--wiring说明) 定义的「装配契约审计」，验证 DI / NoOpRepository / onClick 等防腐层链路是否真实接通，**不验证业务行为本身**。维护方为架构治理团队，与对应模块业务用例配合执行。
+
 > **需求模糊点 (Ambiguity Notes)**：
 > - 本套件是新增的"装配体检层"，专门防御「Compose Screen 在 AppNavGraph 注册路由时漏接 ViewModel.Factory，静默回退到默认空实现 (NoOp / Preview Stub) 导致网络请求从未发出」类缺陷。
 > - 本套件用例**必须**在真机/模拟器上以真实 `MainActivity` 启动，**禁止**使用 `composeTestRule.setContent { ... }` 隔离渲染单 Screen — 那种方式会绕过本套件要验证的装配链。

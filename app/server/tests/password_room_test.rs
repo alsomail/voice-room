@@ -120,6 +120,7 @@ fn build_ws_deps(
         stats: Arc::new(FakeStatsService::default()),
         jwt_secret: TEST_JWT_SECRET.to_string(),
         kick_redis: None,
+        nobility_service: None,
     }
 }
 

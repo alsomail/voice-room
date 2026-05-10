@@ -136,6 +136,7 @@ fn make_join_deps(
         stats: Arc::new(FakeStatsService::default()),
         jwt_secret: "test-secret".to_string(),
         kick_redis,
+        nobility_service: None,
     }
 }
 

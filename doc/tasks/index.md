@@ -1,8 +1,8 @@
 # Voice Room 开发任务清单
 
-> **版本**: v3.17
-> **更新日期**: 2026-05-09
-> **任务总数**: 149 个 (基建: 4 + 14 + 3 + 6, App Server: 33 + 1 + 2 + 1, Admin Server: 16 + 1 + 1, Web: 14 + 1 + 1, Android: 45 + 1 + 1 + 1 + 1, E-07 15 + E-07.5 6 + E-10 18)  
+> **版本**: v3.21
+> **更新日期**: 2026-05-10
+> **任务总数**: 217 个 (基建: 4 + 14 + 3 + 6, App Server: 33 + 1 + 2 + 1, Admin Server: 16 + 1 + 1, Web: 14 + 1 + 1, Android: 45 + 1 + 1 + 1 + 1, E-07 15 + E-07.5 6 + E-10 18; **新增 E-08 18 + E-09 17 + E-11 19 + E-12 14 = 68**)  
 > **当前阶段**: Phase 1 → … → Phase 1.7 协议治理铁律落地 → **Phase 1.7-extended 协议字段全量冻结**（WS + HTTP REST + Redis Pub/Sub 三协议层 schema 机器可读 + 字段级 CI 审计 + Android×Server 跨语言 E2E）
 
 ---
@@ -11,6 +11,10 @@
 
 | 版本 | 日期 | 变更内容 |
 |------|------|---------|
+| **v3.21** | **2026-05-10** | [T-00065~70 TDD ✅] 模块11 Server端贵族体系 6 Task TDD完成（548+47测试全绿），状态TDD→Review；修改文件22个+2283行 |
+| **v3.20** | **2026-05-10** | [Plan 阶段 E-08/E-09 全量 TDS 落锚] 协议层先行：新增 [protocol/payment_api.md](../protocol/payment_api.md) v1.0（Google Play Billing 8.3.0 / purchaseToken 主键 / 强事务 PENDING→VERIFIED→CREDITED→ACKED / RTDN Pub/Sub / 错误码 40901-40906）+ [protocol/nobility_api.md](../protocol/nobility_api.md) v1.0（6 档 privileges JSONB / 6 个 WS 信令 NobleChanged/RenewSuccess/RenewFailed/Expired/Entered/EntranceGlobal / UserJoined.noble 字段扩展 / 错误码 40911-40917）；conventions.md 错误码表追加 40901-40917；websocket_signals.md §6.13/§6.14 追加 BalanceUpdated.reason 与 E-09 信令簇；产出 37 份 TDS（server 12 + adminServer 7 + web 6 + android 12），全部严格引用协议锚点；37 个 Task 由 Plan→TDD。 |
+| **v3.19** | **2026-05-10** | [PM 强化 E-08/E-09 + 补 UI 设计稿] · phase1_payment_billing.md 按 Google 官方文档全面校准（Billing 8.3.0 / purchaseToken 当主键 / RTDN 完整 schema / License Testers + Play Billing Lab + Slow Test Cards 测试体系 / §9.2 Dev Mock 补强）；· phase1_nobility.md 新增 §3.5 贵族特权细则 13 小节（徽章色号、进场特效时长、6 档气泡、抢麦权重、5%-15% 礼物折扣、5%-20% 月津贴、续费过期 T-3/T+0/T+7/T+37 降级表、特权钩子服务端 enforcement map）；· 模块 10 新增 T-00055 (Dev Mock API) + T-30065 (Dev 菜单入口) 两项 Dev-only Tasks（订单 18→20，工时 112h→119h）；· 补 6 份 Android 设计稿 T-30064/30072/30084/30086/30091/30092 + 同步替换 task 表中各 "待补"为真实链接；· 任务总数 217→219。 |
+| **v3.18** | **2026-05-09** | [PM 拆分 4 Epic] PM Agent 完成 E-08/E-09/E-11/E-12 四个 Epic 产品方向与 Tasks 拆分：新增 12 文档（4 phase 总纲 + 4 模块 task 子表 + 4 Android 设计稿），共 68 Tasks ≈ 397h；模块索引追加模块 10/11/12/13；任务总数 149 → 217；E-08 Google Play 真支付 + E-09 贵族体系 + E-11 家族公会 + E-12 好友关注关系链全部进入 Plan 待领状态。 |
 | **v3.17** | **2026-05-09** | [E2E Round 6] API 恢复后首次有效执行：AND 7/34 PASS（20.6%）, E2E 2/5 PASS（40%），WEB 25/25 PASS；androidReset.ts 三项修复（RECORD_AUDIO ✅ + activity-clear-task + KEYCODE_BACK）；P0 阻塞点：ROOM 大厅 DataStore 导航恢复 + JWT 删除失效；report-20260509073757。 |
 | **v3.16** | **2026-05-08** | [E2E Round 3] AND 31/34 FAILED（+1 vs Round 2），E2E 4/8 FAILED（+1 新增 TC-LIFECYCLE），WEB 25/25 PASS（沿用 Round 2）；AND/E2E QA Gate ❌ Blocked Round 3/5；report-20260508201055。 |
 | **v3.14** | **2026-05-09** | [T-30055 DoD ✅ Done] — Android RoomScreen/AppNavGraph LeaveMic 下麦调用链修复完成，协议入口索引落锚于 arch/android/room.md，protocol 交叉链接补齐，Payload 字段 mic_index 正式声明为可选 integer；门禁全绿（Research ✅ + QA ✅ + Overall -）；doc/arch/android/room.md + doc/protocol/websocket_signals.md 已同步交叉链接。 |
@@ -459,3 +463,84 @@
 | Task ID | 前置依赖 | 研发负责人 | 研发状态 | Review Gate 审查门禁 | QA Gate 测试门禁 | Overall Gate 最终门禁 |
 |---------|---------|-----------|---------|---------------------|-----------------|----------------------|
 | [T-30055](../tds/android/T-30055.md) | T-00101 | Dod | ✅ Done | ✅ Passed | - | - |
+
+---
+
+### Phase 1: 营收闭环（待 Plan 阶段填充 TDS）
+
+#### [模块 10: Google Play 真支付 (E-08)](./模块10-Google%20Play%20真支付%20(E-08).md)
+
+> 共 20 Tasks ≈ 119h（含 2 份 Dev-only T-00055 / T-30065）；产品方向 [phase1_payment_billing.md](../product/phase1_payment_billing.md)（v1.1 官方安全/测试/RTDN 补强）；协议契约 [payment_api.md](../protocol/payment_api.md)；Android 设计稿 [T-30060.md](../design/android/T-30060.md) / [T-30064.md](../design/android/T-30064.md)；**TDS 已落锚，全部 20 Tasks 进入 TDD 阶段**。
+
+| Task ID | 前置依赖 | 研发负责人 | 研发状态 | Review Gate | QA Gate | Overall Gate |
+|---------|---------|-----------|---------|-------------|---------|--------------|
+| [T-00050](../tds/server/T-00050.md) | E-07 ✅ | TDD | Todo | - | - | - |
+| [T-00051](../tds/server/T-00051.md) | T-00050 | TDD | Todo | - | - | - |
+| [T-00052](../tds/server/T-00052.md) | T-00050 | TDD | Todo | - | - | - |
+| [T-00053](../tds/server/T-00053.md) | T-00051/52 | TDD | Todo | - | - | - |
+| [T-00054](../tds/server/T-00054.md) | T-00050~53 | TDD | Todo | - | - | - |
+| [T-00055](../tds/server/T-00055.md) | T-00050 | TDD | Todo | - | - | - |
+| [T-10025](../tds/adminServer/T-10025.md) | T-00050~54 | TDD | Todo | - | - | - |
+| [T-10026](../tds/adminServer/T-10026.md) | T-10025 | TDD | Todo | - | - | - |
+| [T-10027](../tds/adminServer/T-10027.md) | T-10025 | TDD | Todo | - | - | - |
+| [T-10028](../tds/adminServer/T-10028.md) | T-10025 | TDD | Todo | - | - | - |
+| [T-20030](../tds/web/T-20030.md) | T-10025 | TDD | Todo | - | - | - |
+| [T-20031](../tds/web/T-20031.md) | T-10026 | TDD | Todo | - | - | - |
+| [T-20032](../tds/web/T-20032.md) | T-10027 | TDD | Todo | - | - | - |
+| [T-20033](../tds/web/T-20033.md) | T-10028 | TDD | Todo | - | - | - |
+| [T-30060](../tds/android/T-30060.md) | T-00050~54 | TDD | Todo | - | - | - |
+| [T-30061](../tds/android/T-30061.md) | T-30060 | TDD | Todo | - | - | - |
+| [T-30062](../tds/android/T-30062.md) | T-30061 | TDD | Todo | - | - | - |
+| [T-30063](../tds/android/T-30063.md) | T-30062 / T-00052 | TDD | Todo | - | - | - |
+| [T-30064](../tds/android/T-30064.md) | T-30063 | TDD | Todo | - | - | - |
+| [T-30065](../tds/android/T-30065.md) | T-30060 / T-00055 | TDD | Todo | - | - | - |
+
+#### [模块 11: 贵族体系 (E-09)](./模块11-贵族体系%20(E-09).md)
+
+> 共 17 Tasks ≈ 104h；产品方向 [phase1_nobility.md](../product/phase1_nobility.md)；协议契约 [nobility_api.md](../protocol/nobility_api.md)；Android 设计稿 [T-30070.md](../design/android/T-30070.md) / [T-30072.md](../design/android/T-30072.md)；**Server 端 T-00065~70 已进入 Review，其余 11 Tasks 仍处 TDD 阶段**。
+
+| Task ID | 前置依赖 | 研发负责人 | 研发状态 | Review Gate | QA Gate | Overall Gate |
+|---------|---------|-----------|---------|-------------|---------|--------------|
+| [T-00065](../tds/server/T-00065.md) | E-07 ✅ | Review | In Progress | - | - | - |
+| [T-00066](../tds/server/T-00066.md) | T-00065 | Review | In Progress | - | - | - |
+| [T-00067](../tds/server/T-00067.md) | T-00066 / E-08 | Review | In Progress | - | - | - |
+| [T-00068](../tds/server/T-00068.md) | T-00067 | Review | In Progress | - | - | - |
+| [T-00069](../tds/server/T-00069.md) | T-00067 | Review | In Progress | - | - | - |
+| [T-00070](../tds/server/T-00070.md) | T-00065~69 | Review | In Progress | - | - | - |
+| [T-10030](../tds/adminServer/T-10030.md) | T-00065 | TDD | Todo | - | - | - |
+| [T-10031](../tds/adminServer/T-10031.md) | T-00067 | TDD | Todo | - | - | - |
+| [T-10032](../tds/adminServer/T-10032.md) | T-00065~68 | TDD | Todo | - | - | - |
+| [T-20035](../tds/web/T-20035.md) | T-10030 | TDD | Todo | - | - | - |
+| [T-20036](../tds/web/T-20036.md) | T-10031/32 | TDD | Todo | - | - | - |
+| [T-30070](../tds/android/T-30070.md) | T-00066 | TDD | Todo | - | - | - |
+| [T-30071](../tds/android/T-30071.md) | T-30070 / T-00067 / E-08 | TDD | Todo | - | - | - |
+| [T-30072](../tds/android/T-30072.md) | T-00069 | TDD | Todo | - | - | - |
+| [T-30073](../tds/android/T-30073.md) | T-00069 | TDD | Todo | - | - | - |
+| [T-30074](../tds/android/T-30074.md) | T-00069 | TDD | Todo | - | - | - |
+| [T-30075](../tds/android/T-30075.md) | T-00068 | TDD | Todo | - | - | - |
+
+---
+
+### Phase 2: 社交裂变（待 Plan 阶段填充 TDS）
+
+#### [模块 12: 家族公会 (E-11)](./模块12-家族公会%20(E-11).md)
+
+> 共 19 Tasks ≈ 117h；产品方向 [phase2_family_guild.md](../product/phase2_family_guild.md)；Android 设计稿 [T-30083.md](../design/android/T-30083.md)；当前所有 Task 处于 **Plan 阶段**。
+
+| Task ID | 前置依赖 | 研发负责人 | 研发状态 | Review Gate | QA Gate | Overall Gate |
+|---------|---------|-----------|---------|-------------|---------|--------------|
+| T-00080 ~ T-00086 | E-07 ✅ / E-10 ✅ | Plan | Todo | - | - | - |
+| T-10040 ~ T-10041 | T-00080~86 | Plan | Todo | - | - | - |
+| T-20040 ~ T-20041 | T-10040~41 | Plan | Todo | - | - | - |
+| T-30080 ~ T-30087 | T-00080~86 | Plan | Todo | - | - | - |
+
+#### [模块 13: 好友 / 关注 / 粉丝关系链 (E-12)](./模块13-好友关注关系链%20(E-12).md)
+
+> 共 14 Tasks ≈ 84h；产品方向 [phase2_social_relations.md](../product/phase2_social_relations.md)；Android 设计稿 [T-30090.md](../design/android/T-30090.md)；当前所有 Task 处于 **Plan 阶段**，可与模块 12 并行。
+
+| Task ID | 前置依赖 | 研发负责人 | 研发状态 | Review Gate | QA Gate | Overall Gate |
+|---------|---------|-----------|---------|-------------|---------|--------------|
+| T-00090 ~ T-00096 | E-04 ✅ / E-10 ✅ | Plan | Todo | - | - | - |
+| T-10050 | T-00091 | Plan | Todo | - | - | - |
+| T-20050 | T-10050 | Plan | Todo | - | - | - |
+| T-30090 ~ T-30094 | T-00090~96 | Plan | Todo | - | - | - |

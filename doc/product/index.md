@@ -1,6 +1,6 @@
 # Voice Room 产品文档总索引
 
-> **版本**: v3.16  
+> **版本**: v3.18  
 > **更新日期**: 2026-05-09  
 > **负责人**: PM Agent  
 > **目标市场**: MENA (Middle East & North Africa) 中东北非
@@ -32,6 +32,10 @@
 | 10 | [Phase 1 虚拟礼物与钱包闭环 MVP](./phase1_gift_economy.md) | E-07 Epic 方向总纲：钱包/礼物/榜单 MVP 范围、分层特效、MENA 礼物清单 |
 | 11 | [Phase 1 埋点与观测性基建](./phase1_observability.md) | E-07.5 Epic 方向总纲：Sentry 选型、WS 通道上报设计、核心事件字典 |
 | 12 | [Phase 1.5 房间主权与管理员体系](./phase1_room_governance.md) | E-10 Epic 方向总纲：创建升级/观众席/房主与管理员权限/踢人禁麦禁言 |
+| 13 | [Phase 1 Google Play 真支付](./phase1_payment_billing.md) | E-08 Epic 方向总纲：SKU/订单/Google Play 验签/RTDN/退款风控/订单状态机 |
+| 14 | [Phase 1 贵族体系](./phase1_nobility.md) | E-09 Epic 方向总纲：6 档贵族/双通道购买/特权矩阵/续费过期 |
+| 15 | [Phase 2 家族公会](./phase2_family_guild.md) | E-11 Epic 方向总纲：5 等级家族/角色矩阵/贡献榜/家族 IM |
+| 16 | [Phase 2 好友/关注/粉丝关系链](./phase2_social_relations.md) | E-12 Epic 方向总纲：单向关注+双向好友/特别关注/在线推送/1v1 私聊 |
 
 ---
 
@@ -49,8 +53,10 @@
 | **E-07.5: 埋点与观测性基建** | **Phase 1 并行** | ✅ **已完成 (6/6)** | T-00022 ✅ (事件表+HTTP API) / T-00023 ✅ (WS 通道), T-10015 ✅ (Admin 查询 API), **T-20013 ✅ (Web 行为流 Tab)**, **T-30034 ✅ (Android Analytics 防腐层+Sentry)**, **T-30035 ✅ (Android EventReportClient+核心埋点+隐私弹窗)** |
 | **E-10: 房间主权与管理员体系** | **Phase 1.5** | ✅ **已完成 (18/18)** | T-00024 ✅（rooms 治理 Schema + 迁移）；T-00025 ✅（创建房间 API 升级）；T-00026 ✅（密码房进房校验 + 锁定机制）；T-00027 ✅（观众席列表 API）；T-00028 ✅（KickUser 信令 + 10min 冷却）；T-00029 ✅（MuteUser/UnmuteUser 信令 + 双重拦截）；T-00030 ✅（TransferAdmin + ForceTakeMic/ForceLeaveMic）；**T-00042 ✅（Admin 强制断连广播事件：user_banned/room_closed → connection_close 指令 → WS Close frame，Review R2 🟢 通过）**；T-10016 ✅（Admin 治理日志查询 API）；**T-20014 ✅（Web 治理日志查询页）**；**T-30036 ✅（Android 创建房间表单升级）**；**T-30037 ✅（Android 房间封面选择器）**；**T-30038 ✅（Android 密码房进房弹窗）**；**T-30039 ✅（Android 观众席 Bottom Sheet）**；**T-30040 ✅（Android 用户操作菜单 BottomSheet）**；**T-30041 ✅（Android 踢人原因选择弹窗）**；**T-30042 ✅（Android 被踢/被禁提示弹窗）**；**T-30043 ✅（Android 公告栏 + 管理员徽章 + RoomInfoUpdated）**；**T-30044 ✅（Android 禁麦/禁言 UI 反馈 + 抱麦集成）** 🎉 **E-10 全部 18 个任务完成！** |
 | **Phase 1.6 E2E 测试基建** | **Phase 1.6** | ⏳ **进行中 (15/17)** | T-0000E ✅ (多环境分层设计) / T-0000F ✅ (env 模板) / T-0000G ✅ (Seed/Reset/Preflight) / T-0000H ✅ (globalSetup/Teardown/envLoader/fixtures) / T-00040 ✅ (AppServer config) / T-10020 ✅ (AdminServer config) / T-20020 ✅ (Web 多 env) / T-30050 ✅ (Android productFlavors) / T-0000I ✅ (npm scripts 一键命令) / T-0000J ✅ (baseURL 双 key fallback 与 @prod-safe 标签) / T-0000K ✅ (Midscene LLM 三形态配置) / T-0000L ✅ (E2E_RUNBOOK.md SOP 5 分钟冷启动) / **T-0000M ✅ (双服务共库迁移表隔离)** / **T-0000N ✅ Done**（AppServer/AdminServer /health 端点）+ **T-0000O ✅ Done**（ranking r08 perf flake known-issue）+ **T-0000P ✅ Done**（Midscene env 注入链补齐，本地+CI双链路）+ **T-0000Q ✅ Done**（e2e-up.sh 端口冲突预检）+ **T-0000S ✅ Done**（E2E fixture token + redis-cli 容器化解锁 26/29 SKIP-KNOWN）/ T-0000R ⏳ In Progress (WEB 9-FAIL 修复) |
-| E-08: Google Play 真支付 | Phase 1 | 🔴 待开发 | 待拆解（依赖 E-07） |
-| E-09: 贵族体系 | Phase 1 | 🔴 待开发 | 待拆解（依赖 E-07/E-08） |
+| E-08: Google Play 真支付 | Phase 1 | � 设计中 (0/18) | T-00050~T-00054 / T-10025~T-10028 / T-20030~T-20033 / T-30060~T-30064，详见 [模块10](../tasks/模块10-Google%20Play%20真支付%20(E-08).md) |
+| E-09: 贵族体系 | Phase 1 | 🟡 设计中 (0/17) | T-00065~T-00070 / T-10030~T-10032 / T-20035~T-20036 / T-30070~T-30075，详见 [模块11](../tasks/模块11-贵族体系%20(E-09).md) |
+| E-11: 家族公会 | Phase 2 | 🟡 设计中 (0/19) | T-00080~T-00086 / T-10040~T-10041 / T-20040~T-20041 / T-30080~T-30087，详见 [模块12](../tasks/模块12-家族公会%20(E-11).md) |
+| E-12: 好友/关注/粉丝关系链 | Phase 2 | 🟡 设计中 (0/14) | T-00090~T-00096 / T-10050 / T-20050 / T-30090~T-30094，详见 [模块13](../tasks/模块13-好友关注关系链%20(E-12).md) |
 
 **已知问题 (Known Issues)**:
 - **1 个 known UI flaky (Android)**：`RoomScreenTest.UI09_mutedMicSlot_showsMutedIcon`，代码已修复但 cold build 后 flaky，跟踪中（详见 T-30099 TDS）
@@ -67,6 +73,8 @@
 ---
 
 **文档变更历史**:
+- **2026-05-10: v3.18，PM Agent 强化 E-08/E-09 产品方向并补齐 6 份 Android 设计稿**：phase1_payment_billing.md 按 Google 官方 4 篇文档（integrate / test / security / rtdn-reference）全面校准 — 升级 Billing Library 8.3.0、purchaseToken 改为唯一主键（修正 orderId promo code 缺失场景）、新增 §1.4 真实购买生命周期对照表（PURCHASED/PENDING 客户端可见值 + 内部 7 状态映射）、新增 §9 测试体系（License Testers + Test Cards always approves/declines + Slow Test Cards + Play Billing Lab + Internal Test Track + 加速续费表 + §9.2 Dev/CI Mock 通道补强 + §9.3 测试金字塔分配）、新增 §10 RTDN 完整契约（Pub/Sub 消息结构 + DeveloperNotification 字段 + notificationType 整型映射 + messageId 幂等去重 + linkedPurchaseToken 处理）；phase1_nobility.md 新增 §3.5 贵族特权细则 13 小节（徽章色号 + 进场特效 6 档时长/范围/BGM/可关闭表 + 6 档气泡渐变与异形 + 观众席置顶规则 + 隐身范围矩阵 + 免密房白名单 + 抢麦 softmax 权重 1.0→10.0 + 礼物折扣 0%-15% + 全服广播频控 + VIP SLA 5min→24h + 月津贴 5%-20% + 续费过期 T-3/T+0/T+7/T+37 降级算法 + 服务端 enforcement map）；同步补 6 份 Android 设计稿 T-30064 充值历史 / T-30072 进场特效 / T-30084 家族申请管理 / T-30086 家族聊天 / T-30091 关注粉丝好友 / T-30092 1v1 私聊；模块 10 任务子表新增 T-00055 (Dev/Staging Mock 充值通道 — feature flag + production panic 红线) + T-30065 (Dev/Staging Flavor 开发者菜单测试购买入口 — 源码集隔离 production 不编入)，订单数 18→20，工时 112h→119h；用户原始诉求"如 Google Play 无测试入口则补假入口"已通过文档回答 — Play 已自带完整测试体系，本轮新增 Dev Mock 与 Play 测试体系互补不冲突。
+- **2026-05-09: v3.17，PM Agent 拆分 4 个新 Epic 并产出 12 篇新文档**：新增 phase1_payment_billing.md（E-08 Google Play 真支付：SKU/订单/Google 验签/RTDN/订单状态机 PENDING→VERIFYING→VERIFIED→CREDITED→ACKED/退款风控）、phase1_nobility.md（E-09 贵族体系：6 档骑士/男爵/子爵/伯爵/公爵/国王/双通道购买/特权矩阵/cron 续费过期）、phase2_family_guild.md（E-11 家族公会：5 等级 LV1~5/Owner/Admin/Elite/Member 四角色/创建门槛 100K 钻+LV10/家族 IM 复用 family:{id} 频道）、phase2_social_relations.md（E-12 单向关注+双向好友/特别关注 50 上限/在线 Set+WS 推送/1v1 私聊频道 dm:{a}_{b}）；同步建立 4 个模块任务子表（模块10~13）共 68 Tasks ≈ 397h，分别拆解 App Server/Admin/Web/Android 四端，全部带 testTag 锚点与异常流；同步建立 4 篇 Android 设计稿（T-30060 充值页/T-30070 贵族中心/T-30083 家族详情/T-30090 用户资料卡），含 RTL 兼容/埋点 8+ 事件/协议入口索引/状态机；index 表追加序号 13~16 子文档行，Epic 列表 E-08/09/11/12 状态由 🔴 待开发 → 🟡 设计中 (0/N)；待 Plan Agent 接力转 TDS。
 - **2026-05-09: v3.16，T-30055 DoD ✅ Done — Android RoomScreen/AppNavGraph LeaveMic 下麦调用链修复**：BUG-MIC-ONCLICK 修复完成，点击已占麦位图标能正确触发下麦 WS LeaveMic 信令；协议入口索引落锚于 doc/arch/android/room.md §「🔌 协议入口索引」表格（LeaveMic ⭐ 行），doc/protocol/websocket_signals.md §6.5.5 新增交叉链接回指 android/room.md；payload 字段 mic_index 正式声明为可选 integer 用于调试/日志追踪（服务端不读取）；门禁全绿（Review Gate ✅ Passed + QA Gate ✅ Passed + Overall Gate ✅ Released）；E-04 麦位管理实现状态持续更新；doc/tasks/index.md v3.13 → v3.14 + 变更记录同步。
 - **2026-04-27: v3.14，T-0000M Round 1 GlobalReview 修复完成（batch-02）**：[模块9-E2E测试基建 批次 B Round 1](../review/模块9-E2E测试基建.md) 暴露 2 P1 + 4 P2 缺陷，全部修复 — P1.1 收敛 14 处 server 集成测试遗留 sqlx::migrate! 直连默认表调用到 common helper（wallet_api_test 6 + ranking_test 5 + gift_list_test 2 + governance_real_repos_test 1）；P1.2 立 follow-up Task **T-0000N**（AppServer/AdminServer 暴露统一 /health 端点）+ **T-0000O**（ranking_test::r08 perf flake known-issue），T-0000M DoD #1 措辞修正为「双服务进程冷启动均完成 migrate 且 _sqlx_app_migrations=9 / _sqlx_admin_migrations=4（5 端 wait-on 全绿依赖 T-0000N）」符合事实承诺；P2.3 helper 透传 Migration::no_tx 分支（含单元测试 8/8 PASS）；P2.4 migration_isolation_test 顶部注释修正（仅 superuser DATABASE_URL 可跑）；P2.5 SchemaGuard RAII 保证 panic 路径 DROP SCHEMA CASCADE；P2.6 N-2 自动化测试沉淀（superuser GRANT USAGE 但不 GRANT CREATE → 受限连接跑 helper → err.to_string() 含表名）；模块 9 进度由「13/13 ✅」回写为「13/13 ✅ + 2 follow-up（T-0000N/O 待办）」更诚实；doc/tasks/index.md v2.51 → v2.52；T-0000M TDS §3.2 E-1/E-2 标注「依赖 T-0000N，本 Task 不阻塞」 + §4「关键决策与坑点」指向 T-0000N/O + §4.1 新增「Round 1 修复说明」章节列出全部修复摘要与回归结果。
 - **2026-04-27: 🎉 v3.13，T-0000M DoD 完成，Phase 1.6 E2E 测试基建全部闭环（13/13 ✅ Done）**：voice_room_shared::migrate::run_migrations_with_table helper 上架、AppServer `_sqlx_app_migrations` / AdminServer `_sqlx_admin_migrations` 自定义表隔离、validate_table_name 白名单 + FNV-1a advisory lock、sqlx 0.8.6 原生 VersionMissing/VersionChecksumMismatch 检测语义复刻、自管迁移登记表 SQL（B 方案保底实现，Phase 2 升级 sqlx-cli + MIGRATE_ON_START）；doc/arch/server/index.md 添加 T-0000M 引用、doc/arch/adminServer/index.md 补充数据库与迁移行、doc/architecture/index.md 关联文档新增 T-0000M TDS + ADR-0001 链接；doc/tasks/模块9-E2E测试基建 (E2E QA Foundation).md 第 47 行 T-0000M：研发状态 ⏳ In Progress → ✅ Done、M4 里程碑标记 ✅ Done；doc/tasks/index.md 版本更新 v2.50 → v2.51、新增 v2.51 变更记录；doc/product/index.md 版本更新 v3.12 → v3.13、Phase 1.6 E2E 测试基建进度 12/12 → 13/13、M4 双服务共库迁移全部完成；**🎉 模块 9 全部 13 个 Task 全部闭环完成**（M1 本地 E2E + M2 多环境对称 + M3 DX 文档 + M4 双服务共库迁移 4 大里程碑全部 ✅）。

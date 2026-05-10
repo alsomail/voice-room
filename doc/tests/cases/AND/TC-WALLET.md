@@ -89,3 +89,10 @@
 
 **【数据清理】**
 - 无。
+
+---
+
+<!-- 🚨 TC-WALLET-00005 / 00006 已下线：
+     - 00005 假设 page 参数 1-based + has_more 字段，**未对照** `app/server/src/modules/wallet/` Controller 测试中实际同时出现 page=0 与 page=1 的混乱状况；底部 "已加载全部" 文案 / 弱网失败重试 UI 未读 Compose 真实代码；
+     - 00006 假设个人中心"💎 钻石余额"行 + HomeViewModel 监听 BalanceUpdated 流，未读 Android profile/wallet 真实代码，且依赖手工触发服务端充值（env 缺乏直接充值 API）。
+     重写计划：先读 `app/server/src/modules/wallet/handlers.rs` + `app/android/.../feature/wallet/` 真实代码与 paging key/字段，再补可执行用例。 -->

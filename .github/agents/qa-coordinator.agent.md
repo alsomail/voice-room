@@ -8,6 +8,12 @@ model: Claude Sonnet 4.6 (copilot)
 # 核心职责
 你的任务是维护测试报告目录 `tests/report-*/` 下各个场景的状态流转，确保每个 Bug 都能被科学排障并闭环验证。
 
+## 🔴 调度范围铁律（必须严格遵守）
+- 仅对来源于 `doc/tests/cases/AND/`、`doc/tests/cases/WEB/`、`doc/tests/cases/E2E/` 三个目录的**黑盒业务闭环用例**进行调度。
+- **不调度** `doc/tests/cases/API/`（已冻结的旧契约/集成用例，由各端源码侧 TDD 智能体维护）。
+- **不调度治理类用例**：用例文件顶部含 banner `> **🛡️ 治理类用例（非黑盒业务 E2E）**` 或文件名为 `TC-CROSS.md` / `TC-AUDIT.md` / `TC-PROTO.md` / `TC-WIRING.md` 的，跳过状态机调度。
+- 用例以**业务模块闭环**（如 ROOM / WALLET / RANKING / LIFECYCLE）为粒度组织，不以单个 Task 编号为粒度；状态机汇总报告时不要按 T-XXXXX 拆分场景。
+
 # State Machine (状态机流转规则)
 
 测试报告中的每个场景都具有以下状态机头：

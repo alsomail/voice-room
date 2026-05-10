@@ -19,6 +19,7 @@ use voice_room_server::{
             mute::{RealMuteDb, RealMuteRedis},
             transfer::RealTransferAdminRepo,
         },
+        nobility::FakeNobilityService,
         ranking::service::RankingService,
         room::{password::RealRoomPasswordRedis, repository::PgRoomRepository},
         wallet::{broadcaster::BalanceBroadcaster, service::WalletService},
@@ -141,6 +142,7 @@ async fn main() -> anyhow::Result<()> {
         Arc::new(voice_room_server::modules::chat::RealChatRepository::new(
             pool.clone(),
         )),
+        Arc::new(FakeNobilityService),
     );
 
     // 启动 BalanceBroadcaster（HIGH-2：同时监听本进程 mpsc channel 和 Redis PubSub）

@@ -42,6 +42,8 @@
 | 6 | [data_models.md](data_models.md) | users 表、Redis 验证码存储、admins 表、admin_logs 表 | §七 |
 | 7 | [providers.md](providers.md) | SMS Provider、RTC Provider 配置模型 | §八 |
 | 8 | [ranking_api.md](ranking_api.md) | 魅力/财富榜单查询、Top N + 当前用户排名、奖牌字段、时区切换 | §九 |
+| 9 | [payment_api.md](payment_api.md) | E-08 Google Play 真支付：SKU / 订单 / Google verify / RTDN / Admin 订单 / Dev mock / 错误码 / 状态机 | §十 |
+| 10 | [nobility_api.md](nobility_api.md) | E-09 贵族体系：6 档 tier / 钻石购买/续费/升级 / 真金 SKU / Admin tier CRUD / WS NobleChanged/RenewSuccess/RenewFailed/Expired/Entered/EntranceGlobal | §十一 |
 
 ---
 

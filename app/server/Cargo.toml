@@ -6,10 +6,13 @@ edition = "2021"
 [features]
 # 测试辅助：暴露 Fake 类型和 AppState::for_test* 方法，供集成测试使用
 test-utils = []
+# Dev/Staging Mock 充值通道（T-00055）；production 构建不得启用
+dev_payment_mock = []
 
 [dependencies]
 anyhow.workspace = true
 axum.workspace = true
+base64 = "0.22"
 chrono.workspace = true
 chrono-tz = "0.10"
 dotenvy.workspace = true
@@ -32,6 +35,7 @@ redis = { version = "0.27", features = ["tokio-comp", "aio"] }
 futures-util = "0.3"
 
 [dev-dependencies]
+base64 = "0.22"
 tower = "0.5"
 # T-00103: WS 出栈 schema 校验（仅 #[cfg(test)] 代码路径使用，dev-dep 足够）
 jsonschema = "0.18"
@@ -116,3 +120,11 @@ name = "admin_event_roundtrip_test"
 
 [[test]]
 name = "protocol_schema_test"
+
+[[test]]
+name = "payment_schema_test"
+required-features = ["test-utils"]
+
+[[test]]
+name = "payment_create_order_test"
+required-features = ["test-utils"]

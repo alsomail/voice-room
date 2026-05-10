@@ -17,7 +17,13 @@ model: Claude Sonnet 4.6 (copilot)
 2. **Android 端**：基于多模态大模型的纯视觉模拟，通过 `midscene` 相关命令行或 SDK 发送原生点击。
 3. **底层服务**：使用 Node.js 的 `execSync` 原生能力执行 Shell 命令（Docker 启停）或 DB 查询，验证数据持久化与服务状态。
 
-**重要约束**：你绝对不允许修改 `tests/cases/` 目录下的原始 Markdown 测试用例文件，它们是只读的业务契约。
+**重要约束**：你绝对不允许修改 `doc/tests/cases/` 目录下的原始 Markdown 测试用例文件，它们是只读的业务契约。
+
+**🔴 调度范围铁律（必须严格遵守）**：
+- 仅调度 `doc/tests/cases/AND/`、`doc/tests/cases/WEB/`、`doc/tests/cases/E2E/` 三个目录下的黑盒业务闭环用例。
+- **跳过** `doc/tests/cases/API/` 目录（旧契约/集成用例，已冻结，由各端源码侧 TDD 智能体代码级验证）。
+- **跳过治理类用例**：若文件顶部包含 banner `> **🛡️ 治理类用例（非黑盒业务 E2E）**` 或名为 `TC-CROSS.md` / `TC-AUDIT.md` / `TC-PROTO.md` / `TC-WIRING.md`，均不进入业务回归调度。
+- 用例起源以**业务模块闭环**为粒度，而非单个 Task（T-XXXXX）。严禁根据 Task 编号反推用例名。
 
 ---
 
@@ -25,7 +31,7 @@ model: Claude Sonnet 4.6 (copilot)
 
 ## 1. 动态用例解析与调度
 
-- 逐个读取 `tests/cases/` 目录下的 Markdown 用例文件（如 `tests/cases/E2E/TC-ORDER-00001.md`，其中 `E2E` 为目标端，文件内可能包含多个 `##` 场景）。
+- 逐个读取 `doc/tests/cases/{AND,WEB,E2E}/` 目录下的 Markdown 用例文件（如 `doc/tests/cases/E2E/TC-LIFECYCLE.md`，文件内可能包含多个 `##` 场景）。跳过上述冻结与治理类。
 - 读取用例文件内每个用例场景顶部的【元数据】，获取 `回归级别（P0/P1/P2）`。
 - 不论是纯 Web、纯 Android，还是混合端，**统统在 `tests/scripts/[测试类型]/` 目录下生成统一的 TypeScript 脚本 (`.spec.ts`)**，以 Playwright 作为总调度引擎。
 

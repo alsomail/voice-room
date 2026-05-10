@@ -72,3 +72,13 @@
 
 **【数据清理】**
 - 无。
+
+---
+
+<!-- 🚨 TC-RANKING-00004 ~ 00008 已下线：
+     - 00004 假设"魅力/财富 × 日/周" 4 组榜单 + Tab 联动行为，未读取 RankingScreen 真实代码与 GET /api/v1/ranking 真实参数；
+     - 00005 假设 Sticky Footer "距 Top10 差 X 💎" 文案与跨页 1000 钻石实时更新，未核实接口字段；
+     - 00006 性能用例 FPS ≥ 50 / Choreographer skip 阈值未与团队基线对齐；
+     - 00007 未登录态 Footer "登录后查看我的排名" 文案凭空假设；
+     - 00008 跨日重置依赖 23:55 时间穿越 + 归档 Job 触发，env 不具备且与服务端 cron 实现未对齐。
+     重写计划：先读 `app/server/src/modules/ranking/` + `app/android/.../feature/ranking/`，再补真实可执行用例。 -->

@@ -6,4 +6,5 @@ pub mod events;
 pub mod jwt;
 pub mod migrate;
 pub mod models;
+pub mod payment;
 pub mod types;

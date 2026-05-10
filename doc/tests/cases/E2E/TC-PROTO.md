@@ -1,5 +1,7 @@
 # 测试套件：协议合规验证（Protocol Compliance）
 
+> **🛡️ 治理类用例（非黑盒业务 E2E）**：本文件属于 [_README.md §0.4](../_README.md#04-治理类audit--proto--wiring说明) 定义的「协议字段冻结集成校验」，由 Node.js 直发 WS 帧/Redis 帧验证 `deny_unknown_fields` / `snake_case` / `Ping/Pong ms` 等协议铁律，**不通过用户 UI 操作**。维护方为协议治理团队，e2e-runner 与 qa-coordinator 不调度本文件。
+
 > **需求模糊点 (Ambiguity Notes)**：
 > - PROTO-04 中"DEV 环境"的判断条件未在协议文档中明确定义（`NODE_ENV=development` 还是其他标志）；暂以 `NODE_ENV=development` 为准，若 Web 侧有专属标志需同步更新此用例。
 > - PROTO-06 中 Redis `admin:events` channel 的消费方（AppServer 还是 AdminServer）文档未完全明确；两端均订阅时需在步骤中分别断言，本用例以 AppServer 消费端为主断言点。

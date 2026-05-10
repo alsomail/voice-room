@@ -88,6 +88,21 @@
 | `40003` | 400 | 参数校验失败 | 标题为空 / 超 30 字符、`room_type` 非法枚举、密码房未提供密码 |
 | `40900` | 409 | 用户已有活跃房间 | 同一用户尝试创建第二个 `active` 状态房间（DB 唯一偏滤索引兜底） |
 
+### 模块10 错误码表（Google Play 真支付 E-08）
+
+| 错误码 | HTTP Status | 含义 | 触发场景 |
+|--------|-------------|------|----------|
+| `40901` | 422 | INVALID_PURCHASE | Google `purchases.products.get` 返回 `purchaseState != 0`、`obfuscatedAccountId` 与 `order_id` 不一致、或 token 验证失败 |
+| `40902` | 404 | SKU_DISABLED_OR_NOT_FOUND | sku_id 不存在或 `is_active=false` |
+| `40903` | 429 | ORDER_RISK_BLOCKED | 风控命中（日失败 > 10 / 设备黑名单 / 频率限制） |
+| `40904` | 409 | ALREADY_ACKED_CANNOT_RECREDIT | 订单已 ACKED，禁止 admin 补单/退款 |
+| `40905` | 409 | ORDER_STATE_INVALID_TRANSITION | 订单状态机非法迁移（如 ACKED→VERIFYING） |
+| `40906` | 422 | RTDN_SIGNATURE_INVALID | RTDN 推送签名校验失败 |
+
+### 模块11 错误码表（贵族体系 E-09）
+
+详见 [nobility_api.md §10.6](nobility_api.md#106-错误码表e-09)。
+
 ## 1.5 分页约定
 
 请求参数：`?page=1&size=20`

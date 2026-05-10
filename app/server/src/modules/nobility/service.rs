@@ -4,7 +4,6 @@
 //! `FakeNobilityService` 用于单元/集成测试，无需真实 DB。
 
 use async_trait::async_trait;
-use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::common::error::AppError;
@@ -160,6 +159,7 @@ impl NobilityServicePort for FakeNobilityService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Arc;
 
     // NS-01: FakeNobilityService list_tiers 返回 6 个 tier
     #[tokio::test]

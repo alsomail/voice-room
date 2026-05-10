@@ -40,8 +40,14 @@ export function AppRoutes() {
           <Route path="/rooms" element={<RoomsPage />} />
           <Route path="/users" element={<UsersPage />} />
           <Route path="/logs" element={<LogsPage />} />
-          {/* T-20012: 礼物管理页 */}
-          <Route path="/gifts" element={<GiftManagementPage />} />
+          {/* T-20012: 礼物管理页（RoleGuard 限制 super_admin / operator，T-20012 §RBAC） */}
+          <Route
+            element={
+              <RoleGuard allowedRoles={['super_admin', 'operator']} />
+            }
+          >
+            <Route path="/gifts" element={<GiftManagementPage />} />
+          </Route>
           {/* T-20014: 治理日志页（RoleGuard 限制 super_admin / operator / cs） */}
           <Route
             element={

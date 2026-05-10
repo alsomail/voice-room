@@ -106,8 +106,8 @@ export const AdminUserItemSchema = z
   .object({
     id: z.string(),
     phone: z.string(),
-    nickname: z.string().optional(),
-    avatar: z.string().optional(),
+    nickname: z.string().nullable().optional(),
+    avatar: z.string().nullable().optional(),
     coin_balance: z.number(),
     vip_level: z.number(),
     status: z.enum(['normal', 'banned']),

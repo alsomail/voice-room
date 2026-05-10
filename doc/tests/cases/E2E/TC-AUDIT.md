@@ -1,5 +1,7 @@
 # 测试套件：CI 字段审计工具验证（Protocol Audit CI）
 
+> **🛡️ 治理类用例（非黑盒业务 E2E）**：本文件属于 [_README.md §0.4](../_README.md#04-治理类audit--proto--wiring说明) 定义的「协议铁律 CI 审计」，验证 `validate-protocol-freeze.sh` / `validate-tds-field-binding.sh` 等治理脚本本身的正确性，**不通过用户 UI 操作**。维护方为协议治理团队，由 CI 静态调度，e2e-runner 与 qa-coordinator 不调度本文件。
+
 > **需求模糊点 (Ambiguity Notes)**：
 > - `scripts/audit/validate-protocol-freeze.sh` 和 `scripts/audit/validate-tds-field-binding.sh` 的确切脚本路径及 P0/P1 输出格式未在协议文档中明确规范；本套件以 T-00106 实现结果中的 `scripts/audit/protocol-binding-audit.ts`（`npm run audit:fields`）和 T-0000T 的 `protocol-binding-audit.ts` 为基准，若脚本路径有变则同步更新。
 > - AUDIT-01 和 AUDIT-03 中"P0=0"的输出格式假设为脚本 stdout 包含类似 `"P0 issues: 0"` 或 exit code=0；具体格式需对齐 T-00106 实现的报告格式。

@@ -1,5 +1,7 @@
 # 测试套件：Android × Server 跨语言 E2E（Cross-Lang WS Loopback）
 
+> **🛡️ 治理类用例（非黑盒业务 E2E）**：本文件属于 [_README.md §0.4](../_README.md#04-治理类audit--proto--wiring说明) 定义的「协议跨语言契约审计」，由 Node.js 模拟 Android client 直接发 WS 帧验证字段对齐，**不通过 Android UI 操作**。维护方为 server / android 协议团队，**不计入业务回归矩阵**，e2e-runner 与 qa-coordinator 不调度本文件。
+
 > **需求模糊点 (Ambiguity Notes)**：
 > - T-00104 定义的场景 #7（MuteUser→UserMuted）在 TDS 中描述为"Admin 通过 WS 触发"，但当前测试套件（CROSS-7）使用独立 admin token 的 WS 连接触发；若后续 Admin 走 HTTP 接口触发，本套件需同步更新。
 > - `GiftReceived.schema.json` 文件不存在于 `doc/protocol/schemas/ws/`（T-00104 §4.3 差异 D-04），CROSS-06 采用结构性断言（字段存在性）而非 AJV Schema 全量校验。
