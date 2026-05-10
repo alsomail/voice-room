@@ -1,6 +1,6 @@
 # Voice Room 开发任务清单
 
-> **版本**: v3.21
+> **版本**: v3.22
 > **更新日期**: 2026-05-10
 > **任务总数**: 217 个 (基建: 4 + 14 + 3 + 6, App Server: 33 + 1 + 2 + 1, Admin Server: 16 + 1 + 1, Web: 14 + 1 + 1, Android: 45 + 1 + 1 + 1 + 1, E-07 15 + E-07.5 6 + E-10 18; **新增 E-08 18 + E-09 17 + E-11 19 + E-12 14 = 68**)  
 > **当前阶段**: Phase 1 → … → Phase 1.7 协议治理铁律落地 → **Phase 1.7-extended 协议字段全量冻结**（WS + HTTP REST + Redis Pub/Sub 三协议层 schema 机器可读 + 字段级 CI 审计 + Android×Server 跨语言 E2E）
@@ -11,6 +11,7 @@
 
 | 版本 | 日期 | 变更内容 |
 |------|------|---------|
+| **v3.22** | **2026-05-10** | [T-00050~55 TDD ✅] 模块10 Server端支付模块 6 Task TDD完成（548+15集成测试，0失败），状态TDD→Review；13文件+1迁移+2测试文件 |
 | **v3.21** | **2026-05-10** | [T-00065~70 TDD ✅] 模块11 Server端贵族体系 6 Task TDD完成（548+47测试全绿），状态TDD→Review；修改文件22个+2283行 |
 | **v3.20** | **2026-05-10** | [Plan 阶段 E-08/E-09 全量 TDS 落锚] 协议层先行：新增 [protocol/payment_api.md](../protocol/payment_api.md) v1.0（Google Play Billing 8.3.0 / purchaseToken 主键 / 强事务 PENDING→VERIFIED→CREDITED→ACKED / RTDN Pub/Sub / 错误码 40901-40906）+ [protocol/nobility_api.md](../protocol/nobility_api.md) v1.0（6 档 privileges JSONB / 6 个 WS 信令 NobleChanged/RenewSuccess/RenewFailed/Expired/Entered/EntranceGlobal / UserJoined.noble 字段扩展 / 错误码 40911-40917）；conventions.md 错误码表追加 40901-40917；websocket_signals.md §6.13/§6.14 追加 BalanceUpdated.reason 与 E-09 信令簇；产出 37 份 TDS（server 12 + adminServer 7 + web 6 + android 12），全部严格引用协议锚点；37 个 Task 由 Plan→TDD。 |
 | **v3.19** | **2026-05-10** | [PM 强化 E-08/E-09 + 补 UI 设计稿] · phase1_payment_billing.md 按 Google 官方文档全面校准（Billing 8.3.0 / purchaseToken 当主键 / RTDN 完整 schema / License Testers + Play Billing Lab + Slow Test Cards 测试体系 / §9.2 Dev Mock 补强）；· phase1_nobility.md 新增 §3.5 贵族特权细则 13 小节（徽章色号、进场特效时长、6 档气泡、抢麦权重、5%-15% 礼物折扣、5%-20% 月津贴、续费过期 T-3/T+0/T+7/T+37 降级表、特权钩子服务端 enforcement map）；· 模块 10 新增 T-00055 (Dev Mock API) + T-30065 (Dev 菜单入口) 两项 Dev-only Tasks（订单 18→20，工时 112h→119h）；· 补 6 份 Android 设计稿 T-30064/30072/30084/30086/30091/30092 + 同步替换 task 表中各 "待补"为真实链接；· 任务总数 217→219。 |
@@ -474,12 +475,12 @@
 
 | Task ID | 前置依赖 | 研发负责人 | 研发状态 | Review Gate | QA Gate | Overall Gate |
 |---------|---------|-----------|---------|-------------|---------|--------------|
-| [T-00050](../tds/server/T-00050.md) | E-07 ✅ | TDD | Todo | - | - | - |
-| [T-00051](../tds/server/T-00051.md) | T-00050 | TDD | Todo | - | - | - |
-| [T-00052](../tds/server/T-00052.md) | T-00050 | TDD | Todo | - | - | - |
-| [T-00053](../tds/server/T-00053.md) | T-00051/52 | TDD | Todo | - | - | - |
-| [T-00054](../tds/server/T-00054.md) | T-00050~53 | TDD | Todo | - | - | - |
-| [T-00055](../tds/server/T-00055.md) | T-00050 | TDD | Todo | - | - | - |
+| [T-00050](../tds/server/T-00050.md) | E-07 ✅ | Review | In Progress | - | - | - |
+| [T-00051](../tds/server/T-00051.md) | T-00050 | Review | In Progress | - | - | - |
+| [T-00052](../tds/server/T-00052.md) | T-00050 | Review | In Progress | - | - | - |
+| [T-00053](../tds/server/T-00053.md) | T-00051/52 | Review | In Progress | - | - | - |
+| [T-00054](../tds/server/T-00054.md) | T-00050~53 | Review | In Progress | - | - | - |
+| [T-00055](../tds/server/T-00055.md) | T-00050 | Review | In Progress | - | - | - |
 | [T-10025](../tds/adminServer/T-10025.md) | T-00050~54 | TDD | Todo | - | - | - |
 | [T-10026](../tds/adminServer/T-10026.md) | T-10025 | TDD | Todo | - | - | - |
 | [T-10027](../tds/adminServer/T-10027.md) | T-10025 | TDD | Todo | - | - | - |
