@@ -3572,7 +3572,7 @@ mod tests {
         );
     }
 
-    // ── WA06: amount=-1000 当前余额 500 → 40204，事务回滚，流水无新记录
+    // ── WA06: amount=-1000 当前余额 500 → 40204（WalletInsufficientBalance），事务回滚，流水无新记录
     #[tokio::test]
     async fn wa06_insufficient_balance_returns_40204_no_transaction_written() {
         let user_id = Uuid::new_v4();
@@ -3587,7 +3587,7 @@ mod tests {
         )
         .await;
 
-        // HTTP 400 / 40204
+        // HTTP 400 / 40204 (WalletInsufficientBalance)
         assert_eq!(
             resp.status(),
             StatusCode::BAD_REQUEST,
@@ -3597,7 +3597,7 @@ mod tests {
         assert_eq!(
             json["code"].as_i64().unwrap(),
             40204,
-            "WA06: 错误码应为 40204（INSUFFICIENT_BALANCE）"
+            "WA06: 错误码应为 40204（WALLET_INSUFFICIENT_BALANCE）"
         );
 
         // 余额未变

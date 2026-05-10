@@ -54,7 +54,7 @@ pub enum AppError {
     #[error("Validation error: {0}")]
     ValidationError(String),
 
-    // 400 - 钱包余额不足（T-10013，code=40204）
+    // 400 - 钱包余额不足（T-10013，code=40290）
     #[error("Insufficient balance")]
     InsufficientBalance,
 
