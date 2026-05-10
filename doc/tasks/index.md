@@ -11,6 +11,7 @@
 
 | 版本 | 日期 | 变更内容 |
 |------|------|---------|
+| **v3.33** | **2026-05-10** | [T-10025~28 Review ❌ BLOCKED / T-10030~32 Review ❌ BLOCKED] Admin Server 模块10支付(7个P0：模块未挂载、controller/admin_service/SKU/报表文件全缺、路由未注册、0集成测试)；模块11贵族(6个P0：nobility模块完全不存在、权限枚举缺失、路由未注册、upsert/事务/Redis事件/status过滤全缺)；7份TDS §五 Round1意见已写入，状态维持TDD |
 | **v3.32** | **2026-05-10** | [T-00050~55/T-00065~70 DoD ✅] 模块10/11 Server端12个Task全部完成，架构文档payment.md/nobility.md新建，协议反向链接写入，状态Review→Dod→Done |
 | **v3.31** | **2026-05-10** | [T-00069/70 Review ✅ Round3] 贵族进场广播/payload字段/bypass语义全通过，615测试全绿，状态Review→Dod |
 | **v3.30** | **2026-05-10** | [T-00069/70 Round3 TDD ✅ → Review] 修复3项E2R2打回：P0 GlobalBroadcastPort trait+FakeGlobalBroadcast stub；HIGH NobleEntered payload改扁平结构含§10.4.5全部字段；HIGH bypass_password改用noble.bypass_password_enabled语义正确；+8测试(607→615全绿)；T-00069/70状态TDD→Review |
