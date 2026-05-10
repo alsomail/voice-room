@@ -1,6 +1,6 @@
 # Voice Room 开发任务清单
 
-> **版本**: v3.28
+> **版本**: v3.29
 > **更新日期**: 2026-05-10
 > **任务总数**: 217 个 (基建: 4 + 14 + 3 + 6, App Server: 33 + 1 + 2 + 1, Admin Server: 16 + 1 + 1, Web: 14 + 1 + 1, Android: 45 + 1 + 1 + 1 + 1, E-07 15 + E-07.5 6 + E-10 18; **新增 E-08 18 + E-09 17 + E-11 19 + E-12 14 = 68**)  
 > **当前阶段**: Phase 1 → … → Phase 1.7 协议治理铁律落地 → **Phase 1.7-extended 协议字段全量冻结**（WS + HTTP REST + Redis Pub/Sub 三协议层 schema 机器可读 + 字段级 CI 审计 + Android×Server 跨语言 E2E）
@@ -11,6 +11,7 @@
 
 | 版本 | 日期 | 变更内容 |
 |------|------|---------|
+| **v3.29** | **2026-05-10** | [T-00050~55 Review ✅ Round3] 模块10 Server端支付全部7项P0通过，607测试全绿，状态Review→Dod |
 | **v3.28** | **2026-05-10** | [T-00050~55 TDD Round3 ✅] 修复dev_mock trait签名编译(P0)+RTDN RS256验签(HIGH)，状态TDD→Review |
 | **v3.28** | **2026-05-10** | [T-00065~70 Review ❌] 模块11 Server端贵族体系Round2审查打回：T-00065~68通过；T-00069 P0(NobleEntranceGlobal无stub)+ HIGH(NobleEntered payload缺scope/duration_ms等字段)；T-00070 HIGH(bypass_password调用can_trigger_global_broadcast语义错误)；T-00069/70状态Review→TDD |
 | **v3.27** | **2026-05-11** | [T-00065~70 TDD Round2 ✅] 模块11 Server端贵族体系 Round2 TDD完成（548→602 lib tests，+54，0失败）：diamonds→percent字段修复、SQL种子+CHECK约束、BalanceUpdated/NobleChanged WS信令、hourly cron注册、NobleEntered广播(LV3+)、观众席隐身过滤(MembersNobilityPort)、duke/king密码房免密、礼物折扣单测；状态TDD→Review |
@@ -482,12 +483,12 @@
 
 | Task ID | 前置依赖 | 研发负责人 | 研发状态 | Review Gate | QA Gate | Overall Gate |
 |---------|---------|-----------|---------|-------------|---------|--------------|
-| [T-00050](../tds/server/T-00050.md) | E-07 ✅ | TDD | In Progress | - | - | - |
-| [T-00051](../tds/server/T-00051.md) | T-00050 | TDD | In Progress | - | - | - |
-| [T-00052](../tds/server/T-00052.md) | T-00050 | TDD | In Progress | - | - | - |
-| [T-00053](../tds/server/T-00053.md) | T-00051/52 | TDD | In Progress | - | - | - |
-| [T-00054](../tds/server/T-00054.md) | T-00050~53 | TDD | In Progress | - | - | - |
-| [T-00055](../tds/server/T-00055.md) | T-00050 | TDD | In Progress | - | - | - |
+| [T-00050](../tds/server/T-00050.md) | E-07 ✅ | Dod | In Progress | - | - | - |
+| [T-00051](../tds/server/T-00051.md) | T-00050 | Dod | In Progress | - | - | - |
+| [T-00052](../tds/server/T-00052.md) | T-00050 | Dod | In Progress | - | - | - |
+| [T-00053](../tds/server/T-00053.md) | T-00051/52 | Dod | In Progress | - | - | - |
+| [T-00054](../tds/server/T-00054.md) | T-00050~53 | Dod | In Progress | - | - | - |
+| [T-00055](../tds/server/T-00055.md) | T-00050 | Dod | In Progress | - | - | - |
 | [T-10025](../tds/adminServer/T-10025.md) | T-00050~54 | TDD | Todo | - | - | - |
 | [T-10026](../tds/adminServer/T-10026.md) | T-10025 | TDD | Todo | - | - | - |
 | [T-10027](../tds/adminServer/T-10027.md) | T-10025 | TDD | Todo | - | - | - |
