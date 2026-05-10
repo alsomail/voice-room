@@ -1,7 +1,7 @@
 # Voice Room 开发任务清单
 
-> **版本**: v3.27
-> **更新日期**: 2026-05-11
+> **版本**: v3.28
+> **更新日期**: 2026-05-10
 > **任务总数**: 217 个 (基建: 4 + 14 + 3 + 6, App Server: 33 + 1 + 2 + 1, Admin Server: 16 + 1 + 1, Web: 14 + 1 + 1, Android: 45 + 1 + 1 + 1 + 1, E-07 15 + E-07.5 6 + E-10 18; **新增 E-08 18 + E-09 17 + E-11 19 + E-12 14 = 68**)  
 > **当前阶段**: Phase 1 → … → Phase 1.7 协议治理铁律落地 → **Phase 1.7-extended 协议字段全量冻结**（WS + HTTP REST + Redis Pub/Sub 三协议层 schema 机器可读 + 字段级 CI 审计 + Android×Server 跨语言 E2E）
 
@@ -11,6 +11,7 @@
 
 | 版本 | 日期 | 变更内容 |
 |------|------|---------|
+| **v3.28** | **2026-05-10** | [T-00050~55 TDD Round3 ✅] 修复dev_mock trait签名编译(P0)+RTDN RS256验签(HIGH)，状态TDD→Review |
 | **v3.27** | **2026-05-11** | [T-00065~70 TDD Round2 ✅] 模块11 Server端贵族体系 Round2 TDD完成（548→602 lib tests，+54，0失败）：diamonds→percent字段修复、SQL种子+CHECK约束、BalanceUpdated/NobleChanged WS信令、hourly cron注册、NobleEntered广播(LV3+)、观众席隐身过滤(MembersNobilityPort)、duke/king密码房免密、礼物折扣单测；状态TDD→Review |
 | **v3.26** | **2026-05-10** | [T-00050~55 Review ❌] 模块10 Server端支付Round2审查打回：P0-6 dev_payment_mock feature仍编译失败（E0061：controller.rs:181 传4参数但Trait仅接受2参数，且user_id类型Uuid≠i64）；P0-1~5/P0-7已确认修复；状态Review→TDD |
 | **v3.25** | **2026-05-11** | [T-00050~55 TDD Round2 ✅] 模块10 Server端支付 Round2 TDD完成（591 lib tests，0失败）：RTDN OIDC验签、状态机守卫、幂等修复、cron超时扫描、dev_mock编译修复、schema测试对齐；状态TDD→Review |
