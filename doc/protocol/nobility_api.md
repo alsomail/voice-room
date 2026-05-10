@@ -500,3 +500,17 @@ charge_diamonds = max(0, new_tier.monthly_diamonds × duration_days/30 - refund_
 - [websocket_signals.md](websocket_signals.md)（信令骨架）
 - [payment_api.md](payment_api.md)（真金通道 §10.3.4 复用）
 - [conventions.md §1.4](conventions.md)（错误码模块11）
+
+---
+
+## 另见：Server 端实现路径
+
+- **Server 实现文档**：[doc/arch/server/nobility.md](../arch/server/nobility.md)
+- **核心处理函数**：
+  - `nobility::controller::{list_tiers_handler, get_me_handler, purchase_handler}`
+  - `nobility::service::NobilityService::{purchase, renew, check_downgrade}`
+  - `nobility::cron::{run_renew_phase, run_expire_phase}`
+- **进场广播**：
+  - 房间内广播：`room::handler::lifecycle::handle_join_room()`（NobleEntered + UserJoined.noble）
+  - 全服广播：`nobility::global_broadcast::GlobalBroadcastPort`（NobleEntranceGlobal via Redis）
+- **特权钩子**：`nobility::privileges::NoblePrivileges`（计算隐身/折扣/权重等）

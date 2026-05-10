@@ -450,3 +450,15 @@ E-08 不引入新 WS 信令；仅复用：
 - [websocket_signals.md §6.8.3](websocket_signals.md)（BalanceUpdated）
 - [conventions.md §1.4](conventions.md)（错误码模块10 表）
 - [data_models.md](data_models.md)（payment_skus / payment_orders / rtdn_processed 物理 schema）
+
+---
+
+## 另见：Server 端实现路径
+
+- **Server 实现文档**：[doc/arch/server/payment.md](../arch/server/payment.md)
+- **核心处理函数**：
+  - `payment::controller::{create_order_handler, verify_handler, rtdn_webhook_handler}`
+  - `payment::verify_service::PaymentVerifyService::verify_and_credit()`
+  - `payment::rtdn_service::PaymentRtdnService::process_webhook()`
+- **防腐层**：`payment::google_billing_port::GooglePlayBillingPort` trait（隔离 Google SDK）
+- **Dev Mock**：`payment::dev_mock` module（feature = "dev_payment_mock"，仅 dev/staging）

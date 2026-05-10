@@ -1,6 +1,6 @@
 # Voice Room 开发任务清单
 
-> **版本**: v3.31
+> **版本**: v3.32
 > **更新日期**: 2026-05-10
 > **任务总数**: 217 个 (基建: 4 + 14 + 3 + 6, App Server: 33 + 1 + 2 + 1, Admin Server: 16 + 1 + 1, Web: 14 + 1 + 1, Android: 45 + 1 + 1 + 1 + 1, E-07 15 + E-07.5 6 + E-10 18; **新增 E-08 18 + E-09 17 + E-11 19 + E-12 14 = 68**)  
 > **当前阶段**: Phase 1 → … → Phase 1.7 协议治理铁律落地 → **Phase 1.7-extended 协议字段全量冻结**（WS + HTTP REST + Redis Pub/Sub 三协议层 schema 机器可读 + 字段级 CI 审计 + Android×Server 跨语言 E2E）
@@ -11,6 +11,7 @@
 
 | 版本 | 日期 | 变更内容 |
 |------|------|---------|
+| **v3.32** | **2026-05-10** | [T-00050~55/T-00065~70 DoD ✅] 模块10/11 Server端12个Task全部完成，架构文档payment.md/nobility.md新建，协议反向链接写入，状态Review→Dod→Done |
 | **v3.31** | **2026-05-10** | [T-00069/70 Review ✅ Round3] 贵族进场广播/payload字段/bypass语义全通过，615测试全绿，状态Review→Dod |
 | **v3.30** | **2026-05-10** | [T-00069/70 Round3 TDD ✅ → Review] 修复3项E2R2打回：P0 GlobalBroadcastPort trait+FakeGlobalBroadcast stub；HIGH NobleEntered payload改扁平结构含§10.4.5全部字段；HIGH bypass_password改用noble.bypass_password_enabled语义正确；+8测试(607→615全绿)；T-00069/70状态TDD→Review |
 | **v3.29** | **2026-05-10** | [T-00050~55 Review ✅ Round3] 模块10 Server端支付全部7项P0通过，607测试全绿，状态Review→Dod |
@@ -481,16 +482,16 @@
 
 #### [模块 10: Google Play 真支付 (E-08)](./模块10-Google%20Play%20真支付%20(E-08).md)
 
-> 共 20 Tasks ≈ 119h（含 2 份 Dev-only T-00055 / T-30065）；产品方向 [phase1_payment_billing.md](../product/phase1_payment_billing.md)（v1.1 官方安全/测试/RTDN 补强）；协议契约 [payment_api.md](../protocol/payment_api.md)；Android 设计稿 [T-30060.md](../design/android/T-30060.md) / [T-30064.md](../design/android/T-30064.md)；**TDS 已落锚，全部 20 Tasks 进入 TDD 阶段**。
+> 共 20 Tasks ≈ 119h（含 2 份 Dev-only T-00055 / T-30065）；产品方向 [phase1_payment_billing.md](../product/phase1_payment_billing.md)（v1.1 官方安全/测试/RTDN 补强）；协议契约 [payment_api.md](../protocol/payment_api.md)；Android 设计稿 [T-30060.md](../design/android/T-30060.md) / [T-30064.md](../design/android/T-30064.md)；**Server 端 T-00050~55 全部 DoD ✅ 完成（架构文档 payment.md 新建，协议反向链接写入）；其余 14 Tasks 进入 TDD 阶段**。
 
 | Task ID | 前置依赖 | 研发负责人 | 研发状态 | Review Gate | QA Gate | Overall Gate |
 |---------|---------|-----------|---------|-------------|---------|--------------|
-| [T-00050](../tds/server/T-00050.md) | E-07 ✅ | Dod | In Progress | - | - | - |
-| [T-00051](../tds/server/T-00051.md) | T-00050 | Dod | In Progress | - | - | - |
-| [T-00052](../tds/server/T-00052.md) | T-00050 | Dod | In Progress | - | - | - |
-| [T-00053](../tds/server/T-00053.md) | T-00051/52 | Dod | In Progress | - | - | - |
-| [T-00054](../tds/server/T-00054.md) | T-00050~53 | Dod | In Progress | - | - | - |
-| [T-00055](../tds/server/T-00055.md) | T-00050 | Dod | In Progress | - | - | - |
+| [T-00050](../tds/server/T-00050.md) | E-07 ✅ | Done | Done | ✅ | - | - |
+| [T-00051](../tds/server/T-00051.md) | T-00050 | Done | Done | ✅ | - | - |
+| [T-00052](../tds/server/T-00052.md) | T-00050 | Done | Done | ✅ | - | - |
+| [T-00053](../tds/server/T-00053.md) | T-00051/52 | Done | Done | ✅ | - | - |
+| [T-00054](../tds/server/T-00054.md) | T-00050~53 | Done | Done | ✅ | - | - |
+| [T-00055](../tds/server/T-00055.md) | T-00050 | Done | Done | ✅ | - | - |
 | [T-10025](../tds/adminServer/T-10025.md) | T-00050~54 | TDD | Todo | - | - | - |
 | [T-10026](../tds/adminServer/T-10026.md) | T-10025 | TDD | Todo | - | - | - |
 | [T-10027](../tds/adminServer/T-10027.md) | T-10025 | TDD | Todo | - | - | - |
@@ -508,16 +509,16 @@
 
 #### [模块 11: 贵族体系 (E-09)](./模块11-贵族体系%20(E-09).md)
 
-> 共 17 Tasks ≈ 104h；产品方向 [phase1_nobility.md](../product/phase1_nobility.md)；协议契约 [nobility_api.md](../protocol/nobility_api.md)；Android 设计稿 [T-30070.md](../design/android/T-30070.md) / [T-30072.md](../design/android/T-30072.md)；**Server 端 T-00065~70 Round3 Review ✅（全通过）；其余 11 Tasks 仍处 TDD 阶段**。
+> 共 17 Tasks ≈ 104h；产品方向 [phase1_nobility.md](../product/phase1_nobility.md)；协议契约 [nobility_api.md](../protocol/nobility_api.md)；Android 设计稿 [T-30070.md](../design/android/T-30070.md) / [T-30072.md](../design/android/T-30072.md)；**Server 端 T-00065~70 全部 DoD ✅ 完成（架构文档 nobility.md 新建，协议反向链接写入）；其余 11 Tasks 进入 TDD 阶段**。
 
 | Task ID | 前置依赖 | 研发负责人 | 研发状态 | Review Gate | QA Gate | Overall Gate |
 |---------|---------|-----------|---------|-------------|---------|--------------|
-| [T-00065](../tds/server/T-00065.md) | E-07 ✅ | TDD | Review | - | - | - |
-| [T-00066](../tds/server/T-00066.md) | T-00065 | TDD | Review | - | - | - |
-| [T-00067](../tds/server/T-00067.md) | T-00066 / E-08 | TDD | Review | - | - | - |
-| [T-00068](../tds/server/T-00068.md) | T-00067 | TDD | Review | - | - | - |
-| [T-00069](../tds/server/T-00069.md) | T-00067 | Dod | In Progress | - | - | - |
-| [T-00070](../tds/server/T-00070.md) | T-00065~69 | Dod | In Progress | - | - | - |
+| [T-00065](../tds/server/T-00065.md) | E-07 ✅ | Done | Done | ✅ | - | - |
+| [T-00066](../tds/server/T-00066.md) | T-00065 | Done | Done | ✅ | - | - |
+| [T-00067](../tds/server/T-00067.md) | T-00066 / E-08 | Done | Done | ✅ | - | - |
+| [T-00068](../tds/server/T-00068.md) | T-00067 | Done | Done | ✅ | - | - |
+| [T-00069](../tds/server/T-00069.md) | T-00067 | Done | Done | ✅ | - | - |
+| [T-00070](../tds/server/T-00070.md) | T-00065~69 | Done | Done | ✅ | - | - |
 | [T-10030](../tds/adminServer/T-10030.md) | T-00065 | TDD | Todo | - | - | - |
 | [T-10031](../tds/adminServer/T-10031.md) | T-00067 | TDD | Todo | - | - | - |
 | [T-10032](../tds/adminServer/T-10032.md) | T-00065~68 | TDD | Todo | - | - | - |

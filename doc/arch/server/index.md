@@ -26,6 +26,8 @@ Server 端基于 Rust + Axum 构建。启动骨架（配置、日志、健康检
 - 🎁 [礼物模块架构](./gift.md) - 礼物配置表与列表 API（T-00019）、国际化支持（Accept-Language）、缓存策略（60s 进程内存）、`GiftModel` 数据模型；SendGift 事务编排（T-00020）、6 步强事务流程、msg_id 幂等、并发超扣防护、房间广播与发送者推送；**HTTP 礼物端点 POST /api/v1/gifts/send**（T-00044）、Idempotency-Key 幂等、错误码与 WS 对齐、广播+榜单同步执行、9 HTTP+12 WS 测试全绿。
 - 📊 [Analytics 模块架构](./analytics.md) - 事件表 Schema + 分区设计（T-00022）、HTTP `POST /api/v1/events/batch` 批量接收接口、PartitionScheduler 定时分区创建 + 补偿逻辑；WebSocket `ReportEvent` 信令（T-00023）与 EventWriter 共享写入层、JWT user_id 覆盖逻辑、properties 8KB 截断机制。
 - 🏠 [Room HTTP API 架构](./room.md) - `POST /api/v1/rooms` 扩展字段（`cover_url`/`category`/`announcement`/`password`）与白名单校验（T-00025）；`PATCH /api/v1/rooms/:id` 房主更新接口；`RoomInfoUpdated` WS 广播格式（含 `has_password` 布尔）；`validator.rs` 四个验证函数设计；遗留 MEDIUM 项（`BroadcastEnvelope` 缺 `msg_id`）。
+- 💳 [支付模块架构 E-08](./payment.md) - Google Play In-App Billing 完整闭环（T-00050~55）：订单/SKU schema、创建订单 + 风控、Google 验签 + 强事务入账、RTDN 异步对账 + RS256 验签、订单超时 cron 推进、dev/staging mock 通道（feature flag + production panic 红线）。
+- 👑 [贵族体系架构 E-09](./nobility.md) - 6 档贵族等级系统（T-00065~70）：tier schema + 用户贵族生命周期、购买/续费/升级强事务、自动续费 cron + 3-strike 失败关闭、进场特效广播（LV3+ 房间内、LV5+ 全服 Pub/Sub）、特权钩子绑定（隐身/折扣/免密/抢麦权重/月津贴）、GlobalBroadcastPort 防腐层 stub。
 
 ## 🔌 协议入口索引 (Protocol Entry Index)
 
