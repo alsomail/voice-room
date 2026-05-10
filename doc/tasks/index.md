@@ -12,6 +12,7 @@
 | 版本 | 日期 | 变更内容 |
 |------|------|---------|
 | **v3.28** | **2026-05-10** | [T-00050~55 TDD Round3 ✅] 修复dev_mock trait签名编译(P0)+RTDN RS256验签(HIGH)，状态TDD→Review |
+| **v3.28** | **2026-05-10** | [T-00065~70 Review ❌] 模块11 Server端贵族体系Round2审查打回：T-00065~68通过；T-00069 P0(NobleEntranceGlobal无stub)+ HIGH(NobleEntered payload缺scope/duration_ms等字段)；T-00070 HIGH(bypass_password调用can_trigger_global_broadcast语义错误)；T-00069/70状态Review→TDD |
 | **v3.27** | **2026-05-11** | [T-00065~70 TDD Round2 ✅] 模块11 Server端贵族体系 Round2 TDD完成（548→602 lib tests，+54，0失败）：diamonds→percent字段修复、SQL种子+CHECK约束、BalanceUpdated/NobleChanged WS信令、hourly cron注册、NobleEntered广播(LV3+)、观众席隐身过滤(MembersNobilityPort)、duke/king密码房免密、礼物折扣单测；状态TDD→Review |
 | **v3.26** | **2026-05-10** | [T-00050~55 Review ❌] 模块10 Server端支付Round2审查打回：P0-6 dev_payment_mock feature仍编译失败（E0061：controller.rs:181 传4参数但Trait仅接受2参数，且user_id类型Uuid≠i64）；P0-1~5/P0-7已确认修复；状态Review→TDD |
 | **v3.25** | **2026-05-11** | [T-00050~55 TDD Round2 ✅] 模块10 Server端支付 Round2 TDD完成（591 lib tests，0失败）：RTDN OIDC验签、状态机守卫、幂等修复、cron超时扫描、dev_mock编译修复、schema测试对齐；状态TDD→Review |
@@ -504,7 +505,7 @@
 
 #### [模块 11: 贵族体系 (E-09)](./模块11-贵族体系%20(E-09).md)
 
-> 共 17 Tasks ≈ 104h；产品方向 [phase1_nobility.md](../product/phase1_nobility.md)；协议契约 [nobility_api.md](../protocol/nobility_api.md)；Android 设计稿 [T-30070.md](../design/android/T-30070.md) / [T-30072.md](../design/android/T-30072.md)；**Server 端 T-00065~70 Round2 TDD→Review（602 tests，+54）；其余 11 Tasks 仍处 TDD 阶段**。
+> 共 17 Tasks ≈ 104h；产品方向 [phase1_nobility.md](../product/phase1_nobility.md)；协议契约 [nobility_api.md](../protocol/nobility_api.md)；Android 设计稿 [T-30070.md](../design/android/T-30070.md) / [T-30072.md](../design/android/T-30072.md)；**Server 端 T-00065~68 Round2 Review ✅（通过）；T-00069/70 Review ❌ 打回→TDD（NobleEntranceGlobal无stub + NobleEntered scope缺失 + bypass_password语义错误）；其余 11 Tasks 仍处 TDD 阶段**。
 
 | Task ID | 前置依赖 | 研发负责人 | 研发状态 | Review Gate | QA Gate | Overall Gate |
 |---------|---------|-----------|---------|-------------|---------|--------------|
@@ -512,8 +513,8 @@
 | [T-00066](../tds/server/T-00066.md) | T-00065 | TDD | Review | - | - | - |
 | [T-00067](../tds/server/T-00067.md) | T-00066 / E-08 | TDD | Review | - | - | - |
 | [T-00068](../tds/server/T-00068.md) | T-00067 | TDD | Review | - | - | - |
-| [T-00069](../tds/server/T-00069.md) | T-00067 | TDD | Review | - | - | - |
-| [T-00070](../tds/server/T-00070.md) | T-00065~69 | TDD | Review | - | - | - |
+| [T-00069](../tds/server/T-00069.md) | T-00067 | TDD | TDD | - | - | - |
+| [T-00070](../tds/server/T-00070.md) | T-00065~69 | TDD | TDD | - | - | - |
 | [T-10030](../tds/adminServer/T-10030.md) | T-00065 | TDD | Todo | - | - | - |
 | [T-10031](../tds/adminServer/T-10031.md) | T-00067 | TDD | Todo | - | - | - |
 | [T-10032](../tds/adminServer/T-10032.md) | T-00065~68 | TDD | Todo | - | - | - |
