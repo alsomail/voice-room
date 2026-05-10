@@ -12,11 +12,15 @@
 pub mod controller;
 pub mod cron;
 pub mod dto;
+pub mod global_broadcast;
 pub mod privileges;
 pub mod purchase;
 pub mod routes;
 pub mod service;
 
+pub use global_broadcast::FakeGlobalBroadcast;
+pub use global_broadcast::GlobalBroadcastPort;
 pub use routes::nobility_routes;
-pub use service::NobilityServicePort;
+pub use service::DukeNobilityService;
 pub use service::FakeNobilityService;
+pub use service::NobilityServicePort;

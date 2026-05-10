@@ -162,7 +162,46 @@ impl NobilityServicePort for FakeNobilityService {
     }
 }
 
-// ─── 单元测试 ─────────────────────────────────────────────────────────────────
+// ─── DukeNobilityService（duke LV5 测试替身） ────────────────────────────────
+
+/// 始终返回 duke (LV5) 贵族信息
+/// （供 NS-06b 验证 UserNobleDto 新字段；也供 service.rs 单测使用）
+pub struct DukeNobilityService;
+
+#[async_trait]
+impl NobilityServicePort for DukeNobilityService {
+    async fn list_tiers(&self, lang: &str) -> Result<ListTiersResponse, AppError> {
+        FakeNobilityService.list_tiers(lang).await
+    }
+    async fn get_my_noble(&self, user_id: Uuid, lang: &str) -> Result<MyNobleResponse, AppError> {
+        FakeNobilityService.get_my_noble(user_id, lang).await
+    }
+    async fn purchase(
+        &self,
+        user_id: Uuid,
+        req: PurchaseRequest,
+    ) -> Result<PurchaseResponse, AppError> {
+        FakeNobilityService.purchase(user_id, req).await
+    }
+    async fn get_user_noble_dto(&self, _user_id: Uuid) -> Option<UserNobleDto> {
+        Some(UserNobleDto {
+            tier_id: "duke".to_string(),
+            level: 5,
+            badge_color: "#06B6D4".to_string(),
+            frame_url: "https://cdn.test/duke_frame.png".to_string(),
+            expire_at: chrono::Utc::now() + chrono::Duration::days(30),
+            entrance_animation_url: Some("https://cdn.test/duke_entry.json".to_string()),
+            bgm_url: Some("https://cdn.test/duke_bgm.mp3".to_string()),
+            scope: "fullscreen".to_string(),
+            duration_ms: 6000,
+            bypass_password_enabled: true,
+        })
+    }
+    async fn set_auto_renew(&self, _user_id: Uuid, enabled: bool) -> Result<bool, AppError> {
+        Ok(enabled)
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -306,5 +345,21 @@ mod tests {
         assert_eq!(signal["payload"]["to_tier"], "duke");
         assert_eq!(signal["payload"]["operation"], "purchase");
         assert!(signal["timestamp"].is_number());
+    }
+
+    // NS-12: DukeNobilityService.get_user_noble_dto 返回 duke 贵族且含新字段（T-00069/70 Round3）
+    #[tokio::test]
+    async fn ns12_duke_service_returns_full_noble_dto() {
+        let svc = DukeNobilityService;
+        let dto = svc.get_user_noble_dto(Uuid::new_v4()).await.unwrap();
+        assert_eq!(dto.tier_id, "duke");
+        assert_eq!(dto.level, 5);
+        assert_eq!(dto.scope, "fullscreen", "duke scope should be fullscreen");
+        assert_eq!(dto.duration_ms, 6000, "duke duration_ms should be 6000");
+        assert!(
+            dto.entrance_animation_url.is_some(),
+            "duke entrance_animation_url should be Some"
+        );
+        assert!(dto.bypass_password_enabled, "duke bypass_password_enabled should be true");
     }
 }

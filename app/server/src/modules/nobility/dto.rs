@@ -135,7 +135,7 @@ pub struct AutoRenewResponse {
 
 // ─── Noble field for UserJoined/MemberSnapshot (T-00069) ─────────────────────
 
-/// UserJoined.noble 字段（§10.4.7）
+/// UserJoined.noble 字段（§10.4.7）及 NobleEntered payload 基础（§10.4.5）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserNobleDto {
     pub tier_id: String,
@@ -143,6 +143,32 @@ pub struct UserNobleDto {
     pub badge_color: String,
     pub frame_url: String,
     pub expire_at: DateTime<Utc>,
+
+    // ── NEW §10.4.5: NobleEntered 进场特效字段 ──────────────────────────────
+    /// 进场动画 URL（LV3+ 非空；§10.2.1）
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub entrance_animation_url: Option<String>,
+    /// 进场 BGM URL（LV2+ 非空；§10.2.1）
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bgm_url: Option<String>,
+    /// 进场动画范围（§10.4.5）：`marquee`(LV3) | `half`(LV4) | `fullscreen`(LV5-6)
+    #[serde(default = "default_entry_scope")]
+    pub scope: String,
+    /// 动画时长毫秒（§10.4.5）；默认 5000
+    #[serde(default = "default_entry_duration_ms")]
+    pub duration_ms: i64,
+
+    // ── NEW §T-00070: 密码房免密特权 ─────────────────────────────────────────
+    /// 是否可绕过密码验证（来自 `privileges.bypass_password.enabled`；§10.4.5）
+    #[serde(default)]
+    pub bypass_password_enabled: bool,
+}
+
+fn default_entry_scope() -> String {
+    "marquee".to_string()
+}
+fn default_entry_duration_ms() -> i64 {
+    5000
 }
 
 #[cfg(test)]
@@ -230,10 +256,18 @@ mod tests {
             badge_color: "#DC2626".to_string(),
             frame_url: "https://cdn/king_frame.png".to_string(),
             expire_at: Utc::now(),
+            entrance_animation_url: Some("https://cdn/king_entry.json".to_string()),
+            bgm_url: Some("https://cdn/king_bgm.mp3".to_string()),
+            scope: "fullscreen".to_string(),
+            duration_ms: 8000,
+            bypass_password_enabled: true,
         };
         let json = serde_json::to_value(&noble).unwrap();
         assert_eq!(json["tier_id"], "king");
         assert_eq!(json["level"], 6);
+        assert_eq!(json["scope"], "fullscreen");
+        assert_eq!(json["duration_ms"], 8000);
+        assert_eq!(json["bypass_password_enabled"], true);
     }
 
     // DTO-05: purchase handler WS signal — NobleChanged 信令格式验证

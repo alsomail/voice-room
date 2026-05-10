@@ -123,6 +123,58 @@ mod tests {
             &self,
             user_id: uuid::Uuid,
         ) -> Option<crate::modules::nobility::dto::UserNobleDto> {
+            use chrono::Duration;
+            // scope 按 level 推断（§10.4.5 协议）
+            let scope = match self.level {
+                3 => "marquee",
+                4 => "half",
+                5 | 6 => "fullscreen",
+                _ => "marquee",
+            };
+            // duration_ms 按 level 映射（level * 1000 + 2000 为合理默认）
+            let duration_ms: i64 = match self.level {
+                3 => 3000,
+                4 => 5000,
+                5 => 6000,
+                6 => 8000,
+                _ => 5000,
+            };
+            // bypass_password_enabled: duke(5)/king(6) = true（协议 §10.2.4）
+            let bypass_password_enabled = self.level >= 5;
+            // entrance_animation_url: LV3+
+            let entrance_animation_url = if self.level >= 3 {
+                Some(format!(
+                    "https://cdn.example.com/{}_entry.json",
+                    match self.level {
+                        1 => "knight",
+                        2 => "baron",
+                        3 => "viscount",
+                        4 => "earl",
+                        5 => "duke",
+                        6 => "king",
+                        _ => "knight",
+                    }
+                ))
+            } else {
+                None
+            };
+            // bgm_url: LV2+
+            let bgm_url = if self.level >= 2 {
+                Some(format!(
+                    "https://cdn.example.com/{}_bgm.mp3",
+                    match self.level {
+                        1 => "knight",
+                        2 => "baron",
+                        3 => "viscount",
+                        4 => "earl",
+                        5 => "duke",
+                        6 => "king",
+                        _ => "knight",
+                    }
+                ))
+            } else {
+                None
+            };
             Some(crate::modules::nobility::dto::UserNobleDto {
                 tier_id: match self.level {
                     1 => "knight",
@@ -137,7 +189,12 @@ mod tests {
                 level: self.level,
                 badge_color: "#gold".to_string(),
                 frame_url: "https://cdn.example.com/frame.png".to_string(),
-                expire_at: chrono::Utc::now() + chrono::Duration::days(30),
+                expire_at: chrono::Utc::now() + Duration::days(30),
+                entrance_animation_url,
+                bgm_url,
+                scope: scope.to_string(),
+                duration_ms,
+                bypass_password_enabled,
             })
         }
     }
@@ -260,6 +317,7 @@ mod tests {
             jwt_secret: "test-secret".to_string(),
             kick_redis: None,
             nobility_service: None,
+            global_broadcast: None,
         }
     }
 
@@ -2010,6 +2068,7 @@ mod tests {
             jwt_secret: "test-secret".to_string(),
             kick_redis: None,
             nobility_service: None,
+            global_broadcast: None,
         };
 
         let response = handle_join_room(
@@ -2475,6 +2534,7 @@ mod tests {
             jwt_secret: "test-secret".to_string(),
             kick_redis: None,
             nobility_service: Some(Arc::new(FakeNobleService { level: 3 })), // viscount LV3
+            global_broadcast: None,
         };
 
         let resp = handle_join_room(
@@ -2535,6 +2595,7 @@ mod tests {
             jwt_secret: "test-secret".to_string(),
             kick_redis: None,
             nobility_service: Some(Arc::new(FakeNobleService { level: 1 })), // knight LV1
+            global_broadcast: None,
         };
 
         handle_join_room(
@@ -2583,6 +2644,7 @@ mod tests {
             jwt_secret: "test-secret".to_string(),
             kick_redis: None,
             nobility_service: None, // no nobility service → no NobleEntered
+            global_broadcast: None,
         };
 
         handle_join_room(
@@ -2618,6 +2680,7 @@ mod tests {
             jwt_secret: "test-secret".to_string(),
             kick_redis: None,
             nobility_service: Some(Arc::new(FakeNobleService { level: 5 })), // duke LV5
+            global_broadcast: None,
         };
 
         // 无 access_token，但 duke 可绕过密码
@@ -2659,6 +2722,7 @@ mod tests {
             jwt_secret: "test-secret".to_string(),
             kick_redis: None,
             nobility_service: Some(Arc::new(FakeNobleService { level: 1 })), // knight LV1
+            global_broadcast: None,
         };
 
         // 无 access_token，knight 不能绕过密码
@@ -2675,6 +2739,225 @@ mod tests {
         assert_eq!(
             json["code"], 40104,
             "T-00070: knight LV1 should NOT bypass password room, got: {json}"
+        );
+    }
+
+    // T-00069 Round3: NobleEntered payload 必须包含协议 §10.4.5 要求的所有字段（扁平结构）
+    #[tokio::test]
+    async fn t69_noble_entered_payload_has_required_fields() {
+        let room_id = Uuid::new_v4();
+        let user_id = Uuid::new_v4();
+        let room_manager = Arc::new(RoomManager::new());
+        let room_service = room_service_with(room_id);
+        let auth_service = auth_service_with(user_id, "ViscountUser");
+        let registry = Arc::new(ConnectionRegistry::new());
+        let stats: Arc<dyn StatsPort> = Arc::new(FakeStatsService::default());
+
+        // 注册一个房间内旁观者，用于接收广播
+        let observer_id = Uuid::new_v4();
+        let (_, mut observer_rx) = register_connection(&registry, observer_id, Some(room_id));
+        room_manager.get_or_create_room(room_id).members.insert(
+            observer_id,
+            MemberInfo::new(observer_id, "Observer".into(), None),
+        );
+        registry.set_room_id(
+            {
+                let (obs_conn, _) = register_connection(&registry, observer_id, None);
+                obs_conn
+            },
+            room_id,
+        );
+
+        let (conn_id, _rx) = register_connection(&registry, user_id, None);
+
+        let deps = JoinRoomDeps {
+            room_manager: room_manager.clone(),
+            room_service,
+            auth_service,
+            registry: registry.clone(),
+            stats,
+            jwt_secret: "test-secret".to_string(),
+            kick_redis: None,
+            nobility_service: Some(Arc::new(FakeNobleService { level: 3 })), // viscount LV3
+            global_broadcast: None,
+        };
+
+        let resp = handle_join_room(
+            join_payload(room_id),
+            Some("msg-69-payload".to_string()),
+            conn_id,
+            user_id,
+            &deps,
+        )
+        .await;
+
+        let join_json: serde_json::Value = serde_json::from_str(&resp).unwrap();
+        assert_eq!(join_json["code"], 0, "T-00069: join should succeed");
+
+        // 从旁观者收到的广播中找 NobleEntered 消息
+        let mut noble_payload: Option<serde_json::Value> = None;
+        while let Ok(msg) = observer_rx.try_recv() {
+            if let Ok(v) = serde_json::from_str::<serde_json::Value>(&msg) {
+                if v["type"].as_str() == Some("NobleEntered") {
+                    noble_payload = Some(v["payload"].clone());
+                    break;
+                }
+            }
+        }
+
+        let payload = noble_payload.expect("T-00069: should receive NobleEntered broadcast");
+
+        // 验证 §10.4.5 要求的扁平字段存在且不在嵌套的 "noble" 对象下
+        assert!(
+            payload.get("tier_id").is_some(),
+            "§10.4.5: NobleEntered.payload must have top-level 'tier_id'"
+        );
+        assert!(
+            payload.get("level").is_some(),
+            "§10.4.5: NobleEntered.payload must have top-level 'level'"
+        );
+        assert!(
+            payload.get("scope").is_some(),
+            "§10.4.5: NobleEntered.payload must have top-level 'scope'"
+        );
+        assert!(
+            payload.get("duration_ms").is_some(),
+            "§10.4.5: NobleEntered.payload must have top-level 'duration_ms'"
+        );
+        assert!(
+            payload.get("entrance_animation_url").is_some(),
+            "§10.4.5: NobleEntered.payload must have top-level 'entrance_animation_url'"
+        );
+        assert!(
+            payload.get("bgm_url").is_some(),
+            "§10.4.5: NobleEntered.payload must have top-level 'bgm_url'"
+        );
+        assert!(
+            payload.get("marquee_text_en").is_some(),
+            "§10.4.5: NobleEntered.payload must have top-level 'marquee_text_en'"
+        );
+        assert!(
+            payload.get("marquee_text_ar").is_some(),
+            "§10.4.5: NobleEntered.payload must have top-level 'marquee_text_ar'"
+        );
+        // 不应嵌套在 "noble" 子对象下（旧错误格式）
+        assert!(
+            payload.get("noble").is_none(),
+            "§10.4.5: NobleEntered.payload must NOT nest fields under 'noble' key"
+        );
+
+        // 验证字段值正确（viscount=LV3: scope=marquee, duration_ms=3000）
+        assert_eq!(
+            payload["tier_id"].as_str(),
+            Some("viscount"),
+            "§10.4.5: tier_id should be 'viscount'"
+        );
+        assert_eq!(
+            payload["level"].as_i64(),
+            Some(3),
+            "§10.4.5: level should be 3"
+        );
+        assert_eq!(
+            payload["scope"].as_str(),
+            Some("marquee"),
+            "§10.4.5: scope for LV3 should be 'marquee'"
+        );
+        assert_eq!(
+            payload["duration_ms"].as_i64(),
+            Some(3000),
+            "§10.4.5: duration_ms for LV3 should be 3000"
+        );
+    }
+
+    // T-00069 Round3: duke(LV5) 进房时触发 NobleEntranceGlobal（§10.4.6）
+    #[tokio::test]
+    async fn t69_duke_triggers_global_broadcast() {
+        use crate::modules::nobility::FakeGlobalBroadcast;
+        use std::sync::Arc;
+
+        let room_id = Uuid::new_v4();
+        let user_id = Uuid::new_v4();
+        let room_manager = Arc::new(RoomManager::new());
+        let room_service = room_service_with(room_id);
+        let auth_service = auth_service_with(user_id, "DukeUser");
+        let registry = Arc::new(ConnectionRegistry::new());
+        let stats: Arc<dyn StatsPort> = Arc::new(FakeStatsService::default());
+
+        let (conn_id, _rx) = register_connection(&registry, user_id, None);
+
+        let fake_gb = Arc::new(FakeGlobalBroadcast::new());
+
+        let deps = JoinRoomDeps {
+            room_manager: room_manager.clone(),
+            room_service,
+            auth_service,
+            registry: registry.clone(),
+            stats,
+            jwt_secret: "test-secret".to_string(),
+            kick_redis: None,
+            nobility_service: Some(Arc::new(FakeNobleService { level: 5 })), // duke LV5
+            global_broadcast: Some(fake_gb.clone()),
+        };
+
+        let resp = handle_join_room(
+            join_payload(room_id),
+            Some("msg-69-gb".to_string()),
+            conn_id,
+            user_id,
+            &deps,
+        )
+        .await;
+
+        let json: serde_json::Value = serde_json::from_str(&resp).unwrap();
+        assert_eq!(json["code"], 0, "T-00069: duke join should succeed");
+
+        // §10.4.6：duke(LV5) 应触发一次 NobleEntranceGlobal
+        assert_eq!(
+            fake_gb.published_count(),
+            1,
+            "§10.4.6: duke(LV5) must trigger exactly 1 global broadcast"
+        );
+    }
+
+    // T-00070 Round3: earl(LV4, bypass_password_enabled=false) 进入密码房仍需 access_token
+    #[tokio::test]
+    async fn t70_earl_cannot_bypass_password_room() {
+        let room_id = Uuid::new_v4();
+        let user_id = Uuid::new_v4();
+        let room_manager = Arc::new(RoomManager::new());
+        let room_service = password_room_service_with(room_id);
+        let auth_service = auth_service_with(user_id, "EarlUser");
+        let registry = Arc::new(ConnectionRegistry::new());
+        let stats: Arc<dyn StatsPort> = Arc::new(FakeStatsService::default());
+
+        let (conn_id, _rx) = register_connection(&registry, user_id, None);
+
+        let deps = JoinRoomDeps {
+            room_manager: room_manager.clone(),
+            room_service,
+            auth_service,
+            registry: registry.clone(),
+            stats,
+            jwt_secret: "test-secret".to_string(),
+            kick_redis: None,
+            nobility_service: Some(Arc::new(FakeNobleService { level: 4 })), // earl LV4
+            global_broadcast: None,
+        };
+
+        // 无 access_token，earl(LV4) bypass_password_enabled=false → 拒绝进入
+        let resp = handle_join_room(
+            join_payload(room_id), // no access_token
+            Some("msg-70-earl".to_string()),
+            conn_id,
+            user_id,
+            &deps,
+        )
+        .await;
+
+        let json: serde_json::Value = serde_json::from_str(&resp).unwrap();
+        assert_eq!(
+            json["code"], 40104,
+            "T-00070: earl(LV4) must NOT bypass password room — bypass_password_enabled=false, got: {json}"
         );
     }
 }

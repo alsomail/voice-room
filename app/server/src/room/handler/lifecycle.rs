@@ -23,6 +23,7 @@ use voice_room_shared::auth::room_access::decode_room_access_token;
 
 use crate::modules::auth::service::AuthService;
 use crate::modules::governance::kick::KickRedis;
+use crate::modules::nobility::global_broadcast::GlobalBroadcastPort;
 use crate::modules::nobility::NobilityServicePort;
 use crate::modules::room::service::RoomService;
 use crate::room::mic_lock::MicLock;
@@ -50,6 +51,8 @@ pub struct JoinRoomDeps {
     pub kick_redis: Option<Arc<dyn KickRedis>>,
     /// 贵族服务（T-00069 UserJoined 广播携带 noble 字段）；None = 跳过
     pub nobility_service: Option<Arc<dyn NobilityServicePort>>,
+    /// 全服广播端口（T-00069 §10.4.6 NobleEntranceGlobal）；None = 跳过（无 Redis）
+    pub global_broadcast: Option<Arc<dyn GlobalBroadcastPort>>,
 }
 
 // ─── handle_join_room ────────────────────────────────────────────────────────
@@ -77,6 +80,7 @@ pub async fn handle_join_room(
         jwt_secret,
         kick_redis,
         nobility_service,
+        global_broadcast,
     } = deps;
 
     // ── 1. 解析 room_id ───────────────────────────────────────────────────────
@@ -120,14 +124,16 @@ pub async fn handle_join_room(
     }
 
     // ── 3. 密码房：校验 access_token（T-00026）──────────────────────────────
-    // T-00070: LV5+ duke/king 可绕过密码验证（bypass_password 特权）
-    // 先检查贵族特权，若满足则跳过 token 验证
+    // T-00070: duke/king 可绕过密码验证（bypass_password.enabled=true）
+    // 使用 UserNobleDto.bypass_password_enabled 判断（语义正确，由 privileges 配置驱动）
     if room_detail.room_type == "password" {
         let can_bypass = if let Some(svc) = nobility_service.as_ref() {
             if let Some(noble) = svc.get_user_noble_dto(user_id).await {
-                let level = noble.level;
-                // duke(LV5) / king(LV6) 有 bypass_password 特权
-                crate::modules::nobility::privileges::can_trigger_global_broadcast(level)
+                // ✅ T-00070 Round3: 使用 bypass_password_enabled 而非 can_trigger_global_broadcast
+                // 两者当前都检查 level>=5，但语义不同：
+                //   - bypass_password_enabled: 来自 privileges.bypass_password.enabled（配置驱动）
+                //   - can_trigger_global_broadcast: §10.4.6 全服广播条件（无关密码）
+                noble.bypass_password_enabled
             } else {
                 false
             }
@@ -253,21 +259,49 @@ pub async fn handle_join_room(
 
     // ── 8.1 T-00069: NobleEntered 广播（LV3+ viscount/earl/duke/king）────────────
     // 协议 §10.4.5：当进房用户贵族等级 >= 3 时，向房间广播 NobleEntered 信令。
+    // payload 严格按 §10.4.5 schema：scope/duration_ms/entrance_animation_url/bgm_url/marquee 全填
     if let Some(ref noble) = noble_dto {
         let level = noble.level;
         if crate::modules::nobility::privileges::should_broadcast_noble_entered(level) {
+            // 根据 level 推断 scope（若 UserNobleDto.scope 为默认值，兜底推断）
+            let scope = if noble.scope == "marquee" && level >= 5 {
+                "fullscreen".to_string()
+            } else if noble.scope == "marquee" && level == 4 {
+                "half".to_string()
+            } else {
+                noble.scope.clone()
+            };
             let entered_envelope = serde_json::json!({
                 "type": "NobleEntered",
                 "msg_id": uuid::Uuid::new_v4().to_string(),
                 "payload": {
                     "user_id": user_id.to_string(),
                     "nickname": nickname,
-                    "avatar": avatar,
-                    "noble": noble,
+                    "avatar_url": avatar,
+                    "tier_id": noble.tier_id,
+                    "level": noble.level,
+                    "scope": scope,
+                    "duration_ms": noble.duration_ms,
+                    "entrance_animation_url": noble.entrance_animation_url,
+                    "bgm_url": noble.bgm_url,
+                    "marquee_text_en": format!("{} has entered!", nickname),
+                    "marquee_text_ar": format!("دخل {}!", nickname),
+                    "frame_url": noble.frame_url,
+                    "badge_color": noble.badge_color,
                 },
                 "timestamp": chrono::Utc::now().timestamp_millis(),
             });
             crate::ws::broadcaster::broadcast_to_room(registry, &room_state, entered_envelope);
+        }
+
+        // ── 8.2 T-00069 §10.4.6: NobleEntranceGlobal（LV5+ duke/king 全服广播）─────
+        // 通过 GlobalBroadcastPort 发布（频控由 Port 实现控制）
+        if crate::modules::nobility::global_broadcast::can_trigger_global_broadcast_for_level(level) {
+            if let Some(ref gb) = global_broadcast {
+                let _ = gb
+                    .try_publish_noble_entrance(user_id, &noble.tier_id, noble.level, &nickname)
+                    .await;
+            }
         }
     }
 

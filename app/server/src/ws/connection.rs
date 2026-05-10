@@ -290,6 +290,7 @@ pub async fn handle_socket(
                                         jwt_secret: jwt_secret.clone(),
                                         kick_redis: Some(kick_redis.clone()),
                                         nobility_service: Some(nobility_service.clone()),
+                                        global_broadcast: None,
                                     };
                                     Some(
                                         crate::room::handler::handle_join_room(
