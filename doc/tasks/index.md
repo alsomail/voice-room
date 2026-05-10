@@ -1,6 +1,6 @@
 # Voice Room 开发任务清单
 
-> **版本**: v3.23
+> **版本**: v3.24
 > **更新日期**: 2026-05-10
 > **任务总数**: 217 个 (基建: 4 + 14 + 3 + 6, App Server: 33 + 1 + 2 + 1, Admin Server: 16 + 1 + 1, Web: 14 + 1 + 1, Android: 45 + 1 + 1 + 1 + 1, E-07 15 + E-07.5 6 + E-10 18; **新增 E-08 18 + E-09 17 + E-11 19 + E-12 14 = 68**)  
 > **当前阶段**: Phase 1 → … → Phase 1.7 协议治理铁律落地 → **Phase 1.7-extended 协议字段全量冻结**（WS + HTTP REST + Redis Pub/Sub 三协议层 schema 机器可读 + 字段级 CI 审计 + Android×Server 跨语言 E2E）
@@ -11,6 +11,7 @@
 
 | 版本 | 日期 | 变更内容 |
 |------|------|---------|
+| **v3.24** | **2026-05-10** | [T-00065~70 Review Fail ❌] 模块11 Server端贵族体系审查打回：monthly_stipend 字段/种子错误、NobleChanged/Entered/EntranceGlobal 缺失、cron 未注册、CHECK 未绑定；状态 Review→TDD |
 | **v3.23** | **2026-05-10** | [T-00050~55 Review Fail ❌] 模块10 Server端支付审查打回：RTDN 端点未验签可伪造、verify 并发双充/终态回退、RTDN 幂等与时间戳错误、超时订单未终态推进、dev_mock feature 编译失败、schema 测试失配；状态 Review→TDD |
 | **v3.22** | **2026-05-10** | [T-00050~55 TDD ✅] 模块10 Server端支付模块 6 Task TDD完成（548+15集成测试，0失败），状态TDD→Review；13文件+1迁移+2测试文件 |
 | **v3.21** | **2026-05-10** | [T-00065~70 TDD ✅] 模块11 Server端贵族体系 6 Task TDD完成（548+47测试全绿），状态TDD→Review；修改文件22个+2283行 |
@@ -499,16 +500,16 @@
 
 #### [模块 11: 贵族体系 (E-09)](./模块11-贵族体系%20(E-09).md)
 
-> 共 17 Tasks ≈ 104h；产品方向 [phase1_nobility.md](../product/phase1_nobility.md)；协议契约 [nobility_api.md](../protocol/nobility_api.md)；Android 设计稿 [T-30070.md](../design/android/T-30070.md) / [T-30072.md](../design/android/T-30072.md)；**Server 端 T-00065~70 已进入 Review，其余 11 Tasks 仍处 TDD 阶段**。
+> 共 17 Tasks ≈ 104h；产品方向 [phase1_nobility.md](../product/phase1_nobility.md)；协议契约 [nobility_api.md](../protocol/nobility_api.md)；Android 设计稿 [T-30070.md](../design/android/T-30070.md) / [T-30072.md](../design/android/T-30072.md)；**Server 端 T-00065~70 Review Round1 已打回并回退至 TDD，其余 11 Tasks 仍处 TDD 阶段**。
 
 | Task ID | 前置依赖 | 研发负责人 | 研发状态 | Review Gate | QA Gate | Overall Gate |
 |---------|---------|-----------|---------|-------------|---------|--------------|
-| [T-00065](../tds/server/T-00065.md) | E-07 ✅ | Review | In Progress | - | - | - |
-| [T-00066](../tds/server/T-00066.md) | T-00065 | Review | In Progress | - | - | - |
-| [T-00067](../tds/server/T-00067.md) | T-00066 / E-08 | Review | In Progress | - | - | - |
-| [T-00068](../tds/server/T-00068.md) | T-00067 | Review | In Progress | - | - | - |
-| [T-00069](../tds/server/T-00069.md) | T-00067 | Review | In Progress | - | - | - |
-| [T-00070](../tds/server/T-00070.md) | T-00065~69 | Review | In Progress | - | - | - |
+| [T-00065](../tds/server/T-00065.md) | E-07 ✅ | TDD | In Progress | - | - | - |
+| [T-00066](../tds/server/T-00066.md) | T-00065 | TDD | In Progress | - | - | - |
+| [T-00067](../tds/server/T-00067.md) | T-00066 / E-08 | TDD | In Progress | - | - | - |
+| [T-00068](../tds/server/T-00068.md) | T-00067 | TDD | In Progress | - | - | - |
+| [T-00069](../tds/server/T-00069.md) | T-00067 | TDD | In Progress | - | - | - |
+| [T-00070](../tds/server/T-00070.md) | T-00065~69 | TDD | In Progress | - | - | - |
 | [T-10030](../tds/adminServer/T-10030.md) | T-00065 | TDD | Todo | - | - | - |
 | [T-10031](../tds/adminServer/T-10031.md) | T-00067 | TDD | Todo | - | - | - |
 | [T-10032](../tds/adminServer/T-10032.md) | T-00065~68 | TDD | Todo | - | - | - |
