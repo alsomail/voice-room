@@ -130,12 +130,14 @@ pub async fn rtdn_webhook_handler(
         .and_then(|s| s.strip_prefix("Bearer "))
         .unwrap_or("");
 
-    // 验证 OIDC token（empty audience/secret → dev mode, skip）
+    // 验证 OIDC token（empty audience → dev mode, skip; production 从 Google JWKS 获取 RS256 公钥）
     if let Err(e) = validate_rtdn_oidc_token(
         bearer_token,
         &state.rtdn_audience,
-        state.rtdn_oidc_secret.as_bytes(),
-    ) {
+        None, // 生产路径：从 Google JWKS 端点获取 RS256 公钥
+    )
+    .await
+    {
         tracing::warn!(
             message_id = %envelope.message.message_id,
             "RTDN OIDC validation failed, rejecting"

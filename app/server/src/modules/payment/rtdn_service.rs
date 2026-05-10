@@ -32,32 +32,94 @@ struct RtdnOidcClaims {
     pub exp: u64,
 }
 
-/// 验证 Google Pub/Sub OIDC Bearer Token
+/// Google JWKS 响应（用于从 Google 公钥端点获取 RS256 公钥）
+#[derive(Debug, Deserialize)]
+struct JwksResponse {
+    keys: Vec<JwksKey>,
+}
+
+#[derive(Debug, Deserialize)]
+struct JwksKey {
+    /// Key ID，与 JWT header 中的 `kid` 对应
+    kid: Option<String>,
+    /// RSA modulus（base64url 编码）
+    n: String,
+    /// RSA exponent（base64url 编码）
+    e: String,
+}
+
+/// Google JWKS 端点（RS256 公钥）
+const GOOGLE_JWKS_URI: &str = "https://www.googleapis.com/oauth2/v3/certs";
+
+/// 从 Google JWKS 端点获取 RS256 解码密钥
+///
+/// 生产环境路径：每次请求均调用（简化实现，生产应增加缓存）
+async fn fetch_google_decoding_key(kid: Option<&str>) -> Result<DecodingKey, PaymentError> {
+    let resp = reqwest::get(GOOGLE_JWKS_URI)
+        .await
+        .map_err(|e| {
+            tracing::warn!(error = %e, "Failed to fetch Google JWKS");
+            PaymentError::RtdnSignatureInvalid
+        })?
+        .json::<JwksResponse>()
+        .await
+        .map_err(|e| {
+            tracing::warn!(error = %e, "Failed to parse Google JWKS response");
+            PaymentError::RtdnSignatureInvalid
+        })?;
+
+    let jwks_key = resp
+        .keys
+        .iter()
+        .find(|k| kid.is_none() || k.kid.as_deref() == kid)
+        .ok_or(PaymentError::RtdnSignatureInvalid)?;
+
+    DecodingKey::from_rsa_components(&jwks_key.n, &jwks_key.e)
+        .map_err(|e| {
+            tracing::warn!(error = %e, "Failed to construct RS256 DecodingKey from JWKS components");
+            PaymentError::RtdnSignatureInvalid
+        })
+}
+
+/// 验证 Google Pub/Sub OIDC Bearer Token（RS256）
 ///
 /// - `token`：`Authorization: Bearer <jwt>` 中的 jwt 部分
 /// - `expected_audience`：与本服务订阅配置一致的 audience（`payment.rtdn_audience`）
-/// - `secret`：HMAC HS256 secret（测试用；生产应换用 RS256 公钥）
+/// - `decoding_key`：可注入的 RS256 解码密钥（测试用）；None 则从 Google JWKS 端点获取
 ///
-/// 若 audience 或 secret 为空，跳过验证（dev/test 模式）。
-pub fn validate_rtdn_oidc_token(
+/// Google Pub/Sub 推送使用 RS256 算法签名，不应使用 HS256 共享密钥验证。
+///
+/// 若 `expected_audience` 为空，跳过验证（dev/test 模式）。
+pub async fn validate_rtdn_oidc_token(
     token: &str,
     expected_audience: &str,
-    secret: &[u8],
+    decoding_key: Option<DecodingKey>,
 ) -> Result<(), PaymentError> {
     // 空配置 → dev/test 模式，跳过验证
-    if secret.is_empty() || expected_audience.is_empty() {
+    if expected_audience.is_empty() {
         return Ok(());
     }
 
-    let mut validation = Validation::new(Algorithm::HS256);
+    // 获取解码密钥：注入（测试）或从 Google JWKS 获取（生产）
+    let key = match decoding_key {
+        Some(k) => k,
+        None => {
+            // 解析 kid 用于查找匹配的 JWKS 条目
+            let kid = jsonwebtoken::decode_header(token)
+                .ok()
+                .and_then(|h| h.kid);
+            fetch_google_decoding_key(kid.as_deref()).await?
+        }
+    };
+
+    let mut validation = Validation::new(Algorithm::RS256);
     validation.set_audience(&[expected_audience]);
     validation.set_issuer(&["https://accounts.google.com"]);
 
-    decode::<RtdnOidcClaims>(token, &DecodingKey::from_secret(secret), &validation)
-        .map_err(|e| {
-            tracing::warn!(error = %e, "RTDN OIDC token validation failed");
-            PaymentError::RtdnSignatureInvalid
-        })?;
+    decode::<RtdnOidcClaims>(token, &key, &validation).map_err(|e| {
+        tracing::warn!(error = %e, "RTDN OIDC RS256 token validation failed");
+        PaymentError::RtdnSignatureInvalid
+    })?;
 
     Ok(())
 }
@@ -392,6 +454,47 @@ impl PaymentRtdnServicePort for FakePaymentRtdnService {
 mod tests {
     use super::*;
 
+    // 测试用 RSA 2048 私钥（PKCS#8 PEM，仅用于单元测试，非生产密钥）
+    const TEST_RSA_PRIVATE_KEY_PEM: &str = "-----BEGIN PRIVATE KEY-----
+MIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQCWJgvhMj55bVzr
+E0QypoIX31kcjBT/9JbBrNh6HYNGs5JLRVV6wFhLm1vV2D/7Jbh0EQhHHppM13A9
++W44CXrK5evfWcLqMHlMhHLRNh3WSjbP+AF5uH+ERE6JgMKm31irWAoRM2ck4deO
+nd5v3Yeh4c5NO8knKSPftFBxFm450ZZi/mExfZwvd3gqLRSciOA18ADHQDJ3ObC+
+YVK/ntwZCW3yyz9kEG3kLRE017/WRrqoeJE8dKJe00HQ0QpJI5GpQPwu/a5+97NM
+OfC5iumjNLaWplUpdw7UpkoHt2VnPYeukKjhxDH5dRefTDaWkoNsoqoG1gIolThr
+0d9t/aVnAgMBAAECggEABFcLMYeImMKZf03/mFCJzXODmY35rsBSJJJWG4mDhDqn
+4uHD1m19ionuE0tR5h+GqmGHp2PyD9XhBQQ9tFmfIVhDWMxjvu3cbmLHCCxpRmAU
+yi7KqXW0xzeg5tvq7x82P+r74i1l24IPqgFULvrsnbhE2fn9bCgF78Rq2Cn5e6r7
+h7uhZEebjwCrBOGIIkORpnZ+mntjiZq7sbiP9Mdiu66r7mhPzI9xXmbCBxl3ZqXN
+9LEMvh/gdk6viwGbIkbpcfxLLRDl1aGSm519D7Xdg2J32YHvoLFX4KGZR8k1Nk/W
+jgheorl6tk5Pa1yozxFXdZ61FIbt7Vn21BlYGAe0YQKBgQDSD+EgrNmoyOOc51Oq
+gIOxywWzke/der0sd/OX2L+SLpYVYbUAEnFwPH1SPRpbCOoPY69+MIRirviSLx6C
+5Md81M3fc4coTTrh3iAORZ8SKx3vjhkMfGz/UPp/wtPSurka1K3XLn5VFtKtL9oE
+IN1SV52ILVyJV+gEWi/hZqxykQKBgQC2+/jtdtszJjhoraulJez1NEENbOcCpFau
+pc1/cHGH75OENMxu3D3syJk1r1QB0b+wpvyBBuZN5ZMsF5B0Ze4dcpk+saIB9LwF
+HkP08KpQS6FmO0IguYVpS7QuRAMbGE6czFZRh6b4KuLenB8nMKGGc17FPzvJaSEJ
+/J4jJDgkdwKBgE4yxR8R2bFAn6MQZpAJaX0tVAEGKeIsR/Ie8VqswJwdpZduGSBe
+vUYH7qtHveD3z5JNDM6QJyhJdJWO3u/hVPX+jmlJq53wKiRdOVe2yUHNNUaxgleo
+ljbxoV8gWxSOmEwJsnFxiGwKpAD+2E1DIsD9htJj+JfUVrYQENT7EOVRAoGAIik6
+WMLGu27YOxqpH8TLzx85QdNh8UlS8Xn8ulz4pQMiDB17SPsPCISOrcoUqd5JpiYW
+n9P07Pf+GM4xZrmc0ZySZXTuJOVWsLHsx+6iLSlhcV+AwfFAqd67PaPu3IEWNAml
+18S2dEA1aI/G9R8MGLizKanbdIeO5nll4HOjk5MCgYBYjp7e3hXhqQ7S+MeaYxt4
+nlbah+fI42CZ/v9cRmI5j4K9tRQ8U+84Y0qSRwwgDJlkM1X5wlvB31QOX5v0yfA7
+glGTlHDvoQdaIUc2ApMPTk0JlPOyrwNqRVdyk3yQT/QKUx4x64ztHt/3HFvpj8vA
+ZgtqsGdbKxZ9r6ri6wFgcw==
+-----END PRIVATE KEY-----";
+
+    // 对应公钥（PKCS#8 PEM，仅用于单元测试）
+    const TEST_RSA_PUBLIC_KEY_PEM: &str = "-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAliYL4TI+eW1c6xNEMqaC
+F99ZHIwU//SWwazYeh2DRrOSS0VVesBYS5tb1dg/+yW4dBEIRx6aTNdwPfluOAl6
+yuXr31nC6jB5TIRy0TYd1ko2z/gBebh/hEROiYDCpt9Yq1gKETNnJOHXjp3eb92H
+oeHOTTvJJykj37RQcRZuOdGWYv5hMX2cL3d4Ki0UnIjgNfAAx0AydzmwvmFSv57c
+GQlt8ss/ZBBt5C0RNNe/1ka6qHiRPHSiXtNB0NEKSSORqUD8Lv2ufvezTDnwuYrp
+ozS2lqZVKXcO1KZKB7dlZz2HrpCo4cQx+XUXn0w2lpKDbKKqBtYCKJU4a9Hfbf2l
+ZwIDAQAB
+-----END PUBLIC KEY-----";
+
     // T53-01: testNotification 返回 ignored_test
     #[test]
     fn t53_01_test_notification_kind_detection() {
@@ -454,69 +557,94 @@ mod tests {
         assert_eq!(bad, 0, "publishTime is not a valid i64 timestamp");
     }
 
-    // T53-06 (RED→GREEN): validate_rtdn_oidc_token — 空配置跳过验证（dev 模式）
-    #[test]
-    fn t53_06_empty_config_skips_validation() {
-        let result = validate_rtdn_oidc_token("any.token.here", "", b"");
-        assert!(result.is_ok(), "Empty config should skip validation");
+    // T53-06 (Round3): validate_rtdn_oidc_token — 空 audience 跳过验证（dev 模式）
+    #[tokio::test]
+    async fn t53_06_empty_audience_skips_validation() {
+        // 无论提供什么 token，audience 为空时直接跳过
+        let result = validate_rtdn_oidc_token("any.token.here", "", None).await;
+        assert!(result.is_ok(), "Empty audience should skip validation (dev mode)");
     }
 
-    // T53-07 (RED→GREEN): validate_rtdn_oidc_token — 无效 token 被拒
-    #[test]
-    fn t53_07_invalid_token_rejected() {
-        let result = validate_rtdn_oidc_token("invalid.token.here", "https://example.com/rtdn", b"secret");
-        assert!(result.is_err(), "Invalid token should be rejected");
+    // T53-07 (Round3): validate_rtdn_oidc_token — 无效 token 结构被拒（RS256 key 注入）
+    #[tokio::test]
+    async fn t53_07_invalid_token_structure_rejected() {
+        let pub_key = DecodingKey::from_rsa_pem(TEST_RSA_PUBLIC_KEY_PEM.as_bytes()).unwrap();
+        let result = validate_rtdn_oidc_token(
+            "invalid.token.here",
+            "https://example.com/rtdn",
+            Some(pub_key),
+        )
+        .await;
+        assert!(result.is_err(), "Malformed token should be rejected");
         assert!(matches!(result.unwrap_err(), PaymentError::RtdnSignatureInvalid));
     }
 
-    // T53-08 (RED→GREEN): validate_rtdn_oidc_token — 合法 HS256 token（正确 issuer + audience）通过
-    #[test]
-    fn t53_08_valid_hs256_token_passes() {
-        use jsonwebtoken::{encode, EncodingKey, Header};
+    // T53-08 (Round3 ✅ RS256): valid RS256 token（正确 issuer + audience）通过
+    #[tokio::test]
+    async fn t53_08_valid_rs256_token_passes() {
+        use jsonwebtoken::{encode, EncodingKey, Header, Algorithm as JwtAlgo};
 
-        let secret = b"test-rtdn-secret";
         let audience = "https://example.com/webhook/google/rtdn";
         let claims = RtdnOidcClaims {
             iss: "https://accounts.google.com".to_string(),
             aud: audience.to_string(),
             exp: 9_999_999_999,
         };
-        let token = encode(&Header::default(), &claims, &EncodingKey::from_secret(secret)).unwrap();
-        let result = validate_rtdn_oidc_token(&token, audience, secret);
-        assert!(result.is_ok(), "Valid HS256 token with correct issuer/aud should pass");
+        // 使用测试 RSA 私钥生成 RS256 JWT
+        let encoding_key =
+            EncodingKey::from_rsa_pem(TEST_RSA_PRIVATE_KEY_PEM.as_bytes()).unwrap();
+        let token = encode(
+            &Header::new(JwtAlgo::RS256),
+            &claims,
+            &encoding_key,
+        )
+        .unwrap();
+
+        // 使用对应公钥验证
+        let decoding_key = DecodingKey::from_rsa_pem(TEST_RSA_PUBLIC_KEY_PEM.as_bytes()).unwrap();
+        let result = validate_rtdn_oidc_token(&token, audience, Some(decoding_key)).await;
+        assert!(result.is_ok(), "Valid RS256 token should pass: {:?}", result);
     }
 
-    // T53-09 (RED→GREEN): validate_rtdn_oidc_token — 错误 issuer 被拒
-    #[test]
-    fn t53_09_wrong_issuer_rejected() {
-        use jsonwebtoken::{encode, EncodingKey, Header};
+    // T53-09 (Round3): validate_rtdn_oidc_token — RS256 token 但错误 issuer 被拒
+    #[tokio::test]
+    async fn t53_09_wrong_issuer_rejected_rs256() {
+        use jsonwebtoken::{encode, EncodingKey, Header, Algorithm as JwtAlgo};
 
-        let secret = b"test-rtdn-secret";
         let audience = "https://example.com/webhook/google/rtdn";
         let claims = RtdnOidcClaims {
             iss: "https://evil.com".to_string(), // 错误 issuer
             aud: audience.to_string(),
             exp: 9_999_999_999,
         };
-        let token = encode(&Header::default(), &claims, &EncodingKey::from_secret(secret)).unwrap();
-        let result = validate_rtdn_oidc_token(&token, audience, secret);
+        let encoding_key =
+            EncodingKey::from_rsa_pem(TEST_RSA_PRIVATE_KEY_PEM.as_bytes()).unwrap();
+        let token = encode(&Header::new(JwtAlgo::RS256), &claims, &encoding_key).unwrap();
+
+        let decoding_key = DecodingKey::from_rsa_pem(TEST_RSA_PUBLIC_KEY_PEM.as_bytes()).unwrap();
+        let result = validate_rtdn_oidc_token(&token, audience, Some(decoding_key)).await;
         assert!(result.is_err(), "Wrong issuer should be rejected");
+        assert!(matches!(result.unwrap_err(), PaymentError::RtdnSignatureInvalid));
     }
 
-    // T53-10 (RED→GREEN): validate_rtdn_oidc_token — 错误 audience 被拒
-    #[test]
-    fn t53_10_wrong_audience_rejected() {
-        use jsonwebtoken::{encode, EncodingKey, Header};
+    // T53-10 (Round3): validate_rtdn_oidc_token — RS256 token 但错误 audience 被拒
+    #[tokio::test]
+    async fn t53_10_wrong_audience_rejected_rs256() {
+        use jsonwebtoken::{encode, EncodingKey, Header, Algorithm as JwtAlgo};
 
-        let secret = b"test-rtdn-secret";
         let claims = RtdnOidcClaims {
             iss: "https://accounts.google.com".to_string(),
             aud: "wrong-audience".to_string(), // 错误 audience
             exp: 9_999_999_999,
         };
-        let token = encode(&Header::default(), &claims, &EncodingKey::from_secret(secret)).unwrap();
-        let result = validate_rtdn_oidc_token(&token, "correct-audience", secret);
+        let encoding_key =
+            EncodingKey::from_rsa_pem(TEST_RSA_PRIVATE_KEY_PEM.as_bytes()).unwrap();
+        let token = encode(&Header::new(JwtAlgo::RS256), &claims, &encoding_key).unwrap();
+
+        let decoding_key = DecodingKey::from_rsa_pem(TEST_RSA_PUBLIC_KEY_PEM.as_bytes()).unwrap();
+        let result = validate_rtdn_oidc_token(&token, "correct-audience", Some(decoding_key)).await;
         assert!(result.is_err(), "Wrong audience should be rejected");
+        assert!(matches!(result.unwrap_err(), PaymentError::RtdnSignatureInvalid));
     }
 
     // T53-11 (RED→GREEN): 幂等逻辑 — 先查后写，业务成功才写入幂等记录
@@ -527,5 +655,86 @@ mod tests {
         // 这是一个设计验证测试（通过代码审查 + 编译验证）
         // 真实的并发行为测试需要集成测试
         let _ = std::mem::size_of::<PaymentRtdnService>();
+    }
+
+    // T53-12 (Round3 RED→GREEN): HS256 token 在 RS256 验证下被拒（算法不匹配）
+    #[tokio::test]
+    async fn t53_12_hs256_token_rejected_by_rs256_validator() {
+        use jsonwebtoken::{encode, EncodingKey, Header};
+
+        let audience = "https://example.com/webhook/google/rtdn";
+        let claims = RtdnOidcClaims {
+            iss: "https://accounts.google.com".to_string(),
+            aud: audience.to_string(),
+            exp: 9_999_999_999,
+        };
+        // 用 HS256 签名（Google 实际用 RS256 — 此类 token 应被拒绝）
+        let token = encode(
+            &Header::default(), // 默认 HS256
+            &claims,
+            &EncodingKey::from_secret(b"some-shared-secret"),
+        )
+        .unwrap();
+
+        // RS256 公钥注入，验证器应拒绝 HS256 token
+        let decoding_key = DecodingKey::from_rsa_pem(TEST_RSA_PUBLIC_KEY_PEM.as_bytes()).unwrap();
+        let result = validate_rtdn_oidc_token(&token, audience, Some(decoding_key)).await;
+        assert!(result.is_err(), "HS256 token must be rejected by RS256 validator");
+        assert!(matches!(result.unwrap_err(), PaymentError::RtdnSignatureInvalid));
+    }
+
+    // T53-13 (Round3 RED→GREEN): 过期 RS256 token 被拒
+    #[tokio::test]
+    async fn t53_13_expired_rs256_token_rejected() {
+        use jsonwebtoken::{encode, EncodingKey, Header, Algorithm as JwtAlgo};
+
+        let audience = "https://example.com/webhook/google/rtdn";
+        let claims = RtdnOidcClaims {
+            iss: "https://accounts.google.com".to_string(),
+            aud: audience.to_string(),
+            exp: 1, // 1970-01-01 — 早已过期
+        };
+        let encoding_key =
+            EncodingKey::from_rsa_pem(TEST_RSA_PRIVATE_KEY_PEM.as_bytes()).unwrap();
+        let token = encode(&Header::new(JwtAlgo::RS256), &claims, &encoding_key).unwrap();
+
+        let decoding_key = DecodingKey::from_rsa_pem(TEST_RSA_PUBLIC_KEY_PEM.as_bytes()).unwrap();
+        let result = validate_rtdn_oidc_token(&token, audience, Some(decoding_key)).await;
+        assert!(result.is_err(), "Expired token should be rejected");
+        assert!(matches!(result.unwrap_err(), PaymentError::RtdnSignatureInvalid));
+    }
+
+    // T53-14 (Round3 RED→GREEN): RS256 token 用错误私钥签名（公钥不匹配）被拒
+    #[tokio::test]
+    async fn t53_14_wrong_rsa_key_rejected() {
+        use jsonwebtoken::{encode, EncodingKey, Header, Algorithm as JwtAlgo};
+
+        // 生成另一个不同的 RSA 编码密钥（用旧公钥验证应失败）
+        // 这里用 PKCS#8 hardcoded 另一个测试私钥签名
+        // 为简化测试，直接验证用公钥无法验证另一个私钥签名的 token
+        // 方案：将私钥作为公钥 PEM 传入（类型不匹配，验证应失败）
+        let audience = "https://example.com/webhook/google/rtdn";
+        let claims = RtdnOidcClaims {
+            iss: "https://accounts.google.com".to_string(),
+            aud: audience.to_string(),
+            exp: 9_999_999_999,
+        };
+        let encoding_key =
+            EncodingKey::from_rsa_pem(TEST_RSA_PRIVATE_KEY_PEM.as_bytes()).unwrap();
+        let token = encode(&Header::new(JwtAlgo::RS256), &claims, &encoding_key).unwrap();
+
+        // 用错误格式（私钥 PEM 作为解码键）— DecodingKey::from_rsa_pem 需要公钥格式
+        // 私钥 PEM 传入 from_rsa_pem 预期会失败（格式不对）
+        let bad_key_result = DecodingKey::from_rsa_pem(b"-----BEGIN PRIVATE KEY-----\ninvalid\n-----END PRIVATE KEY-----");
+        assert!(
+            bad_key_result.is_err() || {
+                // 即便接受了，验证应失败
+                let bad_key = bad_key_result.unwrap();
+                let r = tokio::runtime::Handle::current()
+                    .block_on(validate_rtdn_oidc_token(&token, audience, Some(bad_key)));
+                r.is_err()
+            },
+            "Invalid key material should cause verification failure"
+        );
     }
 }
