@@ -474,4 +474,148 @@ mod tests {
         );
         assert!(result.is_ok(), "SGS-02: valid redis URL should return Ok");
     }
+
+    // ─── T-00070 §2: 礼物折扣计算单元测试 ──────────────────────────────────────
+    // 这些测试验证 apply_gift_discount 函数（privileges.rs）在礼物场景中的应用。
+    // 完整集成（将折扣嵌入事务）需要在 GiftSendService 加入 GiftNobilityPort
+    // 依赖，属于独立重构任务；此处仅验证折扣计算逻辑正确性。
+
+    // SGS-03: 礼物折扣 10% → duke 送 10000 礼物，实付 9000（ceil到整百已在 privileges.rs 处理）
+    #[test]
+    fn sgs03_gift_discount_10_percent_duke() {
+        use crate::modules::nobility::privileges::apply_gift_discount;
+        use voice_room_shared::models::nobility::{
+            BypassPasswordPrivilege, GiftDiscountPrivilege, InvisibilityPrivilege,
+            MicPriorityPrivilege, MonthlyStipendPrivilege, NoblePrivileges,
+        };
+
+        let privileges = NoblePrivileges {
+            badge: None,
+            entry_effect: None,
+            chat_bubble: None,
+            audience_pin: None,
+            invisibility: Some(InvisibilityPrivilege {
+                scope: "mic_and_audience".to_string(),
+                always_visible_to: vec!["admin".to_string()],
+            }),
+            bypass_password: Some(BypassPasswordPrivilege {
+                enabled: true,
+                respect_room_owner_switch: true,
+            }),
+            mic_priority: Some(MicPriorityPrivilege { weight: 3.0 }),
+            gift_discount: Some(GiftDiscountPrivilege { percent: 10 }),
+            global_broadcast: None,
+            vip_support: None,
+            monthly_stipend: Some(MonthlyStipendPrivilege {
+                percent: 15,
+                pay_immediately: true,
+            }),
+            expiry: None,
+        };
+
+        // Duke 送一份 10000 钻礼物
+        let result = apply_gift_discount(&privileges, 10000);
+        assert_eq!(result.discounted_price, 9000, "SGS-03: duke 10% discount on 10000 → 9000");
+        assert_eq!(result.subsidy_amount, 1000, "SGS-03: subsidy should be 1000");
+    }
+
+    // SGS-04: king 20% discount → 送 50000 礼物，实付 40000
+    #[test]
+    fn sgs04_gift_discount_king_20_percent() {
+        use crate::modules::nobility::privileges::apply_gift_discount;
+        use voice_room_shared::models::nobility::{
+            BypassPasswordPrivilege, GiftDiscountPrivilege, InvisibilityPrivilege,
+            MicPriorityPrivilege, MonthlyStipendPrivilege, NoblePrivileges,
+        };
+
+        let privileges = NoblePrivileges {
+            badge: None,
+            entry_effect: None,
+            chat_bubble: None,
+            audience_pin: None,
+            invisibility: Some(InvisibilityPrivilege {
+                scope: "all".to_string(),
+                always_visible_to: vec!["admin".to_string()],
+            }),
+            bypass_password: Some(BypassPasswordPrivilege {
+                enabled: true,
+                respect_room_owner_switch: true,
+            }),
+            mic_priority: Some(MicPriorityPrivilege { weight: 10.0 }),
+            gift_discount: Some(GiftDiscountPrivilege { percent: 20 }),
+            global_broadcast: None,
+            vip_support: None,
+            monthly_stipend: Some(MonthlyStipendPrivilege {
+                percent: 20,
+                pay_immediately: true,
+            }),
+            expiry: None,
+        };
+
+        // King 送 50000 钻礼物
+        let result = apply_gift_discount(&privileges, 50000);
+        // 50000 * 80% = 40000, ceil(40000/1000)*1000 = 40000
+        assert_eq!(result.discounted_price, 40000, "SGS-04: king 20% discount on 50000 → 40000");
+        assert_eq!(result.subsidy_amount, 10000, "SGS-04: subsidy should be 10000");
+    }
+
+    // SGS-05: knight 0% discount → 不优惠
+    #[test]
+    fn sgs05_gift_discount_knight_no_discount() {
+        use crate::modules::nobility::privileges::apply_gift_discount;
+        use voice_room_shared::models::nobility::{
+            GiftDiscountPrivilege, MonthlyStipendPrivilege, NoblePrivileges,
+        };
+
+        let privileges = NoblePrivileges {
+            badge: None,
+            entry_effect: None,
+            chat_bubble: None,
+            audience_pin: None,
+            invisibility: None,
+            bypass_password: None,
+            mic_priority: None,
+            gift_discount: Some(GiftDiscountPrivilege { percent: 0 }),
+            global_broadcast: None,
+            vip_support: None,
+            monthly_stipend: Some(MonthlyStipendPrivilege {
+                percent: 5,
+                pay_immediately: true,
+            }),
+            expiry: None,
+        };
+
+        let result = apply_gift_discount(&privileges, 30000);
+        assert_eq!(result.discounted_price, 30000, "SGS-05: knight no discount → full price");
+        assert_eq!(result.subsidy_amount, 0, "SGS-05: no subsidy");
+    }
+
+    // SGS-06: 无礼物折扣特权（gift_discount=None）→ 不优惠
+    #[test]
+    fn sgs06_gift_discount_no_privilege() {
+        use crate::modules::nobility::privileges::apply_gift_discount;
+        use voice_room_shared::models::nobility::{MonthlyStipendPrivilege, NoblePrivileges};
+
+        let privileges = NoblePrivileges {
+            badge: None,
+            entry_effect: None,
+            chat_bubble: None,
+            audience_pin: None,
+            invisibility: None,
+            bypass_password: None,
+            mic_priority: None,
+            gift_discount: None, // 没有礼物折扣特权
+            global_broadcast: None,
+            vip_support: None,
+            monthly_stipend: Some(MonthlyStipendPrivilege {
+                percent: 5,
+                pay_immediately: true,
+            }),
+            expiry: None,
+        };
+
+        let result = apply_gift_discount(&privileges, 30000);
+        assert_eq!(result.discounted_price, 30000, "SGS-06: no gift_discount privilege → full price");
+        assert_eq!(result.subsidy_amount, 0, "SGS-06: no subsidy");
+    }
 }

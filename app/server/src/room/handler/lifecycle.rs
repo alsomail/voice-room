@@ -120,33 +120,49 @@ pub async fn handle_join_room(
     }
 
     // ── 3. 密码房：校验 access_token（T-00026）──────────────────────────────
+    // T-00070: LV5+ duke/king 可绕过密码验证（bypass_password 特权）
+    // 先检查贵族特权，若满足则跳过 token 验证
     if room_detail.room_type == "password" {
-        let token = match payload
-            .as_ref()
-            .and_then(|p| p.get("access_token"))
-            .and_then(|v| v.as_str())
-        {
-            Some(t) if !t.is_empty() => t.to_string(),
-            _ => {
-                return error_response(msg_id, 40104, "password required: missing access_token");
+        let can_bypass = if let Some(svc) = nobility_service.as_ref() {
+            if let Some(noble) = svc.get_user_noble_dto(user_id).await {
+                let level = noble.level;
+                // duke(LV5) / king(LV6) 有 bypass_password 特权
+                crate::modules::nobility::privileges::can_trigger_global_broadcast(level)
+            } else {
+                false
             }
+        } else {
+            false
         };
 
-        match decode_room_access_token(&token, jwt_secret.as_bytes()) {
-            Err(e) if e.kind() == &ErrorKind::ExpiredSignature => {
-                return error_response(msg_id, 40105, "access_token expired");
-            }
-            Err(_) => {
-                return error_response(msg_id, 40106, "invalid access_token");
-            }
-            Ok(claims) => {
-                // 校验 sub（user_id）
-                if claims.sub != user_id.to_string() {
-                    return error_response(msg_id, 40106, "invalid access_token: user mismatch");
+        if !can_bypass {
+            let token = match payload
+                .as_ref()
+                .and_then(|p| p.get("access_token"))
+                .and_then(|v| v.as_str())
+            {
+                Some(t) if !t.is_empty() => t.to_string(),
+                _ => {
+                    return error_response(msg_id, 40104, "password required: missing access_token");
                 }
-                // 校验 room_id
-                if claims.room_id != room_id.to_string() {
-                    return error_response(msg_id, 40106, "invalid access_token: room_id mismatch");
+            };
+
+            match decode_room_access_token(&token, jwt_secret.as_bytes()) {
+                Err(e) if e.kind() == &ErrorKind::ExpiredSignature => {
+                    return error_response(msg_id, 40105, "access_token expired");
+                }
+                Err(_) => {
+                    return error_response(msg_id, 40106, "invalid access_token");
+                }
+                Ok(claims) => {
+                    // 校验 sub（user_id）
+                    if claims.sub != user_id.to_string() {
+                        return error_response(msg_id, 40106, "invalid access_token: user mismatch");
+                    }
+                    // 校验 room_id
+                    if claims.room_id != room_id.to_string() {
+                        return error_response(msg_id, 40106, "invalid access_token: room_id mismatch");
+                    }
                 }
             }
         }

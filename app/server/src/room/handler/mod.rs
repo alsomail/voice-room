@@ -2595,4 +2595,86 @@ mod tests {
         .await;
         // Test passes if no panic — NobleEntered broadcast is not attempted
     }
+
+    // T-00070: duke(LV5) 进入密码房不需要 access_token（bypass_password 特权）
+    #[tokio::test]
+    async fn t70_duke_can_bypass_password_room() {
+        let room_id = Uuid::new_v4();
+        let user_id = Uuid::new_v4();
+        let room_manager = Arc::new(RoomManager::new());
+        let room_service = password_room_service_with(room_id);
+        let auth_service = auth_service_with(user_id, "DukeUser");
+        let registry = Arc::new(ConnectionRegistry::new());
+        let stats: Arc<dyn StatsPort> = Arc::new(FakeStatsService::default());
+
+        let (conn_id, _rx) = register_connection(&registry, user_id, None);
+
+        let deps = JoinRoomDeps {
+            room_manager: room_manager.clone(),
+            room_service,
+            auth_service,
+            registry: registry.clone(),
+            stats,
+            jwt_secret: "test-secret".to_string(),
+            kick_redis: None,
+            nobility_service: Some(Arc::new(FakeNobleService { level: 5 })), // duke LV5
+        };
+
+        // 无 access_token，但 duke 可绕过密码
+        let resp = handle_join_room(
+            join_payload(room_id), // no access_token
+            Some("msg-70a".to_string()),
+            conn_id,
+            user_id,
+            &deps,
+        )
+        .await;
+
+        let json: serde_json::Value = serde_json::from_str(&resp).unwrap();
+        assert_eq!(
+            json["code"], 0,
+            "T-00070: duke LV5 should bypass password room without access_token, got: {json}"
+        );
+    }
+
+    // T-00070: knight(LV1) 进入密码房仍需要 access_token
+    #[tokio::test]
+    async fn t70_knight_cannot_bypass_password_room() {
+        let room_id = Uuid::new_v4();
+        let user_id = Uuid::new_v4();
+        let room_manager = Arc::new(RoomManager::new());
+        let room_service = password_room_service_with(room_id);
+        let auth_service = auth_service_with(user_id, "KnightUser");
+        let registry = Arc::new(ConnectionRegistry::new());
+        let stats: Arc<dyn StatsPort> = Arc::new(FakeStatsService::default());
+
+        let (conn_id, _rx) = register_connection(&registry, user_id, None);
+
+        let deps = JoinRoomDeps {
+            room_manager: room_manager.clone(),
+            room_service,
+            auth_service,
+            registry: registry.clone(),
+            stats,
+            jwt_secret: "test-secret".to_string(),
+            kick_redis: None,
+            nobility_service: Some(Arc::new(FakeNobleService { level: 1 })), // knight LV1
+        };
+
+        // 无 access_token，knight 不能绕过密码
+        let resp = handle_join_room(
+            join_payload(room_id), // no access_token
+            Some("msg-70b".to_string()),
+            conn_id,
+            user_id,
+            &deps,
+        )
+        .await;
+
+        let json: serde_json::Value = serde_json::from_str(&resp).unwrap();
+        assert_eq!(
+            json["code"], 40104,
+            "T-00070: knight LV1 should NOT bypass password room, got: {json}"
+        );
+    }
 }

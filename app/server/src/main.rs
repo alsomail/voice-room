@@ -198,6 +198,22 @@ async fn main() -> anyhow::Result<()> {
         }
     });
 
+    // T-00068：贵族续费/过期 cron（每小时一次）
+    // run_renew_phase: 扫描到期 auto_renew=true 的用户，执行续费并发 NobleRenewSuccess/Failed
+    // run_expire_phase: 扫描已过期 auto_renew=false 的用户，清除记录并发 NobleExpired
+    {
+        use std::time::Duration;
+        let cron_registry = state.ws_registry.clone();
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(Duration::from_secs(3600));
+            loop {
+                interval.tick().await;
+                voice_room_server::modules::nobility::cron::run_renew_phase(&cron_registry).await;
+                voice_room_server::modules::nobility::cron::run_expire_phase(&cron_registry).await;
+            }
+        });
+    }
+
     let app = build_app(state);
     let bind_addr = settings.server.bind_addr()?;
     let listener = TcpListener::bind(bind_addr).await?;

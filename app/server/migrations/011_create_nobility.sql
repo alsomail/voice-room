@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS noble_tiers (
     monthly_diamonds     BIGINT          NOT NULL CHECK (monthly_diamonds > 0),
     monthly_usd          NUMERIC(10,2)   NOT NULL,
     usd_sku_id           VARCHAR(64)     NULL,
-    privileges           JSONB           NOT NULL,
+    privileges           JSONB           NOT NULL CHECK (noble_privileges_validate(privileges)),
     icon_url             TEXT            NOT NULL,
     frame_url            TEXT            NOT NULL,
     entrance_animation_url TEXT          NULL,
@@ -101,7 +101,7 @@ INSERT INTO noble_tiers (
     icon_url, frame_url, entrance_animation_url, bgm_url,
     badge_color, bubble_style_id
 ) VALUES
--- LV1 Knight
+-- LV1 Knight: percent=5, pay_immediately=true (§3.5.11)
 (
     'knight', 'Knight', 'فارس', 1,
     3000, 9.99, NULL,
@@ -115,7 +115,7 @@ INSERT INTO noble_tiers (
       "gift_discount":{"percent":0},
       "global_broadcast":{"enabled":false,"daily_limit":0},
       "vip_support":{"sla_minutes":60},
-      "monthly_stipend":{"diamonds":0,"pay_immediately":false},
+      "monthly_stipend":{"percent":5,"pay_immediately":true},
       "expiry":{"warn_days_before":3,"grace_days":7,"history_days":30}}'::jsonb,
     'https://cdn.voiceroom.app/nobles/knight_icon.svg',
     'https://cdn.voiceroom.app/nobles/knight_frame.png',
@@ -124,7 +124,7 @@ INSERT INTO noble_tiers (
     '#6B7280',
     'knight'
 ),
--- LV2 Baron
+-- LV2 Baron: percent=8, pay_immediately=true (§3.5.11)
 (
     'baron', 'Baron', 'بارون', 2,
     10000, 29.99, NULL,
@@ -138,7 +138,7 @@ INSERT INTO noble_tiers (
       "gift_discount":{"percent":2},
       "global_broadcast":{"enabled":false,"daily_limit":0},
       "vip_support":{"sla_minutes":30},
-      "monthly_stipend":{"diamonds":0,"pay_immediately":false},
+      "monthly_stipend":{"percent":8,"pay_immediately":true},
       "expiry":{"warn_days_before":3,"grace_days":7,"history_days":30}}'::jsonb,
     'https://cdn.voiceroom.app/nobles/baron_icon.svg',
     'https://cdn.voiceroom.app/nobles/baron_frame.png',
@@ -147,7 +147,7 @@ INSERT INTO noble_tiers (
     '#059669',
     'baron'
 ),
--- LV3 Viscount
+-- LV3 Viscount: percent=10, pay_immediately=true (§3.5.11)
 (
     'viscount', 'Viscount', 'نبيل', 3,
     30000, 99.99, 'noble_viscount_30d',
@@ -161,7 +161,7 @@ INSERT INTO noble_tiers (
       "gift_discount":{"percent":5},
       "global_broadcast":{"enabled":false,"daily_limit":0},
       "vip_support":{"sla_minutes":15},
-      "monthly_stipend":{"diamonds":0,"pay_immediately":false},
+      "monthly_stipend":{"percent":10,"pay_immediately":true},
       "expiry":{"warn_days_before":3,"grace_days":7,"history_days":30}}'::jsonb,
     'https://cdn.voiceroom.app/nobles/viscount_icon.svg',
     'https://cdn.voiceroom.app/nobles/viscount_frame.png',
@@ -170,7 +170,7 @@ INSERT INTO noble_tiers (
     '#2563EB',
     'viscount'
 ),
--- LV4 Earl
+-- LV4 Earl: percent=12, pay_immediately=true (§3.5.11)
 (
     'earl', 'Earl', 'أيرل', 4,
     100000, 299.99, 'noble_earl_30d',
@@ -184,7 +184,7 @@ INSERT INTO noble_tiers (
       "gift_discount":{"percent":8},
       "global_broadcast":{"enabled":false,"daily_limit":0},
       "vip_support":{"sla_minutes":10},
-      "monthly_stipend":{"diamonds":0,"pay_immediately":false},
+      "monthly_stipend":{"percent":12,"pay_immediately":true},
       "expiry":{"warn_days_before":3,"grace_days":7,"history_days":30}}'::jsonb,
     'https://cdn.voiceroom.app/nobles/earl_icon.svg',
     'https://cdn.voiceroom.app/nobles/earl_frame.png',
@@ -193,7 +193,8 @@ INSERT INTO noble_tiers (
     '#7C3AED',
     'earl'
 ),
--- LV5 Duke
+-- LV5 Duke: percent=15, pay_immediately=true (§3.5.11)
+-- Note: 15% × 300000 monthly_diamonds = 45000 stipend diamonds
 (
     'duke', 'Duke', 'دوق', 5,
     300000, 999.99, 'noble_duke_30d',
@@ -207,7 +208,7 @@ INSERT INTO noble_tiers (
       "gift_discount":{"percent":10},
       "global_broadcast":{"enabled":true,"daily_limit":1},
       "vip_support":{"sla_minutes":5},
-      "monthly_stipend":{"diamonds":60000,"pay_immediately":true},
+      "monthly_stipend":{"percent":15,"pay_immediately":true},
       "expiry":{"warn_days_before":3,"grace_days":7,"history_days":30}}'::jsonb,
     'https://cdn.voiceroom.app/nobles/duke_icon.svg',
     'https://cdn.voiceroom.app/nobles/duke_frame.png',
@@ -216,7 +217,8 @@ INSERT INTO noble_tiers (
     '#06B6D4',
     'duke'
 ),
--- LV6 King
+-- LV6 King: percent=20, pay_immediately=true (§3.5.11)
+-- Note: 20% × 1000000 monthly_diamonds = 200000 stipend diamonds
 (
     'king', 'King', 'ملك', 6,
     1000000, 3999.99, 'noble_king_30d',
@@ -230,7 +232,7 @@ INSERT INTO noble_tiers (
       "gift_discount":{"percent":15},
       "global_broadcast":{"enabled":true,"daily_limit":1},
       "vip_support":{"sla_minutes":5},
-      "monthly_stipend":{"diamonds":200000,"pay_immediately":true},
+      "monthly_stipend":{"percent":20,"pay_immediately":true},
       "expiry":{"warn_days_before":3,"grace_days":7,"history_days":30}}'::jsonb,
     'https://cdn.voiceroom.app/nobles/king_icon.svg',
     'https://cdn.voiceroom.app/nobles/king_frame.png',

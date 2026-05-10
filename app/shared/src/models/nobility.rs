@@ -113,8 +113,8 @@ pub struct VipSupportPrivilege {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MonthlyStipendPrivilege {
-    /// 固定钻石发放数量（0 = 无月津贴）
-    pub diamonds: i64,
+    /// 月费钻石的返还比例（百分比，0=无月津贴，20=返还20%）— 协议 §10.2.3
+    pub percent: i64,
     pub pay_immediately: bool,
 }
 
@@ -136,12 +136,19 @@ impl NoblePrivileges {
         self.gift_discount.as_ref().map(|g| g.percent).unwrap_or(0)
     }
 
-    /// 读取 monthly_stipend.diamonds（默认 0）
-    pub fn stipend_diamonds(&self) -> i64 {
+    /// 读取 monthly_stipend.percent（默认 0）— 协议 §10.2.3
+    pub fn stipend_percent(&self) -> i64 {
         self.monthly_stipend
             .as_ref()
-            .map(|s| s.diamonds)
+            .map(|s| s.percent)
             .unwrap_or(0)
+    }
+
+    /// 计算月津贴实际钻石数（percent × monthly_diamonds / 100）
+    ///
+    /// 全程整数运算，向下取整。
+    pub fn compute_stipend_diamonds(&self, monthly_diamonds: i64) -> i64 {
+        self.stipend_percent() * monthly_diamonds / 100
     }
 
     /// 读取 bypass_password.enabled（默认 false）
@@ -218,16 +225,70 @@ mod tests {
         let json = r#"{
             "mic_priority": {"weight": 3.0},
             "gift_discount": {"percent": 10},
-            "monthly_stipend": {"diamonds": 60000, "pay_immediately": true},
+            "monthly_stipend": {"percent": 20, "pay_immediately": true},
             "bypass_password": {"enabled": true, "respect_room_owner_switch": true},
             "invisibility": {"scope": "mic_and_audience", "always_visible_to": ["admin"]}
         }"#;
         let p: NoblePrivileges = serde_json::from_str(json).expect("should deserialize");
         assert_eq!(p.mic_weight(), 3.0);
         assert_eq!(p.discount_percent(), 10);
-        assert_eq!(p.stipend_diamonds(), 60000);
+        assert_eq!(p.stipend_percent(), 20);
         assert!(p.can_bypass_password());
         assert!(p.is_audience_invisible());
+    }
+
+    // ── NO65-01b: monthly_stipend.percent 字段名验证（§10.2.3）────────────────
+    #[test]
+    fn no65_01b_monthly_stipend_uses_percent_field() {
+        // king tier: percent=20, pay_immediately=true
+        let json = r#"{"monthly_stipend": {"percent": 20, "pay_immediately": true}}"#;
+        let p: NoblePrivileges = serde_json::from_str(json).expect("deserialize percent field");
+        assert_eq!(p.stipend_percent(), 20);
+        // verify serialization preserves 'percent' key (not 'diamonds')
+        let serialized = serde_json::to_string(&p).unwrap();
+        assert!(serialized.contains("\"percent\""), "serialized must contain 'percent' key");
+        assert!(!serialized.contains("\"diamonds\""), "serialized must NOT contain 'diamonds' key");
+    }
+
+    // ── NO65-01c: duke 月津贴计算 = 15% × 300000 = 45000 ──────────────────────
+    #[test]
+    fn no65_01c_duke_stipend_15_percent_of_300000_equals_45000() {
+        let p: NoblePrivileges = serde_json::from_str(
+            r#"{"monthly_stipend": {"percent": 15, "pay_immediately": true}}"#
+        ).unwrap();
+        assert_eq!(p.stipend_percent(), 15);
+        // 15% × 300000 = 45000
+        assert_eq!(p.compute_stipend_diamonds(300000), 45000);
+    }
+
+    // ── NO65-01d: 各档 percent 值符合产品 §3.5.11 ────────────────────────────
+    #[test]
+    fn no65_01d_seed_percent_values_per_tier() {
+        let cases = [
+            (1_i16, 5_i64),   // knight
+            (2, 8),   // baron
+            (3, 10),  // viscount
+            (4, 12),  // earl
+            (5, 15),  // duke
+            (6, 20),  // king
+        ];
+        let monthly_diamonds = [3000_i64, 10000, 30000, 100000, 300000, 1000000];
+        let expected_stipends = [150_i64, 800, 3000, 12000, 45000, 200000];
+        for (i, (level, percent)) in cases.iter().enumerate() {
+            let p = NoblePrivileges {
+                badge: None, entry_effect: None, chat_bubble: None, audience_pin: None,
+                invisibility: None, bypass_password: None, mic_priority: None,
+                gift_discount: None, global_broadcast: None, vip_support: None,
+                monthly_stipend: Some(MonthlyStipendPrivilege { percent: *percent, pay_immediately: true }),
+                expiry: None,
+            };
+            assert_eq!(p.stipend_percent(), *percent, "level {level} percent mismatch");
+            assert_eq!(
+                p.compute_stipend_diamonds(monthly_diamonds[i]),
+                expected_stipends[i],
+                "level {level} stipend_diamonds mismatch"
+            );
+        }
     }
 
     // ── NO65-02: NoblePrivileges 序列化含所有字段 ─────────────────────────────
@@ -254,7 +315,7 @@ mod tests {
             }),
             vip_support: None,
             monthly_stipend: Some(MonthlyStipendPrivilege {
-                diamonds: 200000,
+                percent: 20,       // ← king tier: 20%
                 pay_immediately: true,
             }),
             expiry: None,
@@ -263,7 +324,7 @@ mod tests {
         let p2: NoblePrivileges = serde_json::from_str(&json).expect("deserialize ok");
         assert_eq!(p, p2);
         assert_eq!(p2.mic_weight(), 10.0);
-        assert_eq!(p2.stipend_diamonds(), 200000);
+        assert_eq!(p2.stipend_percent(), 20);
     }
 
     // ── NO65-03: 默认值（空 privileges）───────────────────────────────────────
@@ -272,7 +333,7 @@ mod tests {
         let p: NoblePrivileges = serde_json::from_str("{}").expect("empty json");
         assert_eq!(p.mic_weight(), 1.0);
         assert_eq!(p.discount_percent(), 0);
-        assert_eq!(p.stipend_diamonds(), 0);
+        assert_eq!(p.stipend_percent(), 0);
         assert!(!p.can_bypass_password());
         assert!(!p.is_audience_invisible());
         assert_eq!(p.invisibility_scope(), "none");
