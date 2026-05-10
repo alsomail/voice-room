@@ -93,8 +93,16 @@ fn make_fake_tier(
             global_broadcast: None,
             vip_support: None,
             monthly_stipend: Some(MonthlyStipendPrivilege {
-                diamonds: if level == 5 { 60000 } else if level == 6 { 200000 } else { 0 },
-                pay_immediately: level >= 5,
+                percent: match level {
+                    1 => 5,
+                    2 => 8,
+                    3 => 10,
+                    4 => 12,
+                    5 => 15,
+                    6 => 20,
+                    _ => 0,
+                },
+                pay_immediately: true, // §3.5.11: all tiers pay_immediately=true
             }),
             expiry: None,
         },
@@ -221,5 +229,82 @@ mod tests {
     #[test]
     fn ns07_fake_is_send_sync() {
         let _svc: Arc<dyn NobilityServicePort> = Arc::new(FakeNobilityService);
+    }
+
+    // NS-08: duke 月津贴 percent=15，计算 stipend = 15% × 300000 = 45000（T-00067 修正）
+    #[tokio::test]
+    async fn ns08_duke_stipend_percent_15_yields_45000() {
+        let svc = FakeNobilityService;
+        let resp = svc.list_tiers("en").await.unwrap();
+        let duke = resp.tiers.iter().find(|t| t.tier_id == "duke").unwrap();
+        let percent = duke.privileges.stipend_percent();
+        assert_eq!(percent, 15, "duke stipend percent must be 15");
+        // 15% × 300000 monthly_diamonds = 45000
+        assert_eq!(duke.privileges.compute_stipend_diamonds(duke.monthly_diamonds), 45000);
+    }
+
+    // NS-09: 所有 tier pay_immediately = true（§3.5.11）
+    #[tokio::test]
+    async fn ns09_all_tiers_pay_immediately_true() {
+        let svc = FakeNobilityService;
+        let resp = svc.list_tiers("en").await.unwrap();
+        for tier in &resp.tiers {
+            if let Some(ref stipend) = tier.privileges.monthly_stipend {
+                assert!(
+                    stipend.pay_immediately,
+                    "tier {} must have pay_immediately=true",
+                    tier.tier_id
+                );
+            }
+        }
+    }
+
+    // NS-10: 所有 tier stipend percent 符合产品规格（§3.5.11）
+    #[tokio::test]
+    async fn ns10_all_tier_stipend_percents_match_spec() {
+        let svc = FakeNobilityService;
+        let resp = svc.list_tiers("en").await.unwrap();
+        let expected = [
+            ("knight", 5_i64),
+            ("baron", 8),
+            ("viscount", 10),
+            ("earl", 12),
+            ("duke", 15),
+            ("king", 20),
+        ];
+        for (tier_id, exp_percent) in expected {
+            let tier = resp.tiers.iter().find(|t| t.tier_id == tier_id).unwrap();
+            assert_eq!(
+                tier.privileges.stipend_percent(),
+                exp_percent,
+                "tier {tier_id} stipend percent mismatch"
+            );
+        }
+    }
+
+    // NS-11: NobleChanged WS 信令格式验证（purchase 成功后）
+    #[test]
+    fn ns11_noble_changed_signal_has_required_fields() {
+        use serde_json::json;
+        let user_id = uuid::Uuid::new_v4();
+        // simulate what purchase_handler should send
+        let signal = json!({
+            "type": "NobleChanged",
+            "msg_id": uuid::Uuid::new_v4().to_string(),
+            "payload": {
+                "user_id": user_id.to_string(),
+                "from_tier": serde_json::Value::Null,
+                "to_tier": "duke",
+                "expire_at": "2026-06-01T00:00:00Z",
+                "operation": "purchase"
+            },
+            "timestamp": chrono::Utc::now().timestamp_millis(),
+        });
+        // verify structure
+        assert_eq!(signal["type"], "NobleChanged");
+        assert!(signal["msg_id"].is_string());
+        assert_eq!(signal["payload"]["to_tier"], "duke");
+        assert_eq!(signal["payload"]["operation"], "purchase");
+        assert!(signal["timestamp"].is_number());
     }
 }

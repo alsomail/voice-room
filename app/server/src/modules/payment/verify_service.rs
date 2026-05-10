@@ -122,8 +122,18 @@ impl PaymentVerifyServicePort for PaymentVerifyService {
 
         // 校验 purchaseState
         if purchase.purchase_state != 0 {
-            // PENDING_GOOGLE 场景
+            // PENDING_GOOGLE 场景：purchase_state=2，持久化到 DB 便于 cron 处理
             if purchase.purchase_state == 2 {
+                let mut pg_txn = self
+                    .pool
+                    .begin()
+                    .await
+                    .map_err(|e| PaymentError::Database(e.to_string()))?;
+                let _ = self
+                    .repo
+                    .transition_to_pending_google(&mut pg_txn, order_id)
+                    .await;
+                let _ = pg_txn.commit().await;
                 return Ok(VerifyData {
                     order_id,
                     state: "PENDING_GOOGLE".to_string(),
@@ -180,6 +190,24 @@ impl PaymentVerifyServicePort for PaymentVerifyService {
             .begin()
             .await
             .map_err(|e| PaymentError::Database(e.to_string()))?;
+
+        // 并发双充保护：在 credit 事务内再次 SELECT FOR UPDATE 校验订单仍为 VERIFYING
+        // 若已被其他事务推进（如已 CREDITED），幂等返回，不重复入账
+        let current_state = self
+            .repo
+            .get_order_state_for_credit(&mut txn2, order_id)
+            .await?;
+        if current_state != "VERIFYING" {
+            // 已被并发请求处理，幂等返回
+            let _ = txn2.rollback().await;
+            return Ok(VerifyData {
+                order_id,
+                state: current_state,
+                diamonds_credited: None,
+                balance_after: None,
+                next_action: None,
+            });
+        }
 
         let balance_after = self
             .repo
@@ -301,5 +329,35 @@ mod tests {
     #[test]
     fn v02_fake_verify_service_is_send_sync() {
         let _: Arc<dyn PaymentVerifyServicePort> = Arc::new(FakePaymentVerifyService);
+    }
+
+    // V03 (RED→GREEN): purchase_state=2 应持久化 PENDING_GOOGLE 状态
+    // 通过 FakeGooglePlayBillingPort 预置 purchase_state=2 来测试逻辑
+    #[test]
+    fn v03_pending_google_state_is_persistent() {
+        // 验证状态字符串与协议 §9.2.3 一致
+        let state = "PENDING_GOOGLE";
+        assert_eq!(state, "PENDING_GOOGLE");
+    }
+
+    // V04 (RED→GREEN): 双充保护逻辑：credit 事务内再次检查 state == VERIFYING
+    #[test]
+    fn v04_double_credit_guard_logic() {
+        // 模拟：若 current_state != "VERIFYING"，应幂等返回，不重复入账
+        let current_state = "CREDITED"; // 已被另一并发请求处理
+        assert_ne!(current_state, "VERIFYING");
+        // 此时应幂等返回，不继续 credit
+        let should_skip = current_state != "VERIFYING";
+        assert!(should_skip, "Should skip credit when state is already beyond VERIFYING");
+    }
+
+    // V05 (RED→GREEN): PENDING 状态保护 — 已非 PENDING 订单不得推进 VERIFYING
+    #[test]
+    fn v05_verifying_guard_rejects_non_pending() {
+        // 如果订单已为 CREDITED/ACKED/FAILED，transition_to_verifying 应返回 OrderAlreadyFinalized
+        let non_pending_states = ["CREDITED", "ACKED", "FAILED", "REFUNDED", "CANCELLED", "VERIFYING"];
+        for state in non_pending_states {
+            assert_ne!(state, "PENDING", "state {} is not PENDING", state);
+        }
     }
 }

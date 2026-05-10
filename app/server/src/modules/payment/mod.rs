@@ -10,11 +10,13 @@
 //! - `verify_service` — PaymentVerifyService（验签 + 入账，T-00052）
 //! - `rtdn_service` — PaymentRtdnService（RTDN 推送处理，T-00053）
 //! - `cron` — 后台对账 cron（T-00054）
+//! - `dev_mock` — Dev Mock 充值服务（T-00055，仅 dev_payment_mock feature）
 //! - `controller` — HTTP handlers
 //! - `routes` — 路由注册
 
 pub mod controller;
 pub mod cron;
+pub mod dev_mock;
 pub mod dto;
 pub mod error;
 pub mod google_billing_port;
@@ -36,3 +38,4 @@ pub use risk::FakeRiskCheckService;
 pub use service::FakePaymentOrderService;
 pub use verify_service::FakePaymentVerifyService;
 pub use rtdn_service::FakePaymentRtdnService;
+pub use dev_mock::FakePaymentMockService;

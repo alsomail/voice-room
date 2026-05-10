@@ -77,6 +77,15 @@ pub struct AppState {
     pub payment_verify_service: Arc<dyn PaymentVerifyServicePort>,
     /// RTDN 推送处理服务（E-08 T-00053）
     pub payment_rtdn_service: Arc<dyn PaymentRtdnServicePort>,
+    /// RTDN OIDC 验证受众（Cloud Pub/Sub 推送目标 URL）
+    /// 空字符串 → 跳过验证（dev/test 模式）
+    pub rtdn_audience: String,
+    /// RTDN OIDC 验证密钥（HS256）
+    /// 空字节 → 跳过验证（dev/test 模式）
+    pub rtdn_oidc_secret: String,
+    /// Dev Mock 充值服务（仅 dev_payment_mock feature 编译）
+    #[cfg(feature = "dev_payment_mock")]
+    pub payment_mock_service: Arc<dyn crate::modules::payment::dev_mock::PaymentMockServicePort>,
 }
 
 impl AppState {
@@ -139,6 +148,12 @@ impl AppState {
             ),
             payment_rtdn_service: Arc::new(
                 crate::modules::payment::FakePaymentRtdnService,
+            ),
+            rtdn_audience: String::new(),
+            rtdn_oidc_secret: String::new(),
+            #[cfg(feature = "dev_payment_mock")]
+            payment_mock_service: Arc::new(
+                crate::modules::payment::dev_mock::FakePaymentMockService,
             ),
         }
     }
@@ -211,6 +226,12 @@ impl AppState {
             ),
             payment_rtdn_service: Arc::new(
                 crate::modules::payment::FakePaymentRtdnService,
+            ),
+            rtdn_audience: String::new(),
+            rtdn_oidc_secret: String::new(),
+            #[cfg(feature = "dev_payment_mock")]
+            payment_mock_service: Arc::new(
+                crate::modules::payment::dev_mock::FakePaymentMockService,
             ),
         }
     }

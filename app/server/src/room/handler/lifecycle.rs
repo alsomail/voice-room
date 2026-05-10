@@ -211,7 +211,7 @@ pub async fn handle_join_room(
         None
     };
 
-    let joined_envelope = if let Some(noble) = noble_dto {
+    let joined_envelope = if let Some(ref noble) = noble_dto {
         serde_json::json!({
             "type": "UserJoined",
             "payload": {
@@ -234,6 +234,26 @@ pub async fn handle_join_room(
         })
     };
     crate::ws::broadcaster::broadcast_to_room(registry, &room_state, joined_envelope);
+
+    // ── 8.1 T-00069: NobleEntered 广播（LV3+ viscount/earl/duke/king）────────────
+    // 协议 §10.4.5：当进房用户贵族等级 >= 3 时，向房间广播 NobleEntered 信令。
+    if let Some(ref noble) = noble_dto {
+        let level = noble.level;
+        if crate::modules::nobility::privileges::should_broadcast_noble_entered(level) {
+            let entered_envelope = serde_json::json!({
+                "type": "NobleEntered",
+                "msg_id": uuid::Uuid::new_v4().to_string(),
+                "payload": {
+                    "user_id": user_id.to_string(),
+                    "nickname": nickname,
+                    "avatar": avatar,
+                    "noble": noble,
+                },
+                "timestamp": chrono::Utc::now().timestamp_millis(),
+            });
+            crate::ws::broadcaster::broadcast_to_room(registry, &room_state, entered_envelope);
+        }
+    }
 
     // ── 9. 返回 JoinRoomResult ──────────────────────────────────────────────────
     let mic_slots_json: Vec<serde_json::Value> = room_state

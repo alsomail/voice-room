@@ -201,7 +201,7 @@ mod tests {
                 vip_support: None,
                 monthly_stipend: Some(
                     voice_room_shared::models::nobility::MonthlyStipendPrivilege {
-                        diamonds: 60000,
+                        percent: 15,          // duke: 15%
                         pay_immediately: true,
                     },
                 ),
@@ -213,6 +213,12 @@ mod tests {
         assert_eq!(json["level"], 5);
         assert_eq!(json["monthly_diamonds"], 300000);
         assert_eq!(json["privileges"]["mic_priority"]["weight"], 3.0);
+        // T-00067: duke monthly_stipend.percent = 15
+        assert_eq!(json["privileges"]["monthly_stipend"]["percent"], 15);
+        // T-00067: 15% × 300000 = 45000 (NOT 60000 which was the old wrong diamonds value)
+        let percent = json["privileges"]["monthly_stipend"]["percent"].as_i64().unwrap();
+        let monthly_diamonds = json["monthly_diamonds"].as_i64().unwrap();
+        assert_eq!(percent * monthly_diamonds / 100, 45000, "duke stipend = 45000");
     }
 
     // DTO-04: UserNobleDto 序列化
@@ -228,5 +234,28 @@ mod tests {
         let json = serde_json::to_value(&noble).unwrap();
         assert_eq!(json["tier_id"], "king");
         assert_eq!(json["level"], 6);
+    }
+
+    // DTO-05: purchase handler WS signal — NobleChanged 信令格式验证
+    #[test]
+    fn dto05_noble_changed_signal_format() {
+        use serde_json::json;
+        // 模拟 NobleChanged 信令构造（purchase_handler 发送给购买用户）
+        let user_id = uuid::Uuid::new_v4();
+        let msg = json!({
+            "type": "NobleChanged",
+            "msg_id": uuid::Uuid::new_v4().to_string(),
+            "payload": {
+                "user_id": user_id.to_string(),
+                "from_tier": null,
+                "to_tier": "duke",
+                "expire_at": "2026-06-01T00:00:00Z",
+                "operation": "purchase"
+            },
+            "timestamp": chrono::Utc::now().timestamp_millis(),
+        });
+        assert_eq!(msg["type"], "NobleChanged");
+        assert_eq!(msg["payload"]["to_tier"], "duke");
+        assert_eq!(msg["payload"]["operation"], "purchase");
     }
 }

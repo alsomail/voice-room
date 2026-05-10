@@ -19,6 +19,8 @@ use crate::{
 };
 
 use super::dto::{CreateOrderRequest, RtdnEnvelope, VerifyRequest};
+#[cfg(feature = "dev_payment_mock")]
+use super::dto::MockRechargeRequest;
 
 // ─── SKU 列表（GET /api/v1/payments/skus）────────────────────────────────────
 
@@ -110,13 +112,37 @@ pub async fn verify_handler(
 
 /// POST /webhook/google/rtdn（T-00053）
 ///
-/// Cloud Pub/Sub Push 模式，不做 JWT 鉴权（依赖 VPC + Cloud Armor），
-/// 仅验证 message.messageId 幂等
+/// Cloud Pub/Sub Push 模式，必须验证 `Authorization: Bearer <OIDC>` token：
+/// - issuer = `https://accounts.google.com`
+/// - audience = `AppState.rtdn_audience`（配置项 `payment.rtdn_audience`）
 pub async fn rtdn_webhook_handler(
     State(state): State<AppState>,
     Extension(rc): Extension<RequestContext>,
+    headers: axum::http::HeaderMap,
     Json(envelope): Json<RtdnEnvelope>,
 ) -> axum::response::Response {
+    use super::rtdn_service::validate_rtdn_oidc_token;
+
+    // 提取 Authorization: Bearer <token>
+    let bearer_token = headers
+        .get(axum::http::header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.strip_prefix("Bearer "))
+        .unwrap_or("");
+
+    // 验证 OIDC token（empty audience/secret → dev mode, skip）
+    if let Err(e) = validate_rtdn_oidc_token(
+        bearer_token,
+        &state.rtdn_audience,
+        state.rtdn_oidc_secret.as_bytes(),
+    ) {
+        tracing::warn!(
+            message_id = %envelope.message.message_id,
+            "RTDN OIDC validation failed, rejecting"
+        );
+        return e.with_request_id(rc.request_id()).into_response();
+    }
+
     match state.payment_rtdn_service.handle_rtdn(envelope).await {
         Ok(result) => {
             tracing::info!(

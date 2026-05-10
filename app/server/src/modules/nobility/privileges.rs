@@ -92,6 +92,14 @@ pub fn can_trigger_global_broadcast(level: i16) -> bool {
     level >= 5
 }
 
+/// 判断贵族进房是否触发 NobleEntered 房间广播（LV3+ viscount/earl/duke/king）
+///
+/// 协议 §10.4.5：当进房用户贵族等级 >= 3（viscount+）时，
+/// 向房间广播 NobleEntered 信令。
+pub fn should_broadcast_noble_entered(level: i16) -> bool {
+    level >= 3
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -126,7 +134,7 @@ mod tests {
             global_broadcast: None,
             vip_support: None,
             monthly_stipend: Some(MonthlyStipendPrivilege {
-                diamonds: 0,
+                percent: 0,
                 pay_immediately: false,
             }),
             expiry: None,
@@ -234,5 +242,51 @@ mod tests {
         let result = apply_gift_discount(&p, 30000);
         assert_eq!(result.discounted_price, 26000);
         assert_eq!(result.subsidy_amount, 4000);
+    }
+
+    // T70-13: 隐身 scope=mic_only → 观众可见（仅对麦位隐身）
+    #[test]
+    fn t70_13_invisible_mic_only_visible_to_audience() {
+        let p = make_privileges("mic_only", 0, 1.0, false);
+        // 对观众可见（不是 mic_and_audience 也不是 all）
+        assert!(is_visible_to_viewer(&p, false, false));
+        assert!(is_visible_to_viewer(&p, false, true));
+        assert!(is_visible_to_viewer(&p, true, false));
+    }
+
+    // T70-14: NobleEntered 广播条件 — level >= 3 触发
+    #[test]
+    fn t70_14_noble_entered_broadcast_condition() {
+        // level < 3 → 不触发 NobleEntered
+        assert!(!should_broadcast_noble_entered(1));
+        assert!(!should_broadcast_noble_entered(2));
+        // level >= 3 → 触发
+        assert!(should_broadcast_noble_entered(3));
+        assert!(should_broadcast_noble_entered(4));
+        assert!(should_broadcast_noble_entered(5));
+        assert!(should_broadcast_noble_entered(6));
+    }
+
+    // T70-15: 密码房免密特权 — duke/king 可跳过，knight-earl 不可跳过
+    #[test]
+    fn t70_15_bypass_password_by_tier() {
+        // duke/king (bypass=true) → can bypass
+        let p_duke = make_privileges("mic_and_audience", 10, 3.0, true);
+        assert!(can_bypass_password(&p_duke));
+        // knight (bypass=false) → cannot bypass
+        let p_knight = make_privileges("none", 0, 1.0, false);
+        assert!(!can_bypass_password(&p_knight));
+    }
+
+    // T70-16: 礼物折扣钩子 — apply_gift_discount 返回整数结果
+    #[test]
+    fn t70_16_gift_discount_integer_result() {
+        let p = make_privileges("none", 10, 1.0, false);
+        // 15000 * 90% = 13500, ceil(13500/1000)*1000 = 14000
+        let result = apply_gift_discount(&p, 15000);
+        assert_eq!(result.discounted_price, 14000);
+        assert_eq!(result.subsidy_amount, 1000);
+        // no fractional diamond
+        assert_eq!(result.discounted_price % 1, 0);
     }
 }

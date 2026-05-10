@@ -58,9 +58,90 @@ mod tests {
     use crate::infrastructure::redis_store::FakeCodeStore;
     use crate::infrastructure::third_party::sms::MockSmsProvider;
     use crate::modules::auth::repository::{FailingUserRepository, FakeUserRepository};
+    use crate::modules::nobility::NobilityServicePort;
     use crate::modules::room::repository::FakeRoomRepository;
     use crate::stats::FakeStatsService;
     use crate::ws::registry::{ConnectionHandle, ConnectionRegistry};
+
+    // ── 贵族服务 Fake（仅用于 NobleEntered 测试）────────────────────────────────
+
+    struct FakeNobleService {
+        /// 返回指定 level 的 noble dto（用 JSON 模拟 UserNobleDto）
+        level: i16,
+    }
+
+    #[async_trait::async_trait]
+    impl NobilityServicePort for FakeNobleService {
+        async fn list_tiers(
+            &self,
+            _lang: &str,
+        ) -> Result<
+            crate::modules::nobility::dto::ListTiersResponse,
+            crate::common::error::AppError,
+        > {
+            use crate::modules::nobility::{FakeNobilityService, NobilityServicePort};
+            FakeNobilityService.list_tiers(_lang).await
+        }
+
+        async fn get_my_noble(
+            &self,
+            _user_id: uuid::Uuid,
+            _lang: &str,
+        ) -> Result<
+            crate::modules::nobility::dto::MyNobleResponse,
+            crate::common::error::AppError,
+        > {
+            use crate::modules::nobility::{FakeNobilityService, NobilityServicePort};
+            FakeNobilityService.get_my_noble(_user_id, _lang).await
+        }
+
+        async fn purchase(
+            &self,
+            user_id: uuid::Uuid,
+            req: crate::modules::nobility::dto::PurchaseRequest,
+        ) -> Result<
+            crate::modules::nobility::dto::PurchaseResponse,
+            crate::common::error::AppError,
+        > {
+            use crate::modules::nobility::{FakeNobilityService, NobilityServicePort};
+            FakeNobilityService.purchase(user_id, req).await
+        }
+
+        async fn set_auto_renew(
+            &self,
+            _user_id: uuid::Uuid,
+            _enabled: bool,
+        ) -> Result<
+            bool,
+            crate::common::error::AppError,
+        > {
+            use crate::modules::nobility::{FakeNobilityService, NobilityServicePort};
+            FakeNobilityService.set_auto_renew(_user_id, _enabled).await
+        }
+
+        async fn get_user_noble_dto(
+            &self,
+            user_id: uuid::Uuid,
+        ) -> Option<crate::modules::nobility::dto::UserNobleDto> {
+            Some(crate::modules::nobility::dto::UserNobleDto {
+                tier_id: match self.level {
+                    1 => "knight",
+                    2 => "baron",
+                    3 => "viscount",
+                    4 => "earl",
+                    5 => "duke",
+                    6 => "king",
+                    _ => "knight",
+                }
+                .to_string(),
+                level: self.level,
+                badge_color: "#gold".to_string(),
+                frame_url: "https://cdn.example.com/frame.png".to_string(),
+                expire_at: chrono::Utc::now() + chrono::Duration::days(30),
+            })
+        }
+    }
+
 
     // ── 测试辅助 ──────────────────────────────────────────────────────────────
 
@@ -2354,5 +2435,164 @@ mod tests {
             36,
             "J-replay-04: msg_id 应为 UUID v4 标准长度 36"
         );
+    }
+
+    // T-00069: NobleEntered — LV3+ 进房时广播 NobleEntered
+    #[tokio::test]
+    async fn t69_noble_entered_broadcast_for_lv3_plus() {
+        let room_id = Uuid::new_v4();
+        let user_id = Uuid::new_v4();
+        let room_manager = Arc::new(RoomManager::new());
+        let room_service = room_service_with(room_id);
+        let auth_service = auth_service_with(user_id, "VisCountUser");
+        let registry = Arc::new(ConnectionRegistry::new());
+        let stats: Arc<dyn StatsPort> = Arc::new(FakeStatsService::default());
+
+        // 先注册一个房间内旁观者
+        let observer_id = Uuid::new_v4();
+        let (_, mut observer_rx) = register_connection(&registry, observer_id, Some(room_id));
+        room_manager.get_or_create_room(room_id).members.insert(
+            observer_id,
+            MemberInfo::new(observer_id, "Observer".into(), None),
+        );
+        registry.set_room_id(
+            {
+                let (obs_conn, _) = register_connection(&registry, observer_id, None);
+                obs_conn
+            },
+            room_id,
+        );
+
+        // 进房用户连接
+        let (conn_id, _rx) = register_connection(&registry, user_id, None);
+
+        let deps = JoinRoomDeps {
+            room_manager: room_manager.clone(),
+            room_service,
+            auth_service,
+            registry: registry.clone(),
+            stats,
+            jwt_secret: "test-secret".to_string(),
+            kick_redis: None,
+            nobility_service: Some(Arc::new(FakeNobleService { level: 3 })), // viscount LV3
+        };
+
+        let resp = handle_join_room(
+            join_payload(room_id),
+            Some("msg-69a".to_string()),
+            conn_id,
+            user_id,
+            &deps,
+        )
+        .await;
+
+        let json: serde_json::Value = serde_json::from_str(&resp).unwrap();
+        assert_eq!(json["code"], 0, "T-00069: join should succeed");
+
+        // 旁观者应收到两个广播：UserJoined 和 NobleEntered
+        let mut received_types = vec![];
+        while let Ok(msg) = observer_rx.try_recv() {
+            if let Ok(v) = serde_json::from_str::<serde_json::Value>(&msg) {
+                if let Some(t) = v["type"].as_str() {
+                    received_types.push(t.to_string());
+                }
+            }
+        }
+        assert!(
+            received_types.contains(&"NobleEntered".to_string()),
+            "T-00069: LV3 user should trigger NobleEntered broadcast, got: {received_types:?}"
+        );
+    }
+
+    // T-00069: NobleEntered — LV1/LV2 进房时不广播 NobleEntered
+    #[tokio::test]
+    async fn t69_no_noble_entered_for_lv1() {
+        let room_id = Uuid::new_v4();
+        let user_id = Uuid::new_v4();
+        let room_manager = Arc::new(RoomManager::new());
+        let room_service = room_service_with(room_id);
+        let auth_service = auth_service_with(user_id, "KnightUser");
+        let registry = Arc::new(ConnectionRegistry::new());
+        let stats: Arc<dyn StatsPort> = Arc::new(FakeStatsService::default());
+
+        // 先注册一个房间内旁观者，用已存在的 observer_id
+        let observer_id = Uuid::new_v4();
+        let (obs_conn, mut observer_rx) = register_connection(&registry, observer_id, None);
+        room_manager.get_or_create_room(room_id).members.insert(
+            observer_id,
+            MemberInfo::new(observer_id, "Observer".into(), None),
+        );
+        registry.set_room_id(obs_conn, room_id);
+
+        let (conn_id, _rx) = register_connection(&registry, user_id, None);
+
+        let deps = JoinRoomDeps {
+            room_manager: room_manager.clone(),
+            room_service,
+            auth_service,
+            registry: registry.clone(),
+            stats,
+            jwt_secret: "test-secret".to_string(),
+            kick_redis: None,
+            nobility_service: Some(Arc::new(FakeNobleService { level: 1 })), // knight LV1
+        };
+
+        handle_join_room(
+            join_payload(room_id),
+            Some("msg-69b".to_string()),
+            conn_id,
+            user_id,
+            &deps,
+        )
+        .await;
+
+        // Drain observer's channel
+        let mut received_types = vec![];
+        while let Ok(msg) = observer_rx.try_recv() {
+            if let Ok(v) = serde_json::from_str::<serde_json::Value>(&msg) {
+                if let Some(t) = v["type"].as_str() {
+                    received_types.push(t.to_string());
+                }
+            }
+        }
+        assert!(
+            !received_types.contains(&"NobleEntered".to_string()),
+            "T-00069: LV1 user should NOT trigger NobleEntered, got: {received_types:?}"
+        );
+    }
+
+    // T-00069: 无贵族的普通用户进房不广播 NobleEntered
+    #[tokio::test]
+    async fn t69_no_noble_entered_for_non_noble_user() {
+        let room_id = Uuid::new_v4();
+        let user_id = Uuid::new_v4();
+        let room_manager = Arc::new(RoomManager::new());
+        let room_service = room_service_with(room_id);
+        let auth_service = auth_service_with(user_id, "NormalUser");
+        let registry = Arc::new(ConnectionRegistry::new());
+        let stats: Arc<dyn StatsPort> = Arc::new(FakeStatsService::default());
+
+        let (conn_id, _rx) = register_connection(&registry, user_id, None);
+
+        let deps = JoinRoomDeps {
+            room_manager: room_manager.clone(),
+            room_service,
+            auth_service,
+            registry: registry.clone(),
+            stats,
+            jwt_secret: "test-secret".to_string(),
+            kick_redis: None,
+            nobility_service: None, // no nobility service → no NobleEntered
+        };
+
+        handle_join_room(
+            join_payload(room_id),
+            Some("msg-69c".to_string()),
+            conn_id,
+            user_id,
+            &deps,
+        )
+        .await;
+        // Test passes if no panic — NobleEntered broadcast is not attempted
     }
 }

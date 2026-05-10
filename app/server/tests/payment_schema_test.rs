@@ -57,13 +57,13 @@ async fn w50_02_five_sku_seeds_present() {
     };
     common::run_migrations(&pool).await.unwrap();
 
-    // 协议 §附录 B 规定的 5 个 SKU ID
+    // 协议 §附录 B 规定的 5 个 SKU ID（与迁移 012 种子数据对齐）
     let expected_skus = [
         "diamond_60",
         "diamond_300",
-        "diamond_980",
+        "diamond_600",
         "diamond_1980",
-        "diamond_3280",
+        "diamond_6480",
     ];
 
     let rows = sqlx::query("SELECT sku_id FROM payment_skus WHERE provider = 'google_play' ORDER BY sort_order")
@@ -234,9 +234,9 @@ async fn w50_06_sku_diamonds_values_correct() {
     let expectations = vec![
         SkuExpect { sku_id: "diamond_60", diamonds: 60 },
         SkuExpect { sku_id: "diamond_300", diamonds: 300 },
-        SkuExpect { sku_id: "diamond_980", diamonds: 980 },
+        SkuExpect { sku_id: "diamond_600", diamonds: 600 },
         SkuExpect { sku_id: "diamond_1980", diamonds: 1980 },
-        SkuExpect { sku_id: "diamond_3280", diamonds: 3280 },
+        SkuExpect { sku_id: "diamond_6480", diamonds: 6480 },
     ];
 
     for exp in &expectations {
@@ -269,10 +269,10 @@ async fn w50_07_rtdn_processed_idempotent_upsert() {
 
     let message_id = format!("msg_{}", Uuid::new_v4());
 
-    // 第一次插入
+    // 第一次插入（使用迁移 012 实际列名：message_id, event_time_millis, notification_kind, outcome）
     sqlx::query(
-        "INSERT INTO rtdn_processed (message_id, notification_type, processed_at)
-         VALUES ($1, 'ONE_TIME_PRODUCT_NOTIFICATION', NOW())
+        "INSERT INTO rtdn_processed (message_id, event_time_millis, notification_kind, outcome, processed_at)
+         VALUES ($1, 1746788688000, 'ONE_TIME_PRODUCT_NOTIFICATION', 'credited', NOW())
          ON CONFLICT (message_id) DO NOTHING",
     )
     .bind(&message_id)
@@ -282,8 +282,8 @@ async fn w50_07_rtdn_processed_idempotent_upsert() {
 
     // 第二次相同 message_id — 幂等，不报错
     sqlx::query(
-        "INSERT INTO rtdn_processed (message_id, notification_type, processed_at)
-         VALUES ($1, 'ONE_TIME_PRODUCT_NOTIFICATION', NOW())
+        "INSERT INTO rtdn_processed (message_id, event_time_millis, notification_kind, outcome, processed_at)
+         VALUES ($1, 1746788688000, 'ONE_TIME_PRODUCT_NOTIFICATION', 'credited', NOW())
          ON CONFLICT (message_id) DO NOTHING",
     )
     .bind(&message_id)
