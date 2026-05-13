@@ -1,11 +1,12 @@
 //! T-10027: SkuRepository — SKU 数据访问层
 
+
+#[cfg(any(test, feature = "test-utils"))]
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use sqlx::PgPool;
-use uuid::Uuid;
 
 use crate::common::error::AppError;
 

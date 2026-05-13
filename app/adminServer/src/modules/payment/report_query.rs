@@ -1,12 +1,14 @@
 //! T-10028: 财务报告数据库查询层
 
-use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
 use chrono::NaiveDate;
 use sqlx::PgPool;
 
 use crate::common::error::AppError;
+
+#[cfg(any(test, feature = "test-utils"))]
+use std::sync::{Arc, Mutex};
 
 // ─── DB 行 ────────────────────────────────────────────────────────────────────
 
@@ -100,43 +102,52 @@ impl ReportQueryRepo for PgReportQuery {
         from: NaiveDate,
         to: NaiveDate,
     ) -> Result<Vec<ReportDbRow>, AppError> {
-        // 格式化占位符
-        let date_fmt = if granularity == "month" {
-            "YYYY-MM"
-        } else {
-            "YYYY-MM-DD"
+        // 使用 match 选择固化 SQL，防止 format! 注入（即使 controller 层已校验）
+        let (sql, date_fmt) = match granularity {
+            "day" => (
+                "SELECT to_char(DATE_TRUNC('day', \
+                    (created_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Riyadh'), \
+                    'YYYY-MM-DD') AS date, \
+                 COALESCE(currency, 'USD') AS currency, \
+                 COALESCE(SUM(CASE WHEN state NOT IN ('REFUNDED','CANCELLED','FAILED') \
+                               THEN amount_usd ELSE 0 END), 0)::float8 AS revenue_sum, \
+                 COUNT(*) FILTER (WHERE state NOT IN ('REFUNDED','CANCELLED','FAILED')) \
+                                          AS order_count, \
+                 COUNT(*) FILTER (WHERE state = 'REFUNDED') AS refund_count, \
+                 COALESCE(SUM(CASE WHEN state = 'REFUNDED' \
+                               THEN amount_usd ELSE 0 END), 0)::float8 AS refund_sum \
+                 FROM payment_orders \
+                 WHERE provider != 'mock' \
+                   AND created_at >= $1::date \
+                   AND created_at <  $2::date + INTERVAL '1 day' \
+                 GROUP BY date, currency ORDER BY date, currency",
+                "YYYY-MM-DD",
+            ),
+            "month" => (
+                "SELECT to_char(DATE_TRUNC('month', \
+                    (created_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Riyadh'), \
+                    'YYYY-MM') AS date, \
+                 COALESCE(currency, 'USD') AS currency, \
+                 COALESCE(SUM(CASE WHEN state NOT IN ('REFUNDED','CANCELLED','FAILED') \
+                               THEN amount_usd ELSE 0 END), 0)::float8 AS revenue_sum, \
+                 COUNT(*) FILTER (WHERE state NOT IN ('REFUNDED','CANCELLED','FAILED')) \
+                                          AS order_count, \
+                 COUNT(*) FILTER (WHERE state = 'REFUNDED') AS refund_count, \
+                 COALESCE(SUM(CASE WHEN state = 'REFUNDED' \
+                               THEN amount_usd ELSE 0 END), 0)::float8 AS refund_sum \
+                 FROM payment_orders \
+                 WHERE provider != 'mock' \
+                   AND created_at >= $1::date \
+                   AND created_at <  $2::date + INTERVAL '1 day' \
+                 GROUP BY date, currency ORDER BY date, currency",
+                "YYYY-MM",
+            ),
+            other => return Err(AppError::ValidationError(format!(
+                "unsupported granularity: {other}, expected day or month"
+            ))),
         };
 
-        let sql = format!(
-            r#"
-            SELECT
-                to_char(
-                    DATE_TRUNC('{granularity}',
-                        (created_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Riyadh'
-                    ),
-                    '{date_fmt}'
-                )                            AS date,
-                COALESCE(currency, 'USD')    AS currency,
-                COALESCE(SUM(CASE WHEN state NOT IN ('REFUNDED','CANCELLED','FAILED')
-                                  THEN amount_usd ELSE 0 END), 0)::float8  AS revenue_sum,
-                COUNT(*) FILTER (WHERE state NOT IN ('REFUNDED','CANCELLED','FAILED'))
-                                             AS order_count,
-                COUNT(*) FILTER (WHERE state = 'REFUNDED')
-                                             AS refund_count,
-                COALESCE(SUM(CASE WHEN state = 'REFUNDED'
-                                  THEN amount_usd ELSE 0 END), 0)::float8  AS refund_sum
-            FROM payment_orders
-            WHERE provider != 'mock'
-              AND created_at >= $1::date
-              AND created_at <  $2::date + INTERVAL '1 day'
-            GROUP BY date, currency
-            ORDER BY date, currency
-            "#,
-            granularity = granularity,
-            date_fmt = date_fmt,
-        );
-
-        let rows = sqlx::query_as::<_, RawRow>(&sql)
+        let rows = sqlx::query_as::<_, RawRow>(sql)
             .bind(from)
             .bind(to)
             .fetch_all(&self.pool)

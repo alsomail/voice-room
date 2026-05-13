@@ -31,6 +31,16 @@ pub enum Permission {
     GiftDelete,
     // 治理日志查询（T-10016）：super_admin / operator / cs 可查；finance 禁止
     GovernanceRead,
+    // 支付订单查询（T-10025）：super_admin / operator / finance
+    PaymentRead,
+    // 支付写操作（T-10026/27）：super_admin / operator
+    PaymentWrite,
+    // 支付报表（T-10028）：super_admin / finance
+    PaymentReport,
+    // 贵族 tier 只读（T-10030/32）：super_admin / operator
+    NobleTierRead,
+    // 贵族 tier 写操作（T-10030）：仅 super_admin
+    NobleTierWrite,
 }
 
 /// 已鉴权的管理员上下文，由 `AdminAuthContext::from_request_parts` 注入。
@@ -75,6 +85,9 @@ impl AdminAuthContext {
                     | Permission::WalletAdjust
                     | Permission::GiftWrite
                     | Permission::GovernanceRead
+                    | Permission::PaymentRead
+                    | Permission::PaymentWrite
+                    | Permission::NobleTierRead
             ),
             "cs" => matches!(
                 permission,
@@ -86,6 +99,8 @@ impl AdminAuthContext {
                     | Permission::FinanceRead
                     | Permission::FinanceWrite
                     | Permission::WalletAdjust
+                    | Permission::PaymentRead
+                    | Permission::PaymentReport
             ),
             _ => false,
         }
@@ -94,6 +109,16 @@ impl AdminAuthContext {
     /// 断言当前角色有指定权限，权限不足时返回 `AppError::Forbidden`（HTTP 403 / 40301）。
     pub fn require_permission(&self, permission: Permission) -> Result<(), AppError> {
         if self.has_permission(permission) {
+            Ok(())
+        } else {
+            Err(AppError::Forbidden)
+        }
+    }
+
+    /// 断言当前角色等于指定角色（如 "super_admin"），不匹配时返回 `AppError::Forbidden`。
+    /// 用于 T-10026 补单/退款 和 T-10031 贵族手动操作等仅 super_admin 可执行的操作。
+    pub fn require_role(&self, role: &str) -> Result<(), AppError> {
+        if self.role == role {
             Ok(())
         } else {
             Err(AppError::Forbidden)

@@ -23,6 +23,10 @@ import { UsersPage } from '../pages/users/index';
 import { LogsPage } from '../pages/logs/index';
 import { GiftManagementPage } from '../features/gift/GiftManagementPage';
 import { GovernanceLogsPage } from '../features/governance/GovernanceLogsPage';
+import { PaymentOrdersPage } from '../features/payment/PaymentOrdersPage';
+import { SkuManagementPage } from '../features/payment/SkuManagementPage';
+import { FinancialReportsPage } from '../features/payment/FinancialReportsPage';
+import { NobleTierManagementPage } from '../features/nobility/NobleTierManagementPage';
 
 export function AppRoutes() {
   return (
@@ -55,6 +59,33 @@ export function AppRoutes() {
             }
           >
             <Route path="/rooms/governance" element={<GovernanceLogsPage />} />
+          </Route>
+          {/* ── 模块10: 支付管理 ──────────────────────────────────────────── */}
+          {/* T-20030/33: 订单列表 + 财务报表（super_admin/operator/finance） */}
+          <Route
+            element={
+              <RoleGuard allowedRoles={['super_admin', 'operator', 'finance']} />
+            }
+          >
+            <Route path="/payments/orders" element={<PaymentOrdersPage />} />
+            <Route path="/payments/reports" element={<FinancialReportsPage />} />
+          </Route>
+          {/* T-20032: SKU 管理（super_admin/operator） */}
+          <Route
+            element={
+              <RoleGuard allowedRoles={['super_admin', 'operator']} />
+            }
+          >
+            <Route path="/payments/skus" element={<SkuManagementPage />} />
+          </Route>
+          {/* ── 模块11: 贵族管理 ──────────────────────────────────────────── */}
+          {/* T-20035: 贵族等级管理（super_admin/operator） */}
+          <Route
+            element={
+              <RoleGuard allowedRoles={['super_admin', 'operator']} />
+            }
+          >
+            <Route path="/nobles/tiers" element={<NobleTierManagementPage />} />
           </Route>
         </Route>
       </Route>

@@ -18,9 +18,8 @@ use crate::{
 };
 
 use super::{
-    admin_service::PaymentAdminService,
     dto::{ListOrdersQuery, ListOrdersResponse},
-    repo::{OrderFilter, PaymentOrderRepo},
+    repo::OrderFilter,
 };
 
 // ─── GET /api/v1/admin/payments/orders ───────────────────────────────────────

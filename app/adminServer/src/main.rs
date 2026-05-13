@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use tokio::{net::TcpListener, signal};
 use voice_room_admin_server::{
@@ -13,6 +13,14 @@ use voice_room_admin_server::{
         },
         gift::repo::PgGiftRepository,
         governance::repo::PgGovernanceRepo,
+        nobility::repository::PgNobilityRepo,
+        payment::{
+            admin_service::PgPaymentAdminRepository,
+            repo::PgPaymentOrderRepo,
+            report_query::PgReportQuery,
+            report_service::ExchangeRates,
+            sku_repo::PgSkuRepository,
+        },
         room::PgAdminRoomRepository,
         stats::PgAdminStatsRepository,
         user::PgAdminUserRepository,
@@ -85,6 +93,12 @@ async fn main() -> anyhow::Result<()> {
     };
 
     // 构建 AppState（注入真实 PgRepository）
+    let pool_nobility = pool.clone();
+    let pool_payment_order = pool.clone();
+    let pool_payment_admin = pool.clone();
+    let pool_sku = pool.clone();
+    let pool_report = pool.clone();
+    let pool_governance = pool.clone();
     let state = AppState::new(
         Arc::new(PgAdminRepository::new(pool.clone())),
         Arc::new(PgAdminLogRepository::new(pool.clone())),
@@ -97,7 +111,13 @@ async fn main() -> anyhow::Result<()> {
         Arc::new(PgWalletRepository::new(pool.clone())),
         Arc::new(PgGiftRepository::new(pool.clone())),
         Arc::new(PgEventQueryRepository::new(pool.clone())),
-        Arc::new(PgGovernanceRepo::new(pool)),
+        Arc::new(PgGovernanceRepo::new(pool_governance)),
+        Arc::new(PgPaymentOrderRepo::new(pool_payment_order)),
+        Arc::new(PgPaymentAdminRepository::new(pool_payment_admin)),
+        Arc::new(PgSkuRepository::new(pool_sku)),
+        Arc::new(PgReportQuery::new(pool_report)),
+        ExchangeRates(HashMap::new()),
+        Arc::new(PgNobilityRepo::new(pool_nobility)),
     );
 
     let app = build_app(state.clone());

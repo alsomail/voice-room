@@ -3,6 +3,8 @@ pub mod auth;
 pub mod event;
 pub mod gift;
 pub mod governance;
+pub mod nobility;
+pub mod payment;
 pub mod room;
 pub mod stats;
 pub mod user;

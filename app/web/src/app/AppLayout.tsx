@@ -26,6 +26,10 @@ import {
   GiftOutlined,
   SafetyOutlined,
   LogoutOutlined,
+  DollarOutlined,
+  ShoppingOutlined,
+  BarChartOutlined,
+  CrownOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -39,6 +43,13 @@ const GIFT_MENU_ROLES = ['super_admin', 'operator'];
 // 有权访问治理日志菜单的角色（finance 隐藏）
 const GOVERNANCE_MENU_ROLES = ['super_admin', 'operator', 'cs'];
 
+// 模块10: 支付管理 — 订单/报表 finance 可见，SKU 仅 super_admin/operator
+const PAYMENT_ORDERS_ROLES = ['super_admin', 'operator', 'finance'];
+const PAYMENT_SKUS_ROLES = ['super_admin', 'operator'];
+
+// 模块11: 贵族管理
+const NOBILITY_ROLES = ['super_admin', 'operator'];
+
 export function AppLayout() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -51,6 +62,9 @@ export function AppLayout() {
 
   const canSeeGiftMenu = GIFT_MENU_ROLES.includes(role);
   const canSeeGovernanceMenu = GOVERNANCE_MENU_ROLES.includes(role);
+  const canSeePaymentOrders = PAYMENT_ORDERS_ROLES.includes(role);
+  const canSeePaymentSkus = PAYMENT_SKUS_ROLES.includes(role);
+  const canSeeNobility = NOBILITY_ROLES.includes(role);
 
   // ── 菜单项
   const menuItems = [
@@ -97,6 +111,48 @@ export function AppLayout() {
             icon: <SafetyOutlined />,
             label: t('governance.title'),
             'data-testid': 'menu-item-governance',
+          },
+        ]
+      : []),
+    // ── 模块10: 支付管理 ────────────────────────────────────────────
+    ...(canSeePaymentOrders
+      ? [
+          {
+            key: '/payments/orders',
+            icon: <ShoppingOutlined />,
+            label: t('payment.orders.title'),
+            'data-testid': 'menu-item-payment-orders',
+          },
+        ]
+      : []),
+    ...(canSeePaymentSkus
+      ? [
+          {
+            key: '/payments/skus',
+            icon: <DollarOutlined />,
+            label: t('payment.skus.title'),
+            'data-testid': 'menu-item-payment-skus',
+          },
+        ]
+      : []),
+    ...(canSeePaymentOrders
+      ? [
+          {
+            key: '/payments/reports',
+            icon: <BarChartOutlined />,
+            label: t('payment.reports.title'),
+            'data-testid': 'menu-item-payment-reports',
+          },
+        ]
+      : []),
+    // ── 模块11: 贵族管理 ────────────────────────────────────────────
+    ...(canSeeNobility
+      ? [
+          {
+            key: '/nobles/tiers',
+            icon: <CrownOutlined />,
+            label: t('nobility.tiers.title'),
+            'data-testid': 'menu-item-nobility-tiers',
           },
         ]
       : []),

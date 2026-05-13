@@ -43,7 +43,7 @@ import {
  * - DEV: throws ZodError immediately on mismatch (fail fast)
  * - PROD: logs console.error and returns data as-is (non-breaking)
  */
-function validateResponse<T>(data: T, schema: ZodType): T {
+export function validateResponse<T>(data: T, schema: ZodType): T {
   const result = schema.safeParse(data);
   if (!result.success) {
     if (import.meta.env.DEV) {
@@ -90,7 +90,7 @@ function getAdminApiBaseUrl(): string {
   return webEnv.adminApiBaseUrl;
 }
 
-async function adminFetch<T>(
+export async function adminFetch<T>(
   path: string,
   init?: RequestInit,
 ): Promise<ApiResponse<T>> {

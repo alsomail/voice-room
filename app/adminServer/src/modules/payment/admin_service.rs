@@ -5,6 +5,8 @@
 //!   refund:   ACKED/CREDITED → REFUNDED
 
 use std::sync::Arc;
+
+#[cfg(any(test, feature = "test-utils"))]
 use std::sync::Mutex;
 
 use async_trait::async_trait;
@@ -21,6 +23,7 @@ use voice_room_shared::payment::OrderState;
 #[derive(Debug, Clone)]
 pub struct RecreditResult {
     pub order_id: Uuid,
+    pub user_id: Uuid,
     pub new_state: String,
     pub diamonds_credited: i64,
 }
@@ -28,6 +31,7 @@ pub struct RecreditResult {
 #[derive(Debug, Clone)]
 pub struct RefundResult {
     pub order_id: Uuid,
+    pub user_id: Uuid,
     pub new_state: String,
     pub diamonds_deducted: i64,
 }
@@ -127,8 +131,8 @@ impl PaymentAdminService {
         // 原子操作
         let result = self.repo.recredit_atomic(order_id, admin_id, reason).await?;
 
-        // Redis PUBLISH（fire-and-forget）
-        self.publish_balance_event(admin_id, result.diamonds_credited)
+        // Redis PUBLISH（fire-and-forget）— 通知被补单的用户余额已更新
+        self.publish_balance_event(result.user_id, result.diamonds_credited)
             .await;
 
         Ok(result)
@@ -163,17 +167,17 @@ impl PaymentAdminService {
 
         let result = self.repo.refund_atomic(order_id, admin_id, reason).await?;
 
-        // Redis PUBLISH（fire-and-forget）
-        self.publish_balance_event(admin_id, -result.diamonds_deducted)
+        // Redis PUBLISH（fire-and-forget）— 通知被退款的用户余额已更新
+        self.publish_balance_event(result.user_id, -result.diamonds_deducted)
             .await;
 
         Ok(result)
     }
 
-    async fn publish_balance_event(&self, admin_id: Uuid, delta: i64) {
+    async fn publish_balance_event(&self, user_id: Uuid, delta: i64) {
         let payload = BalanceUpdatedEvent {
-            user_id: admin_id, // placeholder; real user_id comes from repo
-            balance_after: 0,  // placeholder
+            user_id,
+            balance_after: 0,  // placeholder; subscriber fills from DB
             delta,
             reason: if delta >= 0 {
                 "admin_recredit".to_string()
@@ -185,7 +189,7 @@ impl PaymentAdminService {
         let event = RawEvent {
             event_type: "balance_updated".to_string(),
             payload: serde_json::to_value(&payload).unwrap_or_default(),
-            admin_id: admin_id.to_string(),
+            admin_id: user_id.to_string(),
             ts: Utc::now().timestamp(),
         };
         if let Err(e) = self
@@ -302,8 +306,10 @@ impl PaymentAdminRepository for FakePaymentAdminRepository {
             .unwrap()
             .push((order_id, reason.to_string()));
 
+        let user_id = entry.user_id;
         Ok(RecreditResult {
             order_id,
+            user_id,
             new_state: "CREDITED".to_string(),
             diamonds_credited: diamonds,
         })
@@ -322,6 +328,7 @@ impl PaymentAdminRepository for FakePaymentAdminRepository {
             .ok_or_else(|| AppError::OrderNotFound(order_id.to_string()))?;
 
         let diamonds = entry.diamonds;
+        let user_id = entry.user_id;
         entry.state = OrderState::Refunded;
         entry.balance -= diamonds;
 
@@ -332,6 +339,7 @@ impl PaymentAdminRepository for FakePaymentAdminRepository {
 
         Ok(RefundResult {
             order_id,
+            user_id,
             new_state: "REFUNDED".to_string(),
             diamonds_deducted: diamonds,
         })
@@ -481,6 +489,7 @@ impl PaymentAdminRepository for PgPaymentAdminRepository {
 
         Ok(RecreditResult {
             order_id,
+            user_id,
             new_state: "CREDITED".to_string(),
             diamonds_credited: diamonds,
         })
@@ -588,6 +597,7 @@ impl PaymentAdminRepository for PgPaymentAdminRepository {
 
         Ok(RefundResult {
             order_id,
+            user_id,
             new_state: "REFUNDED".to_string(),
             diamonds_deducted: diamonds,
         })

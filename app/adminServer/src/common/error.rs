@@ -54,13 +54,41 @@ pub enum AppError {
     #[error("Validation error: {0}")]
     ValidationError(String),
 
-    // 400 - 钱包余额不足（T-10013，code=40290）
+    // 40290 - 钱包余额不足（T-10013）
     #[error("Insufficient balance")]
     InsufficientBalance,
 
     // 409 - 礼物 code 已存在（T-10014，code=40900）
     #[error("Duplicate code: {0}")]
     DuplicateCode(String),
+
+    // 40400 - 订单不存在（T-10025/26）
+    #[error("Order not found: {0}")]
+    OrderNotFound(String),
+
+    // 40900 - 订单已终态，禁止补单/退款（T-10026）
+    #[error("Order already finalized")]
+    OrderAlreadyFinalized,
+
+    // 40900 - SKU ID 冲突（T-10027）
+    #[error("SKU conflict: {0}")]
+    SkuConflict(String),
+
+    // 40003 - 价格变更需二次确认（T-10027）
+    #[error("Price change requires confirmation")]
+    PriceChangeRequiresConfirm,
+
+    // 40917 - 贵族特权 JSON Schema 无效（T-10030）
+    #[error("Privileges schema invalid: {0}")]
+    PrivilegesSchemaInvalid(String),
+
+    // 40900 - 贵族等级冲突（T-10030）
+    #[error("Tier level conflict: {0}")]
+    TierLevelConflict(i16),
+
+    // 40914 - 贵族等级已下架（T-10030/31）
+    #[error("Tier inactive: {0}")]
+    TierInactive(String),
 
     // 500
     #[error("Database error: {0}")]
@@ -84,6 +112,13 @@ impl AppError {
             AppError::RoomAlreadyClosed => ErrorCode::RoomAlreadyClosed,
             AppError::UserAlreadyBanned | AppError::UserAlreadyNormal => ErrorCode::Conflict,
             AppError::DuplicateCode(_) => ErrorCode::Conflict,
+            AppError::OrderNotFound(_) => ErrorCode::NotFound,
+            AppError::OrderAlreadyFinalized => ErrorCode::Conflict,
+            AppError::SkuConflict(_) => ErrorCode::Conflict,
+            AppError::PriceChangeRequiresConfirm => ErrorCode::ValidationError,
+            AppError::PrivilegesSchemaInvalid(_) => ErrorCode::PrivilegesSchemaInvalid,
+            AppError::TierLevelConflict(_) => ErrorCode::Conflict,
+            AppError::TierInactive(_) => ErrorCode::TierInactive,
             AppError::DatabaseError(_) | AppError::Internal(_) => ErrorCode::InternalError,
         }
     }
@@ -99,6 +134,13 @@ impl AppError {
             AppError::RoomAlreadyClosed => StatusCode::CONFLICT,
             AppError::UserAlreadyBanned | AppError::UserAlreadyNormal => StatusCode::CONFLICT,
             AppError::DuplicateCode(_) => StatusCode::CONFLICT,
+            AppError::OrderNotFound(_) => StatusCode::NOT_FOUND,
+            AppError::OrderAlreadyFinalized => StatusCode::CONFLICT,
+            AppError::SkuConflict(_) => StatusCode::CONFLICT,
+            AppError::PriceChangeRequiresConfirm => StatusCode::UNPROCESSABLE_ENTITY,
+            AppError::PrivilegesSchemaInvalid(_) => StatusCode::UNPROCESSABLE_ENTITY,
+            AppError::TierLevelConflict(_) => StatusCode::CONFLICT,
+            AppError::TierInactive(_) => StatusCode::NOT_FOUND,
             AppError::ValidationError(_) | AppError::InsufficientBalance => StatusCode::BAD_REQUEST,
             AppError::DatabaseError(_) | AppError::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }

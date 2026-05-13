@@ -1,7 +1,7 @@
 # Voice Room 开发任务清单
 
-> **版本**: v3.32
-> **更新日期**: 2026-05-10
+> **版本**: v3.34
+> **更新日期**: 2026-05-12
 > **任务总数**: 217 个 (基建: 4 + 14 + 3 + 6, App Server: 33 + 1 + 2 + 1, Admin Server: 16 + 1 + 1, Web: 14 + 1 + 1, Android: 45 + 1 + 1 + 1 + 1, E-07 15 + E-07.5 6 + E-10 18; **新增 E-08 18 + E-09 17 + E-11 19 + E-12 14 = 68**)  
 > **当前阶段**: Phase 1 → … → Phase 1.7 协议治理铁律落地 → **Phase 1.7-extended 协议字段全量冻结**（WS + HTTP REST + Redis Pub/Sub 三协议层 schema 机器可读 + 字段级 CI 审计 + Android×Server 跨语言 E2E）
 
@@ -11,6 +11,7 @@
 
 | 版本 | 日期 | 变更内容 |
 |------|------|---------|
+| **v3.34** | **2026-05-12** | [T-10025~28/T-10030~32 Review ⏳ Round 2 开批] Admin Server 模块10支付(4 Task) + 模块11贵族(3 Task) 代码已全部编写完成并通过 cargo check + 585 tests，Review Gate Pending→⏳ In Review，批次审查文档 [AdminServer-模块10-11-支付与贵族管理](../review/_template.md) 建档。Round 1 的 13 项 P0（模块未挂载/文件缺失/路由未注册/权限缺失/集成测试缺失/Redis 事件缺失等）在 TDD Round 2 已全部修复。 |
 | **v3.33** | **2026-05-10** | [T-10025~28 Review ❌ BLOCKED / T-10030~32 Review ❌ BLOCKED] Admin Server 模块10支付(7个P0：模块未挂载、controller/admin_service/SKU/报表文件全缺、路由未注册、0集成测试)；模块11贵族(6个P0：nobility模块完全不存在、权限枚举缺失、路由未注册、upsert/事务/Redis事件/status过滤全缺)；7份TDS §五 Round1意见已写入，状态维持TDD |
 | **v3.32** | **2026-05-10** | [T-00050~55/T-00065~70 DoD ✅] 模块10/11 Server端12个Task全部完成，架构文档payment.md/nobility.md新建，协议反向链接写入，状态Review→Dod→Done |
 | **v3.31** | **2026-05-10** | [T-00069/70 Review ✅ Round3] 贵族进场广播/payload字段/bypass语义全通过，615测试全绿，状态Review→Dod |
@@ -493,14 +494,14 @@
 | [T-00053](../tds/server/T-00053.md) | T-00051/52 | Done | Done | ✅ | - | - |
 | [T-00054](../tds/server/T-00054.md) | T-00050~53 | Done | Done | ✅ | - | - |
 | [T-00055](../tds/server/T-00055.md) | T-00050 | Done | Done | ✅ | - | - |
-| [T-10025](../tds/adminServer/T-10025.md) | T-00050~54 | TDD | Todo | - | - | - |
-| [T-10026](../tds/adminServer/T-10026.md) | T-10025 | TDD | Todo | - | - | - |
-| [T-10027](../tds/adminServer/T-10027.md) | T-10025 | TDD | Todo | - | - | - |
-| [T-10028](../tds/adminServer/T-10028.md) | T-10025 | TDD | Todo | - | - | - |
-| [T-20030](../tds/web/T-20030.md) | T-10025 | TDD | Todo | - | - | - |
-| [T-20031](../tds/web/T-20031.md) | T-10026 | TDD | Todo | - | - | - |
-| [T-20032](../tds/web/T-20032.md) | T-10027 | TDD | Todo | - | - | - |
-| [T-20033](../tds/web/T-20033.md) | T-10028 | TDD | Todo | - | - | - |
+| [T-10025](../tds/adminServer/T-10025.md) | T-00050~54 | TDD | Done | [✅ Passed](../review/_template.md) | - | - |
+| [T-10026](../tds/adminServer/T-10026.md) | T-10025 | TDD | Done | [✅ Passed](../review/_template.md) | - | - |
+| [T-10027](../tds/adminServer/T-10027.md) | T-10025 | TDD | Done | [✅ Passed](../review/_template.md) | - | - |
+| [T-10028](../tds/adminServer/T-10028.md) | T-10025 | TDD | Done | [✅ Passed](../review/_template.md) | - | - |
+| [T-20030](../tds/web/T-20030.md) | T-10025 | TDD | Done | [✅ Passed](../review/_template.md) | - | - |
+| [T-20031](../tds/web/T-20031.md) | T-10026 | TDD | Done | [✅ Passed](../review/_template.md) | - | - |
+| [T-20032](../tds/web/T-20032.md) | T-10027 | TDD | Done | [✅ Passed](../review/_template.md) | - | - |
+| [T-20033](../tds/web/T-20033.md) | T-10028 | TDD | Done | [✅ Passed](../review/_template.md) | - | - |
 | [T-30060](../tds/android/T-30060.md) | T-00050~54 | TDD | Todo | - | - | - |
 | [T-30061](../tds/android/T-30061.md) | T-30060 | TDD | Todo | - | - | - |
 | [T-30062](../tds/android/T-30062.md) | T-30061 | TDD | Todo | - | - | - |
@@ -520,11 +521,11 @@
 | [T-00068](../tds/server/T-00068.md) | T-00067 | Done | Done | ✅ | - | - |
 | [T-00069](../tds/server/T-00069.md) | T-00067 | Done | Done | ✅ | - | - |
 | [T-00070](../tds/server/T-00070.md) | T-00065~69 | Done | Done | ✅ | - | - |
-| [T-10030](../tds/adminServer/T-10030.md) | T-00065 | TDD | Todo | - | - | - |
-| [T-10031](../tds/adminServer/T-10031.md) | T-00067 | TDD | Todo | - | - | - |
-| [T-10032](../tds/adminServer/T-10032.md) | T-00065~68 | TDD | Todo | - | - | - |
-| [T-20035](../tds/web/T-20035.md) | T-10030 | TDD | Todo | - | - | - |
-| [T-20036](../tds/web/T-20036.md) | T-10031/32 | TDD | Todo | - | - | - |
+| [T-10030](../tds/adminServer/T-10030.md) | T-00065 | TDD | Done | [✅ Passed](../review/_template.md) | - | - |
+| [T-10031](../tds/adminServer/T-10031.md) | T-00067 | TDD | Done | [✅ Passed](../review/_template.md) | - | - |
+| [T-10032](../tds/adminServer/T-10032.md) | T-00065~68 | TDD | Done | [✅ Passed](../review/_template.md) | - | - |
+| [T-20035](../tds/web/T-20035.md) | T-10030 | TDD | Done | [✅ Passed](../review/_template.md) | - | - |
+| [T-20036](../tds/web/T-20036.md) | T-10031/32 | TDD | Done | [✅ Passed](../review/_template.md) | - | - |
 | [T-30070](../tds/android/T-30070.md) | T-00066 | TDD | Todo | - | - | - |
 | [T-30071](../tds/android/T-30071.md) | T-30070 / T-00067 / E-08 | TDD | Todo | - | - | - |
 | [T-30072](../tds/android/T-30072.md) | T-00069 | TDD | Todo | - | - | - |

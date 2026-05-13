@@ -8,7 +8,7 @@ use crate::common::error::AppError;
 
 use super::{
     report_dto::{ReportResponse, ReportSeriesItem, ReportTotals},
-    report_query::{ReportDbRow, ReportQueryRepo},
+    report_query::ReportQueryRepo,
 };
 
 #[cfg(any(test, feature = "test-utils"))]
@@ -139,7 +139,8 @@ struct BucketAccum {
 }
 
 fn format_usd(v: f64) -> String {
-    format!("{:.2}", v)
+    // Normalize -0.0 → 0.0: IEEE 754 comparison treats -0.0 == 0.0
+    format!("{:.2}", if v == 0.0 { 0.0 } else { v })
 }
 
 fn parse_f64(s: &str) -> f64 {

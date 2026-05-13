@@ -28,6 +28,7 @@ import { useUserDetail } from './useUserDetail';
 import { UserStatusTag } from './UserStatusTag';
 import { AdjustBalanceModal } from '../../features/user/AdjustBalanceModal';
 import { EventStreamTab } from '../../features/user/EventStreamTab';
+import { NobleTab } from '../../features/nobility/NobleTab';
 import { useAuthStore } from '../../stores/useAuthStore';
 
 /** 有权限调整余额的角色（对应 T-10013 RBAC WalletAdjust 权限） */
@@ -184,6 +185,15 @@ export function UserDetailDrawer({
                   </span>
                 ),
                 children: <EventStreamTab userId={detail.id} />,
+              },
+              {
+                key: 'noble',
+                label: (
+                  <span data-testid="tab-noble">
+                    {t('nobility.tiers.title')}
+                  </span>
+                ),
+                children: <NobleTab userId={detail.id} refreshKey={refreshKey} />,
               },
             ]}
           />

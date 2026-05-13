@@ -3,6 +3,8 @@
 //! PaymentOrderRepo: 订单列表/详情（只读）
 //! PaymentAdminRepo: 补单/退款原子事务（写）
 
+
+#[cfg(any(test, feature = "test-utils"))]
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;

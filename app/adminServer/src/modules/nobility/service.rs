@@ -1415,22 +1415,22 @@ mod tests {
     #[test]
     fn noble_tier_read_permissions() {
         use crate::common::auth::{AdminAuthContext, Permission};
-        for role in ["super_admin", "operator", "cs"] {
+        for role in ["super_admin", "operator"] {
             let ctx = AdminAuthContext::new(Uuid::new_v4(), role);
             assert!(ctx.has_permission(Permission::NobleTierRead), "{role} should have NobleTierRead");
         }
-        let finance = AdminAuthContext::new(Uuid::new_v4(), "finance");
-        assert!(!finance.has_permission(Permission::NobleTierRead), "finance must not have NobleTierRead");
+        for role in ["cs", "finance"] {
+            let ctx = AdminAuthContext::new(Uuid::new_v4(), role);
+            assert!(!ctx.has_permission(Permission::NobleTierRead), "{role} must not have NobleTierRead");
+        }
     }
 
     #[test]
     fn noble_tier_write_permissions() {
         use crate::common::auth::{AdminAuthContext, Permission};
-        for role in ["super_admin", "operator"] {
-            let ctx = AdminAuthContext::new(Uuid::new_v4(), role);
-            assert!(ctx.has_permission(Permission::NobleTierWrite), "{role} should have NobleTierWrite");
-        }
-        for role in ["cs", "finance"] {
+        let super_admin = AdminAuthContext::new(Uuid::new_v4(), "super_admin");
+        assert!(super_admin.has_permission(Permission::NobleTierWrite), "super_admin should have NobleTierWrite");
+        for role in ["operator", "cs", "finance"] {
             let ctx = AdminAuthContext::new(Uuid::new_v4(), role);
             assert!(!ctx.has_permission(Permission::NobleTierWrite), "{role} must not have NobleTierWrite");
         }

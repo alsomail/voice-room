@@ -34,6 +34,26 @@ use crate::{
         repo::GovernanceRepo,
         service::GovernanceService,
     },
+    modules::nobility::{
+        controller::{
+            create_tier_handler, delete_tier_handler, get_noble_history_handler, get_tier_handler,
+            grant_noble_handler, list_noble_users_handler, list_tiers_handler,
+            revoke_noble_handler, update_tier_handler,
+        },
+        repository::NobilityRepo,
+        service::NobilityService,
+    },
+    modules::payment::{
+        admin_service::{PaymentAdminRepository, PaymentAdminService},
+        controller::{detail_order_handler, list_orders_handler, recredit_handler, refund_handler},
+        repo::PaymentOrderRepo,
+        report_controller::summary_handler,
+        report_query::ReportQueryRepo,
+        report_service::{ExchangeRates, ReportService},
+        sku_controller::{create_sku_handler, delete_sku_handler, list_skus_handler, update_sku_handler},
+        sku_repo::SkuRepository,
+        sku_service::SkuService,
+    },
     modules::room::{
         controller::{force_close_room_handler, get_room_detail_handler, list_rooms_handler},
         AdminRoomRepository, AdminRoomService,
@@ -72,6 +92,16 @@ pub struct AppState {
     pub event_query_service: Arc<EventQueryService>,
     /// 治理日志查询服务（T-10016）
     pub governance_service: Arc<GovernanceService>,
+    /// 支付订单只读仓库（T-10025）
+    pub payment_order_repo: Arc<dyn PaymentOrderRepo>,
+    /// 支付补单/退款服务（T-10026）
+    pub payment_admin_service: Arc<PaymentAdminService>,
+    /// SKU 管理服务（T-10027）
+    pub sku_service: Arc<SkuService>,
+    /// 支付报表服务（T-10028）
+    pub report_service: Arc<ReportService>,
+    /// 贵族管理服务（T-10030~32）
+    pub nobility_service: Arc<NobilityService>,
 }
 
 impl AppState {
@@ -89,6 +119,12 @@ impl AppState {
         gift_repo: Arc<dyn GiftRepository>,
         event_query_repo: Arc<dyn EventQueryRepository>,
         governance_repo: Arc<dyn GovernanceRepo>,
+        payment_order_repo: Arc<dyn PaymentOrderRepo>,
+        payment_admin_repo: Arc<dyn PaymentAdminRepository>,
+        sku_repo: Arc<dyn SkuRepository>,
+        report_query_repo: Arc<dyn ReportQueryRepo>,
+        exchange_rates: ExchangeRates,
+        nobility_repo: Arc<dyn NobilityRepo>,
     ) -> Self {
         let auth_service = Arc::new(AdminAuthService::new(
             admin_repo,
@@ -113,6 +149,17 @@ impl AppState {
             governance_repo,
             audit_logger.clone(),
         ));
+        let payment_admin_service = Arc::new(PaymentAdminService::new(
+            payment_admin_repo,
+            event_publisher.clone(),
+        ));
+        let sku_service = Arc::new(SkuService::new(sku_repo));
+        let report_service = Arc::new(ReportService::new(report_query_repo, exchange_rates));
+        let nobility_service = Arc::new(NobilityService::new(
+            nobility_repo,
+            audit_logger.clone(),
+            event_publisher.clone(),
+        ));
         Self {
             auth_service,
             room_service,
@@ -127,6 +174,11 @@ impl AppState {
             gift_upload_dir,
             event_query_service,
             governance_service,
+            payment_order_repo,
+            payment_admin_service,
+            sku_service,
+            report_service,
+            nobility_service,
         }
     }
 
@@ -141,10 +193,16 @@ impl AppState {
         use crate::modules::event::query_repo::FakeEventQueryRepository;
         use crate::modules::gift::repo::FakeGiftRepository;
         use crate::modules::governance::repo::FakeGovernanceRepo;
+        use crate::modules::nobility::repository::FakeNobilityRepo;
+        use crate::modules::payment::admin_service::FakePaymentAdminRepository;
+        use crate::modules::payment::repo::FakePaymentOrderRepo;
+        use crate::modules::payment::report_query::FakeReportQuery;
+        use crate::modules::payment::sku_repo::FakeSkuRepository;
         use crate::modules::room::repository::FakeAdminRoomRepository;
         use crate::modules::stats::FakeAdminStatsRepository;
         use crate::modules::user::repository::FakeAdminUserRepository;
         use crate::modules::wallet::repository::FakeWalletRepository;
+        use std::collections::HashMap;
         Self::new(
             Arc::new(FakeAdminRepository::default()),
             Arc::new(FakeAdminLogRepository::default()),
@@ -158,6 +216,12 @@ impl AppState {
             Arc::new(FakeGiftRepository::default()),
             Arc::new(FakeEventQueryRepository::default()),
             Arc::new(FakeGovernanceRepo::default()),
+            Arc::new(FakePaymentOrderRepo::default()),
+            Arc::new(FakePaymentAdminRepository::default()),
+            Arc::new(FakeSkuRepository::default()),
+            Arc::new(FakeReportQuery::default()),
+            ExchangeRates(HashMap::new()),
+            Arc::new(FakeNobilityRepo::default()),
         )
     }
 }
@@ -213,6 +277,59 @@ pub fn build_app(state: AppState) -> Router {
         .route(
             "/api/v1/admin/governance/logs.csv",
             get(export_logs_csv_handler),
+        )
+        // ── T-10025~28: 支付管理 ────────────────────────────────────────────
+        .route(
+            "/api/v1/admin/payments/orders",
+            get(list_orders_handler),
+        )
+        .route(
+            "/api/v1/admin/payments/orders/{id}",
+            get(detail_order_handler),
+        )
+        .route(
+            "/api/v1/admin/payments/orders/{id}/recredit",
+            post(recredit_handler),
+        )
+        .route(
+            "/api/v1/admin/payments/orders/{id}/refund",
+            post(refund_handler),
+        )
+        .route(
+            "/api/v1/admin/payments/skus",
+            get(list_skus_handler).post(create_sku_handler),
+        )
+        .route(
+            "/api/v1/admin/payments/skus/{id}",
+            put(update_sku_handler).delete(delete_sku_handler),
+        )
+        .route("/api/v1/admin/payments/reports", get(summary_handler))
+        // ── T-10030~32: 贵族管理 ────────────────────────────────────────────
+        .route(
+            "/api/v1/admin/nobles/tiers",
+            get(list_tiers_handler).post(create_tier_handler),
+        )
+        .route(
+            "/api/v1/admin/nobles/tiers/{id}",
+            get(get_tier_handler)
+                .put(update_tier_handler)
+                .delete(delete_tier_handler),
+        )
+        .route(
+            "/api/v1/admin/nobles/users",
+            get(list_noble_users_handler),
+        )
+        .route(
+            "/api/v1/admin/nobles/users/{user_id}/history",
+            get(get_noble_history_handler),
+        )
+        .route(
+            "/api/v1/admin/users/{id}/noble/grant",
+            post(grant_noble_handler),
+        )
+        .route(
+            "/api/v1/admin/users/{id}/noble/revoke",
+            post(revoke_noble_handler),
         )
         // P2-14: 审计中间件 — 按 method+path 白名单自动记录敏感操作（ban/unban/close_room）
         .layer(middleware::from_fn_with_state(audit_state, audit_middleware))
@@ -354,6 +471,54 @@ mod tests {
 
     // ── 测试辅助 ──────────────────────────────────────────────────────────────
 
+    /// 构建 AppState 的测试版本 — 自动为 payment/nobility 模块填充 Fake 实现。
+    ///
+    /// 测试代码中凡是 `AppState::new(...)` 的调用，都替换为 `new_test_state(...)`，
+    /// 参数签名与原 `AppState::new()` (v3.32 13 参数) 完全兼容，payment/nobility 的
+    /// 6 个额外参数由本函数自动注入 Fake。
+    #[allow(clippy::too_many_arguments)]
+    fn new_test_state(
+        admin_repo: Arc<dyn AdminRepository>,
+        log_repo: Arc<dyn AdminLogRepository>,
+        room_repo: Arc<dyn AdminRoomRepository>,
+        user_repo: Arc<dyn AdminUserRepository>,
+        stats_repo: Arc<dyn AdminStatsRepository>,
+        jwt_secret: String,
+        event_publisher: Arc<dyn EventPublisher>,
+        audit_repo: Arc<dyn AuditRepository>,
+        wallet_repo: Arc<dyn WalletRepository>,
+        gift_repo: Arc<dyn GiftRepository>,
+        event_query_repo: Arc<dyn EventQueryRepository>,
+        governance_repo: Arc<dyn GovernanceRepo>,
+    ) -> AppState {
+        use crate::modules::nobility::repository::FakeNobilityRepo;
+        use crate::modules::payment::admin_service::FakePaymentAdminRepository;
+        use crate::modules::payment::repo::FakePaymentOrderRepo;
+        use crate::modules::payment::report_query::FakeReportQuery;
+        use crate::modules::payment::sku_repo::FakeSkuRepository;
+        use std::collections::HashMap;
+        AppState::new(
+            admin_repo,
+            log_repo,
+            room_repo,
+            user_repo,
+            stats_repo,
+            jwt_secret,
+            event_publisher,
+            audit_repo,
+            wallet_repo,
+            gift_repo,
+            event_query_repo,
+            governance_repo,
+            Arc::new(FakePaymentOrderRepo::default()),
+            Arc::new(FakePaymentAdminRepository::default()),
+            Arc::new(FakeSkuRepository::default()),
+            Arc::new(FakeReportQuery::default()),
+            ExchangeRates(HashMap::new()),
+            Arc::new(FakeNobilityRepo::default()),
+        )
+    }
+
     /// 低 cost(4) 快速 bcrypt 哈希，仅用于测试。
     fn test_hash(password: &str) -> String {
         bcrypt::hash(password, 4).unwrap()
@@ -381,7 +546,7 @@ mod tests {
         use crate::modules::user::repository::FakeAdminUserRepository;
         let admin_repo = Arc::new(FakeAdminRepository::default());
         admin_repo.seed(admin);
-        build_app(AppState::new(
+        build_app(new_test_state(
             admin_repo,
             Arc::new(FakeAdminLogRepository::default()),
             Arc::new(FakeAdminRoomRepository::default()),
@@ -632,7 +797,7 @@ mod tests {
         let admin = make_admin("op1", "pass1234", "operator", true);
         admin_repo.seed(admin);
 
-        let app = build_app(AppState::new(
+        let app = build_app(new_test_state(
             admin_repo,
             log_repo,
             Arc::new(FakeAdminRoomRepository::default()),
@@ -957,7 +1122,7 @@ mod tests {
         for room in rooms {
             room_repo.seed(room);
         }
-        build_app(AppState::new(
+        build_app(new_test_state(
             admin_repo,
             log_repo,
             room_repo,
@@ -1410,7 +1575,7 @@ mod tests {
         for row in detail_rows {
             room_repo.seed_detail(row);
         }
-        build_app(AppState::new(
+        build_app(new_test_state(
             admin_repo,
             log_repo,
             room_repo,
@@ -1432,7 +1597,7 @@ mod tests {
         let log_repo = Arc::new(FakeAdminLogRepository::default());
         let room_repo = Arc::new(FakeAdminRoomRepository::default());
         room_repo.seed_detail_deleted(row);
-        build_app(AppState::new(
+        build_app(new_test_state(
             admin_repo,
             log_repo,
             room_repo,
@@ -1674,7 +1839,7 @@ mod tests {
         for row in detail_rows {
             room_repo.seed_detail(row);
         }
-        let router = build_app(AppState::new(
+        let router = build_app(new_test_state(
             admin_repo,
             log_repo,
             room_repo.clone(),
@@ -1706,7 +1871,7 @@ mod tests {
             room_repo.seed_detail(row);
         }
         let audit_repo = Arc::new(FakeAuditRepository::default());
-        let router = build_app(AppState::new(
+        let router = build_app(new_test_state(
             admin_repo,
             log_repo,
             room_repo.clone(),
@@ -1994,7 +2159,7 @@ mod tests {
         for user in users {
             user_repo.seed(user);
         }
-        build_app(AppState::new(
+        build_app(new_test_state(
             admin_repo,
             log_repo,
             room_repo,
@@ -2297,7 +2462,7 @@ mod tests {
         for user in deleted_users {
             user_repo.seed_deleted(user);
         }
-        build_app(AppState::new(
+        build_app(new_test_state(
             admin_repo,
             log_repo,
             room_repo,
@@ -2513,7 +2678,7 @@ mod tests {
         for user in users {
             user_repo.seed(user);
         }
-        let router = build_app(AppState::new(
+        let router = build_app(new_test_state(
             admin_repo,
             log_repo,
             room_repo,
@@ -2546,7 +2711,7 @@ mod tests {
             user_repo.seed(user);
         }
         let audit_repo = Arc::new(FakeAuditRepository::default());
-        let router = build_app(AppState::new(
+        let router = build_app(new_test_state(
             admin_repo,
             log_repo,
             room_repo,
@@ -2788,7 +2953,7 @@ mod tests {
         let log_repo = Arc::new(FakeAdminLogRepository::default());
         let room_repo = Arc::new(FakeAdminRoomRepository::default());
         let user_repo = Arc::new(FakeAdminUserRepository::default());
-        build_app(AppState::new(
+        build_app(new_test_state(
             admin_repo,
             log_repo,
             room_repo,
@@ -3323,7 +3488,7 @@ mod tests {
         fake_wallet.seed_user(user_id, initial_balance);
         let fake_pub = Arc::new(NoopEventPublisher::default());
 
-        let state = AppState::new(
+        let state = new_test_state(
             admin_repo,
             log_repo,
             Arc::new(FakeAdminRoomRepository::default()),
@@ -3572,9 +3737,9 @@ mod tests {
         );
     }
 
-    // ── WA06: amount=-1000 当前余额 500 → 40204（WalletInsufficientBalance），事务回滚，流水无新记录
+    // ── WA06: amount=-1000 当前余额 500 → 40290（InsufficientBalance），事务回滚，流水无新记录
     #[tokio::test]
-    async fn wa06_insufficient_balance_returns_40204_no_transaction_written() {
+    async fn wa06_insufficient_balance_returns_40290_no_transaction_written() {
         let user_id = Uuid::new_v4();
         let token = make_jwt("test-secret", "super_admin");
         let (app, fake_wallet, _) = wallet_app(user_id, 500);
@@ -3587,7 +3752,7 @@ mod tests {
         )
         .await;
 
-        // HTTP 400 / 40204 (WalletInsufficientBalance)
+        // HTTP 400 / 40290 (InsufficientBalance)
         assert_eq!(
             resp.status(),
             StatusCode::BAD_REQUEST,
@@ -3596,8 +3761,8 @@ mod tests {
         let json = body_json(resp).await;
         assert_eq!(
             json["code"].as_i64().unwrap(),
-            40204,
-            "WA06: 错误码应为 40204（WALLET_INSUFFICIENT_BALANCE）"
+            40290,
+            "WA06: 错误码应为 40290（INSUFFICIENT_BALANCE）"
         );
 
         // 余额未变
@@ -3655,7 +3820,7 @@ mod tests {
         fake_wallet.set_inject_admin_log_error(true); // 注入 admin_log 步骤失败
 
         let fake_pub = Arc::new(NoopEventPublisher::default());
-        let state = AppState::new(
+        let state = new_test_state(
             Arc::new(FakeAdminRepository::default()),
             Arc::new(FakeAdminLogRepository::default()),
             Arc::new(FakeAdminRoomRepository::default()),
@@ -3754,7 +3919,7 @@ mod tests {
             gift_repo.seed(g);
         }
         let audit_repo = Arc::new(FakeAuditRepository::default());
-        let state = AppState::new(
+        let state = new_test_state(
             Arc::new(FakeAdminRepository::default()),
             Arc::new(FakeAdminLogRepository::default()),
             Arc::new(FakeAdminRoomRepository::default()),
@@ -4202,7 +4367,7 @@ mod tests {
     async fn gc12_create_gift_publishes_cache_invalidate_event() {
         let token = make_jwt("test-secret", "operator");
         let publisher = Arc::new(NoopEventPublisher::default());
-        let state = AppState::new(
+        let state = new_test_state(
             Arc::new(FakeAdminRepository::default()),
             Arc::new(FakeAdminLogRepository::default()),
             Arc::new(FakeAdminRoomRepository::default()),

@@ -722,21 +722,22 @@ impl NobilityRepo for PgNobilityRepo {
         tier_id: &str,
         data: UpdateTierData,
     ) -> Result<NobleTierRow, AppError> {
-        // Build dynamic UPDATE using COALESCE
+        // PATCH 语义：参数为 NULL 时保留原值，非 NULL 时更新
+        // 用 CASE WHEN 替代 COALESCE，显式区分"不更新"与"列值为 NULL"的语义
         let row: PgTierRow = sqlx::query_as(
             "UPDATE noble_tiers SET \
-             name_en = COALESCE($2, name_en), \
-             name_ar = COALESCE($3, name_ar), \
-             monthly_diamonds = COALESCE($4, monthly_diamonds), \
-             monthly_usd = COALESCE($5::numeric, monthly_usd), \
-             usd_sku_id = COALESCE($6, usd_sku_id), \
-             privileges = COALESCE($7, privileges), \
-             icon_url = COALESCE($8, icon_url), \
-             frame_url = COALESCE($9, frame_url), \
-             entrance_animation_url = COALESCE($10, entrance_animation_url), \
-             bgm_url = COALESCE($11, bgm_url), \
-             badge_color = COALESCE($12, badge_color), \
-             bubble_style_id = COALESCE($13, bubble_style_id), \
+             name_en = CASE WHEN $2 IS NULL THEN name_en ELSE $2 END, \
+             name_ar = CASE WHEN $3 IS NULL THEN name_ar ELSE $3 END, \
+             monthly_diamonds = CASE WHEN $4 IS NULL THEN monthly_diamonds ELSE $4 END, \
+             monthly_usd = CASE WHEN $5::numeric IS NULL THEN monthly_usd ELSE $5::numeric END, \
+             usd_sku_id = CASE WHEN $6 IS NULL THEN usd_sku_id ELSE $6 END, \
+             privileges = CASE WHEN $7 IS NULL THEN privileges ELSE $7 END, \
+             icon_url = CASE WHEN $8 IS NULL THEN icon_url ELSE $8 END, \
+             frame_url = CASE WHEN $9 IS NULL THEN frame_url ELSE $9 END, \
+             entrance_animation_url = CASE WHEN $10 IS NULL THEN entrance_animation_url ELSE $10 END, \
+             bgm_url = CASE WHEN $11 IS NULL THEN bgm_url ELSE $11 END, \
+             badge_color = CASE WHEN $12 IS NULL THEN badge_color ELSE $12 END, \
+             bubble_style_id = CASE WHEN $13 IS NULL THEN bubble_style_id ELSE $13 END, \
              updated_at = now() \
              WHERE tier_id = $1 \
              RETURNING tier_id, name_en, name_ar, level, monthly_diamonds, \

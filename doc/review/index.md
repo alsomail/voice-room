@@ -25,3 +25,4 @@
 | [模块3-BUG-CHAT-WS修复链](./模块3-BUG-CHAT-WS修复链.md) | 模块 3 Chat (T-00045/46 + T-30051/52) | ✅ Passed | - | 1/10 | 2026-05-05 通过（E2E Round 14~22 驱动：REST 广播端点 / WS 广播可观测性 / Android WS 接收链路可观测性 / UI 气泡样式；P0=0/P1=0/P2=0/P3=1 一轮过） |
 | [server-T-00048-chat-dual-path](./server-T-00048-chat-dual-path.md) | 模块 3 Chat (T-00048) | ✅ Passed | - | 1/10 | 2026-05-05 通过（Chat 双路径等价回归集成测试；协议路径绑定 3 行全 PASS；P0=0/P1=0/P2=1非阻断/P3=2；DUAL-1/2/3 全绿） |
 | [模块10-Phase1.7-extended-协议字段冻结](./模块10-Phase1.7-extended-协议字段冻结.md) | T-00100~T-00108 (9 任务) | ✅ Passed | - | 3/10 | 2026-05-08 通过（P0×4+P1×3+P2×1 三轮闭环；ForceTakeMic字段修复/MicTaken-MicLeft schema补filed/AdminChanged协议对齐/PROTO-BINDING全覆盖/timestamp_millis全量替换） |
+| [AdminServer-模块10-11-支付与贵族管理](./_template.md) | 模块10 Admin (T-10025~28) + 模块11 Admin (T-10030~32) 共 7 任务 | ⏳ In Review | GlobalReview | 0/10 | 2026-05-12 开批 — Round 1 的 13 P0 已由 TDD Round 2 修复；17 条 HTTP REST + 4 条 Redis Pub/Sub 协议路径绑定汇总已落锚 |
