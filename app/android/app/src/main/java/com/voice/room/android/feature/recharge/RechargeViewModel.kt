@@ -60,7 +60,7 @@ class RechargeViewModel(
     }
 
     /**
-     * T-30062: 创建订单 → 唤起 Billing → verify + ack (T-30063)
+     * T-30062: 创建订单 → 唤起 Billing → 等待 purchaseResults → verify + ack (T-30063)
      */
     fun createOrderAndPay() {
         val sku = _uiState.value.selectedSku ?: return
@@ -75,50 +75,53 @@ class RechargeViewModel(
             }
             val order = orderResult.getOrThrow()
 
-            // Step 2: Launch Billing via BillingPort (or dev mock path)
             val billing = billingPort
             if (billing != null) {
-                // Connect and launch
+                // Step 2: Connect
                 billing.connect()
                     .onFailure {
                         _uiState.update { it.copy(isCreatingOrder = false, error = "Billing service unavailable") }
                         return@launch
                     }
 
-                val tokenResult = billing.launchBillingFlow(sku.skuId, order.orderId)
-                if (tokenResult.isFailure) {
-                    _uiState.update { it.copy(isCreatingOrder = false, error = tokenResult.exceptionOrNull()?.message) }
+                // Step 3: Launch Billing flow — purchaseToken delivered via purchaseResults Flow
+                val launchResult = billing.launchBillingFlow(sku.skuId, order.orderId)
+                if (launchResult.isFailure) {
+                    val msg = launchResult.exceptionOrNull()?.message ?: "Payment failed"
+                    if (msg.contains("cancelled", ignoreCase = true)) {
+                        _uiState.update { it.copy(isCreatingOrder = false) }
+                    } else {
+                        _uiState.update { it.copy(isCreatingOrder = false, error = msg) }
+                    }
                     return@launch
                 }
 
-                val token = tokenResult.getOrNull()
-                if (token == null) {
-                    // User cancelled
-                    _uiState.update { it.copy(isCreatingOrder = false) }
-                    return@launch
-                }
+                // Step 4: Wait for purchase result from BillingClient listener (async)
+                billing.purchaseResults.collect { result ->
+                    if (result.orderId != order.orderId) return@collect
 
-                // Step 3: Save pending + verify
-                pendingHandler?.savePending(order.orderId, token)
+                    // Save pending for crash recovery
+                    pendingHandler?.savePending(result.orderId, result.purchaseToken)
 
-                // Step 4: Verify
-                val verifyResult = paymentRepo.verifyPurchase(order.orderId, token)
-                if (verifyResult.isSuccess) {
-                    // Step 5: Acknowledge
-                    billing.acknowledgePurchase(token)
-                    pendingHandler?.removePending(order.orderId)
-                    _uiState.update {
-                        it.copy(isCreatingOrder = false, orderCreated = true, createdOrderId = order.orderId)
+                    // Step 5: Verify with server
+                    val verifyResult = paymentRepo.verifyPurchase(result.orderId, result.purchaseToken)
+                    if (verifyResult.isSuccess) {
+                        // Step 6: Acknowledge
+                        billing.acknowledgePurchase(result.purchaseToken)
+                        pendingHandler?.removePending(result.orderId)
+                        _uiState.update {
+                            it.copy(isCreatingOrder = false, orderCreated = true, createdOrderId = order.orderId)
+                        }
+                        loadBalance()
+                        billing.disconnect()
+                    } else {
+                        _uiState.update {
+                            it.copy(isCreatingOrder = false, error = verifyResult.exceptionOrNull()?.message)
+                        }
                     }
-                    loadBalance()
-                    billing.disconnect()
-                } else {
-                    _uiState.update {
-                        it.copy(isCreatingOrder = false, error = verifyResult.exceptionOrNull()?.message)
-                    }
+                    return@collect  // Only process first matching result
                 }
             } else {
-                // No BillingPort (test/dev): just mark order created
                 _uiState.update {
                     it.copy(isCreatingOrder = false, orderCreated = true, createdOrderId = order.orderId)
                 }

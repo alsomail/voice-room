@@ -2,6 +2,10 @@ package com.voice.room.android.data.payment
 
 import com.voice.room.android.domain.payment.IBillingPort
 import com.voice.room.android.domain.payment.ProductDetail
+import com.voice.room.android.domain.payment.PurchaseResult
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 
 /**
  * Fake BillingPort — 单测用 (T-30061)
@@ -13,6 +17,9 @@ class FakeBillingPort(
 
     var purchaseLaunched = false
     var lastLaunchedSku: String? = null
+
+    private val _purchaseResults = MutableSharedFlow<PurchaseResult>(extraBufferCapacity = 8)
+    override val purchaseResults: SharedFlow<PurchaseResult> = _purchaseResults.asSharedFlow()
 
     override suspend fun connect(): Result<Unit> {
         if (failMode == BillingFailMode.CONNECT) return Result.failure(RuntimeException("Billing unavailable"))
@@ -35,13 +42,18 @@ class FakeBillingPort(
     override suspend fun launchBillingFlow(
         skuId: String,
         obfuscatedAccountId: String
-    ): Result<String?> {
+    ): Result<Unit> {
         purchaseLaunched = true
         lastLaunchedSku = skuId
         return when {
-            failMode == BillingFailMode.USER_CANCEL -> Result.success(null)
+            failMode == BillingFailMode.USER_CANCEL -> Result.failure(RuntimeException("User cancelled"))
             failMode == BillingFailMode.PURCHASE_FAIL -> Result.failure(RuntimeException("Billing error"))
-            else -> Result.success("fake_purchase_token_$skuId")
+            else -> {
+                _purchaseResults.tryEmit(
+                    PurchaseResult("fake_purchase_token_$skuId", skuId, obfuscatedAccountId)
+                )
+                Result.success(Unit)
+            }
         }
     }
 
