@@ -52,15 +52,15 @@ data class NobleTierDto(
 )
 
 data class MyNobleResponse(
-    val tier_id: String,
-    val tier_name: String?,
+    val tier_id: String?,
     val level: Int?,
-    val badge_color: String?,
-    val entrance_animation_url: String?,
-    val bgm_url: String?,
     val start_at: String?,
+    val current_period_start: String?,
     val expire_at: String?,
-    val auto_renew: Boolean?
+    val auto_renew: Boolean?,
+    val renew_channel: String?,
+    val days_remaining: Int?,
+    val in_grace_period: Boolean?
 )
 
 data class PurchaseResponse(

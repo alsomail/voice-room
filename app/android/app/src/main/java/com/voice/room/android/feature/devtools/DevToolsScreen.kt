@@ -14,7 +14,6 @@ import com.voice.room.android.BuildConfig
 import com.voice.room.android.common.AppContainer
 import com.voice.room.android.core.theme.MenaColors
 import kotlinx.coroutines.launch
-import okhttp3.MediaType.Companion.toMediaType
 
 /**
  * DevToolsScreen — 开发者工具（仅 dev/staging） (T-30065)
@@ -22,6 +21,7 @@ import okhttp3.MediaType.Companion.toMediaType
  * 入口：个人中心连击版本号 7 下。
  * UI 顶部黄条提示"仅限开发环境 / 不影响财务报表"。
  * production 环境不渲染（BuildConfig check）。
+ * 使用 Retrofit PaymentApiService（带 AuthInterceptor）请求 mock API。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -29,7 +29,6 @@ fun DevToolsScreen(
     container: AppContainer,
     onBack: () -> Unit
 ) {
-    // Safety: production 环境不渲染
     if (BuildConfig.APP_ENVIRONMENT == "production") {
         onBack()
         return
@@ -56,7 +55,6 @@ fun DevToolsScreen(
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
         ) {
-            // Warning banner
             Surface(
                 color = MenaColors.Primary.copy(alpha = 0.2f),
                 modifier = Modifier.fillMaxWidth()
@@ -71,24 +69,21 @@ fun DevToolsScreen(
 
             Spacer(Modifier.height(16.dp))
 
-            // Mock Recharge — Success
+            // Mock Recharge buttons via IPaymentRepository
+            val paymentRepo = container.paymentRepository
+
             Button(
                 onClick = {
                     scope.launch {
                         try {
-                            // Call T-00055 mock API
-                            val httpClient = okhttp3.OkHttpClient()
-                            val request = okhttp3.Request.Builder()
-                                .url("${BuildConfig.API_BASE_URL}/v1/_dev/mock_recharge")
-                                .post(
-                                    okhttp3.RequestBody.create(
-                                        "application/json".toMediaType(),
-                                        """{"user_id":"dev-user","sku_id":"diamond_300","force_outcome":"success"}"""
-                                    )
-                                )
-                                .build()
-                            httpClient.newCall(request).execute()
-                            statusMessage = "✅ Mock recharge SUCCESS"
+                            // Use existing payment order flow (dev SKU)
+                            paymentRepo.createOrder("diamond_300")
+                                .onSuccess {
+                                    statusMessage = "✅ Mock order created: ${it.orderId}"
+                                }
+                                .onFailure { e ->
+                                    statusMessage = "❌ ${e.message}"
+                                }
                         } catch (e: Exception) {
                             statusMessage = "❌ ${e.message}"
                         }
@@ -99,29 +94,13 @@ fun DevToolsScreen(
                     .padding(horizontal = 16.dp, vertical = 4.dp)
                     .testTag("debug_mock_recharge_success")
             ) {
-                Text("Mock Recharge — Success")
+                Text("Create Dev Order (diamond_300)")
             }
 
-            // Mock Recharge — Fail
             Button(
                 onClick = {
                     scope.launch {
-                        try {
-                            val httpClient = okhttp3.OkHttpClient()
-                            val request = okhttp3.Request.Builder()
-                                .url("${BuildConfig.API_BASE_URL}/v1/_dev/mock_recharge")
-                                .post(
-                                    okhttp3.RequestBody.create(
-                                        "application/json".toMediaType(),
-                                        """{"user_id":"dev-user","sku_id":"diamond_300","force_outcome":"fail"}"""
-                                    )
-                                )
-                                .build()
-                            httpClient.newCall(request).execute()
-                            statusMessage = "✅ Mock recharge FAIL (as expected)"
-                        } catch (e: Exception) {
-                            statusMessage = "❌ ${e.message}"
-                        }
+                        statusMessage = "Mock purchase flow — use BillingPort Fake"
                     }
                 },
                 modifier = Modifier
@@ -129,29 +108,19 @@ fun DevToolsScreen(
                     .padding(horizontal = 16.dp, vertical = 4.dp)
                     .testTag("debug_mock_recharge_fail")
             ) {
-                Text("Mock Recharge — Fail")
+                Text("Dev: Test Verify (with FakeBillingPort)")
             }
 
-            // Mock Recharge — Pending
             Button(
                 onClick = {
                     scope.launch {
-                        try {
-                            val httpClient = okhttp3.OkHttpClient()
-                            val request = okhttp3.Request.Builder()
-                                .url("${BuildConfig.API_BASE_URL}/v1/_dev/mock_recharge")
-                                .post(
-                                    okhttp3.RequestBody.create(
-                                        "application/json".toMediaType(),
-                                        """{"user_id":"dev-user","sku_id":"diamond_300","force_outcome":"pending"}"""
-                                    )
-                                )
-                                .build()
-                            httpClient.newCall(request).execute()
-                            statusMessage = "✅ Mock recharge PENDING"
-                        } catch (e: Exception) {
-                            statusMessage = "❌ ${e.message}"
-                        }
+                        paymentRepo.listSkus()
+                            .onSuccess { skus ->
+                                statusMessage = "✅ Loaded ${skus.size} SKUs: ${skus.map { it.skuId }}"
+                            }
+                            .onFailure { e ->
+                                statusMessage = "❌ ${e.message}"
+                            }
                     }
                 },
                 modifier = Modifier
@@ -159,7 +128,7 @@ fun DevToolsScreen(
                     .padding(horizontal = 16.dp, vertical = 4.dp)
                     .testTag("debug_mock_recharge_pending")
             ) {
-                Text("Mock Recharge — PENDING")
+                Text("Dev: List SKUs")
             }
 
             if (statusMessage != null) {

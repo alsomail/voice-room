@@ -23,6 +23,6 @@ data class CreateOrderResult(
 
 data class VerifyResult(
     val orderId: String,
-    val newState: String,
+    val state: String,
     val diamondsCredited: Long
 )

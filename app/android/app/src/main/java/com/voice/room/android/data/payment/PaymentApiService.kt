@@ -58,6 +58,6 @@ data class CreateOrderResponse(
 
 data class VerifyResponse(
     val order_id: String,
-    val new_state: String,
-    val diamonds_credited: Long
+    val state: String,
+    val diamonds_credited: Long?
 )

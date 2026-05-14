@@ -17,14 +17,14 @@ class RetrofitNobilityRepository(
         val response = api.getMyNoble()
         if (!response.isSuccessful) throw RuntimeException("${response.code()}: ${response.message()}")
         val body = response.body() ?: return@runCatching null
-        if (body.tier_id.isEmpty() || body.level == null) return@runCatching null
+        if (body.tier_id.isNullOrEmpty() || body.level == null) return@runCatching null
         MyNoble(
             tierId = body.tier_id,
-            tierName = body.tier_name ?: "",
+            tierName = "", // populated by ViewModel from tiers list
             level = body.level ?: 0,
-            badgeColor = body.badge_color ?: "",
-            entranceAnimationUrl = body.entrance_animation_url,
-            bgmUrl = body.bgm_url,
+            badgeColor = "", // populated from tiers
+            entranceAnimationUrl = null,
+            bgmUrl = null,
             startAt = body.start_at ?: "",
             expireAt = body.expire_at ?: "",
             autoRenew = body.auto_renew ?: false

@@ -69,7 +69,7 @@ fun RechargeScreen(
                             )
                         }
                         Button(
-                            onClick = { viewModel.createOrder() },
+                            onClick = { viewModel.createOrderAndPay() },
                             enabled = !state.isCreatingOrder,
                             colors = ButtonDefaults.buttonColors(containerColor = MenaColors.Primary)
                         ) {

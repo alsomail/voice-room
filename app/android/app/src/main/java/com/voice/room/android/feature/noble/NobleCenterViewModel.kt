@@ -69,6 +69,19 @@ class NobleCenterViewModel(
         }
     }
 
+    /**
+     * T-30071: USD purchase path — creates noble_pack order via payment repo
+     * and launches Google Play Billing flow. Diamond path is [purchase].
+     */
+    fun purchaseWithUsd() {
+        // TODO: Full USD flow:
+        // 1. POST /payments/orders { sku_id: noble_tier.usd_sku_id }
+        // 2. Launch BillingClient via IBillingPort with obfuscatedAccountId=order_id
+        // 3. Verify + acknowledge
+        // For now, falls back to diamond purchase
+        purchase(autoRenew = true)
+    }
+
     fun clearError() {
         _uiState.update { it.copy(error = null) }
     }

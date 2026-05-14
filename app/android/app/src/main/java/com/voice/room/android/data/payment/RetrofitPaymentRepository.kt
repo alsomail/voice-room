@@ -33,7 +33,7 @@ class RetrofitPaymentRepository(
         )
         if (!response.isSuccessful) throw ApiException(response.code(), response.message())
         val body = response.body()!!
-        VerifyResult(body.order_id, body.new_state, body.diamonds_credited)
+        VerifyResult(body.order_id, body.state, body.diamonds_credited ?: 0L)
     }
 
     private fun SkuDto.toDomain() = SkuItem(
