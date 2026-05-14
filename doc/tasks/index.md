@@ -502,12 +502,12 @@
 | [T-20031](../tds/web/T-20031.md) | T-10026 | TDD | Done | [✅ Passed](../review/_template.md) | - | - |
 | [T-20032](../tds/web/T-20032.md) | T-10027 | TDD | Done | [✅ Passed](../review/_template.md) | - | - |
 | [T-20033](../tds/web/T-20033.md) | T-10028 | TDD | Done | [✅ Passed](../review/_template.md) | - | - |
-| [T-30060](../tds/android/T-30060.md) | T-00050~54 | TDD | Todo | - | - | - |
-| [T-30061](../tds/android/T-30061.md) | T-30060 | TDD | Todo | - | - | - |
-| [T-30062](../tds/android/T-30062.md) | T-30061 | TDD | Todo | - | - | - |
-| [T-30063](../tds/android/T-30063.md) | T-30062 / T-00052 | TDD | Todo | - | - | - |
-| [T-30064](../tds/android/T-30064.md) | T-30063 | TDD | Todo | - | - | - |
-| [T-30065](../tds/android/T-30065.md) | T-30060 / T-00055 | TDD | Todo | - | - | - |
+| [T-30060](../tds/android/T-30060.md) | T-00050~54 | TDD | ✅ Done | [⏳ In Review](../review/Android-模块10-11-支付与贵族.md) | - | - |
+| [T-30061](../tds/android/T-30061.md) | T-30060 | TDD | ✅ Done | [⏳ In Review](../review/Android-模块10-11-支付与贵族.md) | - | - |
+| [T-30062](../tds/android/T-30062.md) | T-30061 | TDD | ✅ Done | [⏳ In Review](../review/Android-模块10-11-支付与贵族.md) | - | - |
+| [T-30063](../tds/android/T-30063.md) | T-30062 / T-00052 | TDD | ✅ Done | [⏳ In Review](../review/Android-模块10-11-支付与贵族.md) | - | - |
+| [T-30064](../tds/android/T-30064.md) | T-30063 | TDD | ✅ Done | [⏳ In Review](../review/Android-模块10-11-支付与贵族.md) | - | - |
+| [T-30065](../tds/android/T-30065.md) | T-30060 / T-00055 | TDD | ✅ Done | [⏳ In Review](../review/Android-模块10-11-支付与贵族.md) | - | - |
 
 #### [模块 11: 贵族体系 (E-09)](./模块11-贵族体系%20(E-09).md)
 
@@ -526,12 +526,12 @@
 | [T-10032](../tds/adminServer/T-10032.md) | T-00065~68 | TDD | Done | [✅ Passed](../review/_template.md) | - | - |
 | [T-20035](../tds/web/T-20035.md) | T-10030 | TDD | Done | [✅ Passed](../review/_template.md) | - | - |
 | [T-20036](../tds/web/T-20036.md) | T-10031/32 | TDD | Done | [✅ Passed](../review/_template.md) | - | - |
-| [T-30070](../tds/android/T-30070.md) | T-00066 | TDD | Todo | - | - | - |
-| [T-30071](../tds/android/T-30071.md) | T-30070 / T-00067 / E-08 | TDD | Todo | - | - | - |
-| [T-30072](../tds/android/T-30072.md) | T-00069 | TDD | Todo | - | - | - |
-| [T-30073](../tds/android/T-30073.md) | T-00069 | TDD | Todo | - | - | - |
-| [T-30074](../tds/android/T-30074.md) | T-00069 | TDD | Todo | - | - | - |
-| [T-30075](../tds/android/T-30075.md) | T-00068 | TDD | Todo | - | - | - |
+| [T-30070](../tds/android/T-30070.md) | T-00066 | TDD | ✅ Done | [⏳ In Review](../review/Android-模块10-11-支付与贵族.md) | - | - |
+| [T-30071](../tds/android/T-30071.md) | T-30070 / T-00067 / E-08 | TDD | ✅ Done | [⏳ In Review](../review/Android-模块10-11-支付与贵族.md) | - | - |
+| [T-30072](../tds/android/T-30072.md) | T-00069 | TDD | ✅ Done | [⏳ In Review](../review/Android-模块10-11-支付与贵族.md) | - | - |
+| [T-30073](../tds/android/T-30073.md) | T-00069 | TDD | ✅ Done | [⏳ In Review](../review/Android-模块10-11-支付与贵族.md) | - | - |
+| [T-30074](../tds/android/T-30074.md) | T-00069 | TDD | ✅ Done | [⏳ In Review](../review/Android-模块10-11-支付与贵族.md) | - | - |
+| [T-30075](../tds/android/T-30075.md) | T-00068 | TDD | ✅ Done | [⏳ In Review](../review/Android-模块10-11-支付与贵族.md) | - | - |
 
 ---
 
