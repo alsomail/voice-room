@@ -257,6 +257,9 @@ dependencies {
     // Accompanist Permissions — 运行时权限请求 (T-30012)
     implementation("com.google.accompanist:accompanist-permissions:0.36.0")
 
+    // Google Play Billing v6+ (T-30061)
+    implementation("com.android.billingclient:billing:6.2.1")
+
     // Unit tests
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")

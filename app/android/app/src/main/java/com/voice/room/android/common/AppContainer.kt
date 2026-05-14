@@ -73,6 +73,14 @@ import com.voice.room.android.domain.room.IRoomRepository
 import com.voice.room.android.domain.room.IRoomSyncService
 import com.voice.room.android.domain.user.IUserRepository
 import com.voice.room.android.domain.wallet.IWalletRepository
+import com.voice.room.android.domain.payment.IPaymentRepository
+import com.voice.room.android.domain.payment.IBillingPort
+import com.voice.room.android.domain.nobility.INobilityRepository
+import com.voice.room.android.data.payment.RetrofitPaymentRepository
+import com.voice.room.android.data.payment.PaymentApiService
+import com.voice.room.android.data.payment.FakeBillingPort
+import com.voice.room.android.data.nobility.RetrofitNobilityRepository
+import com.voice.room.android.data.nobility.NobilityApiService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -130,6 +138,12 @@ data class AppContainer(
     val sessionManager: SessionManager,
     /** T-30035：节流器（背景态/WS 重连触发 flush） */
     val throttler: Throttler,
+    /** T-30060~63: 支付仓库 */
+    val paymentRepository: IPaymentRepository,
+    /** T-30061: Google Play Billing 防腐层（可选，prod flavor 注入真实实现） */
+    val billingPort: IBillingPort? = null,
+    /** T-30070~71: 贵族仓库 */
+    val nobilityRepository: INobilityRepository,
 ) {
     companion object {
 
@@ -186,6 +200,10 @@ data class AppContainer(
                 com.voice.room.android.data.gift.RetrofitGiftRepository(giftApiService)
             val rankingApiService = roomRetrofit.create(RankingApiService::class.java)
             val rankingRepository: IRankingRepository = RetrofitRankingRepository(rankingApiService)
+            val paymentApiService = roomRetrofit.create(PaymentApiService::class.java)
+            val paymentRepository: IPaymentRepository = RetrofitPaymentRepository(paymentApiService)
+            val nobilityApiService = roomRetrofit.create(NobilityApiService::class.java)
+            val nobilityRepository: INobilityRepository = RetrofitNobilityRepository(nobilityApiService)
             val authApiService = roomRetrofit.create(
                 com.voice.room.android.data.remote.api.AuthApiService::class.java
             )
@@ -316,6 +334,9 @@ data class AppContainer(
                 eventReportClient = eventReportClient,
                 sessionManager = sessionManager,
                 throttler = throttler,
+                paymentRepository = paymentRepository,
+                billingPort = null, // prod uses GooglePlayBillingAdapter from Activity
+                nobilityRepository = nobilityRepository,
             )
         }
 
@@ -373,6 +394,10 @@ data class AppContainer(
                 com.voice.room.android.data.gift.RetrofitGiftRepository(giftApiService)
             val rankingApiService = roomRetrofit.create(RankingApiService::class.java)
             val rankingRepository: IRankingRepository = RetrofitRankingRepository(rankingApiService)
+            val paymentApiService = roomRetrofit.create(PaymentApiService::class.java)
+            val paymentRepository: IPaymentRepository = RetrofitPaymentRepository(paymentApiService)
+            val nobilityApiService = roomRetrofit.create(NobilityApiService::class.java)
+            val nobilityRepository: INobilityRepository = RetrofitNobilityRepository(nobilityApiService)
 
             val wsHttpClient = AppHttpClientFactory.create(
                 config = NetworkClientConfig(),
@@ -451,6 +476,9 @@ data class AppContainer(
                 eventReportClient = eventReportClient,
                 sessionManager = sessionManager,
                 throttler = throttler,
+                paymentRepository = paymentRepository,
+                billingPort = FakeBillingPort(),
+                nobilityRepository = nobilityRepository,
             )
         }
     }

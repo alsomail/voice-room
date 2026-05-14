@@ -78,6 +78,7 @@ fun WalletScreen(
     appContainer: AppContainer,
     onNavigateBack: () -> Unit,
     onNavigateToLogin: () -> Unit = {},
+    onNavigateToRecharge: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val viewModel: WalletViewModel = viewModel(
@@ -151,7 +152,7 @@ fun WalletScreen(
                     WalletBalanceCard(
                         balance = uiState.balance,
                         loading = uiState.loadingBalance,
-                        onRechargeClick = { viewModel.onRechargeClick() },
+                        onRechargeClick = onNavigateToRecharge,
                     )
                 }
 

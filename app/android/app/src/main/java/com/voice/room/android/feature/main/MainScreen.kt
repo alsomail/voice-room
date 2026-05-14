@@ -25,6 +25,9 @@ import com.voice.room.android.feature.room.CreateRoomBottomSheet
 import com.voice.room.android.feature.room.CreateRoomViewModel
 import com.voice.room.android.feature.room.HallScreen
 import com.voice.room.android.feature.room.RoomListViewModel
+import com.voice.room.android.feature.recharge.RechargeScreen
+import com.voice.room.android.feature.recharge.RechargeHistoryScreen
+import com.voice.room.android.feature.noble.NobleCenterScreen
 
 /**
  * MainScreen — 三 Tab 主页框架 (T-30020, T-30022 升级)
@@ -115,6 +118,29 @@ fun MainScreen(
                     appContainer = appContainer,
                     onNavigateBack = { navController.popBackStack() },
                     onNavigateToLogin = onLogout,
+                    onNavigateToRecharge = { navController.navigate("recharge") },
+                )
+            }
+            // ── 充值页（T-30060）─────────────────────────────
+            composable("recharge") {
+                RechargeScreen(
+                    container = appContainer,
+                    onBack = { navController.popBackStack() },
+                    onNavigateToHistory = { navController.navigate("rechargeHistory") },
+                )
+            }
+            // ── 充值历史（T-30064）─────────────────────────
+            composable("rechargeHistory") {
+                RechargeHistoryScreen(
+                    container = appContainer,
+                    onBack = { navController.popBackStack() },
+                )
+            }
+            // ── 贵族中心（T-30070）─────────────────────────
+            composable("nobleCenter") {
+                NobleCenterScreen(
+                    container = appContainer,
+                    onBack = { navController.popBackStack() },
                 )
             }
         }
