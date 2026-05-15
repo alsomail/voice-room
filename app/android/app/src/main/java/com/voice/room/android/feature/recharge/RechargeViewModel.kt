@@ -16,7 +16,7 @@ import kotlinx.coroutines.launch
 class RechargeViewModel(
     private val paymentRepo: IPaymentRepository,
     private val walletRepo: IWalletRepository,
-    private val billingPort: IBillingPort?,
+    private val billingPort: IBillingPort,
     private val pendingHandler: PendingPurchaseHandler?
 ) : ViewModel() {
 
@@ -75,56 +75,49 @@ class RechargeViewModel(
             }
             val order = orderResult.getOrThrow()
 
-            val billing = billingPort
-            if (billing != null) {
-                // Step 2: Connect
-                billing.connect()
-                    .onFailure {
-                        _uiState.update { it.copy(isCreatingOrder = false, error = "Billing service unavailable") }
-                        return@launch
-                    }
-
-                // Step 3: Launch Billing flow — purchaseToken delivered via purchaseResults Flow
-                val launchResult = billing.launchBillingFlow(sku.skuId, order.orderId)
-                if (launchResult.isFailure) {
-                    val msg = launchResult.exceptionOrNull()?.message ?: "Payment failed"
-                    if (msg.contains("cancelled", ignoreCase = true)) {
-                        _uiState.update { it.copy(isCreatingOrder = false) }
-                    } else {
-                        _uiState.update { it.copy(isCreatingOrder = false, error = msg) }
-                    }
+            // Step 2: Connect to Billing
+            billingPort.connect()
+                .onFailure {
+                    _uiState.update { it.copy(isCreatingOrder = false, error = "Billing service unavailable") }
                     return@launch
                 }
 
-                // Step 4: Wait for purchase result from BillingClient listener (async)
-                billing.purchaseResults.collect { result ->
-                    if (result.orderId != order.orderId) return@collect
+            // Step 3: Launch Billing flow — purchaseToken delivered via purchaseResults Flow
+            val launchResult = billingPort.launchBillingFlow(sku.skuId, order.orderId)
+            if (launchResult.isFailure) {
+                val msg = launchResult.exceptionOrNull()?.message ?: "Payment failed"
+                if (msg.contains("cancelled", ignoreCase = true)) {
+                    _uiState.update { it.copy(isCreatingOrder = false) }
+                } else {
+                    _uiState.update { it.copy(isCreatingOrder = false, error = msg) }
+                }
+                return@launch
+            }
 
-                    // Save pending for crash recovery
-                    pendingHandler?.savePending(result.orderId, result.purchaseToken)
+            // Step 4: Wait for purchase result from BillingClient listener (async)
+            billingPort.purchaseResults.collect { result ->
+                if (result.orderId != order.orderId) return@collect
 
-                    // Step 5: Verify with server
-                    val verifyResult = paymentRepo.verifyPurchase(result.orderId, result.purchaseToken)
-                    if (verifyResult.isSuccess) {
-                        // Step 6: Acknowledge
-                        billing.acknowledgePurchase(result.purchaseToken)
-                        pendingHandler?.removePending(result.orderId)
-                        _uiState.update {
-                            it.copy(isCreatingOrder = false, orderCreated = true, createdOrderId = order.orderId)
-                        }
-                        loadBalance()
-                        billing.disconnect()
-                    } else {
-                        _uiState.update {
-                            it.copy(isCreatingOrder = false, error = verifyResult.exceptionOrNull()?.message)
-                        }
+                // Save pending for crash recovery
+                pendingHandler?.savePending(result.orderId, result.purchaseToken)
+
+                // Step 5: Verify with server
+                val verifyResult = paymentRepo.verifyPurchase(result.orderId, result.purchaseToken)
+                if (verifyResult.isSuccess) {
+                    // Step 6: Acknowledge
+                    billingPort.acknowledgePurchase(result.purchaseToken)
+                    pendingHandler?.removePending(result.orderId)
+                    _uiState.update {
+                        it.copy(isCreatingOrder = false, orderCreated = true, createdOrderId = order.orderId)
                     }
-                    return@collect  // Only process first matching result
+                    loadBalance()
+                    billingPort.disconnect()
+                } else {
+                    _uiState.update {
+                        it.copy(isCreatingOrder = false, error = verifyResult.exceptionOrNull()?.message)
+                    }
                 }
-            } else {
-                _uiState.update {
-                    it.copy(isCreatingOrder = false, orderCreated = true, createdOrderId = order.orderId)
-                }
+                return@collect  // Only process first matching result
             }
         }
     }
@@ -137,7 +130,7 @@ class RechargeViewModel(
         fun factory(
             paymentRepo: IPaymentRepository,
             walletRepo: IWalletRepository,
-            billingPort: IBillingPort? = null,
+            billingPort: IBillingPort,
             pendingHandler: PendingPurchaseHandler? = null
         ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")

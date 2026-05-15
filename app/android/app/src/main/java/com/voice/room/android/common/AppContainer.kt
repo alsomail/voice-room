@@ -140,8 +140,8 @@ data class AppContainer(
     val throttler: Throttler,
     /** T-30060~63: 支付仓库 */
     val paymentRepository: IPaymentRepository,
-    /** T-30061: Google Play Billing 防腐层（可选，prod flavor 注入真实实现） */
-    val billingPort: IBillingPort? = null,
+    /** T-30061: Google Play Billing 防腐层 */
+    val billingPort: IBillingPort,
     /** T-30070~71: 贵族仓库 */
     val nobilityRepository: INobilityRepository,
 ) {
@@ -335,7 +335,7 @@ data class AppContainer(
                 sessionManager = sessionManager,
                 throttler = throttler,
                 paymentRepository = paymentRepository,
-                billingPort = null, // prod uses GooglePlayBillingAdapter from Activity
+                billingPort = com.voice.room.android.data.payment.GooglePlayBillingAdapter(appCtx),
                 nobilityRepository = nobilityRepository,
             )
         }

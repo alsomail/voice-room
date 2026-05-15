@@ -33,8 +33,14 @@ fun RechargeScreen(
     onBack: () -> Unit,
     onNavigateToHistory: () -> Unit
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     val viewModel: RechargeViewModel = viewModel(
-        factory = RechargeViewModel.factory(container.paymentRepository, container.walletRepository)
+        factory = RechargeViewModel.factory(
+            paymentRepo = container.paymentRepository,
+            walletRepo = container.walletRepository,
+            billingPort = container.billingPort,
+            pendingHandler = PendingPurchaseHandler(context, container.paymentRepository)
+        )
     )
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
