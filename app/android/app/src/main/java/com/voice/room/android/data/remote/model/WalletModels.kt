@@ -6,7 +6,7 @@ import com.google.gson.annotations.SerializedName
  * 钱包余额 DTO (T-30027)
  */
 data class BalanceDto(
-    @SerializedName("balance") val balance: Long,
+    @SerializedName("diamond_balance") val balance: Long,
 )
 
 /**

@@ -18,22 +18,27 @@ private var lastDismissedFailedMs = 0L
 private var lastDismissedExpiredMs = 0L
 
 /**
- * NobleRenewalListener — 续费/过期/失败提醒 (T-30075)
+ * NobleRenewalListener — 贵族 WS 信号处理器 (T-30075 + P0-2)
  *
- * 监听 WS NobleRenewFailed / NobleExpired 事件，弹出 AlertDialog 提示。
+ * 监听并处理 6 个贵族 WS 信号：
+ * - NobleRenewFailed / NobleExpired → AlertDialog 提示
+ * - NobleRenewSuccess → onNobleChanged 回调
+ * - NobleChanged / NobleEntered / NobleEntranceGlobal → 投递至 UI
  * 24h 内同事件不重弹。
  */
 @Composable
 fun NobleRenewalListener(
     wsClient: IWebSocketClient,
-    onNavigateToNobleCenter: () -> Unit
+    onNavigateToNobleCenter: () -> Unit,
+    onNobleChanged: (() -> Unit)? = null,
+    onNobleEntered: ((NobleEntrance) -> Unit)? = null,
 ) {
     var showFailedDialog by remember { mutableStateOf(false) }
     var showExpiredDialog by remember { mutableStateOf(false) }
+    var showRenewSuccess by remember { mutableStateOf(false) }
     var failedReason by remember { mutableStateOf("") }
     val gson = remember { Gson() }
 
-    // Listen to WS state for NobleRenewFailed/NobleExpired text frames
     LaunchedEffect(wsClient) {
         withContext(Dispatchers.IO) {
             wsClient.state.collect { state ->
@@ -41,6 +46,7 @@ fun NobleRenewalListener(
                     is WebSocketState.Message -> {
                         val text = state.text
                         when {
+                            // ── NobleRenewFailed ──
                             text.contains("NobleRenewFailed") -> {
                                 val now = System.currentTimeMillis()
                                 if (now - lastDismissedFailedMs > 86_400_000) {
@@ -53,11 +59,35 @@ fun NobleRenewalListener(
                                     showFailedDialog = true
                                 }
                             }
+                            // ── NobleExpired ──
                             text.contains("NobleExpired") -> {
                                 val now = System.currentTimeMillis()
                                 if (now - lastDismissedExpiredMs > 86_400_000) {
                                     showExpiredDialog = true
                                 }
+                            }
+                            // ── NobleRenewSuccess ── (P0-2)
+                            text.contains("NobleRenewSuccess") -> {
+                                showRenewSuccess = true
+                                onNobleChanged?.invoke()
+                            }
+                            // ── NobleChanged ── (P0-2: purchase/upgrade/grant/revoke)
+                            text.contains("NobleChanged") -> {
+                                onNobleChanged?.invoke()
+                            }
+                            // ── NobleEntered ── (P0-2: room-level Lv3+ entrance)
+                            text.contains("NobleEntered") -> {
+                                try {
+                                    val entrance = gson.fromJson(text, NobleEntrance::class.java)
+                                    onNobleEntered?.invoke(entrance)
+                                } catch (_: Exception) {}
+                            }
+                            // ── NobleEntranceGlobal ── (P0-2: global Lv5+ marquee)
+                            text.contains("NobleEntranceGlobal") -> {
+                                try {
+                                    val entrance = gson.fromJson(text, NobleEntrance::class.java)
+                                    onNobleEntered?.invoke(entrance)
+                                } catch (_: Exception) {}
                             }
                         }
                     }
@@ -114,6 +144,18 @@ fun NobleRenewalListener(
                 }) { Text("Dismiss") }
             },
             modifier = Modifier.testTag("noble_expired_dialog")
+        )
+    }
+
+    if (showRenewSuccess) {
+        AlertDialog(
+            onDismissRequest = { showRenewSuccess = false },
+            title = { Text("Renewal Successful") },
+            text = { Text("Your noble status has been renewed.") },
+            confirmButton = {
+                TextButton(onClick = { showRenewSuccess = false }) { Text("OK") }
+            },
+            modifier = Modifier.testTag("noble_renew_success_dialog")
         )
     }
 }
