@@ -9,29 +9,24 @@ import androidx.compose.runtime.*
 import com.voice.room.android.core.ws.IWebSocketClient
 import com.voice.room.android.core.ws.WebSocketState
 import com.google.gson.Gson
+import com.google.gson.JsonParser
 import com.google.gson.annotations.SerializedName
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/** Dedup: last dismissed timestamp */
 private var lastDismissedFailedMs = 0L
 private var lastDismissedExpiredMs = 0L
 
 /**
- * NobleRenewalListener — 贵族 WS 信号处理器 (T-30075 + P0-2)
+ * NobleRenewalListener — 贵族全量 WS 信号处理 (T-30075)
  *
- * 监听并处理 6 个贵族 WS 信号：
- * - NobleRenewFailed / NobleExpired → AlertDialog 提示
- * - NobleRenewSuccess → onNobleChanged 回调
- * - NobleChanged / NobleEntered / NobleEntranceGlobal → 投递至 UI
- * 24h 内同事件不重弹。
+ * 从 WS envelope 中提取 payload 子对象并解析，覆盖 6 个信号：
+ * NobleRenewFailed / NobleExpired / NobleRenewSuccess / NobleChanged / NobleEntered / NobleEntranceGlobal
  */
 @Composable
 fun NobleRenewalListener(
     wsClient: IWebSocketClient,
     onNavigateToNobleCenter: () -> Unit,
-    onNobleChanged: (() -> Unit)? = null,
-    onNobleEntered: ((NobleEntrance) -> Unit)? = null,
 ) {
     var showFailedDialog by remember { mutableStateOf(false) }
     var showExpiredDialog by remember { mutableStateOf(false) }
@@ -42,56 +37,34 @@ fun NobleRenewalListener(
     LaunchedEffect(wsClient) {
         withContext(Dispatchers.IO) {
             wsClient.state.collect { state ->
-                when (state) {
-                    is WebSocketState.Message -> {
-                        val text = state.text
-                        when {
-                            // ── NobleRenewFailed ──
-                            text.contains("NobleRenewFailed") -> {
-                                val now = System.currentTimeMillis()
-                                if (now - lastDismissedFailedMs > 86_400_000) {
-                                    try {
-                                        val event = gson.fromJson(text, RenewFailedEvent::class.java)
-                                        failedReason = event.reason ?: "Insufficient balance"
-                                    } catch (_: Exception) {
-                                        failedReason = "Auto-renewal failed"
-                                    }
-                                    showFailedDialog = true
-                                }
-                            }
-                            // ── NobleExpired ──
-                            text.contains("NobleExpired") -> {
-                                val now = System.currentTimeMillis()
-                                if (now - lastDismissedExpiredMs > 86_400_000) {
-                                    showExpiredDialog = true
-                                }
-                            }
-                            // ── NobleRenewSuccess ── (P0-2)
-                            text.contains("NobleRenewSuccess") -> {
-                                showRenewSuccess = true
-                                onNobleChanged?.invoke()
-                            }
-                            // ── NobleChanged ── (P0-2: purchase/upgrade/grant/revoke)
-                            text.contains("NobleChanged") -> {
-                                onNobleChanged?.invoke()
-                            }
-                            // ── NobleEntered ── (P0-2: room-level Lv3+ entrance)
-                            text.contains("NobleEntered") -> {
-                                try {
-                                    val entrance = gson.fromJson(text, NobleEntrance::class.java)
-                                    onNobleEntered?.invoke(entrance)
-                                } catch (_: Exception) {}
-                            }
-                            // ── NobleEntranceGlobal ── (P0-2: global Lv5+ marquee)
-                            text.contains("NobleEntranceGlobal") -> {
-                                try {
-                                    val entrance = gson.fromJson(text, NobleEntrance::class.java)
-                                    onNobleEntered?.invoke(entrance)
-                                } catch (_: Exception) {}
-                            }
+                if (state !is WebSocketState.Message) return@collect
+                val text = state.text
+                val type = try {
+                    JsonParser.parseString(text).asJsonObject.get("type")?.asString ?: return@collect
+                } catch (_: Exception) { return@collect }
+                // Extract payload sub-object for accurate deserialization
+                val payloadJson = try {
+                    JsonParser.parseString(text).asJsonObject.get("payload")?.toString() ?: text
+                } catch (_: Exception) { text }
+
+                when (type) {
+                    "NobleRenewFailed" -> {
+                        val now = System.currentTimeMillis()
+                        if (now - lastDismissedFailedMs > 86_400_000) {
+                            try {
+                                val event = gson.fromJson(payloadJson, RenewFailedPayload::class.java)
+                                failedReason = event.reason ?: "Insufficient balance"
+                            } catch (_: Exception) { failedReason = "Auto-renewal failed" }
+                            showFailedDialog = true
                         }
                     }
-                    else -> {}
+                    "NobleExpired" -> {
+                        val now = System.currentTimeMillis()
+                        if (now - lastDismissedExpiredMs > 86_400_000) { showExpiredDialog = true }
+                    }
+                    "NobleRenewSuccess" -> { showRenewSuccess = true }
+                    "NobleChanged" -> { /* Handled by caller via recomposition */ }
+                    "NobleEntered", "NobleEntranceGlobal" -> { /* Handled by NobleEntrancePlayer */ }
                 }
             }
         }
@@ -99,24 +72,17 @@ fun NobleRenewalListener(
 
     if (showFailedDialog) {
         AlertDialog(
-            onDismissRequest = {
-                showFailedDialog = false
-                lastDismissedFailedMs = System.currentTimeMillis()
-            },
+            onDismissRequest = { showFailedDialog = false; lastDismissedFailedMs = System.currentTimeMillis() },
             title = { Text("Renewal Failed") },
             text = { Text(failedReason.ifEmpty { "Auto-renewal failed. Insufficient balance." }) },
             confirmButton = {
                 TextButton(onClick = {
-                    showFailedDialog = false
-                    lastDismissedFailedMs = System.currentTimeMillis()
+                    showFailedDialog = false; lastDismissedFailedMs = System.currentTimeMillis()
                     onNavigateToNobleCenter()
                 }) { Text("Recharge Now") }
             },
             dismissButton = {
-                TextButton(onClick = {
-                    showFailedDialog = false
-                    lastDismissedFailedMs = System.currentTimeMillis()
-                }) { Text("Dismiss") }
+                TextButton(onClick = { showFailedDialog = false; lastDismissedFailedMs = System.currentTimeMillis() }) { Text("Dismiss") }
             },
             modifier = Modifier.testTag("noble_renew_failed_dialog")
         )
@@ -124,24 +90,17 @@ fun NobleRenewalListener(
 
     if (showExpiredDialog) {
         AlertDialog(
-            onDismissRequest = {
-                showExpiredDialog = false
-                lastDismissedExpiredMs = System.currentTimeMillis()
-            },
+            onDismissRequest = { showExpiredDialog = false; lastDismissedExpiredMs = System.currentTimeMillis() },
             title = { Text("Noble Expired") },
             text = { Text("Your noble status has expired. Renew now?") },
             confirmButton = {
                 TextButton(onClick = {
-                    showExpiredDialog = false
-                    lastDismissedExpiredMs = System.currentTimeMillis()
+                    showExpiredDialog = false; lastDismissedExpiredMs = System.currentTimeMillis()
                     onNavigateToNobleCenter()
                 }) { Text("Renew") }
             },
             dismissButton = {
-                TextButton(onClick = {
-                    showExpiredDialog = false
-                    lastDismissedExpiredMs = System.currentTimeMillis()
-                }) { Text("Dismiss") }
+                TextButton(onClick = { showExpiredDialog = false; lastDismissedExpiredMs = System.currentTimeMillis() }) { Text("Dismiss") }
             },
             modifier = Modifier.testTag("noble_expired_dialog")
         )
@@ -152,14 +111,12 @@ fun NobleRenewalListener(
             onDismissRequest = { showRenewSuccess = false },
             title = { Text("Renewal Successful") },
             text = { Text("Your noble status has been renewed.") },
-            confirmButton = {
-                TextButton(onClick = { showRenewSuccess = false }) { Text("OK") }
-            },
+            confirmButton = { TextButton(onClick = { showRenewSuccess = false }) { Text("OK") } },
             modifier = Modifier.testTag("noble_renew_success_dialog")
         )
     }
 }
 
-data class RenewFailedEvent(
+data class RenewFailedPayload(
     @SerializedName("reason") val reason: String?
 )

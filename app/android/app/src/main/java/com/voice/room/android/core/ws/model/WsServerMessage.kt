@@ -400,6 +400,28 @@ sealed class WsServerMessage {
     ) : WsServerMessage()
 
     // ═══════════════════════════════════════════════════════════════════════════
+    // 贵族信令 (E-09)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /** 贵族续费失败 */
+    data class NobleRenewFailed(val reason: String? = null) : WsServerMessage()
+
+    /** 贵族已过期 */
+    data object NobleExpired : WsServerMessage()
+
+    /** 贵族续费成功 */
+    data object NobleRenewSuccess : WsServerMessage()
+
+    /** 贵族变更（购买/升级/赠送/撤销） */
+    data object NobleChanged : WsServerMessage()
+
+    /** 贵族进场特效（房间级 Lv3+） */
+    data class NobleEntered(val tier_id: String? = null, val level: Int? = null) : WsServerMessage()
+
+    /** 贵族全服进场通告（Global Lv5+） */
+    data class NobleEntranceGlobal(val tier_id: String? = null, val level: Int? = null) : WsServerMessage()
+
+    // ═══════════════════════════════════════════════════════════════════════════
     // 兜底：未知信令
     // ═══════════════════════════════════════════════════════════════════════════
 

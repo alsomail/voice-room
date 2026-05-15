@@ -96,6 +96,14 @@ internal class WsServerMessageTypeAdapter : JsonDeserializer<WsServerMessage> {
             "RoomClosed"         -> WsServerMessage.RoomClosed
             "Error"              -> innerGson.fromJson(json, WsServerMessage.ServerError::class.java)
 
+            // ── E-09 贵族信令 ───────────────────────────────────────────────
+            "NobleRenewFailed"       -> innerGson.fromJson(json, WsServerMessage.NobleRenewFailed::class.java)
+            "NobleExpired"           -> WsServerMessage.NobleExpired
+            "NobleRenewSuccess"      -> WsServerMessage.NobleRenewSuccess
+            "NobleChanged"           -> WsServerMessage.NobleChanged
+            "NobleEntered"           -> innerGson.fromJson(json, WsServerMessage.NobleEntered::class.java)
+            "NobleEntranceGlobal"    -> innerGson.fromJson(json, WsServerMessage.NobleEntranceGlobal::class.java)
+
             // ── catchall ────────────────────────────────────────────────────
             else                 -> WsServerMessage.Unknown(type)
         }

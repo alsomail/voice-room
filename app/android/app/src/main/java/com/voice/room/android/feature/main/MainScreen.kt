@@ -28,6 +28,7 @@ import com.voice.room.android.feature.room.RoomListViewModel
 import com.voice.room.android.feature.recharge.RechargeScreen
 import com.voice.room.android.feature.recharge.RechargeHistoryScreen
 import com.voice.room.android.feature.noble.NobleCenterScreen
+import com.voice.room.android.feature.noble.NobleRenewalListener
 
 /**
  * MainScreen — 三 Tab 主页框架 (T-30020, T-30022 升级)
@@ -161,4 +162,10 @@ fun MainScreen(
             viewModel = createRoomViewModel,
         )
     }
+
+    // ── 贵族 WS 信号监听（T-30075）─────────────────────────
+    NobleRenewalListener(
+        wsClient = appContainer.webSocketClient,
+        onNavigateToNobleCenter = { navController.navigate("nobleCenter") },
+    )
 }

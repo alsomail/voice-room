@@ -1377,9 +1377,19 @@ class RoomViewModel(
                 Log.d(TAG, "ws: result/ack type=${msg::class.simpleName} forwarded via state")
             }
 
+            // ── E-09 贵族信令 ───────────────────────────────────────────────
+            is WsServerMessage.NobleRenewFailed,
+            is WsServerMessage.NobleExpired,
+            is WsServerMessage.NobleRenewSuccess,
+            is WsServerMessage.NobleChanged,
+            is WsServerMessage.NobleEntered,
+            is WsServerMessage.NobleEntranceGlobal -> {
+                // 由 NobleRenewalListener 通过 IWebSocketClient.state 消费
+                Log.d(TAG, "ws: noble signal ${msg::class.simpleName} forwarded via state")
+            }
+
             is WsServerMessage.Unknown -> {
                 // PROTO-BINDING: N/A (unknown signal, forward-compat catchall)
-                // P1-2: 升级为 Log.e + analytics 埋点便于线上问题定位
                 Log.e(TAG, "ws: unknown signal type=${msg.type} — ignoring (forward-compat)")
                 analyticsPort.track("ws_unknown_type", mapOf("type" to msg.type))
             }
@@ -1418,7 +1428,13 @@ class RoomViewModel(
         is WsServerMessage.ForceLeaveMicResult  -> msg.msgId
         is WsServerMessage.RoomClosed,
         is WsServerMessage.ServerError,
-        is WsServerMessage.Unknown            -> null
+        is WsServerMessage.Unknown,
+        is WsServerMessage.NobleRenewFailed,
+        is WsServerMessage.NobleExpired,
+        is WsServerMessage.NobleRenewSuccess,
+        is WsServerMessage.NobleChanged,
+        is WsServerMessage.NobleEntered,
+        is WsServerMessage.NobleEntranceGlobal -> null
     }
 }
 
