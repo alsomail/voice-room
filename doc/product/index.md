@@ -1,9 +1,38 @@
 # Voice Room 产品文档总索引
 
-> **版本**: v3.18  
-> **更新日期**: 2026-05-09  
+> **版本**: v3.19  
+> **更新日期**: 2026-05-15  
 > **负责人**: PM Agent  
 > **目标市场**: MENA (Middle East & North Africa) 中东北非
+
+---
+
+## 🎯 产品边界三件套（v3.19 上架·事实源唯一表）
+
+| # | 文件 | 职责 |
+|---|------|------|
+| 1 | [`product/state_machines.md`](./state_machines.md) | 6 个核心状态机 + 跨端转换矩阵（order/noble/room/mic/gift/governance） |
+| 2 | [`product/user_journeys.md`](./user_journeys.md) | 5 条端到端用户旅程（j1-recharge-gift-noble / j2-room-create-host / j3-governance / j4-noble-renewal / j5-analytics） |
+| 3 | [`product/business_constraints.md`](./business_constraints.md) | 9 类业务常量唯一唬口（TTL/阈值/上限/折合表） |
+
+## 📐 功能簇规约（`doc/specs/`·§1 Task 簇 + §5 GWT 验收契约）
+
+| Spec | 覆盖范围 |
+|------|---------|
+| [auth_login.md](../specs/auth_login.md) | E-02 认证登录 |
+| [room_lifecycle.md](../specs/room_lifecycle.md) | E-03/E-04 房间大厅与生命周期 |
+| [room_chat.md](../specs/room_chat.md) | E-04.1 房内聊天 |
+| [mic_seat.md](../specs/mic_seat.md) | E-04 麦位管理 |
+| [rtc_voice.md](../specs/rtc_voice.md) | RTC 语音接入 |
+| [gift_economy.md](../specs/gift_economy.md) | E-07 礼物与钱包 |
+| [ranking_leaderboard.md](../specs/ranking_leaderboard.md) | E-07 魅力/财富榜 |
+| [analytics_funnel.md](../specs/analytics_funnel.md) | E-07.5 埋点与观测性 |
+| [room_governance.md](../specs/room_governance.md) | E-10 房间主权与管理员 |
+| [admin_dashboard.md](../specs/admin_dashboard.md) | E-06 Web Admin |
+| [recharge_order.md](../specs/recharge_order.md) | E-08 充值订单状态机 |
+| [google_play_billing.md](../specs/google_play_billing.md) | E-08 Google Play 真支付 |
+| [nobility_purchase.md](../specs/nobility_purchase.md) | E-09 贵族购买与续费 |
+| [nobility_privileges.md](../specs/nobility_privileges.md) | E-09 贵族特权应用 |
 
 ---
 

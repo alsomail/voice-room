@@ -57,3 +57,41 @@ model: Claude Sonnet 4.6 (copilot)
    - **不得**在「重要变更说明」表中堆叠 Review 详情；详细审查记录请落到对应 TDS 第五节【Review 意见】，本索引仅一行简述（版本号 + Task ID + 状态流转动作）。
 5. **保存进度**：`doc/tasks/`子模块更新状态之后，必须回写到`doc/tasks/index.md`的表格中，每次 `doc/tasks/index.md` 或模块文件状态更新后，执行 `git commit`（消息聚焦本 Task ID + 状态流转）。
 6. **结束条件**：目标 Task 走到「研发状态 = Done」即视为本 Coordinator 任务完成。Review Gate / QA Gate / Overall Gate 由其他流水线后续推进，不阻塞本 Agent 退出。最后给出简洁变更摘要 + 残余风险。
+
+---
+
+## 🚨 产品验收三红线（v3.38 引入·所有 agent 共同遵守）
+
+随 product 边界三件套（`doc/product/state_machines.md` / `user_journeys.md` / `business_constraints.md`）与 `doc/specs/` 功能簇规约（14 份）上架，本 agent 在 Plan / TDD / Review / DoD 任一相关环节，必须严格遵守：
+
+### 🔴 红线 1：Plan 阶段必须有对应 Spec
+
+- E-08 及之后的 Task：TDS §0 必须显式关联 [`doc/specs/<feature>.md`](../../doc/specs/)，4 个事实源锚点缺一不可。
+- 无 Spec 锚点的 TDS 视为不完备，**禁止流转 TDD**。
+- 历史已 Done Task 不强制回填；E-08/E-09 的 37 份 TDS 已批量补齐 §0。
+
+### 🔴 红线 2：TDS §0 必须列 GWT 编号清单，禁止本地改写
+
+- 每份 TDS 顶部 §0「产品验收（Given-When-Then）」段必须包含：
+  1. **4 个事实源锚点**：Spec / [状态机](../../doc/product/state_machines.md) / [用户旅程](../../doc/product/user_journeys.md) / [业务约束](../../doc/product/business_constraints.md)。
+  2. **本 Task 必须满足的 GWT 编号清单**（如 `GWT-O1 / GWT-O5`）。
+  3. **明示声明**：「GWT 全文以 spec §5 为唯一事实源，禁止本地改写」。
+- TDS §0 中任何 GWT 文本重述/改写/裁剪 → **直接判 P0 缺陷**，Review 打回。
+
+### 🔴 红线 3：test-design Agent 输入必须四源齐全
+
+测试用例设计必须以以下四源齐全为前提，缺源用例视为不完备 → **QA Gate 直接打回**：
+
+| 事实源 | 用途 |
+|---------|------|
+| `doc/specs/<feature>.md` §5 GWT | 验收契约（正向主路径 + 边界 + 异常分支） |
+| `doc/product/user_journeys.md` | 端到端跨端流 |
+| `doc/product/business_constraints.md` | 边界常量（TTL / 上限 / 阈值） |
+| `doc/product/state_machines.md` | 状态转换矩阵 |
+
+### 事实源唯一表
+
+- 状态机：[`doc/product/state_machines.md`](../../doc/product/state_machines.md)
+- 用户旅程：[`doc/product/user_journeys.md`](../../doc/product/user_journeys.md)
+- 业务约束：[`doc/product/business_constraints.md`](../../doc/product/business_constraints.md)
+- 功能簇规约：[`doc/specs/`](../../doc/specs/)（14 份：auth_login / room_lifecycle / room_chat / mic_seat / rtc_voice / gift_economy / ranking_leaderboard / analytics_funnel / room_governance / admin_dashboard / recharge_order / google_play_billing / nobility_purchase / nobility_privileges）

@@ -168,3 +168,40 @@ test.describe('TC-E2E-00001 跨端联动测试套件', () => {
 # Start Execution
 
 [等待接收包含 Markdown 测试用例的指令，开始解析、写码并执行测试...]
+---
+
+## 🚨 产品验收三红线（v3.38 引入·所有 agent 共同遵守）
+
+随 product 边界三件套（`doc/product/state_machines.md` / `user_journeys.md` / `business_constraints.md`）与 `doc/specs/` 功能簇规约（14 份）上架，本 agent 在 Plan / TDD / Review / DoD 任一相关环节，必须严格遵守：
+
+### 🔴 红线 1：Plan 阶段必须有对应 Spec
+
+- E-08 及之后的 Task：TDS §0 必须显式关联 [`doc/specs/<feature>.md`](../../doc/specs/)，4 个事实源锚点缺一不可。
+- 无 Spec 锚点的 TDS 视为不完备，**禁止流转 TDD**。
+- 历史已 Done Task 不强制回填；E-08/E-09 的 37 份 TDS 已批量补齐 §0。
+
+### 🔴 红线 2：TDS §0 必须列 GWT 编号清单，禁止本地改写
+
+- 每份 TDS 顶部 §0「产品验收（Given-When-Then）」段必须包含：
+  1. **4 个事实源锚点**：Spec / [状态机](../../doc/product/state_machines.md) / [用户旅程](../../doc/product/user_journeys.md) / [业务约束](../../doc/product/business_constraints.md)。
+  2. **本 Task 必须满足的 GWT 编号清单**（如 `GWT-O1 / GWT-O5`）。
+  3. **明示声明**：「GWT 全文以 spec §5 为唯一事实源，禁止本地改写」。
+- TDS §0 中任何 GWT 文本重述/改写/裁剪 → **直接判 P0 缺陷**，Review 打回。
+
+### 🔴 红线 3：test-design Agent 输入必须四源齐全
+
+测试用例设计必须以以下四源齐全为前提，缺源用例视为不完备 → **QA Gate 直接打回**：
+
+| 事实源 | 用途 |
+|---------|------|
+| `doc/specs/<feature>.md` §5 GWT | 验收契约（正向主路径 + 边界 + 异常分支） |
+| `doc/product/user_journeys.md` | 端到端跨端流 |
+| `doc/product/business_constraints.md` | 边界常量（TTL / 上限 / 阈值） |
+| `doc/product/state_machines.md` | 状态转换矩阵 |
+
+### 事实源唯一表
+
+- 状态机：[`doc/product/state_machines.md`](../../doc/product/state_machines.md)
+- 用户旅程：[`doc/product/user_journeys.md`](../../doc/product/user_journeys.md)
+- 业务约束：[`doc/product/business_constraints.md`](../../doc/product/business_constraints.md)
+- 功能簇规约：[`doc/specs/`](../../doc/specs/)（14 份：auth_login / room_lifecycle / room_chat / mic_seat / rtc_voice / gift_economy / ranking_leaderboard / analytics_funnel / room_governance / admin_dashboard / recharge_order / google_play_billing / nobility_purchase / nobility_privileges）

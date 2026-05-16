@@ -1,6 +1,6 @@
 # Voice Room 开发任务清单
 
-> **版本**: v3.37
+> **版本**: v3.38
 > **更新日期**: 2026-05-15
 > **任务总数**: 217 个 (基建: 4 + 14 + 3 + 6, App Server: 33 + 1 + 2 + 1, Admin Server: 16 + 1 + 1, Web: 14 + 1 + 1, Android: 45 + 1 + 1 + 1 + 1, E-07 15 + E-07.5 6 + E-10 18; **新增 E-08 20 + E-09 17 + E-11 19 + E-12 14 = 70**)
 > **当前阶段**: Phase 1 → … → **E-08/E-09 全栈 DoD 收尾**（37/37 Tasks Done, Review Gate ✅, DoD in progress）
@@ -11,6 +11,7 @@
 
 | 版本 | 日期 | 变更内容 |
 |------|------|---------|
+| **v3.38** | **2026-05-15** | [产品边界三件套 + Specs 功能簇规约上架 + 双环境 agent 红线同步] P0-P7 七阶段一次性落地：P0 创建 product/state_machines.md（6 状态机 + 跨端转换矩阵）、P1 user_journeys.md（5 端到端旅程）、P2 business_constraints.md（9 类常量）、P3 修订 doc/tds/_template.md + doc/design/_template.md、P4 创建 doc/specs/_template.md（6 节标准模板）、P5 历史 10 份 Spec（auth_login/room_lifecycle/room_chat/mic_seat/rtc_voice/gift_economy/ranking_leaderboard/analytics_funnel/room_governance/admin_dashboard）、P6 新 4 份 Spec（recharge_order/google_play_billing/nobility_purchase/nobility_privileges）+ 批量回填 37 份 E-08/E-09 TDS §0５Plan＋TDD§阶段全部内联 spec§···P7 双环境 agent 红线同步：LLM_RULES 追加产品验收三红线、copilot-instructions.md + CLAUDE.md 同步、.github/agents/*.agent.md（8 个）与 .claude/agents/*.md（8 个）全部补三红线提示。 |
 | **v3.37** | **2026-05-15** | [DoD E-08/E-09 全栈] 模块10+11 全部 37 Tasks DoD 验收：App Server 12 (v3.32 已完成) + Admin Server 7 (585 tests ✅, route parity ✅) + Web Admin 6 (tsc zero ✅, vite build ✅, Zod validation ✅) + Android 12 (6轮 Review Passed ✅, BUILD SUCCESSFUL ✅, 协议路径全对齐 ✅)。所有 Review Gate ✅ Passed，DoD 标准全满足。P1 遗留项 8 个记录但不阻塞（详见各 task 文件）。 |
 | **v3.36** | **2026-05-15** | [T-30060~65/T-30070~75 Review Round 6 ✅ Passed] Android 模块10支付(6 Task) + 模块11贵族(6 Task) 最终审查通过。5 轮累计修复 12 P0；Round 6 验证 P0-A~D 全部正确落地（NobleRenewalListener 挂载 MainScreen、WS envelope JsonParser 先取 type 再取 payload、6 贵族类型注册 WsGsonAdapter+WsServerMessage sealed class、IBillingPort 防腐层隔离 com.android.billingclient）。12 个 Android Task Review Gate ✅ Passed。4 项已知 P1 遗留（NobleEntered 模型与 server payload-nested 结构不对齐、NobleEntrancePlayer 未挂载到 RoomScreen 视图树、purchaseWithUsd() stub、!! 操作符 4 处）维持非阻塞。 |
 | **v3.34** | **2026-05-12** | [T-10025~28/T-10030~32 Review ⏳ Round 2 开批] Admin Server 模块10支付(4 Task) + 模块11贵族(3 Task) 代码已全部编写完成并通过 cargo check + 585 tests，Review Gate Pending→⏳ In Review，批次审查文档 [AdminServer-模块10-11-支付与贵族管理](../review/_template.md) 建档。Round 1 的 13 项 P0（模块未挂载/文件缺失/路由未注册/权限缺失/集成测试缺失/Redis 事件缺失等）在 TDD Round 2 已全部修复。 |

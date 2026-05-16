@@ -7,6 +7,23 @@
 
 # TDS: [任务名称] (Task ID: T-xxx)
 
+## 〇、产品验收（Given-When-Then）
+
+> ⚠️ **铁律**：本节由 Plan Agent 从对应 `doc/specs/<feature>.md` §5 GWT 章节**逐字复制**对应 Task 的验收条款，禁止改写、禁止意译、禁止裁剪。test-design Agent 编写测试用例时**唯一**以本节为锚。若 Spec 尚未存在或未覆盖本 Task，Plan 阶段必须先回到 PM 阶段补 Spec 再开 TDS。
+
+- **关联 Spec**：[`doc/specs/<feature>.md#L?`](../../specs/<feature>.md)（必填，否则 Plan 不完备）
+- **关联状态机**：[`doc/product/state_machines.md#<id>`](../../product/state_machines.md)（若涉及）
+- **关联用户旅程**：[`doc/product/user_journeys.md#<id>`](../../product/user_journeys.md)（若涉及）
+- **关联业务约束**：[`doc/product/business_constraints.md#<id>`](../../product/business_constraints.md)（列出本 Task 用到的所有常量名）
+
+### GWT 条款（从 Spec §5 复制）
+
+- **GWT-1** —
+  - **Given** ……
+  - **When** ……
+  - **Then** ……
+- **GWT-2** — ……
+
 ## 一、背景与目标
 - **关联需求**：（来自 product.md 的哪个 Feature）
 - **本 Task 的目标**：用一句话描述这个 Task 要解决什么问题

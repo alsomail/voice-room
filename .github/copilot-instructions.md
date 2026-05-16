@@ -37,6 +37,11 @@
    - **TDD**：必须为绑定表中**每一行**写至少一条集成/单测；客户端调用入口（`wsClient.send` / Retrofit / fetch / `apiClient.*`）必须有 grep-able 字符串断言锁定，防止后续误回退到副路径。
    - **Review/global-review**：必须 grep 客户端真实调用入口与服务端处理函数双向比对；客户端走 A 路径但服务端只实现 B 路径 → 直接判 P0。
    - **DoD**：必须把绑定表反向写入 `doc/arch/[端]/[模块].md` 的「🔌 协议入口索引」小节，并在 `doc/protocol/` 对应章节互加跨端反向链接。
+8. **🔴 产品验收三红线（v3.38 引入）**：随 product 边界三件套（`doc/product/state_machines.md` / `user_journeys.md` / `business_constraints.md`）与 `doc/specs/` 功能簇规约上架，附加三条红线：
+   - **(1) Plan 阶段必须有对应 Spec**：E-08 及之后 Task，TDS §0 必须显式关联 `doc/specs/<feature>.md`；无 Spec 锚点的 TDS 不完备 → 禁止流转 TDD。历史已 Done Task 不回填；E-08/E-09 的 37 份 TDS 已批量补齐 §0。
+   - **(2) TDS §0 必须列 GWT 编号清单，禁止本地改写**：每份 TDS 顶部 §0「产品验收（Given-When-Then）」包含 4 个事实源锚点（Spec/状态机/用户旅程/业务约束）+ 本 Task 必须满足的 GWT 编号清单；**GWT 全文以 spec §5 为唯一事实源**，§0 中任何 GWT 文本重述/改写 → 直接判 P0。
+   - **(3) test-design Agent 输入四源齐全**：测试用例必须以 Spec §5 GWT + user_journeys + business_constraints + state_machines 四源齐全为前提；缺源用例 → QA Gate 打回。
+   - **事实源唯一表**：[`doc/product/state_machines.md`](../doc/product/state_machines.md) / [`user_journeys.md`](../doc/product/user_journeys.md) / [`business_constraints.md`](../doc/product/business_constraints.md) / [`doc/specs/`](../doc/specs/)（14 份）。
 
 
 ## 🗺️ 架构与规范全量检索地图 (Context Router)
